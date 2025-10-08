@@ -110,3 +110,7 @@ export const StopIcon = createIcon(
 export const TrashIcon = createIcon(
     <path fillRule="evenodd" d="M9 2a1 1 0 00-1 1H6a1 1 0 000 2h8a1 1 0 100-2h-2a1 1 0 00-1-1H9zM3 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM5 8a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1zm4 0a1 1 0 011 1v6a1 1 0 11-2 0V9a1 1 0 011-1z" clipRule="evenodd" />
 );
+
+export const LightBulbIcon = createIcon(
+    <path fillRule="evenodd" d="M10 2a7 7 0 00-7 7c0 1.956.84 3.738 2.183 5.034.22.213.433.43.636.654.21.232.41.473.593.722.18.245.344.5.485.758a.5.5 0 00.938 0c.14-.258.304-.513.485-.758.183-.25.383-.49.593-.722.203-.224.416-.44.636-.654A6.974 6.974 0 0017 9a7 7 0 00-7-7zM8.5 17.5a1.5 1.5 0 003 0h-3z" clipRule="evenodd" />
+);

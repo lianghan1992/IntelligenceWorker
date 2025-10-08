@@ -98,6 +98,21 @@ export interface FocusPoint {
     relatedCount: number;
 }
 
+// NEW: For the Strategic Cockpit
+export interface StrategicFocus {
+  id: number;
+  title: string;
+  content: string; // AI-generated summary or keywords
+  originalIntent: string; // User's raw input
+}
+
+export interface CompetitorWatch {
+  id: number;
+  entities: string[]; // e.g., ['Tesla', 'NIO']
+  intent: string; // e.g., 'Latest OTA updates for autonomous driving'
+}
+
+
 // For the recommended subscriptions in mock data
 export interface RecommendedSubscription {
   id: string;
@@ -158,4 +173,4 @@ export interface SearchResult extends Partial<InfoItem> {
 
 
 // Navigation views
-export type View = 'dashboard' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';

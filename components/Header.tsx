@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
 
     const navLinks: { view: View; label: string; icon: React.ReactNode }[] = [
         { view: 'dashboard', label: '仪表盘', icon: <HomeIcon /> },
-        { view: 'feed', label: '战略情报驾驶舱', icon: <FeedIcon /> },
+        { view: 'cockpit', label: '战略情报驾驶舱', icon: <FeedIcon /> },
         { view: 'dives', label: '深度洞察专题', icon: <DiveIcon /> },
         { view: 'events', label: '行业发布会', icon: <ChartIcon /> },
         { view: 'ai', label: '报告创建', icon: <SparklesIcon /> },

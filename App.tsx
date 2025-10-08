@@ -4,6 +4,7 @@ import { HomePage } from './components/HomePage';
 import { AuthModal } from './components/AuthModal';
 import { Dashboard } from './components/Dashboard';
 import { InfoFeed } from './components/InfoFeed';
+import { StrategicCockpit } from './components/StrategicCockpit';
 import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents';
 import { ReportGenerator } from './components/ReportGenerator';
@@ -77,7 +78,7 @@ const App: React.FC = () => {
     const handleAddCustomSource = (newItem: InfoItem) => {
         setInfoItems(prev => [newItem, ...prev]);
         setIsAddSourceModalOpen(false);
-        setCurrentView('feed');
+        setCurrentView('cockpit'); // Navigate to the new cockpit view
     };
 
     const renderMainView = () => {
@@ -88,7 +89,9 @@ const App: React.FC = () => {
         switch (currentView) {
             case 'dashboard':
                 return <Dashboard user={user!} subscriptions={subscriptions} />;
-            case 'feed':
+            case 'cockpit':
+                return <StrategicCockpit subscriptions={subscriptions} />;
+            case 'feed': // Old grid view is still available if needed
                 return <InfoFeed items={infoItems} onSelectItem={setSelectedInfoItem} subscriptions={subscriptions} />;
             case 'dives':
                 return <DeepDives dives={deepDives} />;
