@@ -1,17 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { API_BASE_URL } from './config';
 import { InfoItem, Event, User, Subscription, SystemSource, ProcessingTask, ApiProcessingTask, SearchResult } from './types';
-
-let ai: GoogleGenAI | null = null;
-const getGenAI = () => {
-    if (!ai) {
-        // This relies on process.env.API_KEY being available in the execution context.
-        // The instructions say to assume this is pre-configured.
-        ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    }
-    return ai;
-};
-
 
 /**
  * NEW API FUNCTIONS for Intelligence Worker
@@ -171,38 +159,18 @@ export async function searchArticles(queryText: string, pointIds: string[], topK
     return response.json();
 }
 
-// NEW: Function to extract keywords using Gemini
+// NEW: Function to extract keywords using a simple local method.
 export async function extractKeywords(text: string): Promise<string[]> {
-    const ai = getGenAI();
+    // 由于不使用Gemini API，此函数现在使用简单的本地文本处理方法。
+    // 它将按常见的分隔符拆分文本，并返回前5个词。
+    // 函数保持异步以与调用它的组件保持签名兼容。
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: `从以下关于汽车行业的文本中提取3至5个核心关键词。请以JSON格式返回一个包含'keywords'字段的对象，该字段的值为一个字符串数组。文本：“${text}”`,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        keywords: {
-                            type: Type.ARRAY,
-                            description: '提取出的关键词列表',
-                            items: {
-                                type: Type.STRING,
-                            },
-                        },
-                    },
-                    required: ['keywords'],
-                },
-            },
-        });
-
-        const jsonString = response.text.trim();
-        const result = JSON.parse(jsonString);
-        return result.keywords || [];
+        const keywords = text.split(/[ ,、\s]+/).filter(Boolean).slice(0, 5);
+        // Wrap in a resolved promise to maintain the async signature
+        return Promise.resolve(keywords);
     } catch (error) {
-        console.error('Error extracting keywords with AI:', error);
-        // Fallback: simple split and slice if AI fails
-        return text.split(/[ ,、\s]+/).filter(Boolean).slice(0, 5);
+        console.error('Error extracting keywords with simple method:', error);
+        return Promise.resolve([]); // on error, return an empty array
     }
 }
 
