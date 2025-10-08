@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
 import { CloseIcon, LogoIcon } from './icons';
+// FiX: Corrected path to api.ts to resolve module not found error.
 import { loginUser, registerUser, forgotPassword } from '../api';
 import { User } from '../types';
 

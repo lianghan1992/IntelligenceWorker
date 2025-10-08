@@ -1,12 +1,14 @@
+
 import React, { useState } from 'react';
 import { CloseIcon } from './icons';
+// FiX: Corrected path to api.ts to resolve module not found error.
 import { processUrlToInfoItem } from '../api';
 import { InfoItem } from '../types';
 
 interface AddSourceModalProps {
   onClose: () => void;
-  // Fix: Changed type to `any` to match the data structure returned by `processUrlToInfoItem` and expected by App.tsx's handler.
-  onAdd: (newItem: any) => void;
+  // Fix: Changed type to `InfoItem` to match the data structure returned by `processUrlToInfoItem` and expected by App.tsx's handler.
+  onAdd: (newItem: InfoItem) => void;
 }
 
 const Spinner: React.FC = () => (

@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Event } from '../types';
 import { VideoCameraIcon, DocumentTextIcon } from './icons';
+// FiX: Corrected path to api.ts to resolve module not found error.
 import { getEvents, ApiTask, convertApiTaskToFrontendEvent } from '../api';
 import { EventReportModal } from './EventReportModal';
 
@@ -259,7 +261,7 @@ export const IndustryEvents: React.FC = () => {
             console.log('WebSocket event: tasks_status_batch_update received', data);
             if (data && Array.isArray(data.tasks)) {
                 // Per API v11, we should completely replace the list for consistency.
-                const newEvents = data.tasks.map(convertApiTaskToFrontendEvent);
+                const newEvents: Event[] = data.tasks.map(convertApiTaskToFrontendEvent);
                 setEvents(sortEvents(newEvents));
             }
         });

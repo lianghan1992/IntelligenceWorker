@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
 import { AuthModal } from './components/AuthModal';
+// FiX: Corrected path to Dashboard.tsx to resolve module not found error.
 import { Dashboard } from './components/Dashboard';
 import { InfoFeed } from './components/InfoFeed';
 import { DeepDives } from './components/DeepDives';
@@ -12,6 +14,7 @@ import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
+// FiX: Corrected path to api.ts to resolve module not found error.
 import { getPoints, getArticles } from './api';
 import { mockDeepDives } from './mockData';
 

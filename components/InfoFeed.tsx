@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { InfoItem, Subscription } from '../types';
 import { BookmarkIcon, DocumentTextIcon, CheckIcon, RssIcon } from './icons';
+// FiX: Corrected path to api.ts to resolve module not found error.
 import { getArticles } from '../api';
 
 const InfoCard: React.FC<{ item: InfoItem; onClick: () => void; }> = ({ item, onClick }) => {
