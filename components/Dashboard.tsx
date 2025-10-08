@@ -113,8 +113,9 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
         setError('');
 
         try {
+            const combinedText = `${title} ${content}`;
             const [keywords, searchResults] = await Promise.all([
-                extractKeywords(content),
+                extractKeywords(combinedText),
                 searchArticles(content, allPointIds, 50)
             ]);
 
@@ -208,7 +209,11 @@ const SourceCard: React.FC<{ source: SystemSource }> = ({ source }) => (
     </div>
 );
 
-const SourceSubscriptions: React.FC = () => {
+interface SourceSubscriptionsProps {
+    subscriptions: Subscription[];
+}
+
+const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ subscriptions }) => {
     const [sources, setSources] = useState<SystemSource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -216,10 +221,16 @@ const SourceSubscriptions: React.FC = () => {
         const fetchSources = async () => {
             try {
                 const data = await getSources();
-                 // Add mock data for UI
+
+                // 实时计算每个情报源下的情报点数量
+                const pointCountsBySource = subscriptions.reduce((acc, sub) => {
+                    acc[sub.source_name] = (acc[sub.source_name] || 0) + 1;
+                    return acc;
+                }, {} as Record<string, number>);
+
                 const augmentedData = data.map(s => ({
                     ...s,
-                    subscriberCount: Math.floor(Math.random() * 1000) + 200,
+                    subscription_count: pointCountsBySource[s.name] || 0, // 使用前端计算的准确数量
                 }));
                 setSources(augmentedData);
             } catch (error) {
@@ -229,7 +240,7 @@ const SourceSubscriptions: React.FC = () => {
             }
         };
         fetchSources();
-    }, []);
+    }, [subscriptions]);
 
     return (
         <div>
@@ -290,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 <MyFocusPoints subscriptions={subscriptions} />
 
                 {/* Source Subscriptions */}
-                <SourceSubscriptions />
+                <SourceSubscriptions subscriptions={subscriptions} />
             </div>
         </div>
     );

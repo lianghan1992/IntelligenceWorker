@@ -161,9 +161,7 @@ export async function searchArticles(queryText: string, pointIds: string[], topK
 
 // NEW: Function to extract keywords using a simple local method.
 export async function extractKeywords(text: string): Promise<string[]> {
-    // 简单的中文关键词提取，不依赖外部API
     try {
-        // 1. 定义一个更全面的中文停用词列表以提高关键词提取质量
         const stopWords = new Set([
             '的', '了', '在', '是', '我', '你', '他', '她', '它', '我们', '你们', '他们',
             '和', '与', '或', '跟', '但', '也', '还', '就', '都', '等', '以及', '关于',
@@ -177,8 +175,12 @@ export async function extractKeywords(text: string): Promise<string[]> {
             '啊', '呀', '吧', '呢', '吗', '嘛', '哇', '哦', '哈', '嘿', '嗨', '嗯'
         ]);
 
-        // 2. 使用更全面的分隔符拆分文本，包括中英文标点
-        const words = text.split(/[ ,、\s，。；？！"“”.?!]+/);
+        // 1. 使用停用词作为分隔符，将长句切分成潜在的关键词短语
+        const stopWordsRegex = new RegExp(Array.from(stopWords).join('|'), 'g');
+        const textWithSpaces = text.replace(stopWordsRegex, ' ');
+
+        // 2. 使用更全面的分隔符拆分文本，包括中英文标点和空格
+        const words = textWithSpaces.split(/[ ,、\s，。；？！"“”.?!]+/);
 
         // 3. 过滤掉停用词、空字符串和单个字符的词
         const filteredWords = words.filter(word => {
@@ -197,14 +199,9 @@ export async function extractKeywords(text: string): Promise<string[]> {
             .sort((a, b) => wordFrequencies[b] - wordFrequencies[a])
             .slice(0, 5);
             
-        // 如果没有提取到关键词，则使用原始简单方法作为备用
-        if (sortedKeywords.length === 0) {
-            return Promise.resolve(text.split(/[ ,、\s]+/).filter(Boolean).slice(0, 5));
-        }
-
         return Promise.resolve(sortedKeywords);
     } catch (error) {
-        console.error('Error extracting keywords with simple method:', error);
+        console.error('Error extracting keywords:', error);
         return Promise.resolve([]); // on error, return an empty array
     }
 }
