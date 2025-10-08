@@ -1,5 +1,14 @@
 import React from 'react';
-import { DocumentTextIcon, BookmarkIcon, RssIcon } from './icons';
+import { DocumentTextIcon, BookmarkIcon, RssIcon, TrendingUpIcon } from './icons';
+
+interface DashboardWidgetsProps {
+    stats: {
+        articlesToday: number;
+        pointsWithUpdates: number;
+        totalPoints: number;
+        totalSources: number;
+    }
+}
 
 const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string; description: string; }> = ({ icon, title, value, description }) => (
     <div className="bg-white p-5 rounded-xl border border-gray-200 flex items-start space-x-4">
@@ -14,25 +23,31 @@ const StatCard: React.FC<{ icon: React.ReactNode; title: string; value: string; 
     </div>
 );
 
-export const DashboardWidgets: React.FC = () => {
+export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ stats }) => {
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard 
                 icon={<DocumentTextIcon className="w-6 h-6" />}
                 title="今日新增情报"
-                value="28"
+                value={stats.articlesToday.toLocaleString()}
                 description="来自您关注的所有来源"
             />
             <StatCard 
+                icon={<TrendingUpIcon className="w-6 h-6" />}
+                title="有动态的关注点"
+                value={stats.pointsWithUpdates.toLocaleString()}
+                description="今日有新情报的关注点数量"
+            />
+            <StatCard 
                 icon={<BookmarkIcon className="w-6 h-6" />}
-                title="我的关注点"
-                value="3 个"
-                description="2 个关注点有新动态"
+                title="情报点总数"
+                value={stats.totalPoints.toLocaleString()}
+                description="您创建的所有情报追踪点"
             />
             <StatCard 
                 icon={<RssIcon className="w-6 h-6" />}
-                title="我的情报源"
-                value="4 个"
+                title="情报源总数"
+                value={stats.totalSources.toLocaleString()}
                 description="系统及自定义来源总数"
             />
         </div>

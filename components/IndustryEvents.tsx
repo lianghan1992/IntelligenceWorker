@@ -242,8 +242,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复: 修复 socket.io-client 初始化问题。
-        const socket: Socket = io();
+        // 修复: 修复 socket.io-client 初始化问题，通过传递空对象满足类型检查。
+        const socket: Socket = io({});
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');

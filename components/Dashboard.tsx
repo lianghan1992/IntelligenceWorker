@@ -174,10 +174,15 @@ const SystemSourceCard: React.FC<{ source: SystemSource }> = ({ source }) => {
 interface DashboardProps {
     subscriptions: Subscription[];
     onAddSubscription: () => void;
-    onAddSource: () => void;
+    stats: {
+        articlesToday: number;
+        pointsWithUpdates: number;
+        totalPoints: number;
+        totalSources: number;
+    }
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ subscriptions, onAddSubscription, onAddSource }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ subscriptions, onAddSubscription, stats }) => {
     const [systemSources, setSystemSources] = useState<SystemSource[]>([]);
     const [isLoadingSources, setIsLoadingSources] = useState(true);
 
@@ -198,7 +203,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ subscriptions, onAddSubscr
 
     return (
         <div className="p-6 space-y-8">
-            <DashboardWidgets />
+            <DashboardWidgets stats={stats} />
 
             <div>
                  <div className="flex justify-between items-center mb-4">
@@ -226,7 +231,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ subscriptions, onAddSubscr
             <div>
                  <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-gray-800">情报源订阅</h2>
-                    <button onClick={onAddSource} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                    <button onClick={onAddSubscription} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors">
                         <PlusIcon className="w-4 h-4"/> 添加自定义源
                     </button>
                  </div>

@@ -9,7 +9,3 @@
 // 使用相对路径，以便在不同环境（Vite开发服务器、Node、Apache）中进行代理。
 // 服务器需要配置将 /api 的请求代理到实际的后端API。
 export const API_BASE_URL = '/api';
-
-
-// Jina AI Reader URL (无需密钥)
-export const JINA_READER_URL = 'https://r.jina.ai/';

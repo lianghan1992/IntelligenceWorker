@@ -6,16 +6,15 @@ import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents';
 import { ReportGenerator } from './components/ReportGenerator';
 import { InfoDetailView } from './components/InfoDetailView';
-import { AddSourceModal } from './components/AddSourceModal';
 import { AddSubscriptionModal } from './components/AddSubscriptionModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage';
 import { AdminPage } from './components/AdminPage';
 import { mockDeepDives } from './mockData';
-import { InfoItem, Subscription, User } from './types';
-import { getArticles, getPoints, createPoint } from './api';
+import { InfoItem, Subscription, User, SystemSource } from './types';
+import { getArticles, getPoints, createPoint, getSources } from './api';
 
-type NewSubscriptionData = Omit<Subscription, 'id' | 'keywords' | 'query' | 'newItemsCount'>;
+type NewSubscriptionData = Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>;
 
 const App: React.FC = () => {
     const [currentUser] = useState<User>({
@@ -26,29 +25,50 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState('home');
     const [selectedInfoItem, setSelectedInfoItem] = useState<InfoItem | null>(null);
     
-    const [isAddSourceModalOpen, setAddSourceModalOpen] = useState(false);
     const [isPricingModalOpen, setPricingModalOpen] = useState(false);
     const [isAddSubscriptionModalOpen, setAddSubscriptionModalOpen] = useState(false);
 
-    // NEW: state for API data
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [infoFeedItems, setInfoFeedItems] = useState<InfoItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dashboardStats, setDashboardStats] = useState({
+        articlesToday: 0,
+        pointsWithUpdates: 0,
+        totalPoints: 0,
+        totalSources: 0,
+    });
 
      // Fetch initial data
     useEffect(() => {
         const fetchData = async () => {
-            if (currentView === 'home') return; // Don't fetch data on home page
+            if (currentView === 'home' || currentView === 'admin') return; 
             setIsLoading(true);
             setError(null);
             try {
-                const [pointsData, articlesData] = await Promise.all([
+                const [pointsData, articlesData, sourcesData] = await Promise.all([
                     getPoints(),
-                    getArticles({ page: 1, limit: 100 }) // Fetch initial batch of articles
+                    getArticles({ page: 1, limit: 200 }), // Fetch more for better stats
+                    getSources()
                 ]);
+
                 setSubscriptions(pointsData);
                 setInfoFeedItems(articlesData.items);
+                
+                // Calculate dashboard stats
+                const today = new Date().toDateString();
+                const articlesToday = articlesData.items.filter(item => 
+                    new Date(item.created_at).toDateString() === today
+                );
+                const updatedPointIds = new Set(articlesToday.map(item => item.point_id));
+
+                setDashboardStats({
+                    articlesToday: articlesToday.length,
+                    pointsWithUpdates: updatedPointIds.size,
+                    totalPoints: pointsData.length,
+                    totalSources: sourcesData.length,
+                });
+
             } catch (err: any) {
                 setError(err.message || 'Failed to load initial data.');
                 console.error(err);
@@ -91,34 +111,16 @@ const App: React.FC = () => {
         }
     };
 
-    const handleAddNewInfoItem = (newItem: any) => { // newItem is not a valid InfoItem anymore
-        // This is a temporary fix to make the UI work. The added item won't be perfect.
-        const compatibleItem: InfoItem = {
-            id: newItem.id,
-            point_id: 'custom',
-            source_name: newItem.source.name,
-            point_name: '自定义来源',
-            title: newItem.title,
-            original_url: newItem.source.url,
-            publish_date: newItem.timestamp,
-            content: newItem.content,
-            created_at: newItem.timestamp,
-        };
-        setInfoFeedItems(prevItems => [compatibleItem, ...prevItems]);
-        setAddSourceModalOpen(false);
-        setCurrentView('feed');
-    };
-
     const renderContent = () => {
         if (selectedInfoItem) {
             return <InfoDetailView item={selectedInfoItem} onBack={handleBackToFeed} />;
         }
 
-        if (isLoading && currentView !== 'home') {
+        if (isLoading && !['home', 'admin'].includes(currentView)) {
             return <div className="flex items-center justify-center h-full"><p>加载数据中...</p></div>;
         }
 
-        if (error && currentView !== 'home') {
+        if (error && !['home', 'admin'].includes(currentView)) {
             return <div className="flex items-center justify-center h-full"><p className="text-red-500">错误: {error}</p></div>;
         }
 
@@ -129,7 +131,7 @@ const App: React.FC = () => {
                 return <Dashboard 
                             subscriptions={subscriptions}
                             onAddSubscription={() => setAddSubscriptionModalOpen(true)}
-                            onAddSource={() => setAddSourceModalOpen(true)}
+                            stats={dashboardStats}
                         />;
             case 'feed':
                 return <InfoFeed items={infoFeedItems} onSelectItem={handleSelectItem} subscriptions={subscriptions} />;
@@ -168,7 +170,6 @@ const App: React.FC = () => {
                 </div>
             )}
             
-            {isAddSourceModalOpen && <AddSourceModal onClose={() => setAddSourceModalOpen(false)} onAdd={handleAddNewInfoItem} />}
             {isPricingModalOpen && <PricingModal onClose={() => setPricingModalOpen(false)} />}
             {isAddSubscriptionModalOpen && <AddSubscriptionModal onClose={() => setAddSubscriptionModalOpen(false)} onSave={handleSaveSubscription} />}
         </>

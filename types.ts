@@ -38,7 +38,6 @@ export interface Event {
   title: string;
   status: 'UPCOMING' | 'LIVE' | 'SUMMARIZING' | 'CONCLUDED' | 'FAILED';
   taskType: 'LIVE' | 'OFFLINE';
-  pdfStatus?: 'pending' | 'generating' | 'completed' | 'failed' | null;
   startTime: string; // ISO 8601 format
   organizer: {
     name: string;
@@ -48,7 +47,6 @@ export interface Event {
   liveUrl: string | null;
   sourceUri?: string | null;
   reportContentHtml: string | null;
-  pdfDownloadUrl?: string | null;
 }
 
 
@@ -108,4 +106,29 @@ export interface User {
   user_id: string;
   username: string;
   email: string;
+}
+
+// NEW: For the refactored Admin Page to manage intelligence source processing tasks
+export interface ProcessingTask {
+  id: string;
+  point_id: string;
+  article_id: string | null;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  log: string | null;
+  created_at: string;
+  updated_at: string;
+  // Synthesized for UI
+  source_name: string;
+  point_name: string;
+}
+
+// This represents the raw task object received from the backend API for processing tasks.
+export interface ApiProcessingTask {
+    id: string;
+    point_id: string;
+    article_id: string | null;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    log: string | null;
+    created_at: string;
+    updated_at: string;
 }
