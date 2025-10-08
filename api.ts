@@ -1,7 +1,6 @@
-import { ai, API_BASE_URL } from './config';
+import { API_BASE_URL } from './config';
 import { JINA_READER_URL } from './config';
 import { InfoItem, InfoSource, Event, User, Subscription, SystemSource } from './types';
-import { Type } from '@google/genai';
 
 /**
  * NEW API FUNCTIONS for Intelligence Worker
@@ -256,34 +255,6 @@ export async function deleteEventTask(taskId: string): Promise<{ message: string
 }
 
 /**
- * Generic function to call the Gemini AI model and get a JSON response.
- * @param prompt The prompt to send to the model.
- * @param schema The expected JSON schema for the response.
- * @returns The parsed JSON object from the model's response.
- */
-async function callGeminiAI(prompt: string, schema: any): Promise<any> {
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: schema,
-            },
-        });
-        
-        const jsonText = response.text;
-        return JSON.parse(jsonText);
-    } catch (error) {
-        console.error("Error calling Gemini API:", error);
-        if (error instanceof Error) {
-            throw new Error(`Gemini AI API error: ${error.message}`);
-        }
-        throw new Error('An unknown error occurred with the Gemini AI API.');
-    }
-}
-
-/**
  * 使用 Jina AI Reader 读取给定 URL 的内容
  * @param url 要读取的URL
  * @returns 返回页面的Markdown内容
@@ -306,95 +277,8 @@ async function readUrlContent(url: string): Promise<string> {
     }
 }
 
-/**
- * 使用智谱AI从主页Markdown中识别文章链接
- * @param markdown 主页的Markdown内容
- * @returns 返回一个包含文章URL的数组
- */
-async function identifyArticleUrls(markdown: string): Promise<string[]> {
-    const prompt = `
-        你是一位专业的网络内容分析专家。以下是一份新闻或博客主页的 Markdown 内容。
-        你的任务是识别出那些指向独立文章页面的主要链接。
-        请返回一个包含这些完整 URL 的 JSON 数组。只包含直接的文章链接，忽略导航、页脚和广告。
-
-        Markdown 内容:
-        ${markdown}
-    `;
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            article_urls: {
-                type: Type.ARRAY,
-                description: 'A list of full URLs to articles found on the page.',
-                items: {
-                    type: Type.STRING,
-                }
-            }
-        },
-        required: ['article_urls'],
-    };
-
-    try {
-        const result = await callGeminiAI(prompt, schema);
-        return result.article_urls || [];
-    } catch (error) {
-        console.error("使用智谱AI识别文章URL时出错:", error);
-        return [];
-    }
-}
-
-/**
- * 使用智谱AI从文章Markdown中提取结构化信息
- * @param markdown 文章页面的Markdown内容
- * @returns 返回一个结构化的InfoItem对象的部分数据
- */
-// Fix: Completed the function, changed return type to any to avoid stale type issues, and ensured it returns a value.
-async function extractArticleInfo(markdown: string): Promise<any> {
-    const prompt = `
-        你是一位专门负责构建新闻内容的 AI 助手。以下是一篇新闻文章的纯净 Markdown 内容。请提取以下信息，并以一个干净的 JSON 对象格式返回：
-        1. "title": 文章的主标题。
-        2. "summary": 一段式的简洁摘要。
-        3. "content": 完整的文章内容，格式化为干净的 HTML。段落使用 <p> 标签，子标题使用 <h4> 标签。
-        4. "timestamp": 文章的发布日期和时间，格式为 ISO 8601 (YYYY-MM-DDTHH:mm:ssZ)。如果找不到日期，请使用当前日期。
-        5. "tags": 一个包含 3-5 个相关关键词的字符串数组。
-
-        JSON 响应必须严格符合以上格式。
-        
-        Markdown 内容:
-        ${markdown}
-    `;
-    const schema = {
-        type: Type.OBJECT,
-        properties: {
-            title: { type: Type.STRING, description: 'The main title of the article.' },
-            summary: { type: Type.STRING, description: 'A concise, single-paragraph summary.' },
-            content: { type: Type.STRING, description: 'The full article content, formatted as clean HTML.' },
-            timestamp: { type: Type.STRING, description: 'The publication date and time in ISO 8601 format.' },
-            tags: {
-                type: Type.ARRAY,
-                description: 'A list of 3-5 relevant keywords.',
-                items: {
-                    type: Type.STRING
-                }
-            }
-        },
-        required: ['title', 'summary', 'content', 'timestamp', 'tags'],
-    };
-    
-    try {
-        const result = await callGeminiAI(prompt, schema);
-
-        if (!result.timestamp || isNaN(new Date(result.timestamp).getTime())) {
-            result.timestamp = new Date().toISOString();
-        }
-        return result;
-    } catch (error) {
-        console.error("Error extracting article info:", error);
-        throw error;
-    }
-}
-
 // Fix: Added missing function `processUrlToInfoItem` to handle custom URL processing.
+// This version is rewritten to not use any AI model for extraction.
 export async function processUrlToInfoItem(url: string, setFeedback: (msg: string) => void): Promise<any> {
     try {
         setFeedback('正在读取 URL 内容...');
@@ -404,16 +288,36 @@ export async function processUrlToInfoItem(url: string, setFeedback: (msg: strin
         }
 
         setFeedback('正在提取文章信息...');
-        const articleInfo = await extractArticleInfo(markdown);
+        
+        // Simple, non-AI extraction
+        const titleMatch = markdown.match(/^(?:\s*#\s+)(.*)$/m);
+        let title = new URL(url).hostname; // Default title
+        if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1];
+        } else {
+             const titleTagMatch = markdown.match(/<title>(.*?)<\/title>/i);
+             if (titleTagMatch && titleTagMatch[1]) {
+                title = titleTagMatch[1];
+             }
+        }
+        
+        // Remove markdown for content
+        const plainContent = markdown
+            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // remove links but keep text
+            .replace(/(\*|_|`|#)/g, '') // remove markdown characters
+            .replace(/\s+/g, ' ') // normalize whitespace
+            .trim();
+
+        const content = plainContent.length > 200 ? plainContent.substring(0, 200) + '...' : plainContent;
 
         const sourceName = new URL(url).hostname.replace(/^www\./, '');
 
         // Construct a partial InfoItem-like object for the UI
         return {
             id: `custom-${Date.now()}`,
-            title: articleInfo.title,
-            content: articleInfo.content,
-            timestamp: articleInfo.timestamp,
+            title: title.trim(),
+            content: content,
+            timestamp: new Date().toISOString(),
             source: {
                 name: sourceName,
                 url: url,

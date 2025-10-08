@@ -49,7 +49,7 @@ const EventManagement: React.FC = () => {
     const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
 
     const observer = useRef<IntersectionObserver>();
-    const lastEventElementRef = useCallback(node => {
+    const lastEventElementRef = useCallback((node: HTMLTableRowElement | null) => {
         if (isLoading || isFetchingMore) return;
         if (observer.current) observer.current.disconnect();
         observer.current = new IntersectionObserver(entries => {
@@ -95,7 +95,7 @@ const EventManagement: React.FC = () => {
     }, [page]);
 
     useEffect(() => {
-        // Fix: Pass an empty object to io() to satisfy TypeScript overload resolution for socket.io-client.
+        // 修复：为 io() 提供一个空对象参数以解决 TypeScript 类型错误。
         const socket: Socket = io({});
         socket.on('connect', () => { 
             console.log('Admin WebSocket connected. Joining room: live_recorder');
