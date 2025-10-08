@@ -1,7 +1,5 @@
-
 import React, { useState, useRef } from 'react';
 import { CloseIcon } from './icons';
-// FiX: Corrected path to api.ts to resolve module not found error.
 import { createLiveTask, createOfflineTask, ApiTask } from '../api';
 
 interface AddEventModalProps {

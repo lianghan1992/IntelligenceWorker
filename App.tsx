@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
 import { AuthModal } from './components/AuthModal';
-// FiX: Corrected path to Dashboard.tsx to resolve module not found error.
 import { Dashboard } from './components/Dashboard';
 import { InfoFeed } from './components/InfoFeed';
 import { DeepDives } from './components/DeepDives';
@@ -13,24 +12,14 @@ import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
-// FiX: Corrected path to api.ts to resolve module not found error.
 import { getPoints, getArticles } from './api';
 import { mockDeepDives } from './mockData';
 
 type AppState = 'landing' | 'auth' | 'loading' | 'app';
 
-// 创建一个模拟用户以绕过登录流程
-const mockUser: User = {
-    user_id: 'temp_user_01',
-    username: '访客用户',
-    email: 'guest@example.com',
-};
-
 const App: React.FC = () => {
-    // 设置初始状态为 'loading' 并使用模拟用户，以直接进入应用
-    const [appState, setAppState] = useState<AppState>('loading');
-    const [user, setUser] = useState<User | null>(mockUser);
-    
+    const [appState, setAppState] = useState<AppState>('landing');
+    const [user, setUser] = useState<User | null>(null);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -59,26 +48,24 @@ const App: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '无法加载应用数据');
             console.error(err);
-            // 修复: 即使在出错时也要更新应用状态，以退出加载屏幕并显示错误
-            setAppState('app');
         } finally {
             setIsLoading(false);
         }
     }, []);
     
-    // 应用加载时直接获取数据
     useEffect(() => {
-        loadAppData();
-    }, [loadAppData]);
+        if (user) {
+            loadAppData();
+        }
+    }, [user, loadAppData]);
 
-    // 保留登录逻辑以备后续使用
     const handleLoginSuccess = (loggedInUser: User) => {
         setUser(loggedInUser);
         setAppState('loading');
     };
 
-    // 保留进入逻辑以备后续使用
     const handleEnter = () => {
+        // For demo purposes, we'll show auth. In a real app, you might check for a stored token.
         setAppState('auth');
     };
 
@@ -116,7 +103,6 @@ const App: React.FC = () => {
         }
     };
     
-    // 以下视图在当前配置下将被跳过，但保留代码
     if (appState === 'landing') {
         return <HomePage onEnter={handleEnter} />;
     }
@@ -125,7 +111,6 @@ const App: React.FC = () => {
         return <AuthModal onClose={() => setAppState('landing')} onLoginSuccess={handleLoginSuccess} />;
     }
     
-    // 应用启动时会先显示加载状态
     if (appState === 'loading' || isLoading) {
         return <div className="flex items-center justify-center h-screen">正在加载工作台...</div>;
     }

@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Subscription, ProcessingTask, ApiProcessingTask } from '../types';
-// FiX: Corrected path to api.ts to resolve module not found error.
 import { getProcessingTasks, getPoints, createPoint } from '../api';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon } from './icons';
 import { AddSubscriptionModal } from './AddSubscriptionModal';

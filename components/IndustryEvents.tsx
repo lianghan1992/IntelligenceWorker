@@ -1,11 +1,7 @@
-
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Event } from '../types';
 import { VideoCameraIcon, DocumentTextIcon } from './icons';
-// FiX: Corrected path to api.ts to resolve module not found error.
 import { getEvents, ApiTask, convertApiTaskToFrontendEvent } from '../api';
 import { EventReportModal } from './EventReportModal';
 
@@ -246,8 +242,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复：socket.io-client 的类型定义问题，该问题导致无参数的 io() 调用失败。
-        // 传递'/'作为参数可以连接到当前主机的根命名空间，效果与默认行为相同，并满足类型检查器的要求。
+        // 修复: socket.io-client 的 io() 函数根据当前项目的类型定义需要一个参数，以解决 "Expected 1 arguments, but got 0" 的错误。
+        // 此处传入'/'，使其连接到托管前端应用的服务器，以便通过代理与WebSocket后端通信。
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
@@ -263,7 +259,7 @@ export const IndustryEvents: React.FC = () => {
             console.log('WebSocket event: tasks_status_batch_update received', data);
             if (data && Array.isArray(data.tasks)) {
                 // Per API v11, we should completely replace the list for consistency.
-                const newEvents: Event[] = data.tasks.map(convertApiTaskToFrontendEvent);
+                const newEvents = data.tasks.map(convertApiTaskToFrontendEvent);
                 setEvents(sortEvents(newEvents));
             }
         });
