@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Event } from '../types';
@@ -244,9 +245,10 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复: socket.io-client 的 io() 函数调用存在类型定义问题，此处使用无参数调用，
-        //使其连接到托管前端应用的服务器，以便通过代理与WebSocket后端通信。
-        const socket: Socket = io();
+        // FIX: The error "Expected 1 arguments, but got 0" is likely due to a tooling or type definition issue with `socket.io-client`.
+        // Calling `io({})` uses a different function overload `io(options)` which satisfies the type-checker's need for an argument,
+        // while still connecting to the current host by default, ensuring the proxy works as intended.
+        const socket: Socket = io({});
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');

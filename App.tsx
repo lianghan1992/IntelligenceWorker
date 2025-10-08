@@ -59,6 +59,8 @@ const App: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '无法加载应用数据');
             console.error(err);
+            // 修复: 即使在出错时也要更新应用状态，以退出加载屏幕并显示错误
+            setAppState('app');
         } finally {
             setIsLoading(false);
         }
