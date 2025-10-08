@@ -5,7 +5,8 @@ import { getSources } from '../api';
 
 interface AddSubscriptionModalProps {
   onClose: () => void;
-  onSave: (subscription: Omit<Subscription, 'id' | 'keywords' | 'query' | 'newItemsCount'>) => void;
+  // 修复：从Omit类型中移除不存在的 'query' 属性
+  onSave: (subscription: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>) => void;
 }
 
 const cronOptions = [

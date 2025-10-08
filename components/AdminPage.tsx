@@ -71,7 +71,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ subscriptions, onSubscript
         }
     }, [pointMap]);
 
-    const handleAddSubscription = async (sub: Omit<Subscription, 'id'| 'source_id' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'keywords' | 'newItemsCount'>) => {
+    // 修复：将 `sub` 参数的类型与 AddSubscriptionModal 的 `onSave` prop 类型对齐，以解决类型不匹配问题。
+    const handleAddSubscription = async (sub: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>) => {
         try {
             await createPoint(sub);
             setAddSubModalOpen(false);

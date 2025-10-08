@@ -5,8 +5,8 @@ import { InfoItem } from '../types';
 
 interface AddSourceModalProps {
   onClose: () => void;
-  // Fix: Changed type to `any` to match the data structure returned by `processUrlToInfoItem` and expected by App.tsx's handler.
-  onAdd: (newItem: any) => void;
+  // 修复：将类型从`any`更改为`InfoItem`以匹配`processUrlToInfoItem`返回的数据结构和App.tsx处理程序所期望的类型。
+  onAdd: (newItem: InfoItem) => void;
 }
 
 const Spinner: React.FC = () => (
