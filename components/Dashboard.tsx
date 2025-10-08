@@ -212,9 +212,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ subscriptions, onAddSubscr
 
             <div>
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">推荐关注点</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {mockRecommendedSubscriptions.map(sub => <RecommendedSubscriptionCard key={sub.id} sub={sub} />)}
-                </div>
+                {mockRecommendedSubscriptions.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {mockRecommendedSubscriptions.map(sub => <RecommendedSubscriptionCard key={sub.id} sub={sub} />)}
+                    </div>
+                ) : (
+                    <div className="text-center py-10 bg-gray-50 rounded-lg border">
+                        <p className="text-gray-500">暂无推荐关注点。</p>
+                    </div>
+                )}
             </div>
 
             <div>

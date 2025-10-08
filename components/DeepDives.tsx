@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { DeepDive } from '../types';
 import { SearchIcon } from './icons';
@@ -106,11 +107,17 @@ export const DeepDives: React.FC<DeepDivesProps> = ({ dives }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredDives.map(dive => (
-                    <DeepDiveCard key={dive.id} dive={dive} />
-                ))}
-            </div>
+            {filteredDives.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredDives.map(dive => (
+                        <DeepDiveCard key={dive.id} dive={dive} />
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-20 col-span-full">
+                    <p className="text-gray-500">暂无深度洞察专题。</p>
+                </div>
+            )}
         </div>
     );
 };

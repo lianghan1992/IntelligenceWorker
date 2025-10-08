@@ -161,11 +161,15 @@ export function convertApiTaskToFrontendEvent(task: ApiTask): Event {
 }
 
 
-export async function getEvents(page = 1, limit = 10): Promise<{ events: Event[], totalPages: number }> {
+export async function getEvents(page = 1, limit = 10, status = ''): Promise<{ events: Event[], totalPages: number }> {
     const query = new URLSearchParams({
         page: String(page),
         limit: String(limit),
     });
+
+    if (status) {
+        query.set('status', status);
+    }
     
     const response = await fetch(`${API_BASE_URL}/tasks?${query}`);
     if (!response.ok) {
