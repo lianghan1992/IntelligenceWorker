@@ -1,4 +1,3 @@
-
 import { API_BASE_URL } from './config';
 import { User, Subscription, InfoItem, SystemSource, ApiProcessingTask, Event } from './types';
 
@@ -35,16 +34,37 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
     try {
         const response = await fetch(url, { ...options, headers });
+        
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: '无法解析错误响应' }));
-            throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+            let errorMessage = `HTTP ${response.status}: ${response.statusText || '发生未知错误'}`;
+            try {
+                // 优先尝试按JSON解析，并使用API文档中定义的 'detail' 字段
+                const errorData = await response.json();
+                if (errorData && errorData.detail) {
+                    errorMessage = typeof errorData.detail === 'string' ? errorData.detail : JSON.stringify(errorData.detail);
+                } else if (errorData && errorData.message) {
+                    errorMessage = errorData.message;
+                }
+            } catch (jsonError) {
+                // 如果JSON解析失败，回退到按纯文本读取响应体
+                try {
+                    const textError = await response.text();
+                    if (textError) {
+                        errorMessage = textError;
+                    }
+                } catch (textError) {
+                    // 如果读取文本也失败，则使用默认的HTTP状态信息
+                }
+            }
+            throw new Error(errorMessage);
         }
+
         if (response.status === 204) { // No Content
             return null;
         }
         return response.json();
     } catch (error) {
-        console.error(`API fetch error on ${endpoint}:`, error);
+        console.error(`API fetch error on ${endpoint}:`, error instanceof Error ? error.message : String(error));
         throw error;
     }
 }
@@ -77,8 +97,29 @@ export const forgotPassword = async (email: string): Promise<void> => {
 // --- 数据获取 API ---
 
 export const getPoints = async (): Promise<Subscription[]> => {
-    return apiFetch('/points');
+    // 根据 API v1.1.0, 获取情报点需要 `source_name`。
+    // 为了获取所有情报点，我们必须先获取所有情报源，然后分别为每个情报源请求其下的情报点。
+    const sources: SystemSource[] = await getSources();
+
+    if (!sources || sources.length === 0) {
+        return [];
+    }
+
+    // 为每个情报源创建一个fetch promise
+    const allPointsPromises = sources.map(source => {
+        const encodedSourceName = encodeURIComponent(source.name);
+        return apiFetch(`/points?source_name=${encodedSourceName}`).catch(err => {
+            console.error(`无法为情报源 "${source.name}" 获取情报点:`, err);
+            return []; // 为失败的请求返回空数组，以避免 Promise.all 中断
+        });
+    });
+
+    const pointsNestedArray = await Promise.all(allPointsPromises);
+    
+    // 将二维数组扁平化为一维数组
+    return pointsNestedArray.flat();
 };
+
 
 export const getSources = async (): Promise<SystemSource[]> => {
     return apiFetch('/sources');
