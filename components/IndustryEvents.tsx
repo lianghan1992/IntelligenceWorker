@@ -244,9 +244,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复: socket.io-client 的 io() 函数根据当前项目的类型定义需要一个参数，以解决 "Expected 1 arguments, but got 0" 的错误。
-        // 此处传入'/'，使其连接到托管前端应用的服务器，以便通过代理与WebSocket后端通信。
-        const socket: Socket = io('/');
+        // 修复: socket.io-client 的 io() 函数调用存在类型定义问题，此处使用无参数调用，
+        //使其连接到托管前端应用的服务器，以便通过代理与WebSocket后端通信。
+        const socket: Socket = io();
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');

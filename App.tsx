@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { HomePage } from './components/HomePage';
@@ -20,9 +19,18 @@ import { mockDeepDives } from './mockData';
 
 type AppState = 'landing' | 'auth' | 'loading' | 'app';
 
+// 创建一个模拟用户以绕过登录流程
+const mockUser: User = {
+    user_id: 'temp_user_01',
+    username: '访客用户',
+    email: 'guest@example.com',
+};
+
 const App: React.FC = () => {
-    const [appState, setAppState] = useState<AppState>('landing');
-    const [user, setUser] = useState<User | null>(null);
+    // 设置初始状态为 'loading' 并使用模拟用户，以直接进入应用
+    const [appState, setAppState] = useState<AppState>('loading');
+    const [user, setUser] = useState<User | null>(mockUser);
+    
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -56,19 +64,19 @@ const App: React.FC = () => {
         }
     }, []);
     
+    // 应用加载时直接获取数据
     useEffect(() => {
-        if (user) {
-            loadAppData();
-        }
-    }, [user, loadAppData]);
+        loadAppData();
+    }, [loadAppData]);
 
+    // 保留登录逻辑以备后续使用
     const handleLoginSuccess = (loggedInUser: User) => {
         setUser(loggedInUser);
         setAppState('loading');
     };
 
+    // 保留进入逻辑以备后续使用
     const handleEnter = () => {
-        // For demo purposes, we'll show auth. In a real app, you might check for a stored token.
         setAppState('auth');
     };
 
@@ -106,6 +114,7 @@ const App: React.FC = () => {
         }
     };
     
+    // 以下视图在当前配置下将被跳过，但保留代码
     if (appState === 'landing') {
         return <HomePage onEnter={handleEnter} />;
     }
@@ -114,6 +123,7 @@ const App: React.FC = () => {
         return <AuthModal onClose={() => setAppState('landing')} onLoginSuccess={handleLoginSuccess} />;
     }
     
+    // 应用启动时会先显示加载状态
     if (appState === 'loading' || isLoading) {
         return <div className="flex items-center justify-center h-screen">正在加载工作台...</div>;
     }
