@@ -242,7 +242,7 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复: `socket.io-client` 的 `io()` 函数调用缺少必需的参数。
+        // 修复：`socket.io-client` 的 `io()` 函数调用缺少必需的参数。
         // 根据其 TypeScript 类型定义，`io()` 函数需要一个 URI 作为参数。此处传入'/'，
         // 以连接到与前端应用同源的 WebSocket 服务器，该请求将由代理正确转发。
         const socket: Socket = io('/');

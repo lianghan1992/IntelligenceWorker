@@ -98,20 +98,18 @@ export interface FocusPoint {
     relatedCount: number;
 }
 
-// NEW: For the Strategic Cockpit
-export interface StrategicFocus {
-  id: number;
+// For the Strategic Cockpit v2 (Guided Exploration)
+export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self' | 'opportunity';
+
+export interface InsightBriefing {
+  id: string;
   title: string;
-  content: string; // AI-generated summary or keywords
-  originalIntent: string; // User's raw input
+  summary: string;
+  category: StrategicLookKey;
+  sourceArticleIds: string[]; // IDs of InfoItems used to generate this
+  entities?: string[]; // e.g., for competitors like ['Tesla']
+  generatedAt: string;
 }
-
-export interface CompetitorWatch {
-  id: number;
-  entities: string[]; // e.g., ['Tesla', 'NIO']
-  intent: string; // e.g., 'Latest OTA updates for autonomous driving'
-}
-
 
 // For the recommended subscriptions in mock data
 export interface RecommendedSubscription {
