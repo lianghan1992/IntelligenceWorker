@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI汽车行业情报平台</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <style>
+      /* Custom scrollbar for a more modern, light-theme look */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; /* slate-100 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; /* slate-300 */
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; /* slate-400 */
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "vite": "https://aistudiocdn.com/vite@^7.1.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.3",
+    "fs": "https://aistudiocdn.com/fs@^0.0.1-security",
+    "express": "https://aistudiocdn.com/express@^5.1.0",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "url": "https://aistudiocdn.com/url@^0.11.4",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.20.0",
+    "socket.io-client": "https://aistudiocdn.com/socket.io-client@^4.7.5",
+    "http": "https://aistudiocdn.com/http@^0.0.1-security",
+    "socket.io": "https://aistudiocdn.com/socket.io@^4.8.1",
+    "https": "https://aistudiocdn.com/https@^1.0.0",
+    "cors": "https://aistudiocdn.com/cors@^2.8.5",
+    "http-proxy-middleware": "https://aistudiocdn.com/http-proxy-middleware@^3.0.5"
+  }
+}
+</script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+</body>
+</html>
