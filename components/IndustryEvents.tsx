@@ -243,7 +243,7 @@ export const IndustryEvents: React.FC = () => {
     
     useEffect(() => {
         // 修复: 为 socket.io-client 的 io() 函数提供一个参数以解决 "Expected 1 arguments, but got 0" 错误。
-        const socket: Socket = io({});
+        const socket: Socket = io('/');
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');
