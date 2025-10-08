@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './config';
-import { InfoItem, Event, User, Subscription, SystemSource, ProcessingTask, ApiProcessingTask } from './types';
+import { InfoItem, Event, User, Subscription, SystemSource, ProcessingTask, ApiProcessingTask, SearchResult } from './types';
 
 /**
  * NEW API FUNCTIONS for Intelligence Worker
@@ -137,6 +137,26 @@ export async function processUrlToInfoItem(url: string, setFeedback: (msg: strin
         content: "这是从提供的URL中由AI自动分析和提取的内容摘要。该功能目前为模拟状态，实际部署后将能够处理真实的网页内容并生成高质量的情报卡片。",
         created_at: new Date().toISOString(),
     };
+}
+
+// NEW: Function for semantic search on the dashboard
+export async function searchArticles(queryText: string, pointIds: string[], topK: number = 5): Promise<SearchResult[]> {
+    if (pointIds.length === 0) {
+        console.warn("Search attempted with no point_ids. Returning empty array.");
+        return [];
+    }
+    const response = await fetch(`${API_BASE_URL}/search/articles?top_k=${topK}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query_text: queryText, point_ids: pointIds }),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to search articles: ${errorText}`);
+    }
+    return response.json();
 }
 
 

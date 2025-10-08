@@ -135,3 +135,11 @@ export interface ApiProcessingTask {
 
 // NEW: Define the main application view types
 export type View = 'dashboard' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
+
+// NEW: For Semantic Search results on Dashboard
+export interface SearchResult {
+  article_id: string;
+  score: number;
+  title: string;
+  article?: InfoItem;
+}
