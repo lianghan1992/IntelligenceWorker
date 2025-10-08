@@ -11,12 +11,11 @@ import { AdminPage } from './components/AdminPage';
 import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
-import { User, InfoItem, Subscription, DeepDive } from './types';
+import { User, InfoItem, Subscription, DeepDive, View } from './types';
 import { getPoints, getArticles } from './api';
 import { mockDeepDives } from './mockData';
 
 type AppState = 'landing' | 'auth' | 'loading' | 'app';
-type View = 'dashboard' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
 
 const App: React.FC = () => {
     const [appState, setAppState] = useState<AppState>('landing');

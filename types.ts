@@ -132,3 +132,6 @@ export interface ApiProcessingTask {
     created_at: string;
     updated_at: string;
 }
+
+// NEW: Define the main application view types
+export type View = 'dashboard' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';

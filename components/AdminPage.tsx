@@ -140,8 +140,8 @@ export const AdminPage: React.FC<{ subscriptions: Subscription[], onSubscription
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <button className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100 transition"><PlayIcon className="w-4 h-4" title="重新运行" /></button>
-                                                <button onClick={() => setItemToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100 transition"><TrashIcon className="w-4 h-4" title="删除" /></button>
+                                                <button className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100 transition" title="重新运行"><PlayIcon className="w-4 h-4" /></button>
+                                                <button onClick={() => setItemToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100 transition" title="删除"><TrashIcon className="w-4 h-4" /></button>
                                             </td>
                                         </tr>
                                     ))}

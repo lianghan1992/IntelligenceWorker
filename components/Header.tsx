@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SearchIcon, BellIcon, ChevronDownIcon, MenuIcon, FeedIcon, DiveIcon, ChartIcon, SparklesIcon, PlusIcon, HomeIcon, LogoIcon, GearIcon } from './icons';
-import { User } from '../types';
+import { User, View } from '../types';
 
 interface HeaderProps {
-    currentView: string;
-    onNavigate: (view: string) => void;
+    currentView: View;
+    onNavigate: (view: View) => void;
     onUpgrade: () => void;
     user: User;
 }
@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const navLinks = [
+    const navLinks: { view: View; label: string; icon: React.ReactNode }[] = [
         { view: 'dashboard', label: '仪表盘', icon: <HomeIcon /> },
         { view: 'feed', label: '实时情报', icon: <FeedIcon /> },
         { view: 'dives', label: '深度洞察专题', icon: <DiveIcon /> },
@@ -35,7 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
         { view: 'admin', label: '后台管理', icon: <GearIcon /> },
     ];
 
-    const handleNav = (view: string) => {
+    const handleNav = (view: View) => {
         onNavigate(view);
         setIsMenuOpen(false);
     }
