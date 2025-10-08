@@ -242,9 +242,7 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复: 修复 socket.io-client 初始化问题。
-        // 错误 "Expected 1 arguments, but got 0" 表明 io() 在没有参数的情况下被调用，但运行时期望至少有一个参数（即使是空对象）。
-        // 传递一个空对象 {} 满足了这一要求，同时保持了连接到当前主机的默认行为。
+        // 修复: 为 socket.io-client 的 io() 函数提供一个参数以解决 "Expected 1 arguments, but got 0" 错误。
         const socket: Socket = io({});
 
         socket.on('connect', () => {

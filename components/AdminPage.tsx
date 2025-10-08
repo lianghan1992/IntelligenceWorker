@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Subscription, ProcessingTask, ApiProcessingTask } from '../types';
-import { getProcessingTasks, getPoints } from '../api';
+import { getProcessingTasks, getPoints, createPoint } from '../api';
 import { PlusIcon, PlayIcon, StopIcon, TrashIcon } from './icons';
 import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { AddEventModal } from './AddEventModal';
@@ -17,7 +17,13 @@ const StatusBadge: React.FC<{ status: ProcessingTask['status'] }> = ({ status })
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>{text}</span>;
 };
 
-export const AdminPage: React.FC<{ subscriptions: Subscription[], onSubscriptionsUpdate: (subs: Subscription[]) => void }> = ({ subscriptions, onSubscriptionsUpdate }) => {
+interface AdminPageProps {
+    subscriptions: Subscription[];
+    onSubscriptionsUpdate: (subs: Subscription[]) => void;
+    onAddSource: () => void;
+}
+
+export const AdminPage: React.FC<AdminPageProps> = ({ subscriptions, onSubscriptionsUpdate, onAddSource }) => {
     const [tasks, setTasks] = useState<ProcessingTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -60,17 +66,21 @@ export const AdminPage: React.FC<{ subscriptions: Subscription[], onSubscription
 
         if (pointMap.size > 0) { // Only fetch tasks if we have points to map them to
              fetchTasks();
+        } else {
+            setIsLoading(false); // No points, so nothing to load
         }
     }, [pointMap]);
 
-    const handleAddSubscription = async () => {
-        // Here you would call the API to add a subscription
-        // and then refetch or update the state
-        console.log("Adding subscription...");
-        setAddSubModalOpen(false);
-        // Refetch subscriptions
-        const updatedSubs = await getPoints();
-        onSubscriptionsUpdate(updatedSubs);
+    const handleAddSubscription = async (sub: Omit<Subscription, 'id'| 'source_id' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'keywords' | 'newItemsCount'>) => {
+        try {
+            await createPoint(sub);
+            setAddSubModalOpen(false);
+            const updatedSubs = await getPoints();
+            onSubscriptionsUpdate(updatedSubs);
+        } catch(err) {
+            console.error("Failed to add subscription", err);
+            // Here you might want to show an error message to the user in the modal
+        }
     };
 
     const handleDelete = async () => {
@@ -101,6 +111,10 @@ export const AdminPage: React.FC<{ subscriptions: Subscription[], onSubscription
                         <button onClick={() => setAddSubModalOpen(true)} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition flex items-center gap-2">
                             <PlusIcon className="w-5 h-5" />
                             添加订阅点
+                        </button>
+                        <button onClick={onAddSource} className="px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition flex items-center gap-2">
+                            <PlusIcon className="w-5 h-5" />
+                            添加自定义源
                         </button>
                         <button onClick={() => setAddEventModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
                             <PlusIcon className="w-5 h-5" />

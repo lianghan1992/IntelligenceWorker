@@ -143,3 +143,11 @@ export interface SearchResult {
   title: string;
   article?: InfoItem;
 }
+
+// NEW: For the refactored Dashboard "My Focus Points"
+export interface FocusPoint {
+  id: number;
+  title: string;
+  keywords: string[];
+  relatedCount: number;
+}

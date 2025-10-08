@@ -1,59 +1,111 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { InfoItem, Subscription, User, SystemSource, SearchResult } from '../types';
+import { Subscription, User, SystemSource, FocusPoint } from '../types';
 import { DashboardWidgets } from './DashboardWidgets';
-import { PlusIcon, SearchIcon, RssIcon, ChevronDownIcon, ChevronUpIcon, UsersIcon, BookmarkIcon } from './icons';
-import { searchArticles, getSources } from '../api';
+import { PlusIcon, TagIcon, CloseIcon, RssIcon } from './icons';
+// 修复: 导入缺失的 `getArticles` 函数
+import { searchArticles, getSources, extractKeywords, getPoints, getArticles } from '../api';
 
 interface DashboardProps {
     user: User;
-    infoItems: InfoItem[];
     subscriptions: Subscription[];
-    onAddSource: () => void;
 }
 
-const FocusPointCard: React.FC<{
-    point: { id: number; query: string; results: SearchResult[]; isOpen: boolean; };
-    onToggle: (id: number) => void;
-}> = ({ point, onToggle }) => (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-300">
-        <button onClick={() => onToggle(point.id)} className="w-full p-4 text-left flex justify-between items-center">
-            <div>
-                <p className="font-semibold text-gray-800">{point.query}</p>
-                <p className="text-sm text-gray-500">{point.results.length} 条相关情报</p>
+const Spinner: React.FC = () => (
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+// --- MODAL FOR ADDING FOCUS POINT ---
+const AddFocusPointModal: React.FC<{
+    onClose: () => void;
+    onAdd: (title: string, content: string) => void;
+    isLoading: boolean;
+}> = ({ onClose, onAdd, isLoading }) => {
+    const [title, setTitle] = useState('');
+    const [content, setContent] = useState('');
+    const isFormValid = title.trim() && content.trim();
+
+    const handleSubmit = () => {
+        if (isFormValid && !isLoading) {
+            onAdd(title, content);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">添加新的关注点</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
+                        <CloseIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <div>
+                        <label htmlFor="focus-title" className="block text-sm font-medium text-gray-700 mb-1">关注点标题</label>
+                        <input
+                            id="focus-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                            placeholder="例如：800V高压平台"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="focus-content" className="block text-sm font-medium text-gray-700 mb-1">关注点内容描述</label>
+                        <textarea
+                            id="focus-content" value={content} onChange={(e) => setContent(e.target.value)}
+                            rows={4}
+                            placeholder="详细描述您关心的内容，AI将据此为您提取关键词并搜索相关情报。例如：关于800V高压平台的最新技术进展、主要供应商、成本控制方案以及在各车型上的应用情况。"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            disabled={isLoading}
+                        />
+                    </div>
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                    <button
+                        onClick={handleSubmit} disabled={!isFormValid || isLoading}
+                        className="py-2 px-4 w-28 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center"
+                    >
+                        {isLoading ? <Spinner /> : '添加'}
+                    </button>
+                </div>
             </div>
-            {point.isOpen ? <ChevronUpIcon className="w-5 h-5 text-gray-500" /> : <ChevronDownIcon className="w-5 h-5 text-gray-500" />}
-        </button>
-        {point.isOpen && (
-            <div className="px-4 pb-4 animate-in fade-in-0 duration-300">
-                <ul className="divide-y divide-gray-100 border-t">
-                    {point.results.length > 0 ? point.results.map(result => (
-                        <li key={result.article_id} className="py-3">
-                            <p className="text-sm font-medium text-blue-600 truncate">{result.title}</p>
-                            <div className="flex justify-between items-center text-xs text-gray-500 mt-1">
-                                <span>来源: {result.article?.source_name || '未知'}</span>
-                                <span className="font-mono text-blue-500">得分: {result.score.toFixed(2)}</span>
-                            </div>
-                        </li>
-                    )) : (
-                        <li className="py-4 text-center text-sm text-gray-500">未找到相关情报。</li>
-                    )}
-                </ul>
+        </div>
+    );
+};
+
+
+// --- REFACTORED MY FOCUS POINTS ---
+const FocusPointCard: React.FC<{ point: FocusPoint }> = ({ point }) => (
+    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        <div className="flex justify-between items-start">
+            <h4 className="font-bold text-gray-800">{point.title}</h4>
+            <div className="text-right flex-shrink-0 ml-4">
+                <p className="font-bold text-lg text-blue-600">{point.relatedCount}</p>
+                <p className="text-xs text-gray-500">条情报</p>
             </div>
-        )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+            {point.keywords.map(keyword => (
+                <span key={keyword} className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">{keyword}</span>
+            ))}
+        </div>
     </div>
 );
 
-const MyFocusPoints: React.FC<{ subscriptions: Subscription[]; allArticles: InfoItem[] }> = ({ subscriptions, allArticles }) => {
-    const [focusPoints, setFocusPoints] = useState<Array<{ id: number; query: string; results: SearchResult[]; isOpen: boolean; }>>([]);
-    const [newQuery, setNewQuery] = useState('');
+const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const allPointIds = useMemo(() => subscriptions.map(sub => sub.id), [subscriptions]);
 
-    const handleAddFocusPoint = async () => {
-        if (!newQuery.trim()) return;
+    const handleAddFocusPoint = async (title: string, content: string) => {
         if (allPointIds.length === 0) {
             setError('请先在后台管理页面添加至少一个情报订阅点以进行搜索。');
+            setIsModalOpen(false);
             return;
         }
 
@@ -61,64 +113,85 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[]; allArticles: Info
         setError('');
 
         try {
-            const results = await searchArticles(newQuery, allPointIds, 5);
-            const enrichedResults = results.map(result => ({
-                ...result,
-                article: allArticles.find(item => item.id === result.article_id)
-            })).filter(r => r.article) as (SearchResult & { article: InfoItem })[];
+            const [keywords, searchResults] = await Promise.all([
+                extractKeywords(content),
+                searchArticles(content, allPointIds, 50)
+            ]);
 
-            const newFocusPoint = {
+            const newPoint: FocusPoint = {
                 id: Date.now(),
-                query: newQuery,
-                results: enrichedResults,
-                isOpen: true,
+                title: title,
+                keywords: keywords,
+                relatedCount: searchResults.length,
             };
-            setFocusPoints(prev => [newFocusPoint, ...prev]);
-            setNewQuery('');
+            
+            setFocusPoints(prev => [newPoint, ...prev]);
+            setIsModalOpen(false);
+
         } catch (err: any) {
-            setError(err.message || '搜索失败，请重试');
+            setError(err.message || '添加关注点失败，请重试');
         } finally {
             setIsLoading(false);
         }
     };
-    
-    const toggleFocusPoint = (id: number) => {
-        setFocusPoints(prev => prev.map(fp => fp.id === id ? { ...fp, isOpen: !fp.isOpen } : fp));
-    };
 
     return (
         <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">我的关注点</h2>
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex gap-2">
-                    <div className="relative flex-grow">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            value={newQuery}
-                            onChange={(e) => setNewQuery(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleAddFocusPoint()}
-                            placeholder="输入您关心的话题，如“800V高压平台最新进展”"
-                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            disabled={isLoading}
-                        />
-                    </div>
-                    <button
-                        onClick={handleAddFocusPoint}
-                        disabled={isLoading || !newQuery.trim()}
-                        className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-blue-300 flex-shrink-0"
-                    >
-                        {isLoading ? '搜索中...' : '添加关注'}
-                    </button>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">我的关注点</h2>
+                <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition"
+                >
+                    <PlusIcon className="w-4 h-4" />
+                    添加关注
+                </button>
+            </div>
+            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+            
+            {focusPoints.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {focusPoints.map(point => (
+                        <FocusPointCard key={point.id} point={point} />
+                    ))}
                 </div>
-                {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
-            </div>
-            <div className="mt-4 space-y-3">
-                {focusPoints.map(point => (
-                    <FocusPointCard key={point.id} point={point} onToggle={toggleFocusPoint} />
-                ))}
-            </div>
+            ) : (
+                <div className="text-center py-10 bg-white border border-dashed rounded-xl">
+                    <TagIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">暂无关注点</h3>
+                    <p className="mt-1 text-sm text-gray-500">点击“添加关注”来创建您的第一个情报追踪主题。</p>
+                </div>
+            )}
+            
+            {isModalOpen && <AddFocusPointModal onClose={() => setIsModalOpen(false)} onAdd={handleAddFocusPoint} isLoading={isLoading} />}
         </div>
+    );
+};
+
+// --- REFACTORED SOURCE SUBSCRIPTIONS ---
+const SourceLogo: React.FC<{ sourceName: string }> = ({ sourceName }) => {
+    const [imgError, setImgError] = useState(false);
+    const iconUrl = `https://logo.clearbit.com/${sourceName.replace(/ /g, '').toLowerCase()}.com`;
+
+    useEffect(() => {
+        setImgError(false);
+    }, [iconUrl]);
+
+    if (imgError || !sourceName) {
+        return (
+            <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-bold flex-shrink-0">
+                {sourceName ? sourceName.charAt(0) : '?'}
+            </div>
+        );
+    }
+
+    return (
+        <img 
+            src={iconUrl} 
+            alt={sourceName} 
+            className="w-10 h-10 rounded-lg object-contain bg-white border flex-shrink-0"
+            onError={() => setImgError(true)}
+        />
     );
 };
 
@@ -130,7 +203,12 @@ const SourceSubscriptions: React.FC = () => {
         const fetchSources = async () => {
             try {
                 const data = await getSources();
-                setSources(data);
+                 // Add mock data for UI
+                const augmentedData = data.map(s => ({
+                    ...s,
+                    subscriberCount: Math.floor(Math.random() * 1000) + 200,
+                }));
+                setSources(augmentedData);
             } catch (error) {
                 console.error("Failed to fetch sources for dashboard:", error);
             } finally {
@@ -142,30 +220,23 @@ const SourceSubscriptions: React.FC = () => {
 
     return (
         <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">情报源订阅</h2>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">情报源订阅</h2>
             {isLoading ? (
                 <div className="text-center p-8">正在加载情报源...</div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {sources.map(source => (
-                        <div key={source.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                            <div>
-                                <div className="flex items-center mb-3">
-                                    <img src={source.iconUrl} alt={source.name} className="w-10 h-10 rounded-lg mr-3" />
-                                    <h3 className="font-bold text-gray-800">{source.name}</h3>
-                                </div>
-                                <div className="flex justify-around text-center my-4">
-                                    <div>
-                                        <p className="font-bold text-lg text-blue-600">{source.subscription_count}</p>
-                                        <p className="text-xs text-gray-500">情报点</p>
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-lg text-blue-600">{(source.subscriberCount || 0).toLocaleString()}</p>
-                                        <p className="text-xs text-gray-500">订阅数</p>
-                                    </div>
+                        <div key={source.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-4 overflow-hidden">
+                                <SourceLogo sourceName={source.name} />
+                                <div className="overflow-hidden">
+                                    <h3 className="font-bold text-gray-800 truncate">{source.name}</h3>
+                                    <p className="text-xs text-gray-500">
+                                        {source.subscription_count} 个情报点 · {(source.subscriberCount || 0).toLocaleString()} 人订阅
+                                    </p>
                                 </div>
                             </div>
-                            <button className="w-full mt-2 py-2 px-4 bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 transition text-sm">
+                            <button className="ml-4 px-4 py-1.5 bg-blue-50 text-blue-700 font-semibold rounded-full hover:bg-blue-100 transition text-sm flex-shrink-0">
                                 订阅
                             </button>
                         </div>
@@ -176,7 +247,15 @@ const SourceSubscriptions: React.FC = () => {
     );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, infoItems, subscriptions, onAddSource }) => {
+// --- MAIN DASHBOARD COMPONENT ---
+export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => {
+    
+    // This state is needed to get the total number of articles for the widgets
+    const [infoItems, setInfoItems] = useState<any[]>([]);
+    useEffect(() => {
+        getArticles({ page: 1, limit: 200 }).then(data => setInfoItems(data.items));
+    }, []);
+
     const stats = useMemo(() => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -198,27 +277,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, infoItems, subscript
         <div className="p-6 bg-gray-50/50 overflow-y-auto h-full">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-800">早上好, {user.username}！</h1>
-                        <p className="text-gray-500 mt-1">这是您今天的情报概览。</p>
-                    </div>
-                    <div className="mt-4 sm:mt-0">
-                         <button 
-                            onClick={onAddSource}
-                            className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition flex items-center gap-2"
-                        >
-                            <PlusIcon className="w-5 h-5" />
-                            添加自定义情报源
-                        </button>
-                    </div>
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">早上好, {user.username}！</h1>
+                    <p className="text-gray-500 mt-1">这是您今天的情报概览。</p>
                 </div>
 
                 {/* Widgets */}
                 <DashboardWidgets stats={stats} />
                 
                 {/* My Focus Points */}
-                <MyFocusPoints subscriptions={subscriptions} allArticles={infoItems} />
+                <MyFocusPoints subscriptions={subscriptions} />
 
                 {/* Source Subscriptions */}
                 <SourceSubscriptions />

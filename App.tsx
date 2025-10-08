@@ -87,7 +87,7 @@ const App: React.FC = () => {
 
         switch (currentView) {
             case 'dashboard':
-                return <Dashboard user={user!} infoItems={infoItems} subscriptions={subscriptions} onAddSource={() => setIsAddSourceModalOpen(true)} />;
+                return <Dashboard user={user!} subscriptions={subscriptions} />;
             case 'feed':
                 return <InfoFeed items={infoItems} onSelectItem={setSelectedInfoItem} subscriptions={subscriptions} />;
             case 'dives':
@@ -97,7 +97,7 @@ const App: React.FC = () => {
             case 'ai':
                 return <ReportGenerator />;
             case 'admin':
-                return <AdminPage subscriptions={subscriptions} onSubscriptionsUpdate={setSubscriptions} />;
+                return <AdminPage subscriptions={subscriptions} onSubscriptionsUpdate={setSubscriptions} onAddSource={() => setIsAddSourceModalOpen(true)} />;
             default:
                 return <div>视图未找到</div>;
         }
