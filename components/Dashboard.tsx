@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Subscription, User, SystemSource, FocusPoint } from '../types';
+import { Subscription, User, SystemSource, FocusPoint, InfoItem } from '../types';
 import { DashboardWidgets } from './DashboardWidgets';
-import { PlusIcon, TagIcon, CloseIcon, RssIcon } from './icons';
-// 修复: 导入缺失的 `getArticles` 函数
-import { searchArticles, getSources, extractKeywords, getPoints, getArticles } from '../api';
+import { PlusIcon, TagIcon, CloseIcon } from './icons';
+import { searchArticles, getSources, extractKeywords, getArticles } from '../api';
 
 interface DashboardProps {
     user: User;
@@ -79,17 +78,17 @@ const AddFocusPointModal: React.FC<{
 
 // --- REFACTORED MY FOCUS POINTS ---
 const FocusPointCard: React.FC<{ point: FocusPoint }> = ({ point }) => (
-    <div className="bg-gradient-to-br from-white to-slate-50 p-5 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer group">
+    <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
         <div className="flex justify-between items-start">
-            <h4 className="font-bold text-slate-800 text-base pr-4 group-hover:text-blue-600 transition-colors">{point.title}</h4>
-            <div className="text-center flex-shrink-0 bg-blue-100/80 text-blue-700 rounded-full px-3 py-1">
+            <h4 className="font-semibold text-slate-800 text-sm pr-2 group-hover:text-blue-600 transition-colors line-clamp-2">{point.title}</h4>
+            <div className="text-center flex-shrink-0 bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5">
                 <p className="font-bold text-sm">{point.relatedCount}</p>
-                <p className="text-xs -mt-1">条</p>
+                <p className="text-xs -mt-1 leading-tight">条</p>
             </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-            {point.keywords.slice(0, 3).map(keyword => ( // Show max 3 keywords for compactness
-                <span key={keyword} className="px-2 py-0.5 text-xs font-medium text-slate-600 bg-slate-200/70 rounded-full">{keyword}</span>
+        <div className="mt-2 flex flex-wrap gap-1">
+            {point.keywords.slice(0, 3).map(keyword => (
+                <span key={keyword} className="px-1.5 py-0.5 text-xs font-medium text-slate-600 bg-slate-200/70 rounded-full">{keyword}</span>
             ))}
         </div>
     </div>
@@ -151,7 +150,7 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
             {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
             
             {focusPoints.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     {focusPoints.map(point => (
                         <FocusPointCard key={point.id} point={point} />
                     ))}
@@ -180,7 +179,7 @@ const SourceLogo: React.FC<{ sourceName: string }> = ({ sourceName }) => {
 
     if (imgError || !sourceName) {
         return (
-            <div className="w-12 h-12 rounded-xl bg-gray-200 flex items-center justify-center text-gray-500 font-bold flex-shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center text-gray-500 font-bold flex-shrink-0">
                 {sourceName ? sourceName.charAt(0) : '?'}
             </div>
         );
@@ -190,20 +189,20 @@ const SourceLogo: React.FC<{ sourceName: string }> = ({ sourceName }) => {
         <img 
             src={iconUrl} 
             alt={sourceName} 
-            className="w-12 h-12 rounded-xl object-contain bg-white border flex-shrink-0"
+            className="w-10 h-10 rounded-lg object-contain bg-white border flex-shrink-0"
             onError={() => setImgError(true)}
         />
     );
 };
 
 const SourceCard: React.FC<{ source: SystemSource }> = ({ source }) => (
-    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col items-center text-center">
+    <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col items-center text-center">
         <SourceLogo sourceName={source.name} />
-        <h3 className="font-bold text-slate-800 mt-3 truncate w-full">{source.name}</h3>
-        <p className="text-xs text-slate-500 mt-1">
+        <h3 className="font-semibold text-slate-800 mt-2 truncate w-full text-sm">{source.name}</h3>
+        <p className="text-xs text-slate-500 mt-0.5">
             {source.subscription_count} 个情报点
         </p>
-        <button className="mt-4 w-full px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-blue-100 hover:text-blue-700 transition text-sm">
+        <button className="mt-3 w-full px-3 py-1.5 bg-slate-100 text-slate-700 font-semibold rounded-md hover:bg-blue-100 hover:text-blue-700 transition text-xs">
             订阅
         </button>
     </div>
@@ -238,7 +237,7 @@ const SourceSubscriptions: React.FC = () => {
             {isLoading ? (
                 <div className="text-center p-8">正在加载情报源...</div>
             ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-4">
                     {sources.map(source => (
                         <SourceCard key={source.id} source={source} />
                     ))}
@@ -252,9 +251,10 @@ const SourceSubscriptions: React.FC = () => {
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => {
     
     // This state is needed to get the total number of articles for the widgets
-    const [infoItems, setInfoItems] = useState<any[]>([]);
+    const [infoItems, setInfoItems] = useState<InfoItem[]>([]);
     useEffect(() => {
-        getArticles({ page: 1, limit: 200 }).then(data => setInfoItems(data.items));
+        // 修复：根据API文档，limit参数最大为100，修正以获取正确的数据范围。
+        getArticles({ page: 1, limit: 100 }).then(data => setInfoItems(data.items));
     }, []);
 
     const stats = useMemo(() => {
