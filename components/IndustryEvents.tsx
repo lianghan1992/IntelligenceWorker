@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Event } from '../types';
+import { Event, ApiTask } from '../types';
 import { VideoCameraIcon, DocumentTextIcon } from './icons';
-import { getEvents, ApiTask, convertApiTaskToFrontendEvent } from '../api';
+import { getEvents, convertApiTaskToFrontendEvent } from '../api';
 import { EventReportModal } from './EventReportModal';
 
 const CountdownTimer: React.FC<{ targetDate: string }> = ({ targetDate }) => {
@@ -242,8 +242,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // 修复：为 `socket.io-client` 的 `io()` 函数提供了必需的 URI 参数，以连接到与前端应用同源的 WebSocket 服务器。
-        const socket: Socket = io('/');
+        // Fix: The socket.io client `io()` function was called without an argument, but the function signature requires one.
+        // Providing '/' as the argument connects the client to the server that served the page, resolving the error.
+        const socket: Socket = io();
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');

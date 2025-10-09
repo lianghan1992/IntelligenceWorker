@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { CloseIcon } from './icons';
-import { createLiveTask, createOfflineTask, ApiTask } from '../api';
+import { createLiveTask, createOfflineTask } from '../api';
+import { ApiTask } from '../types';
 
 interface AddEventModalProps {
   onClose: () => void;
