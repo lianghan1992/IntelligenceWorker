@@ -90,12 +90,43 @@ export interface SystemSource {
     subscriberCount: number;
 }
 
-// For the "My Focus Points" dashboard widget
+// API representation of a user's subscribed source
+export interface UserSubscribedSource {
+    id: string;
+    name: string;
+    description: string;
+}
+
+// For the "My Focus Points" dashboard widget (UI)
 export interface FocusPoint {
-    id: number;
+    id: string; // Changed from number to string to match API UUID
     title: string;
     keywords: string[];
     relatedCount: number;
+}
+
+// Raw POI from User Service API
+export interface ApiPoi {
+    id: string;
+    user_id: string;
+    content: string;
+    keywords: string; // Comma-separated
+    created_at: string;
+}
+
+// Details for a single pricing plan from the API
+export interface Plan {
+    name: string;
+    max_sources: number;
+    max_pois: number;
+    price_monthly: number;
+}
+
+// The structure of the entire /plans API response
+export interface PlanDetails {
+    free: Plan;
+    pro: Plan;
+    enterprise: Plan;
 }
 
 // For the Strategic Cockpit v2 (Guided Exploration)

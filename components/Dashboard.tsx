@@ -1,8 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Subscription, User, SystemSource, FocusPoint, InfoItem } from '../types';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Subscription, User, SystemSource, FocusPoint, InfoItem, ApiPoi, UserSubscribedSource } from '../types';
 import { DashboardWidgets } from './DashboardWidgets';
-import { PlusIcon, TagIcon, CloseIcon } from './icons';
-import { searchArticles, getSources, extractKeywords, getArticles } from '../api';
+import { PlusIcon, TagIcon, CloseIcon, TrashIcon } from './icons';
+import {
+  searchArticles,
+  getSources,
+  extractKeywords,
+  getArticles,
+  getUserPois,
+  addUserPoi,
+  deleteUserPoi,
+  getUserSubscribedSources,
+  addUserSourceSubscription,
+  deleteUserSourceSubscription,
+} from '../api';
+import { ConfirmationModal } from './ConfirmationModal';
+
 
 interface DashboardProps {
     user: User;
@@ -77,10 +90,17 @@ const AddFocusPointModal: React.FC<{
 
 
 // --- REFACTORED MY FOCUS POINTS ---
-const FocusPointCard: React.FC<{ point: FocusPoint }> = ({ point }) => (
-    <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
+const FocusPointCard: React.FC<{ point: FocusPoint, onDelete: () => void }> = ({ point, onDelete }) => (
+    <div className="bg-gradient-to-br from-white to-slate-50 p-4 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group relative">
+        <button 
+            onClick={onDelete}
+            className="absolute top-1 right-1 p-1 text-slate-400 hover:bg-red-100 hover:text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+            aria-label={`删除 ${point.title}`}
+        >
+            <TrashIcon className="w-3 h-3" />
+        </button>
         <div className="flex justify-between items-start">
-            <h4 className="font-semibold text-slate-800 text-sm pr-2 group-hover:text-blue-600 transition-colors line-clamp-2">{point.title}</h4>
+            <h4 className="font-semibold text-slate-800 text-sm pr-4 group-hover:text-blue-600 transition-colors line-clamp-2">{point.title}</h4>
             <div className="text-center flex-shrink-0 bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5">
                 <p className="font-bold text-sm">{point.relatedCount}</p>
                 <p className="text-xs -mt-1 leading-tight">条</p>
@@ -95,12 +115,39 @@ const FocusPointCard: React.FC<{ point: FocusPoint }> = ({ point }) => (
 );
 
 
-const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
+const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = ({ user, subscriptions }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [pointToDelete, setPointToDelete] = useState<FocusPoint | null>(null);
+
     const allPointIds = useMemo(() => subscriptions.map(sub => sub.id), [subscriptions]);
+
+    const transformApiPoiToFocusPoint = (apiPoi: ApiPoi): FocusPoint => ({
+        id: apiPoi.id,
+        title: apiPoi.content,
+        keywords: apiPoi.keywords.split(',').map(k => k.trim()).filter(Boolean),
+        // Note: relatedCount is not provided by the GET API.
+        // It's calculated on creation or could be fetched separately.
+        // For simplicity, we initialize it to 0 here for existing points.
+        relatedCount: 0,
+    });
+
+    useEffect(() => {
+        const fetchPois = async () => {
+            setIsLoading(true);
+            try {
+                const apiPois = await getUserPois(user.user_id);
+                setFocusPoints(apiPois.map(transformApiPoiToFocusPoint));
+            } catch (err: any) {
+                setError('无法加载关注点: ' + err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchPois();
+    }, [user.user_id]);
 
     const handleAddFocusPoint = async (title: string, content: string) => {
         if (allPointIds.length === 0) {
@@ -114,13 +161,18 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
 
         try {
             const combinedText = `${title} ${content}`;
-            const [keywords, searchResults] = await Promise.all([
-                extractKeywords(combinedText),
-                searchArticles(content, allPointIds, 50)
-            ]);
+            const keywords = await extractKeywords(combinedText);
+            const searchResults = await searchArticles(content, allPointIds, 50);
+
+            const keywordsString = keywords.join(',');
+            
+            const { poi_id } = await addUserPoi(user.user_id, {
+                content: title,
+                keywords: keywordsString,
+            });
 
             const newPoint: FocusPoint = {
-                id: Date.now(),
+                id: poi_id,
                 title: title,
                 keywords: keywords,
                 relatedCount: searchResults.length,
@@ -131,6 +183,21 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
 
         } catch (err: any) {
             setError(err.message || '添加关注点失败，请重试');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!pointToDelete) return;
+        setIsLoading(true);
+        setError('');
+        try {
+            await deleteUserPoi(user.user_id, pointToDelete.id);
+            setFocusPoints(prev => prev.filter(p => p.id !== pointToDelete.id));
+            setPointToDelete(null);
+        } catch (err: any) {
+            setError('删除失败: ' + err.message);
         } finally {
             setIsLoading(false);
         }
@@ -150,10 +217,12 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
             </div>
             {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
             
-            {focusPoints.length > 0 ? (
+            {isLoading && !focusPoints.length ? (
+                <div className="text-center py-10">加载中...</div>
+            ) : focusPoints.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     {focusPoints.map(point => (
-                        <FocusPointCard key={point.id} point={point} />
+                        <FocusPointCard key={point.id} point={point} onDelete={() => setPointToDelete(point)} />
                     ))}
                 </div>
             ) : (
@@ -165,6 +234,15 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
             )}
             
             {isModalOpen && <AddFocusPointModal onClose={() => setIsModalOpen(false)} onAdd={handleAddFocusPoint} isLoading={isLoading} />}
+            {pointToDelete && (
+                <ConfirmationModal
+                    title="确认删除关注点"
+                    message={`您确定要删除 "${pointToDelete.title}" 吗？此操作无法撤销。`}
+                    onConfirm={handleDeleteConfirm}
+                    onCancel={() => setPointToDelete(null)}
+                    isLoading={isLoading}
+                />
+            )}
         </div>
     );
 };
@@ -196,61 +274,111 @@ const SourceLogo: React.FC<{ sourceName: string }> = ({ sourceName }) => {
     );
 };
 
-const SourceCard: React.FC<{ source: SystemSource }> = ({ source }) => (
+const SourceCard: React.FC<{
+    source: SystemSource;
+    isSubscribed: boolean;
+    onToggleSubscription: (sourceId: string, isSubscribed: boolean) => void;
+}> = ({ source, isSubscribed, onToggleSubscription }) => (
     <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col items-center text-center">
         <SourceLogo sourceName={source.name} />
         <h3 className="font-semibold text-slate-800 mt-2 truncate w-full text-sm">{source.name}</h3>
         <p className="text-xs text-slate-500 mt-0.5">
             {source.subscription_count} 个情报点
         </p>
-        <button className="mt-3 w-full px-3 py-1.5 bg-slate-100 text-slate-700 font-semibold rounded-md hover:bg-blue-100 hover:text-blue-700 transition text-xs">
-            订阅
+        <button
+            onClick={() => onToggleSubscription(source.id, isSubscribed)}
+            className={`mt-3 w-full px-3 py-1.5 font-semibold rounded-md transition text-xs ${
+                isSubscribed
+                ? 'bg-white text-slate-600 border border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                : 'bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-700'
+            }`}
+        >
+            {isSubscribed ? '取消订阅' : '订阅'}
         </button>
     </div>
 );
 
 interface SourceSubscriptionsProps {
+    user: User;
     subscriptions: Subscription[];
 }
 
-const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ subscriptions }) => {
-    const [sources, setSources] = useState<SystemSource[]>([]);
+const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user, subscriptions }) => {
+    const [allSources, setAllSources] = useState<SystemSource[]>([]);
+    const [userSourceIds, setUserSourceIds] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const [allSourcesData, userSourcesData] = await Promise.all([
+                getSources(),
+                getUserSubscribedSources(user.user_id),
+            ]);
+
+            const pointCountsBySource = subscriptions.reduce((acc, sub) => {
+                acc[sub.source_name] = (acc[sub.source_name] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
+
+            const augmentedSources = allSourcesData.map(s => ({
+                ...s,
+                subscription_count: pointCountsBySource[s.name] || 0,
+            }));
+            
+            setAllSources(augmentedSources);
+            setUserSourceIds(new Set(userSourcesData.map(s => s.id)));
+
+        } catch (err: any) {
+            setError('加载情报源失败: ' + err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [user.user_id, subscriptions]);
 
     useEffect(() => {
-        const fetchSources = async () => {
-            try {
-                const data = await getSources();
+        fetchData();
+    }, [fetchData]);
 
-                // 实时计算每个情报源下的情报点数量
-                const pointCountsBySource = subscriptions.reduce((acc, sub) => {
-                    acc[sub.source_name] = (acc[sub.source_name] || 0) + 1;
-                    return acc;
-                }, {} as Record<string, number>);
-
-                const augmentedData = data.map(s => ({
-                    ...s,
-                    subscription_count: pointCountsBySource[s.name] || 0, // 使用前端计算的准确数量
-                }));
-                setSources(augmentedData);
-            } catch (error) {
-                console.error("Failed to fetch sources for dashboard:", error);
-            } finally {
-                setIsLoading(false);
+    const handleToggleSubscription = async (sourceId: string, isCurrentlySubscribed: boolean) => {
+        const originalUserSourceIds = new Set(userSourceIds);
+        try {
+            if (isCurrentlySubscribed) {
+                const updatedIds = new Set(userSourceIds);
+                updatedIds.delete(sourceId);
+                setUserSourceIds(updatedIds);
+                await deleteUserSourceSubscription(user.user_id, sourceId);
+            } else {
+                const updatedIds = new Set(userSourceIds);
+                updatedIds.add(sourceId);
+                setUserSourceIds(updatedIds);
+                await addUserSourceSubscription(user.user_id, sourceId);
             }
-        };
-        fetchSources();
-    }, [subscriptions]);
+        } catch (err: any) {
+            setError(`操作失败: ${err.message}`);
+            // Revert optimistic UI update on failure
+            setUserSourceIds(originalUserSourceIds);
+        }
+    };
+
 
     return (
         <div>
             <h2 className="text-xl font-bold text-gray-800 mb-4">情报源订阅</h2>
+            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
             {isLoading ? (
                 <div className="text-center p-8">正在加载情报源...</div>
             ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-4">
-                    {sources.map(source => (
-                        <SourceCard key={source.id} source={source} />
+                    {allSources.map(source => (
+                        <SourceCard
+                            key={source.id}
+                            source={source}
+                            isSubscribed={userSourceIds.has(source.id)}
+                            onToggleSubscription={handleToggleSubscription}
+                        />
                     ))}
                 </div>
             )}
@@ -261,10 +389,8 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ subscriptions
 // --- MAIN DASHBOARD COMPONENT ---
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => {
     
-    // This state is needed to get the total number of articles for the widgets
     const [infoItems, setInfoItems] = useState<InfoItem[]>([]);
     useEffect(() => {
-        // 修复：根据API文档，limit参数最大为100，修正以获取正确的数据范围。
         getArticles({ page: 1, limit: 100 }).then(data => setInfoItems(data.items));
     }, []);
 
@@ -298,10 +424,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 <DashboardWidgets stats={stats} />
                 
                 {/* My Focus Points */}
-                <MyFocusPoints subscriptions={subscriptions} />
+                <MyFocusPoints user={user} subscriptions={subscriptions} />
 
                 {/* Source Subscriptions */}
-                <SourceSubscriptions subscriptions={subscriptions} />
+                <SourceSubscriptions user={user} subscriptions={subscriptions} />
             </div>
         </div>
     );

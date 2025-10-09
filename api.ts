@@ -10,6 +10,9 @@ import {
   Event,
   ApiProcessingTask,
   SearchResult,
+  PlanDetails,
+  ApiPoi,
+  UserSubscribedSource,
 } from './types';
 
 // --- Helper Functions ---
@@ -83,7 +86,7 @@ async function userApiFetch(endpoint: string, options: RequestInit = {}) {
 }
 
 
-// --- Auth API (Updated to use User Service) ---
+// --- Auth API (Uses User Service) ---
 
 export const loginUser = async (username: string, password: string): Promise<User> => {
   const response = await userApiFetch('/login', {
@@ -112,6 +115,46 @@ export const forgotPassword = async (email: string): Promise<void> => {
         method: 'POST',
         body: JSON.stringify({ email }),
     });
+};
+
+// --- User Service API ---
+
+export const getPlans = (): Promise<PlanDetails> => {
+  return userApiFetch('/plans');
+};
+
+export const getUserPois = (userId: string): Promise<ApiPoi[]> => {
+  return userApiFetch(`/users/${userId}/pois`);
+};
+
+export const addUserPoi = (userId: string, data: { content: string; keywords: string }): Promise<{ message: string; poi_id: string }> => {
+  return userApiFetch(`/users/${userId}/pois`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const deleteUserPoi = (userId: string, poiId: string): Promise<{ message: string }> => {
+  return userApiFetch(`/users/${userId}/pois/${poiId}`, {
+    method: 'DELETE',
+  });
+};
+
+export const getUserSubscribedSources = (userId: string): Promise<UserSubscribedSource[]> => {
+  return userApiFetch(`/users/${userId}/sources`);
+};
+
+export const addUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
+  return userApiFetch(`/users/${userId}/sources`, {
+    method: 'POST',
+    body: JSON.stringify({ source_id: sourceId }),
+  });
+};
+
+export const deleteUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
+  return userApiFetch(`/users/${userId}/sources/${sourceId}`, {
+    method: 'DELETE',
+  });
 };
 
 
