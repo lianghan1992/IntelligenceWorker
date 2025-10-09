@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { InfoItem, Subscription } from '../types';
 import { SearchIcon, TagIcon } from './icons';
+import { InfoDetailModal } from './InfoDetailModal';
 
 interface InfoFeedProps {
     items: InfoItem[];
-    onSelectItem: (item: InfoItem) => void;
     subscriptions: Subscription[];
 }
 
@@ -53,9 +53,10 @@ const InfoCard: React.FC<{ item: InfoItem; onSelect: () => void }> = ({ item, on
 };
 
 
-export const InfoFeed: React.FC<InfoFeedProps> = ({ items, onSelectItem, subscriptions }) => {
+export const InfoFeed: React.FC<InfoFeedProps> = ({ items, subscriptions }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+    const [modalItem, setModalItem] = useState<InfoItem | null>(null);
 
     const subscriptionPoints = useMemo(() => {
         const uniquePoints = new Map<string, { name: string }>();
@@ -71,7 +72,7 @@ export const InfoFeed: React.FC<InfoFeedProps> = ({ items, onSelectItem, subscri
         return items.filter(item => {
             const matchesSearch = searchTerm === '' ||
                 item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (item.content || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 item.source_name.toLowerCase().includes(searchTerm.toLowerCase());
             
             const matchesFilter = !selectedPointId || item.point_id === selectedPointId;
@@ -113,7 +114,7 @@ export const InfoFeed: React.FC<InfoFeedProps> = ({ items, onSelectItem, subscri
                 {filteredItems.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredItems.map(item => (
-                            <InfoCard key={item.id} item={item} onSelect={() => onSelectItem(item)} />
+                            <InfoCard key={item.id} item={item} onSelect={() => setModalItem(item)} />
                         ))}
                     </div>
                 ) : (
@@ -122,6 +123,8 @@ export const InfoFeed: React.FC<InfoFeedProps> = ({ items, onSelectItem, subscri
                     </div>
                 )}
             </div>
+
+            {modalItem && <InfoDetailModal item={modalItem} onClose={() => setModalItem(null)} />}
         </div>
     );
 };

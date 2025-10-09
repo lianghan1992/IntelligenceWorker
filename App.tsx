@@ -9,7 +9,6 @@ import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents';
 import { ReportGenerator } from './components/ReportGenerator';
 import { AdminPage } from './components/AdminPage';
-import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
@@ -31,7 +30,6 @@ const App: React.FC = () => {
     const [deepDives] = useState<DeepDive[]>(mockDeepDives);
     
     // UI states
-    const [selectedInfoItem, setSelectedInfoItem] = useState<InfoItem | null>(null);
     const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
 
@@ -78,7 +76,6 @@ const App: React.FC = () => {
 
     const handleNavigate = (view: View) => {
         setCurrentView(view);
-        setSelectedInfoItem(null);
     };
 
     const handleAddCustomSource = (newItem: InfoItem) => {
@@ -88,17 +85,13 @@ const App: React.FC = () => {
     };
 
     const renderMainView = () => {
-        if (selectedInfoItem) {
-            return <InfoDetailView item={selectedInfoItem} onBack={() => setSelectedInfoItem(null)} />;
-        }
-
         switch (currentView) {
             case 'dashboard':
                 return <Dashboard user={user!} subscriptions={subscriptions} />;
             case 'cockpit':
                 return <StrategicCockpit subscriptions={subscriptions} />;
             case 'feed':
-                return <InfoFeed items={infoItems} onSelectItem={setSelectedInfoItem} subscriptions={subscriptions} />;
+                return <InfoFeed items={infoItems} subscriptions={subscriptions} />;
             case 'dives':
                 return <DeepDives dives={deepDives} />;
             case 'events':
