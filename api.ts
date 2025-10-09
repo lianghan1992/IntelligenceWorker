@@ -1,6 +1,6 @@
 // src/api.ts
 
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, USER_API_BASE_URL } from './config';
 import {
   User,
   InfoItem,
@@ -15,11 +15,12 @@ import {
 // --- Helper Functions ---
 
 /**
- * 一个通用的 fetch 包装器，用于处理 API 请求、JSON 解析和错误处理。
- * @param endpoint API 端点 (例如, '/users')
- * @param options Fetch API 的选项 (方法, body, headers, 等)
- * @returns 解析后的 JSON 响应
- * @throws 如果响应状态不是 ok，则抛出错误
+ * A generic fetch wrapper for the main API service (port 7656).
+ * It handles API requests, JSON parsing, and error handling.
+ * @param endpoint API endpoint (e.g., '/users')
+ * @param options Fetch API options (method, body, headers, etc.)
+ * @returns Parsed JSON response
+ * @throws Throws an error if the response status is not ok
  */
 async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -37,12 +38,43 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
       const errorBody = await response.json();
       errorMessage = errorBody.detail || errorBody.message || errorMessage;
     } catch (e) {
-      // 如果响应体不是JSON或为空，则忽略
+      // If the response body isn't JSON or is empty, ignore
     }
     throw new Error(errorMessage);
   }
 
-  // 如果响应状态为 204 No Content，则返回 null
+  // Return null for 204 No Content responses
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
+
+/**
+ * A dedicated fetch wrapper for the User Service API (port 7657).
+ */
+async function userApiFetch(endpoint: string, options: RequestInit = {}) {
+  const url = `${USER_API_BASE_URL}${endpoint}`;
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+    try {
+      const errorBody = await response.json();
+      errorMessage = errorBody.error || errorBody.detail || errorBody.message || errorMessage;
+    } catch (e) {
+      // Ignore if body is not JSON
+    }
+    throw new Error(errorMessage);
+  }
+
   if (response.status === 204) {
     return null;
   }
@@ -51,41 +83,39 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
 }
 
 
-// --- Auth API ---
+// --- Auth API (Updated to use User Service) ---
 
 export const loginUser = async (username: string, password: string): Promise<User> => {
-  // 在实际应用中，这将是一个 POST 请求
-  console.log('Logging in with:', username, password);
-  // 模拟一个成功的登录
-  if (password === 'password') {
-    return Promise.resolve({
-      user_id: 'user-123',
-      username: username,
-      email: `${username.toLowerCase()}@example.com`,
-    });
+  const response = await userApiFetch('/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+  if (response.status === 'success' && response.data) {
+    return response.data;
   }
-  return Promise.reject(new Error('用户名或密码无效'));
+  throw new Error(response.message || 'Login failed');
 };
 
 export const registerUser = async (username: string, email: string, password: string): Promise<User> => {
-  console.log('Registering:', username, email, password.substring(0,2) + '...');
-  return Promise.resolve({
-      user_id: `user-${Date.now()}`,
-      username: username,
-      email: email,
+  const response = await userApiFetch('/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, email, password }),
   });
+  if (response.status === 'success' && response.data) {
+    return response.data;
+  }
+  throw new Error(response.message || 'Registration failed');
 };
 
 export const forgotPassword = async (email: string): Promise<void> => {
-    console.log('Password reset for:', email);
-    if (email.includes('fail')) {
-        return Promise.reject(new Error('无法找到该邮箱地址。'));
-    }
-    return Promise.resolve();
+    await userApiFetch('/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+    });
 };
 
 
-// --- Data Fetching API ---
+// --- Data Fetching API (Main Service) ---
 
 export const getPoints = (): Promise<Subscription[]> => {
   return apiFetch('/points');
@@ -115,7 +145,7 @@ export const getProcessingTasks = (page: number, limit: number): Promise<{ tasks
     return apiFetch(`/tasks/processing?page=${page}&limit=${limit}`);
 };
 
-// --- Data Manipulation API ---
+// --- Data Manipulation API (Main Service) ---
 
 export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>): Promise<Subscription> => {
     return apiFetch('/points', {
@@ -143,10 +173,10 @@ export const retryProcessingTask = (taskId: string): Promise<ApiProcessingTask> 
     });
 };
 
-// --- AI & Processing API ---
+// --- AI & Processing API (Main Service) ---
 
 export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-  // 这是一个长时间运行的操作，所以我们模拟一些反馈
+  // This is a long-running operation, so we simulate some feedback
   setFeedback('正在连接到目标URL...');
   await new Promise(res => setTimeout(res, 1500));
   setFeedback('正在提取主要内容...');
@@ -154,7 +184,7 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
   setFeedback('AI正在分析和生成摘要...');
   await new Promise(res => setTimeout(res, 3000));
   
-  // 模拟从API返回的结果
+  // Mock result from the API
   const mockResult: InfoItem = {
     id: `custom-${Date.now()}`,
     point_id: 'custom-source',
@@ -185,9 +215,9 @@ export const extractKeywords = async (text: string): Promise<string[]> => {
     return response.keywords;
 };
 
-// --- Event Task API ---
+// --- Event Task API (Main Service) ---
 const createEventTask = (endpoint: string, formData: FormData): Promise<ApiTask> => {
-    // 对于 FormData，我们不应手动设置 Content-Type header
+    // For FormData, we should not manually set the Content-Type header
     return fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
@@ -225,10 +255,10 @@ export const createOfflineTask = (title: string, source_uri: string, replay_url:
 // --- Data Conversion ---
 
 /**
- * 将后端的 ApiTask 对象转换为前端使用的 Event 对象。
- * 这是修复 IndustryEvents.tsx 中类型错误的关键。
- * @param task 从API接收的ApiTask对象
- * @returns 可以在UI中显示的Event对象
+ * Converts the backend ApiTask object to a frontend Event object.
+ * This is crucial for fixing type errors in IndustryEvents.tsx.
+ * @param task The ApiTask object received from the API
+ * @returns An Event object that can be displayed in the UI
  */
 export const convertApiTaskToFrontendEvent = (task: ApiTask): Event => {
   return {
