@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Subscription, User, SystemSource, FocusPoint, InfoItem, ApiPoi, UserSourceSubscription } from '../types';
+import { Subscription, User, SystemSource, FocusPoint, InfoItem, ApiPoi } from '../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { PlusIcon, TagIcon, CloseIcon, TrashIcon } from './icons';
 import {
@@ -12,6 +12,7 @@ import {
   getUserSubscribedSources,
   addUserSourceSubscription,
   deleteUserSourceSubscription,
+  getPointsBySourceName,
 } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -300,12 +301,25 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
         setIsLoading(true);
         setError('');
         try {
-            const [allSourcesData, userSourcesData] = await Promise.all([
+            const [baseSources, userSourcesData] = await Promise.all([
                 getSources(),
                 getUserSubscribedSources(user.user_id),
             ]);
             
-            setAllSources(allSourcesData);
+            // Enrich sources with accurate, real-time point counts
+            const enrichedSources = await Promise.all(
+                baseSources.map(async (source) => {
+                    try {
+                        const points = await getPointsBySourceName(source.name);
+                        return { ...source, points_count: points.length };
+                    } catch (err) {
+                        console.error(`Failed to get point count for ${source.name}`, err);
+                        return source; // Fallback to original count on error
+                    }
+                })
+            );
+
+            setAllSources(enrichedSources);
             setUserSourceIds(new Set(userSourcesData.map(s => s.id)));
 
         } catch (err: any) {
@@ -321,22 +335,26 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
 
     const handleToggleSubscription = async (sourceId: string, isCurrentlySubscribed: boolean) => {
         const originalUserSourceIds = new Set(userSourceIds);
+        const optimisticIds = new Set(userSourceIds);
+        
+        if (isCurrentlySubscribed) {
+            optimisticIds.delete(sourceId);
+        } else {
+            optimisticIds.add(sourceId);
+        }
+        setUserSourceIds(optimisticIds);
+        
         try {
-            // Optimistic UI update
-            const updatedIds = new Set(userSourceIds);
             if (isCurrentlySubscribed) {
-                updatedIds.delete(sourceId);
-                setUserSourceIds(updatedIds);
                 await deleteUserSourceSubscription(user.user_id, sourceId);
             } else {
-                updatedIds.add(sourceId);
-                setUserSourceIds(updatedIds);
                 await addUserSourceSubscription(user.user_id, sourceId);
             }
+            // Optional: refetch data for full consistency after operation
+            // await fetchData(); 
         } catch (err: any) {
             setError(`操作失败: ${err.message}`);
-            // Revert optimistic UI update on failure
-            setUserSourceIds(originalUserSourceIds);
+            setUserSourceIds(originalUserSourceIds); // Revert on failure
         }
     };
 
@@ -367,14 +385,23 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => {
     
     const [infoItems, setInfoItems] = useState<InfoItem[]>([]);
-    useEffect(() => {
-        if (user && subscriptions.length > 0) {
+    
+    const loadArticles = useCallback(async () => {
+        try {
+            // If user has subscriptions, load articles from them. Otherwise, load all recent articles.
             const pointIds = subscriptions.map(sub => sub.id);
-            getArticles(pointIds, { page: 1, limit: 100 }).then(data => setInfoItems(data.items));
-        } else {
+            const data = await getArticles(pointIds, { page: 1, limit: 200 });
+            setInfoItems(data.items);
+        } catch (error) {
+            console.error("Failed to load articles:", error);
             setInfoItems([]);
         }
-    }, [user, subscriptions]);
+    }, [subscriptions]);
+
+    useEffect(() => {
+        loadArticles();
+    }, [loadArticles]);
+
 
     const stats = useMemo(() => {
         const today = new Date();

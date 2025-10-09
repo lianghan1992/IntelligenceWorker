@@ -36,10 +36,10 @@ const formatCron = (schedule: string): string => {
 
 // --- Intelligence Management Module ---
 const IntelligenceManager: React.FC = () => {
-    const [isPointsListOpen, setIsPointsListOpen] = useState(false);
     const [points, setPoints] = useState<Subscription[]>([]);
     const [tasks, setTasks] = useState<ProcessingTask[]>([]);
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
+    const [openSources, setOpenSources] = useState<Set<string>>(new Set());
 
     const [isLoading, setIsLoading] = useState({ points: true, tasks: true, stats: true });
     const [error, setError] = useState({ points: '', tasks: '', stats: '' });
@@ -47,16 +47,21 @@ const IntelligenceManager: React.FC = () => {
     const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
-    // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalTasks, setTotalTasks] = useState(0);
     const TASKS_PER_PAGE = 20;
 
-    // Filter state
     const [statusFilter, setStatusFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
+
+    const pointsBySource = useMemo(() => {
+        return points.reduce((acc, point) => {
+            (acc[point.source_name] = acc[point.source_name] || []).push(point);
+            return acc;
+        }, {} as Record<string, Subscription[]>);
+    }, [points]);
 
     const fetchAllPoints = useCallback(async () => {
         setIsLoading(prev => ({ ...prev, points: true }));
@@ -94,7 +99,6 @@ const IntelligenceManager: React.FC = () => {
             if (pointFilter) params.point_name = pointFilter;
             
             const { tasks: apiTasks, totalPages: apiTotalPages, total } = await getProcessingTasks(params);
-
             setTasks(apiTasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             setTotalPages(apiTotalPages);
             setTotalTasks(total);
@@ -114,7 +118,7 @@ const IntelligenceManager: React.FC = () => {
         fetchTasks();
     }, [fetchTasks]);
 
-    const handleSaveNewPoint = async (newPointData: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>) => {
+    const handleSaveNewPoint = async (newPointData: Omit<Subscription, 'id'|'keywords'|'newItemsCount'|'is_active'|'last_triggered_at'|'created_at'|'updated_at'|'source_id'>) => {
         setIsLoading(prev => ({ ...prev, points: true }));
         try {
             await addPoint(newPointData);
@@ -143,20 +147,29 @@ const IntelligenceManager: React.FC = () => {
 
     const handleSelectPoint = (id: string) => {
         const newSelection = new Set(selectedPointIds);
-        if (newSelection.has(id)) {
-            newSelection.delete(id);
+        newSelection.has(id) ? newSelection.delete(id) : newSelection.add(id);
+        setSelectedPointIds(newSelection);
+    };
+    
+    const handleSelectSource = (sourceName: string, checked: boolean) => {
+        const newSelection = new Set(selectedPointIds);
+        const sourcePointIds = (pointsBySource[sourceName] || []).map(p => p.id);
+        if (checked) {
+            sourcePointIds.forEach(id => newSelection.add(id));
         } else {
-            newSelection.add(id);
+            sourcePointIds.forEach(id => newSelection.delete(id));
         }
         setSelectedPointIds(newSelection);
     };
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.checked) {
-            setSelectedPointIds(new Set(points.map(p => p.id)));
-        } else {
-            setSelectedPointIds(new Set());
-        }
+        setSelectedPointIds(e.target.checked ? new Set(points.map(p => p.id)) : new Set());
+    };
+
+    const toggleSource = (sourceName: string) => {
+        const newOpenSources = new Set(openSources);
+        newOpenSources.has(sourceName) ? newOpenSources.delete(sourceName) : newOpenSources.add(sourceName);
+        setOpenSources(newOpenSources);
     };
 
     const getStatusChip = (status: ProcessingTask['status']) => {
@@ -172,85 +185,77 @@ const IntelligenceManager: React.FC = () => {
         setter(e.target.value);
     };
 
-    const uniqueSources = useMemo(() => Array.from(new Set(points.map(p => p.source_name))), [points]);
+    const uniqueSources = useMemo(() => Object.keys(pointsBySource), [pointsBySource]);
     const availablePoints = useMemo(() => {
         if (!sourceFilter) return [];
         return Array.from(new Set(points.filter(p => p.source_name === sourceFilter).map(p => p.point_name)));
     }, [points, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
-
     const statusColors: { [key: string]: string } = {
-        completed: 'border-green-300 bg-green-50',
-        failed: 'border-red-300 bg-red-50',
-        processing: 'border-blue-300 bg-blue-50',
-        pending_jina: 'border-yellow-300 bg-yellow-50',
+        completed: 'border-green-300 bg-green-50', failed: 'border-red-300 bg-red-50',
+        processing: 'border-blue-300 bg-blue-50', pending_jina: 'border-yellow-300 bg-yellow-50',
         total: 'border-gray-300 bg-gray-100',
     };
 
     return (
         <div className="space-y-6">
-            {/* Intelligence Points Manager */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-300">
-                <div className="p-6 cursor-pointer" onClick={() => setIsPointsListOpen(!isPointsListOpen)}>
-                    <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-bold text-gray-800">情报点列表</h3>
-                        <div className="flex items-center space-x-4">
-                           <span className="text-sm text-gray-500">{isPointsListOpen ? '点击收起' : '点击展开'}</span>
-                           <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${isPointsListOpen ? 'rotate-180' : ''}`} />
-                        </div>
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">情报点管理</h3>
+                    <div className="flex items-center space-x-2">
+                        {selectedPointIds.size > 0 && (
+                            <button onClick={() => setIsDeleteConfirmOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition">
+                                <TrashIcon className="w-4 h-4" /> <span>删除选中 ({selectedPointIds.size})</span>
+                            </button>
+                        )}
+                        <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                            <PlusIcon className="w-4 h-4" /> <span>添加情报点</span>
+                        </button>
                     </div>
                 </div>
-                <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isPointsListOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <div className="p-6 pt-0">
-                         <div className="flex justify-end items-center mb-4">
-                            <div className="flex items-center space-x-2">
-                                {selectedPointIds.size > 0 && (
-                                    <button onClick={() => setIsDeleteConfirmOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition">
-                                        <TrashIcon className="w-4 h-4" />
-                                        <span>删除选中 ({selectedPointIds.size})</span>
-                                    </button>
-                                )}
-                                <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                                    <PlusIcon className="w-4 h-4" />
-                                    <span>添加情报点</span>
-                                </button>
-                            </div>
-                        </div>
-                        {error.points && <p className="text-sm text-red-600 mb-2">{error.points}</p>}
-                        <div className="overflow-x-auto border rounded-lg">
-                            <table className="w-full text-sm text-left text-gray-600">
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                                    <tr>
-                                        <th className="p-4 w-4"><input type="checkbox" onChange={handleSelectAll} checked={points.length > 0 && selectedPointIds.size === points.length} /></th>
-                                        <th className="px-4 py-3">情报源</th>
-                                        <th className="px-4 py-3">情报点</th>
-                                        <th className="px-4 py-3">URL</th>
-                                        <th className="px-4 py-3">刷新周期</th>
-                                        <th className="px-4 py-3">状态</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {isLoading.points ? (
-                                        <tr><td colSpan={6} className="text-center py-8"><Spinner /></td></tr>
-                                    ) : points.map(point => (
-                                        <tr key={point.id} className="bg-white border-b hover:bg-gray-50">
-                                            <td className="p-4 w-4"><input type="checkbox" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
-                                            <td className="px-4 py-3 font-medium">{point.source_name}</td>
-                                            <td className="px-4 py-3">{point.point_name}</td>
-                                            <td className="px-4 py-3 max-w-xs truncate"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{point.point_url}</a></td>
-                                            <td className="px-4 py-3 text-xs">{formatCron(point.cron_schedule)}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                    {point.is_active ? '采集中' : '未知'}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                {error.points && <p className="text-sm text-red-600 mb-2">{error.points}</p>}
+                
+                <div className="border rounded-lg overflow-hidden">
+                    <div className="p-4 bg-gray-50 flex items-center">
+                        <input type="checkbox" className="mr-4" onChange={handleSelectAll} checked={points.length > 0 && selectedPointIds.size === points.length} />
+                        <span className="text-xs font-semibold text-gray-600 uppercase">全选</span>
                     </div>
+                    {isLoading.points ? <div className="text-center py-8"><Spinner /></div> : 
+                     Object.entries(pointsBySource).map(([sourceName, sourcePoints]) => {
+                        const isOpen = openSources.has(sourceName);
+                        const sourcePointIds = sourcePoints.map(p => p.id);
+                        const isSourceSelected = sourcePointIds.every(id => selectedPointIds.has(id));
+                        return (
+                            <div key={sourceName} className="border-t">
+                                <div className="flex items-center p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleSource(sourceName)}>
+                                    <input type="checkbox" className="mr-4" checked={isSourceSelected} onChange={(e) => handleSelectSource(sourceName, e.target.checked)} onClick={e => e.stopPropagation()} />
+                                    <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-200 mr-2 ${isOpen ? 'rotate-180' : ''}`} />
+                                    <h4 className="font-semibold text-gray-800">{sourceName}</h4>
+                                    <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">{sourcePoints.length}</span>
+                                </div>
+                                {isOpen && (
+                                    <div className="bg-white">
+                                        <table className="w-full text-sm text-left text-gray-600">
+                                            <tbody>
+                                                {sourcePoints.map(point => (
+                                                <tr key={point.id} className="border-t hover:bg-gray-50">
+                                                    <td className="p-4 w-12 text-center"><input type="checkbox" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
+                                                    <td className="px-4 py-3">{point.point_name}</td>
+                                                    <td className="px-4 py-3 max-w-xs truncate"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{point.point_url}</a></td>
+                                                    <td className="px-4 py-3 text-xs">{formatCron(point.cron_schedule)}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{point.is_active ? '采集中' : '未知'}</span>
+                                                    </td>
+                                                </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )
+                     })}
                 </div>
             </div>
 
@@ -259,7 +264,6 @@ const IntelligenceManager: React.FC = () => {
                 <h3 className="text-lg font-bold text-gray-800 mb-4">采集任务队列</h3>
                 {error.tasks && <p className="text-sm text-red-600 mb-2">{error.tasks}</p>}
                 
-                {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                     {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : taskStats && Object.entries(taskStats).map(([key, value]) =>(
                         <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
@@ -269,7 +273,6 @@ const IntelligenceManager: React.FC = () => {
                     ))}
                 </div>
 
-                {/* Filters */}
                 <div className="flex flex-col md:flex-row gap-4 mb-4 p-4 bg-gray-50 rounded-lg border">
                     <div className="flex-1">
                         <label className="text-xs font-medium text-gray-600">状态</label>
@@ -324,11 +327,8 @@ const IntelligenceManager: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                {/* Pagination */}
                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-sm text-gray-600">
-                        共 {totalTasks} 条记录
-                    </span>
+                    <span className="text-sm text-gray-600">共 {totalTasks} 条记录</span>
                     <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">上一页</button>
                         <span className="text-sm font-semibold">第 {currentPage} / {totalPages} 页</span>

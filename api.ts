@@ -105,12 +105,10 @@ export const getPlans = async (): Promise<PlanDetails> => {
 
 
 export const getUserPois = (userId: string): Promise<ApiPoi[]> => {
-  // FIX: Path construction was duplicating 'users'.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois`);
 };
 
 export const addUserPoi = (userId: string, data: { content: string; keywords: string }): Promise<ApiPoi> => {
-  // FIX: Path construction was duplicating 'users'.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois`, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -118,26 +116,25 @@ export const addUserPoi = (userId: string, data: { content: string; keywords: st
 };
 
 export const deleteUserPoi = (userId: string, poiId: string): Promise<{ message: string }> => {
-  // FIX: Path construction was duplicating 'users'.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois/${poiId}`, {
     method: 'DELETE',
   });
 };
 
 export const getUserSubscribedSources = (userId: string): Promise<UserSourceSubscription[]> => {
-  // FIX: Path construction was duplicating 'users'.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources`);
 };
 
 export const addUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  // FIX: Path construction was duplicating 'users'.
+  // FIX: Added an empty JSON body to the POST request to prevent "Failed to fetch" errors
+  // with certain server configurations that expect a body for POST requests.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources/${sourceId}`, {
-    method: 'POST'
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 };
 
 export const deleteUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  // FIX: Path construction was duplicating 'users'.
   return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources/${sourceId}`, {
     method: 'DELETE',
   });
@@ -146,56 +143,49 @@ export const deleteUserSourceSubscription = (userId: string, sourceId: string): 
 
 // --- Intelligence Service API ---
 
-// This function gets all intelligence points in the system, but fetches them by source.
-// The Admin page uses this to display all available points for management.
+export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(sourceName)}`);
+};
+
 export const getAllIntelligencePoints = async (): Promise<Subscription[]> => {
   const sources = await getSources();
   if (sources.length === 0) return [];
-  const pointPromises = sources.map(source =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(source.name)}`)
-  );
+  const pointPromises = sources.map(source => getPointsBySourceName(source.name));
   const pointsBySource = await Promise.all(pointPromises);
-  // Flatten the array of arrays into a single array of points
   return pointsBySource.flat();
 };
 
-// This function gets only the intelligence points that a user is subscribed to.
-// This is the new logic for the main app views.
 export const getPoints = async (userId: string): Promise<Subscription[]> => {
-    // 1. Get the list of sources the user is subscribed to.
     const userSources = await getUserSubscribedSources(userId);
     if (userSources.length === 0) {
-        return []; // If user has no subscriptions, return early.
+        return [];
     }
-
-    // 2. For each subscribed source, create a promise to fetch its points.
-    const pointPromises = userSources.map(source =>
-        apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(source.source_name)}`)
-    );
-
-    // 3. Execute all fetch promises in parallel.
+    const pointPromises = userSources.map(source => getPointsBySourceName(source.source_name));
     const pointsBySource = await Promise.all(pointPromises);
-
-    // 4. Flatten the array of arrays into a single array of points and return.
     return pointsBySource.flat();
 };
 
 export const getArticles = (pointIds: string[], params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
-  const pointIdsQuery = pointIds.map(id => `point_ids=${encodeURIComponent(id)}`).join('&');
-  const query = `${pointIdsQuery}&page=${params.page}&limit=${params.limit}`;
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query}`);
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+  pointIds.forEach(id => query.append('point_ids', id));
+  
+  // Handle case where there are no pointIds to avoid sending an empty query param
+  const queryString = pointIds.length > 0 ? query.toString() : `page=${params.page}&limit=${params.limit}`;
+  
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${queryString}`);
 };
 
 export const getSources = async (): Promise<SystemSource[]> => {
   const sourcesFromApi = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
-  // Map API response to the SystemSource type used by UI components
   return sourcesFromApi.map((s: any) => ({
       id: s.source_id,
       name: s.source_name,
       points_count: s.points_count,
-      // Add default values for UI fields that no longer exist in API
       description: `Contains ${s.points_count} intelligence points.`,
-      iconUrl: '', // Will fallback to letter icon
+      iconUrl: '',
       category: 'General',
       infoCount: 0, 
       subscriberCount: 0,
@@ -204,7 +194,6 @@ export const getSources = async (): Promise<SystemSource[]> => {
 
 // Note: Event APIs seem to be from a different, older service. Retaining for now.
 export const getEvents = async (page: number, limit: number = 12): Promise<{ events: Event[], totalPages: number }> => {
-    // This endpoint seems to be missing from the new unified API doc. Mocking a response to prevent crash.
     console.warn("getEvents is using a mocked response as the endpoint appears to be missing.");
     return Promise.resolve({ events: [], totalPages: 0 });
 };
@@ -225,7 +214,6 @@ export const getProcessingTasks = (params: { page: number; limit: number; status
     }));
 };
 
-// Proposed new API to get task statistics efficiently.
 export const getProcessingTasksStats = async (): Promise<{ [key: string]: number }> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
@@ -245,7 +233,6 @@ export const deletePoints = (pointIds: string[]): Promise<{ message: string }> =
 };
 
 export const retryProcessingTask = (taskId: string): Promise<ApiProcessingTask> => {
-    // This API endpoint seems to be missing from the new doc, providing a mock.
     console.log(`Retrying task ${taskId}`);
     return Promise.resolve({} as ApiProcessingTask);
 };
@@ -280,9 +267,7 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
   return mockResult;
 };
 
-// Event Task API calls seem to be from another service, keeping for now for compatibility.
 const createEventTask = (endpoint: string, formData: FormData): Promise<ApiTask> => {
-    // This endpoint seems to be missing from the new unified API doc. Mocking a response.
     console.warn(`createEventTask (${endpoint}) is using a mocked response.`);
     return Promise.resolve({} as ApiTask);
 };
