@@ -9,7 +9,9 @@ import {
     SparklesIcon,
     GearIcon,
     LogoIcon,
-    ChevronDownIcon
+    ChevronDownIcon,
+    MenuIcon,
+    CloseIcon,
 } from './icons';
 
 interface HeaderProps {
@@ -51,6 +53,7 @@ const NavItem: React.FC<{
 
 export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // Add admin to nav if user is admin
     const finalNavItems = [...navItems];
@@ -63,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
         <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm sticky top-0 z-20">
             <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    {/* Logo and Nav */}
+                    {/* Logo and Desktop Nav */}
                     <div className="flex items-center space-x-8">
                         <div className="flex items-center space-x-2 text-blue-600 cursor-pointer" onClick={() => onNavigate('dashboard')}>
                             <LogoIcon className="w-8 h-8"/>
@@ -81,11 +84,11 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                         </nav>
                     </div>
 
-                    {/* Right side: Upgrade and User Menu */}
-                    <div className="flex items-center space-x-4">
+                    {/* Right side: Upgrade, User Menu, and Mobile Menu Button */}
+                    <div className="flex items-center space-x-2 sm:space-x-4">
                         <button
                             onClick={onUpgrade}
-                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
+                            className="hidden md:inline-block px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
                         >
                             升级专业版
                         </button>
@@ -112,9 +115,62 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                 </div>
                             )}
                         </div>
+                        
+                        <div className="md:hidden flex items-center">
+                            <button
+                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                                aria-controls="mobile-menu"
+                                aria-expanded={isMobileMenuOpen}
+                            >
+                                <span className="sr-only">Open main menu</span>
+                                {isMobileMenuOpen ? (
+                                    <CloseIcon className="block h-6 w-6" aria-hidden="true" />
+                                ) : (
+                                    <MenuIcon className="block h-6 w-6" aria-hidden="true" />
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Mobile Menu */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden" id="mobile-menu">
+                    <nav className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                         {finalNavItems.map(item => (
+                            <button
+                                key={item.view}
+                                onClick={() => {
+                                    onNavigate(item.view);
+                                    setIsMobileMenuOpen(false);
+                                }}
+                                className={`flex items-center w-full space-x-3 px-3 py-2.5 rounded-lg text-base font-medium ${
+                                    currentView === item.view
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                                aria-current={currentView === item.view ? 'page' : undefined}
+                            >
+                                <item.icon className="w-5 h-5" />
+                                <span>{item.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                    <div className="pt-4 pb-3 border-t border-gray-200 px-4">
+                         <button
+                            onClick={() => {
+                                onUpgrade();
+                                setIsMobileMenuOpen(false);
+                            }}
+                            className="w-full px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
+                        >
+                            升级专业版
+                        </button>
+                    </div>
+                </div>
+            )}
         </header>
     );
 };

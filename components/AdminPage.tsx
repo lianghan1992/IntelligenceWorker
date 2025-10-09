@@ -265,6 +265,7 @@ const IntelligenceManager: React.FC = () => {
                 {error.tasks && <p className="text-sm text-red-600 mb-2">{error.tasks}</p>}
                 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    {/* FIX: Use Object.entries to iterate over the taskStats object. This prevents errors from trying to call .map() or access .length on a non-array. */}
                     {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : taskStats && Object.entries(taskStats).map(([key, value]) =>(
                         <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
                             <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
