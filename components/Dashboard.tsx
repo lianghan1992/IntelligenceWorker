@@ -391,8 +391,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
     
     const [infoItems, setInfoItems] = useState<InfoItem[]>([]);
     useEffect(() => {
-        getArticles({ page: 1, limit: 100 }).then(data => setInfoItems(data.items));
-    }, []);
+        // FIX: Pass user.user_id to getArticles as it expects two arguments.
+        getArticles(user.user_id, { page: 1, limit: 100 }).then(data => setInfoItems(data.items));
+    }, [user.user_id]);
 
     const stats = useMemo(() => {
         const today = new Date();

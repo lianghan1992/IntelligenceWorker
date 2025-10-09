@@ -37,13 +37,13 @@ const App: React.FC = () => {
     const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
 
-    const loadAppData = useCallback(async () => {
+    const loadAppData = useCallback(async (userId: string) => {
         setIsLoading(true);
         setError(null);
         try {
             const [pointsData, articlesData] = await Promise.all([
-                getPoints(),
-                getArticles({ page: 1, limit: 100 }) 
+                getPoints(userId),
+                getArticles(userId, { page: 1, limit: 100 }) 
             ]);
             setSubscriptions(pointsData);
             setInfoItems(articlesData.items);
@@ -58,7 +58,7 @@ const App: React.FC = () => {
     
     useEffect(() => {
         if (user) {
-            loadAppData();
+            loadAppData(user.user_id);
         }
     }, [user, loadAppData]);
 

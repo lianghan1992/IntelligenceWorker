@@ -169,12 +169,13 @@ export const deleteUserSourceSubscription = (userId: string, sourceId: string): 
 
 // --- Data Fetching API (Main Service) ---
 
-export const getPoints = (): Promise<Subscription[]> => {
-  return apiFetch('/points');
+export const getPoints = (userId: string): Promise<Subscription[]> => {
+  return apiFetch(`/points?user_id=${userId}`);
 };
 
-export const getArticles = (params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
+export const getArticles = (userId: string, params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
   const query = new URLSearchParams({ 
+      user_id: userId,
       page: params.page.toString(), 
       limit: params.limit.toString() 
   }).toString();
