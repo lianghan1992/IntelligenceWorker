@@ -209,12 +209,35 @@ export const getEvents = async (page: number, limit: number = 12): Promise<{ eve
     return Promise.resolve({ events: [], totalPages: 0 });
 };
 
-export const getProcessingTasks = (page: number, limit: number): Promise<{ tasks: ApiProcessingTask[], totalPages: number, total: number }> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?page=${page}&limit=${limit}`).then(response => ({
+export const getProcessingTasks = (params: { page: number; limit: number; status?: string; source_name?: string; point_name?: string }): Promise<{ tasks: ApiProcessingTask[], totalPages: number, total: number }> => {
+    const query = new URLSearchParams({
+        page: String(params.page),
+        limit: String(params.limit),
+    });
+    if (params.status) query.append('status', params.status);
+    if (params.source_name) query.append('source_name', params.source_name);
+    if (params.point_name) query.append('point_name', params.point_name);
+
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query.toString()}`).then(response => ({
         tasks: response.items,
-        totalPages: Math.ceil(response.total / limit),
+        totalPages: response.total > 0 ? Math.ceil(response.total / params.limit) : 1,
         total: response.total,
     }));
+};
+
+// Proposed new API to get task statistics efficiently.
+export const getProcessingTasksStats = async (): Promise<{ [key: string]: number }> => {
+    // In a real application, this would be a single API call to a dedicated endpoint like:
+    // return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
+    // This mock data simulates what the backend would return.
+    console.warn("getProcessingTasksStats is using mocked data as the backend endpoint is not yet available.");
+    return Promise.resolve({
+        completed: 1342,
+        processing: 43,
+        failed: 12,
+        pending_jina: 56,
+        total: 1453
+    });
 };
 
 export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>): Promise<{message: string, point_id: string}> => {
