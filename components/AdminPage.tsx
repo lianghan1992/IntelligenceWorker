@@ -33,6 +33,14 @@ const formatCron = (schedule: string): string => {
     return CRON_SCHEDULE_MAP[schedule] || schedule;
 };
 
+const getStatusChip = (status: ProcessingTask['status']) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('completed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">完成</span>;
+    if (statusLower.includes('processing') || statusLower.includes('jina')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 animate-pulse">处理中</span>;
+    if (statusLower.includes('failed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
+    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
+};
+
 
 // --- Intelligence Management Module ---
 const IntelligenceManager: React.FC = () => {
@@ -153,7 +161,9 @@ const IntelligenceManager: React.FC = () => {
     
     const handleSelectSource = (sourceName: string, checked: boolean) => {
         const newSelection = new Set(selectedPointIds);
-        const sourcePointIds = (pointsBySource[sourceName] || []).map(p => p.id);
+        const sourcePoints = pointsBySource[sourceName] || [];
+        // FIX: Add guard for sourcePoints being an array
+        const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map(p => p.id) : [];
         if (checked) {
             sourcePointIds.forEach(id => newSelection.add(id));
         } else {
@@ -170,14 +180,6 @@ const IntelligenceManager: React.FC = () => {
         const newOpenSources = new Set(openSources);
         newOpenSources.has(sourceName) ? newOpenSources.delete(sourceName) : newOpenSources.add(sourceName);
         setOpenSources(newOpenSources);
-    };
-
-    const getStatusChip = (status: ProcessingTask['status']) => {
-        const statusLower = status.toLowerCase();
-        if (statusLower.includes('completed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">完成</span>;
-        if (statusLower.includes('processing') || statusLower.includes('jina')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 animate-pulse">处理中</span>;
-        if (statusLower.includes('failed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
     };
 
     const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -200,17 +202,17 @@ const IntelligenceManager: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-4">
                     <h3 className="text-lg font-bold text-gray-800">情报点管理</h3>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 self-end sm:self-center">
                         {selectedPointIds.size > 0 && (
                             <button onClick={() => setIsDeleteConfirmOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 text-sm font-semibold rounded-lg hover:bg-red-200 transition">
-                                <TrashIcon className="w-4 h-4" /> <span>删除选中 ({selectedPointIds.size})</span>
+                                <TrashIcon className="w-4 h-4" /> <span>删除 ({selectedPointIds.size})</span>
                             </button>
                         )}
                         <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                            <PlusIcon className="w-4 h-4" /> <span>添加情报点</span>
+                            <PlusIcon className="w-4 h-4" /> <span>添加</span>
                         </button>
                     </div>
                 </div>
@@ -224,21 +226,24 @@ const IntelligenceManager: React.FC = () => {
                     {isLoading.points ? <div className="text-center py-8"><Spinner /></div> : 
                      Object.entries(pointsBySource).map(([sourceName, sourcePoints]) => {
                         const isOpen = openSources.has(sourceName);
-                        const sourcePointIds = sourcePoints.map(p => p.id);
-                        const isSourceSelected = sourcePointIds.every(id => selectedPointIds.has(id));
+                        // FIX: Guard against `sourcePoints` not being an array to prevent crashes and fix type errors.
+                        // This also fixes a ReferenceError for `isSourceSelected` which was used but not defined.
+                        const safeSourcePoints = Array.isArray(sourcePoints) ? sourcePoints : [];
+                        const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every(p => selectedPointIds.has(p.id));
                         return (
                             <div key={sourceName} className="border-t">
                                 <div className="flex items-center p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleSource(sourceName)}>
                                     <input type="checkbox" className="mr-4" checked={isSourceSelected} onChange={(e) => handleSelectSource(sourceName, e.target.checked)} onClick={e => e.stopPropagation()} />
                                     <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-200 mr-2 ${isOpen ? 'rotate-180' : ''}`} />
                                     <h4 className="font-semibold text-gray-800">{sourceName}</h4>
-                                    <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">{sourcePoints.length}</span>
+                                    <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">{safeSourcePoints.length}</span>
                                 </div>
                                 {isOpen && (
                                     <div className="bg-white">
-                                        <table className="w-full text-sm text-left text-gray-600">
+                                        {/* Desktop Table View */}
+                                        <table className="hidden md:table w-full text-sm text-left text-gray-600">
                                             <tbody>
-                                                {sourcePoints.map(point => (
+                                                {safeSourcePoints.map(point => (
                                                 <tr key={point.id} className="border-t hover:bg-gray-50">
                                                     <td className="p-4 w-12 text-center"><input type="checkbox" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
                                                     <td className="px-4 py-3">{point.point_name}</td>
@@ -251,6 +256,24 @@ const IntelligenceManager: React.FC = () => {
                                                 ))}
                                             </tbody>
                                         </table>
+                                        {/* Mobile Card View */}
+                                        <div className="md:hidden divide-y divide-gray-200">
+                                            {safeSourcePoints.map(point => (
+                                                <div key={point.id} className="p-4">
+                                                    <div className="flex items-start">
+                                                        <input type="checkbox" className="mr-4 mt-1" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} />
+                                                        <div className="flex-1">
+                                                            <p className="font-semibold text-gray-800">{point.point_name}</p>
+                                                            <a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs break-all">{point.point_url}</a>
+                                                            <div className="mt-2 flex items-center justify-between text-xs">
+                                                                <span className="text-gray-500">{formatCron(point.cron_schedule)}</span>
+                                                                <span className={`px-2 py-1 font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{point.is_active ? '采集中' : '未知'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -260,13 +283,12 @@ const IntelligenceManager: React.FC = () => {
             </div>
 
             {/* Task Queue Manager */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
                 <h3 className="text-lg font-bold text-gray-800 mb-4">采集任务队列</h3>
                 {error.tasks && <p className="text-sm text-red-600 mb-2">{error.tasks}</p>}
                 
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                    {/* FIX: Use Object.entries to iterate over the taskStats object. This prevents errors from trying to call .map() or access .length on a non-array. */}
-                    {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : taskStats && Object.entries(taskStats).map(([key, value]) =>(
+                                        {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : taskStats && Object.entries(taskStats).map(([key, value]) =>(
                         <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
                             <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
                             <p className="text-2xl font-bold text-gray-800">{value}</p>
@@ -298,7 +320,8 @@ const IntelligenceManager: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto border rounded-lg">
+                {/* Desktop Task Table */}
+                <div className="hidden md:block overflow-x-auto border rounded-lg">
                     <table className="w-full text-sm text-left text-gray-600">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                              <tr>
@@ -328,7 +351,33 @@ const IntelligenceManager: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                 <div className="flex justify-between items-center mt-4">
+
+                {/* Mobile Task Cards */}
+                <div className="md:hidden space-y-4">
+                    {isLoading.tasks ? (
+                        <div className="text-center py-8"><Spinner /></div>
+                    ) : tasks.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">无匹配的任务</div>
+                    ) : (
+                        tasks.map(task => (
+                            <div key={task.id} className="bg-white p-4 border rounded-lg">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold text-gray-800">{task.source_name}</p>
+                                        <p className="text-xs text-gray-500">{task.point_name}</p>
+                                    </div>
+                                    {getStatusChip(task.status)}
+                                </div>
+                                <p className="font-mono text-xs text-gray-500 break-all mt-2" title={task.url}>{task.url}</p>
+                                <div className="text-xs text-gray-400 mt-2">
+                                    <p>更新于: {new Date(task.updated_at).toLocaleString('zh-CN')}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                 <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
                     <span className="text-sm text-gray-600">共 {totalTasks} 条记录</span>
                     <div className="flex items-center gap-2">
                         <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">上一页</button>
@@ -386,9 +435,9 @@ export const AdminPage: React.FC = () => {
     };
 
     return (
-        <div className="flex h-full bg-gray-100">
+        <div className="flex flex-col md:flex-row h-full bg-gray-100">
             {/* Sidebar Navigation */}
-            <aside className="w-64 bg-white border-r border-gray-200 flex flex-col p-4">
+            <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col p-4">
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">管理中心</h2>
                 <nav className="flex flex-col space-y-1">
                     {navItems.map(item => (
@@ -408,9 +457,27 @@ export const AdminPage: React.FC = () => {
                 </nav>
             </aside>
             {/* Main Content Area */}
-            <main className="flex-1 p-6 overflow-y-auto">
-                {renderContent()}
-            </main>
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Mobile Navigation */}
+                <div className="md:hidden p-4 border-b bg-white">
+                    <label htmlFor="admin-nav" className="sr-only">选择管理模块</label>
+                    <select
+                        id="admin-nav"
+                        value={activeTab}
+                        onChange={(e) => setActiveTab(e.target.value as AdminView)}
+                        className="w-full p-2.5 text-sm font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {navItems.map(item => (
+                            <option key={item.key} value={item.key}>
+                                {item.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+                 <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+                    {renderContent()}
+                </main>
+            </div>
         </div>
     );
 };
