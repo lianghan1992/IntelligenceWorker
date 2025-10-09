@@ -52,10 +52,10 @@ const NavItem: React.FC<{
 export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
-    // Add admin to nav if user is admin (simple check for demo)
+    // Add admin to nav if user is admin
     const finalNavItems = [...navItems];
-    // A simple check for admin users to show the admin page link
-    if (user.username.toLowerCase().includes('admin')) {
+    // A simple check for the admin user to show the admin page link
+    if (user.email === '326575140@qq.com') {
         finalNavItems.push({ view: 'admin', label: '后台管理', icon: GearIcon });
     }
 
