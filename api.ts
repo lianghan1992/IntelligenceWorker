@@ -150,6 +150,7 @@ export const deleteUserSourceSubscription = (userId: string, sourceId: string): 
 // The Admin page uses this to display all available points for management.
 export const getAllIntelligencePoints = async (): Promise<Subscription[]> => {
   const sources = await getSources();
+  if (sources.length === 0) return [];
   const pointPromises = sources.map(source =>
     apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(source.name)}`)
   );
@@ -223,10 +224,10 @@ export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsC
     });
 };
 
-export const deletePoint = (pointId: string): Promise<{ message: string }> => {
+export const deletePoints = (pointIds: string[]): Promise<{ message: string }> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
-        body: JSON.stringify({ point_ids: [pointId] }),
+        body: JSON.stringify({ point_ids: pointIds }),
     });
 };
 

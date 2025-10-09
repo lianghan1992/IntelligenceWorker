@@ -209,3 +209,6 @@ export interface SearchResult extends Partial<InfoItem> {
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
+
+// Admin page views
+export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';

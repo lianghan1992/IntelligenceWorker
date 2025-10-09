@@ -106,7 +106,7 @@ const App: React.FC = () => {
             case 'ai':
                 return <ReportGenerator />;
             case 'admin':
-                return <AdminPage subscriptions={subscriptions} onSubscriptionsUpdate={setSubscriptions} onAddSource={() => setIsAddSourceModalOpen(true)} />;
+                return <AdminPage />;
             default:
                 return <div>视图未找到</div>;
         }
