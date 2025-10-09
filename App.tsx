@@ -8,11 +8,13 @@ import { StrategicCockpit } from './components/StrategicCockpit';
 import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents';
 import { ReportGenerator } from './components/ReportGenerator';
+// 修复：AdminPage.tsx 将被创建，解决模块未找到的问题
 import { AdminPage } from './components/AdminPage';
 import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
+// 修复：api.ts 将被创建，解决模块未找到的问题
 import { getPoints, getArticles } from './api';
 import { mockDeepDives } from './mockData';
 
