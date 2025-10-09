@@ -227,17 +227,7 @@ export const getProcessingTasks = (params: { page: number; limit: number; status
 
 // Proposed new API to get task statistics efficiently.
 export const getProcessingTasksStats = async (): Promise<{ [key: string]: number }> => {
-    // In a real application, this would be a single API call to a dedicated endpoint like:
-    // return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
-    // This mock data simulates what the backend would return.
-    console.warn("getProcessingTasksStats is using mocked data as the backend endpoint is not yet available.");
-    return Promise.resolve({
-        completed: 1342,
-        processing: 43,
-        failed: 12,
-        pending_jina: 56,
-        total: 1453
-    });
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
 export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>): Promise<{message: string, point_id: string}> => {

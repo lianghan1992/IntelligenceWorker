@@ -19,6 +19,20 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
+const CRON_SCHEDULE_MAP: { [key: string]: string } = {
+    '*/5 * * * *': '每5分钟',
+    '*/30 * * * *': '每30分钟',
+    '0 * * * *': '每1小时',
+    '0 */2 * * *': '每2小时',
+    '0 */3 * * *': '每3小时',
+    '0 */6 * * *': '每6小时',
+    '0 */12 * * *': '每12小时',
+};
+
+const formatCron = (schedule: string): string => {
+    return CRON_SCHEDULE_MAP[schedule] || schedule;
+};
+
 
 // --- Intelligence Management Module ---
 const IntelligenceManager: React.FC = () => {
@@ -81,7 +95,7 @@ const IntelligenceManager: React.FC = () => {
             
             const { tasks: apiTasks, totalPages: apiTotalPages, total } = await getProcessingTasks(params);
 
-            setTasks(apiTasks);
+            setTasks(apiTasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             setTotalPages(apiTotalPages);
             setTotalTasks(total);
         } catch (err: any) {
@@ -166,6 +180,14 @@ const IntelligenceManager: React.FC = () => {
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
 
+    const statusColors: { [key: string]: string } = {
+        completed: 'border-green-300 bg-green-50',
+        failed: 'border-red-300 bg-red-50',
+        processing: 'border-blue-300 bg-blue-50',
+        pending_jina: 'border-yellow-300 bg-yellow-50',
+        total: 'border-gray-300 bg-gray-100',
+    };
+
     return (
         <div className="space-y-6">
             {/* Intelligence Points Manager */}
@@ -217,7 +239,7 @@ const IntelligenceManager: React.FC = () => {
                                             <td className="px-4 py-3 font-medium">{point.source_name}</td>
                                             <td className="px-4 py-3">{point.point_name}</td>
                                             <td className="px-4 py-3 max-w-xs truncate"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{point.point_url}</a></td>
-                                            <td className="px-4 py-3 font-mono text-xs">{point.cron_schedule}</td>
+                                            <td className="px-4 py-3 text-xs">{formatCron(point.cron_schedule)}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                                     {point.is_active ? '采集中' : '未知'}
@@ -240,8 +262,8 @@ const IntelligenceManager: React.FC = () => {
                 {/* Stats */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                     {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : taskStats && Object.entries(taskStats).map(([key, value]) =>(
-                        <div key={key} className="bg-gray-50 p-4 rounded-lg border">
-                            <p className="text-sm text-gray-500 capitalize">{key.replace('_', ' ')}</p>
+                        <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
+                            <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
                             <p className="text-2xl font-bold text-gray-800">{value}</p>
                         </div>
                     ))}
@@ -276,23 +298,27 @@ const IntelligenceManager: React.FC = () => {
                     <table className="w-full text-sm text-left text-gray-600">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                              <tr>
+                                <th className="px-4 py-3">情报源</th>
                                 <th className="px-4 py-3">情报点</th>
                                 <th className="px-4 py-3">URL</th>
                                 <th className="px-4 py-3">状态</th>
                                 <th className="px-4 py-3">创建时间</th>
+                                <th className="px-4 py-3">最后更新</th>
                             </tr>
                         </thead>
                         <tbody>
                            {isLoading.tasks ? (
-                                <tr><td colSpan={4} className="text-center py-8"><Spinner /></td></tr>
+                                <tr><td colSpan={6} className="text-center py-8"><Spinner /></td></tr>
                             ) : tasks.length === 0 ? (
-                                <tr><td colSpan={4} className="text-center py-8 text-gray-500">无匹配的任务</td></tr>
+                                <tr><td colSpan={6} className="text-center py-8 text-gray-500">无匹配的任务</td></tr>
                             ) : tasks.map(task => (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-4 py-3 font-medium">{task.source_name}</td>
                                     <td className="px-4 py-3">{task.point_name}</td>
-                                    <td className="px-4 py-3 font-mono text-xs max-w-xs truncate">{task.url}</td>
+                                    <td className="px-4 py-3 font-mono text-xs max-w-xs truncate" title={task.url}>{task.url}</td>
                                     <td className="px-4 py-3">{getStatusChip(task.status)}</td>
                                     <td className="px-4 py-3">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-4 py-3">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -310,7 +336,7 @@ const IntelligenceManager: React.FC = () => {
                     </div>
                 </div>
             </div>
-            {isAddModalOpen && <AddSubscriptionModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewPoint} />}
+            {isAddModalOpen && <AddSubscriptionModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewPoint} isLoading={isLoading.points} />}
             {isDeleteConfirmOpen && (
                 <ConfirmationModal
                     title="确认删除"

@@ -7,7 +7,15 @@ interface AddSubscriptionModalProps {
   onClose: () => void;
   // 修复：从Omit类型中移除不存在的 'query' 属性
   onSave: (subscription: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>) => void;
+  isLoading?: boolean;
 }
+
+const Spinner: React.FC = () => (
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
 
 const cronOptions = [
     { label: '每5分钟', value: '*/5 * * * *' },
@@ -18,7 +26,7 @@ const cronOptions = [
     { label: '每12小时', value: '0 */12 * * *' },
 ];
 
-export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onClose, onSave }) => {
+export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onClose, onSave, isLoading = false }) => {
     const [pointName, setPointName] = useState('');
     const [sourceName, setSourceName] = useState('');
     const [pointUrl, setPointUrl] = useState('');
@@ -40,7 +48,7 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
     const isFormValid = pointName.trim() && sourceName.trim() && pointUrl.trim() && cronSchedule.trim();
 
     const handleSave = () => {
-        if (!isFormValid) return;
+        if (!isFormValid || isLoading) return;
         onSave({
             point_name: pointName,
             source_name: sourceName,
@@ -61,7 +69,7 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                     <h3 className="text-lg font-semibold text-gray-900">
                         添加新的情报关注点
                     </h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
                         <CloseIcon className="w-6 h-6" />
                     </button>
                 </div>
@@ -78,6 +86,7 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                                 list="sources-datalist"
                                 placeholder="选择或输入新的情报源 (例如 '盖世汽车')"
                                 className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                disabled={isLoading}
                             />
                             <datalist id="sources-datalist">
                                 {sources.map(source => <option key={source.id} value={source.name} />)}
@@ -85,11 +94,11 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                         </div>
                          <div>
                             <label className="text-sm font-medium text-gray-700">情报点名称 (例如 "前沿技术")</label>
-                            <input type="text" value={pointName} onChange={e => setPointName(e.target.value)} className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            <input type="text" value={pointName} onChange={e => setPointName(e.target.value)} className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading}/>
                         </div>
                         <div>
                             <label className="text-sm font-medium text-gray-700">网页 URL</label>
-                            <input type="url" value={pointUrl} onChange={e => setPointUrl(e.target.value)} placeholder="https://auto.gasgoo.com/new-energy/" className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            <input type="url" value={pointUrl} onChange={e => setPointUrl(e.target.value)} placeholder="https://auto.gasgoo.com/new-energy/" className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading}/>
                         </div>
                         <div>
                             <label className="text-sm font-medium text-gray-700">刷新周期</label>
@@ -97,6 +106,7 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                                 value={cronSchedule} 
                                 onChange={e => setCronSchedule(e.target.value)} 
                                 className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                disabled={isLoading}
                             >
                                 {cronOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                             </select>
@@ -105,11 +115,11 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                 </div>
 
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3 rounded-b-2xl">
-                    <button onClick={onClose} className="py-2 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-100 transition-colors">
+                    <button onClick={onClose} className="py-2 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-100 transition-colors" disabled={isLoading}>
                         取消
                     </button>
-                    <button onClick={handleSave} disabled={!isFormValid} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300">
-                        保存关注点
+                    <button onClick={handleSave} disabled={!isFormValid || isLoading} className="w-32 py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex justify-center items-center">
+                        {isLoading ? <Spinner /> : '保存关注点'}
                     </button>
                 </div>
             </div>
