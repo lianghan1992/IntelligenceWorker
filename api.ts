@@ -86,17 +86,21 @@ async function userApiFetch(endpoint: string, options: RequestInit = {}) {
 }
 
 
-// --- Auth API (Uses User Service) ---
+// --- Auth API (REAL IMPLEMENTATION) ---
 
-export const loginUser = async (username: string, password: string): Promise<User> => {
+export const loginUser = async (email: string, password: string): Promise<User> => {
   const response = await userApiFetch('/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
-  if (response.status === 'success' && response.data) {
-    return response.data;
-  }
-  throw new Error(response.message || 'Login failed');
+  
+  // The API returns user_id and username, but not email. We add it back from the input.
+  const user: User = {
+    user_id: response.user_id,
+    username: response.username,
+    email: email,
+  };
+  return user;
 };
 
 export const registerUser = async (username: string, email: string, password: string): Promise<User> => {
@@ -104,20 +108,25 @@ export const registerUser = async (username: string, email: string, password: st
     method: 'POST',
     body: JSON.stringify({ username, email, password }),
   });
-  if (response.status === 'success' && response.data) {
-    return response.data;
-  }
-  throw new Error(response.message || 'Registration failed');
+
+  // The API returns a user_id. We construct the user object for auto-login.
+  const user: User = {
+    user_id: response.user_id,
+    username: username,
+    email: email,
+  };
+  return user;
 };
 
 export const forgotPassword = async (email: string): Promise<void> => {
-    await userApiFetch('/forgot-password', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-    });
+    // --- 模拟忘记密码 ---
+    // 注意：当前API文档中未包含忘记密码接口，此功能暂时保留为模拟状态。
+    console.log(`模拟发送密码重置邮件至: ${email}`);
+    await new Promise(res => setTimeout(res, 1000));
+    return;
 };
 
-// --- User Service API ---
+// --- User Service API (THESE ARE REAL) ---
 
 export const getPlans = (): Promise<PlanDetails> => {
   return userApiFetch('/plans');

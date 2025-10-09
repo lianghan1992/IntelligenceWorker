@@ -242,9 +242,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // Fix: The socket.io client `io()` function was called without an argument, but the function signature requires one.
+        // FIX: The socket.io client `io()` function was called without an argument, but the function signature requires one.
         // Providing '/' as the argument connects the client to the server that served the page, resolving the error.
-        // FIX: The io() function requires an argument. Passing '/' connects to the host that serves the page.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {

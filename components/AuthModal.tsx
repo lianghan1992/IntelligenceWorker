@@ -28,7 +28,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLoginSuccess })
         setIsLoading(true);
         setError('');
         try {
-            const user = await loginUser(username, password);
+            // API expects email for login
+            const user = await loginUser(email, password);
             onLoginSuccess(user);
         } catch (err: any) {
             setError(err.message || '登录失败，请检查您的凭据。');
@@ -67,7 +68,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onClose, onLoginSuccess })
 
     const renderLogin = () => (
         <form onSubmit={handleLogin} className="space-y-4">
-            <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="用户名" required className="w-full p-3 bg-gray-100 rounded-lg border focus:ring-2 focus:ring-blue-500 focus:outline-none"/>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="邮箱" required className="w-full p-3 bg-gray-100 rounded-lg border focus:ring-2 focus:ring-blue-500 focus:outline-none"/>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="密码" required className="w-full p-3 bg-gray-100 rounded-lg border focus:ring-2 focus:ring-blue-500 focus:outline-none"/>
             <button type="button" onClick={() => setView('forgotPassword')} className="text-sm text-blue-600 hover:underline">忘记密码?</button>
             <button type="submit" disabled={isLoading} className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center">
