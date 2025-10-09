@@ -3,15 +3,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Subscription, ApiProcessingTask, ProcessingTask, Event } from '../types';
 import {
   addPoint,
-  updatePoint,
   deletePoint,
   getProcessingTasks,
   retryProcessingTask,
   convertApiTaskToFrontendEvent,
+  getAllIntelligencePoints,
 } from '../api';
 import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
-import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from './icons';
+import { PlusIcon, TrashIcon } from './icons';
 import { AddEventModal } from './AddEventModal';
 import { getEvents } from '../api';
 
@@ -33,24 +33,31 @@ const SubscriptionsManager: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleToggleActive = async (sub: Subscription) => {
+  // Fetch all points for admin view
+  const fetchAllPoints = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const updatedSub = await updatePoint(sub.id, { is_active: !sub.is_active });
-      onSubscriptionsUpdate(
-        initialSubscriptions.map(s => (s.id === updatedSub.id ? updatedSub : s))
-      );
-    } catch (err) {
-      console.error('Failed to toggle subscription active state', err);
-      setError('更新状态失败，请重试。');
+        const allPoints = await getAllIntelligencePoints();
+        onSubscriptionsUpdate(allPoints);
+    } catch (err: any) {
+        setError("无法加载所有情报点: " + err.message);
+    } finally {
+        setIsLoading(false);
     }
-  };
+  }, [onSubscriptionsUpdate]);
 
-  const handleSaveNew = async (newSubData: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>) => {
+  useEffect(() => {
+    fetchAllPoints();
+  }, [fetchAllPoints]);
+
+
+  const handleSaveNew = async (newSubData: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>) => {
     setIsLoading(true);
     setError('');
     try {
-      const addedSub = await addPoint(newSubData);
-      onSubscriptionsUpdate([addedSub, ...initialSubscriptions]);
+      await addPoint(newSubData);
+      // Refetch all points to get the new one
+      await fetchAllPoints();
       setIsAddModalOpen(false);
     } catch (err) {
       console.error('Failed to add subscription', err);
@@ -98,6 +105,7 @@ const SubscriptionsManager: React.FC<{
         </div>
       </div>
       {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+      {isLoading && <div className="text-center py-4">正在加载...</div>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left text-gray-600">
           <thead className="text-xs text-gray-700 uppercase bg-gray-50">
@@ -123,9 +131,6 @@ const SubscriptionsManager: React.FC<{
                   </span>
                 </td>
                 <td className="px-4 py-3 flex items-center justify-center space-x-2">
-                  <button onClick={() => handleToggleActive(sub)} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full" title={sub.is_active ? '暂停' : '启动'}>
-                    {sub.is_active ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
-                  </button>
                   <button onClick={() => setItemToDelete(sub)} className="p-2 text-red-500 hover:bg-red-100 rounded-full" title="删除">
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -167,35 +172,26 @@ const TaskQueueManager: React.FC<{ subscriptions: Subscription[] }> = ({ subscri
         setError('');
         try {
             const { tasks: apiTasks } = await getProcessingTasks(1, 100);
-            const enrichedTasks = apiTasks.map(task => {
-                const sub = subscriptions.find(s => s.id === task.point_id);
-                return {
-                    ...task,
-                    source_name: sub?.source_name || 'N/A',
-                    point_name: sub?.point_name || 'N/A',
-                };
-            });
-            setTasks(enrichedTasks);
+            // API now provides source_name and point_name, no need to enrich
+            setTasks(apiTasks);
         } catch (err: any) {
             setError(err.message || '无法加载任务队列');
         } finally {
             setIsLoading(false);
         }
-    }, [subscriptions]);
+    }, []);
 
     useEffect(() => {
         fetchTasks();
+         // This API call seems to belong to another service, but keeping it for now
          getEvents(1).then(({events}) => setEvents(events));
     }, [fetchTasks]);
     
     const handleRetry = async (taskId: string) => {
         try {
             const updatedTask = await retryProcessingTask(taskId);
-            setTasks(tasks.map(t => t.id === taskId ? {
-                ...t,
-                status: updatedTask.status,
-                log: updatedTask.log,
-            } : t));
+            // Update logic might need adjustment based on actual API response
+            setTasks(tasks.map(t => t.id === taskId ? { ...t, status: updatedTask.status } : t));
         } catch (err) {
             setError('重试任务失败');
         }
@@ -207,14 +203,11 @@ const TaskQueueManager: React.FC<{ subscriptions: Subscription[] }> = ({ subscri
     }
     
     const getStatusChip = (status: ProcessingTask['status']) => {
-        switch (status) {
-            case 'completed': return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">完成</span>;
-            case 'processing': return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 animate-pulse">处理中</span>;
-            case 'failed': return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
-            case 'pending':
-            default:
-                return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
-        }
+        const statusLower = status.toLowerCase();
+        if (statusLower.includes('completed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">完成</span>;
+        if (statusLower.includes('processing') || statusLower.includes('jina')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 animate-pulse">处理中</span>;
+        if (statusLower.includes('failed')) return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
     };
 
     return (
@@ -236,7 +229,7 @@ const TaskQueueManager: React.FC<{ subscriptions: Subscription[] }> = ({ subscri
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                             <tr>
                                 <th className="px-4 py-3">情报点</th>
-                                <th className="px-4 py-3">文章ID</th>
+                                <th className="px-4 py-3">URL</th>
                                 <th className="px-4 py-3">状态</th>
                                 <th className="px-4 py-3">创建时间</th>
                                 <th className="px-4 py-3 text-center">操作</th>
@@ -246,11 +239,11 @@ const TaskQueueManager: React.FC<{ subscriptions: Subscription[] }> = ({ subscri
                             {tasks.map(task => (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-4 py-3">{task.point_name}</td>
-                                    <td className="px-4 py-3 font-mono text-xs">{task.article_id}</td>
+                                    <td className="px-4 py-3 font-mono text-xs max-w-xs truncate">{task.url}</td>
                                     <td className="px-4 py-3">{getStatusChip(task.status)}</td>
                                     <td className="px-4 py-3">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
                                     <td className="px-4 py-3 text-center">
-                                        {task.status === 'failed' && (
+                                        {task.status.toLowerCase().includes('failed') && (
                                             <button onClick={() => handleRetry(task.id)} className="font-medium text-blue-600 hover:underline text-xs">重试</button>
                                         )}
                                     </td>

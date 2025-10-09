@@ -1,6 +1,6 @@
 // src/api.ts
 
-import { API_BASE_URL, USER_API_BASE_URL } from './config';
+import { API_BASE_URL, USER_SERVICE_PATH, INTELLIGENCE_SERVICE_PATH } from './config';
 import {
   User,
   InfoItem,
@@ -12,34 +12,32 @@ import {
   SearchResult,
   PlanDetails,
   ApiPoi,
-  UserSubscribedSource,
+  UserSourceSubscription,
 } from './types';
 
 // --- Helper Functions ---
 
 /**
- * A generic fetch wrapper for the main API service (port 7656).
- * It handles API requests, JSON parsing, and error handling.
- * @param endpoint API endpoint (e.g., '/users')
+ * A generic fetch wrapper for API calls.
+ * It handles JSON parsing, error handling, and constructing the correct API path.
+ * @param path The full API path (e.g., '/users/login' or '/intelligence/points')
  * @param options Fetch API options (method, body, headers, etc.)
  * @returns Parsed JSON response
  * @throws Throws an error if the response status is not ok
  */
-async function apiFetch(endpoint: string, options: RequestInit = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
+async function apiFetch(path: string, options: RequestInit = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(path, { ...options, headers });
 
   if (!response.ok) {
     let errorMessage = `API Error: ${response.status} ${response.statusText}`;
     try {
       const errorBody = await response.json();
-      errorMessage = errorBody.detail || errorBody.message || errorMessage;
+      errorMessage = errorBody.detail || errorBody.message || errorBody.error || errorMessage;
     } catch (e) {
       // If the response body isn't JSON or is empty, ignore
     }
@@ -54,47 +52,15 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
   return response.json();
 }
 
-/**
- * A dedicated fetch wrapper for the User Service API (port 7657).
- */
-async function userApiFetch(endpoint: string, options: RequestInit = {}) {
-  const url = `${USER_API_BASE_URL}${endpoint}`;
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
 
-  const response = await fetch(url, { ...options, headers });
-
-  if (!response.ok) {
-    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-    try {
-      const errorBody = await response.json();
-      errorMessage = errorBody.error || errorBody.detail || errorBody.message || errorMessage;
-    } catch (e) {
-      // Ignore if body is not JSON
-    }
-    throw new Error(errorMessage);
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
-}
-
-
-// --- Auth API (REAL IMPLEMENTATION) ---
+// --- Auth API (User Service) ---
 
 export const loginUser = async (email: string, password: string): Promise<User> => {
-  const response = await userApiFetch('/login', {
+  const response = await apiFetch(`${USER_SERVICE_PATH}/login`, {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
   
-  // The API returns user_id and username, but not email. We add it back from the input.
   const user: User = {
     user_id: response.user_id,
     username: response.username,
@@ -104,88 +70,116 @@ export const loginUser = async (email: string, password: string): Promise<User> 
 };
 
 export const registerUser = async (username: string, email: string, password: string): Promise<User> => {
-  const response = await userApiFetch('/register', {
+  const response = await apiFetch(`${USER_SERVICE_PATH}/register`, {
     method: 'POST',
     body: JSON.stringify({ username, email, password }),
   });
 
-  // The API returns a user_id. We construct the user object for auto-login.
+  // API returns 'id', we map it to 'user_id' for consistency within the app.
   const user: User = {
-    user_id: response.user_id,
-    username: username,
-    email: email,
+    user_id: response.id,
+    username: response.username,
+    email: response.email,
   };
   return user;
 };
 
 export const forgotPassword = async (email: string): Promise<void> => {
-    // --- 模拟忘记密码 ---
-    // 注意：当前API文档中未包含忘记密码接口，此功能暂时保留为模拟状态。
     console.log(`模拟发送密码重置邮件至: ${email}`);
     await new Promise(res => setTimeout(res, 1000));
     return;
 };
 
-// --- User Service API (THESE ARE REAL) ---
+// --- User Service API ---
 
-export const getPlans = (): Promise<PlanDetails> => {
-  return userApiFetch('/plans');
+export const getPlans = async (): Promise<PlanDetails> => {
+  const plans = await apiFetch(`${USER_SERVICE_PATH}/plans`);
+  // Map price to price_monthly for compatibility with PricingModal
+  for (const key in plans) {
+      if (plans[key].price !== undefined) {
+          (plans[key] as any).price_monthly = plans[key].price;
+      }
+  }
+  return plans;
 };
+
 
 export const getUserPois = (userId: string): Promise<ApiPoi[]> => {
-  return userApiFetch(`/users/${userId}/pois`);
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/pois`);
 };
 
-export const addUserPoi = (userId: string, data: { content: string; keywords: string }): Promise<{ message: string; poi_id: string }> => {
-  return userApiFetch(`/users/${userId}/pois`, {
+export const addUserPoi = (userId: string, data: { content: string; keywords: string }): Promise<ApiPoi> => {
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/pois`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 };
 
 export const deleteUserPoi = (userId: string, poiId: string): Promise<{ message: string }> => {
-  return userApiFetch(`/users/${userId}/pois/${poiId}`, {
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/pois/${poiId}`, {
     method: 'DELETE',
   });
 };
 
-export const getUserSubscribedSources = (userId: string): Promise<UserSubscribedSource[]> => {
-  return userApiFetch(`/users/${userId}/sources`);
+export const getUserSubscribedSources = (userId: string): Promise<UserSourceSubscription[]> => {
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/sources`);
 };
 
 export const addUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  return userApiFetch(`/users/${userId}/sources`, {
-    method: 'POST',
-    body: JSON.stringify({ source_id: sourceId }),
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/sources/${sourceId}`, {
+    method: 'POST'
   });
 };
 
 export const deleteUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  return userApiFetch(`/users/${userId}/sources/${sourceId}`, {
+  return apiFetch(`${USER_SERVICE_PATH}/users/${userId}/sources/${sourceId}`, {
     method: 'DELETE',
   });
 };
 
 
-// --- Data Fetching API (Main Service) ---
+// --- Intelligence Service API ---
 
-export const getPoints = (userId: string): Promise<Subscription[]> => {
-  return apiFetch(`/points?user_id=${userId}`);
+// This function gets all intelligence points in the system.
+// The Admin page uses this to display all available points for management.
+export const getAllIntelligencePoints = (): Promise<Subscription[]> => {
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=`);
 };
 
-export const getArticles = (userId: string, params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
-  const query = new URLSearchParams({ 
-      user_id: userId,
-      page: params.page.toString(), 
-      limit: params.limit.toString() 
-  }).toString();
-  return apiFetch(`/articles?${query}`);
+// This function gets only the intelligence points that a user is subscribed to.
+// This is the new logic for the main app views.
+export const getPoints = async (userId: string): Promise<Subscription[]> => {
+    const [userSources, allPoints] = await Promise.all([
+        getUserSubscribedSources(userId),
+        getAllIntelligencePoints()
+    ]);
+    const userSourceNames = new Set(userSources.map(s => s.source_name));
+    return allPoints.filter(point => userSourceNames.has(point.source_name));
 };
 
-export const getSources = (): Promise<SystemSource[]> => {
-  return apiFetch('/sources');
+export const getArticles = (pointIds: string[], params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
+  const pointIdsQuery = pointIds.map(id => `point_ids=${encodeURIComponent(id)}`).join('&');
+  const query = `${pointIdsQuery}&page=${params.page}&limit=${params.limit}`;
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query}`);
 };
 
+export const getSources = async (): Promise<SystemSource[]> => {
+  const sourcesFromApi = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+  // Map API response to the SystemSource type used by UI components
+  return sourcesFromApi.map((s: any) => ({
+      id: s.source_id,
+      name: s.source_name,
+      points_count: s.points_count,
+      // Add default values for UI fields that no longer exist in API
+      description: `Contains ${s.points_count} intelligence points.`,
+      iconUrl: '', // Will fallback to letter icon
+      category: 'General',
+      infoCount: 0, 
+      subscriberCount: 0,
+  }));
+};
+
+// Note: Event APIs seem to be from a different, older service. Retaining for now.
 export const getEvents = async (page: number, limit: number = 12): Promise<{ events: Event[], totalPages: number }> => {
     const data = await apiFetch(`/tasks/events?page=${page}&limit=${limit}`);
     return {
@@ -194,42 +188,43 @@ export const getEvents = async (page: number, limit: number = 12): Promise<{ eve
     };
 };
 
-export const getProcessingTasks = (page: number, limit: number): Promise<{ tasks: ApiProcessingTask[], totalPages: number }> => {
-    return apiFetch(`/tasks/processing?page=${page}&limit=${limit}`);
+export const getProcessingTasks = (page: number, limit: number): Promise<{ tasks: ApiProcessingTask[], totalPages: number, total: number }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?page=${page}&limit=${limit}`).then(response => ({
+        tasks: response.items,
+        totalPages: Math.ceil(response.total / limit),
+        total: response.total,
+    }));
 };
 
-// --- Data Manipulation API (Main Service) ---
-
-export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount'>): Promise<Subscription> => {
-    return apiFetch('/points', {
+export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>): Promise<{message: string, point_id: string}> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const updatePoint = (id: string, data: Partial<Subscription>): Promise<Subscription> => {
-    return apiFetch(`/points/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deletePoint = (id: string): Promise<void> => {
-    return apiFetch(`/points/${id}`, {
+export const deletePoint = (pointId: string): Promise<{ message: string }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
+        body: JSON.stringify({ point_ids: [pointId] }),
     });
 };
 
 export const retryProcessingTask = (taskId: string): Promise<ApiProcessingTask> => {
-    return apiFetch(`/tasks/processing/${taskId}/retry`, {
+    // This API endpoint seems to be missing from the new doc, providing a mock.
+    console.log(`Retrying task ${taskId}`);
+    return Promise.resolve({} as ApiProcessingTask);
+};
+
+
+export const searchArticles = async (query: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles?top_k=${limit}`, {
         method: 'POST',
+        body: JSON.stringify({ query_text: query, point_ids }),
     });
 };
 
-// --- AI & Processing API (Main Service) ---
-
 export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-  // This is a long-running operation, so we simulate some feedback
   setFeedback('正在连接到目标URL...');
   await new Promise(res => setTimeout(res, 1500));
   setFeedback('正在提取主要内容...');
@@ -237,7 +232,6 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
   setFeedback('AI正在分析和生成摘要...');
   await new Promise(res => setTimeout(res, 3000));
   
-  // Mock result from the API
   const mockResult: InfoItem = {
     id: `custom-${Date.now()}`,
     point_id: 'custom-source',
@@ -249,28 +243,11 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
     content: `这是从URL提取并由AI生成的结构化内容摘要。\n\n分析表明，该页面的核心观点是关于...`,
     created_at: new Date().toISOString(),
   };
-
   return mockResult;
 };
 
-export const searchArticles = async (query: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
-    return apiFetch('/search/articles', {
-        method: 'POST',
-        body: JSON.stringify({ query, point_ids, limit }),
-    });
-};
-
-export const extractKeywords = async (text: string): Promise<string[]> => {
-    const response = await apiFetch('/ai/extract-keywords', {
-        method: 'POST',
-        body: JSON.stringify({ text }),
-    });
-    return response.keywords;
-};
-
-// --- Event Task API (Main Service) ---
+// Event Task API calls seem to be from another service, keeping for now for compatibility.
 const createEventTask = (endpoint: string, formData: FormData): Promise<ApiTask> => {
-    // For FormData, we should not manually set the Content-Type header
     return fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
@@ -287,9 +264,7 @@ export const createLiveTask = (live_url: string, planned_start_time: string, cov
     const formData = new FormData();
     formData.append('live_url', live_url);
     formData.append('planned_start_time', planned_start_time);
-    if (cover_image) {
-        formData.append('cover_image', cover_image);
-    }
+    if (cover_image) formData.append('cover_image', cover_image);
     return createEventTask('/tasks/live', formData);
 };
 
@@ -299,20 +274,10 @@ export const createOfflineTask = (title: string, source_uri: string, replay_url:
     formData.append('source_uri', source_uri);
     formData.append('replay_url', replay_url);
     formData.append('original_start_time', original_start_time);
-    if (cover_image) {
-        formData.append('cover_image', cover_image);
-    }
+    if (cover_image) formData.append('cover_image', cover_image);
     return createEventTask('/tasks/offline', formData);
 };
 
-// --- Data Conversion ---
-
-/**
- * Converts the backend ApiTask object to a frontend Event object.
- * This is crucial for fixing type errors in IndustryEvents.tsx.
- * @param task The ApiTask object received from the API
- * @returns An Event object that can be displayed in the UI
- */
 export const convertApiTaskToFrontendEvent = (task: ApiTask): Event => {
   return {
     id: task.task_id,

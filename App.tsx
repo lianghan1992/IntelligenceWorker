@@ -8,13 +8,11 @@ import { StrategicCockpit } from './components/StrategicCockpit';
 import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents';
 import { ReportGenerator } from './components/ReportGenerator';
-// 修复：AdminPage.tsx 将被创建，解决模块未找到的问题
 import { AdminPage } from './components/AdminPage';
 import { InfoDetailView } from './components/InfoDetailView';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
-// 修复：api.ts 将被创建，解决模块未找到的问题
 import { getPoints, getArticles } from './api';
 import { mockDeepDives } from './mockData';
 
@@ -41,12 +39,19 @@ const App: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const [pointsData, articlesData] = await Promise.all([
-                getPoints(userId),
-                getArticles(userId, { page: 1, limit: 100 }) 
-            ]);
+            // New logic: First get user's subscribed points (subscriptions)
+            const pointsData = await getPoints(userId);
             setSubscriptions(pointsData);
-            setInfoItems(articlesData.items);
+            
+            // Then, if there are subscribed points, fetch articles for them
+            if (pointsData.length > 0) {
+                const pointIds = pointsData.map(p => p.id);
+                const articlesData = await getArticles(pointIds, { page: 1, limit: 100 });
+                setInfoItems(articlesData.items);
+            } else {
+                setInfoItems([]); // No subscriptions, no articles
+            }
+
             setAppState('app');
         } catch (err: any) {
             setError(err.message || '无法加载应用数据');
@@ -68,19 +73,18 @@ const App: React.FC = () => {
     };
 
     const handleEnter = () => {
-        // For demo purposes, we'll show auth. In a real app, you might check for a stored token.
         setAppState('auth');
     };
 
     const handleNavigate = (view: View) => {
         setCurrentView(view);
-        setSelectedInfoItem(null); // Return to feed view when navigating
+        setSelectedInfoItem(null);
     };
 
     const handleAddCustomSource = (newItem: InfoItem) => {
         setInfoItems(prev => [newItem, ...prev]);
         setIsAddSourceModalOpen(false);
-        setCurrentView('cockpit'); // Navigate to the new cockpit view
+        setCurrentView('cockpit');
     };
 
     const renderMainView = () => {
@@ -93,7 +97,7 @@ const App: React.FC = () => {
                 return <Dashboard user={user!} subscriptions={subscriptions} />;
             case 'cockpit':
                 return <StrategicCockpit subscriptions={subscriptions} />;
-            case 'feed': // Old grid view is still available if needed
+            case 'feed':
                 return <InfoFeed items={infoItems} onSelectItem={setSelectedInfoItem} subscriptions={subscriptions} />;
             case 'dives':
                 return <DeepDives dives={deepDives} />;
@@ -142,7 +146,6 @@ const App: React.FC = () => {
         );
     }
 
-    // Fallback or should not be reached state
     return <HomePage onEnter={handleEnter} />;
 };
 

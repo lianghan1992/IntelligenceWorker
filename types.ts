@@ -1,6 +1,8 @@
 // src/types.ts
 
 // Basic User Information
+// Note: The API is inconsistent. register returns 'id', login returns 'user_id'.
+// The app internally will always use 'user_id'.
 export interface User {
   user_id: string;
   username: string;
@@ -20,7 +22,7 @@ export interface InfoItem {
   created_at: string;
 }
 
-// Represents a user's subscription to a specific intelligence point
+// Represents a user's subscription to a specific intelligence point (now called Intelligence Point in API)
 export interface Subscription {
   id: string;
   source_id: string;
@@ -77,29 +79,31 @@ export interface Slide {
     status: 'queued' | 'generating' | 'done';
 }
 
-// Represents a system-recognized source of information
+// Represents a system-recognized source of information from GET /intelligence/sources
 export interface SystemSource {
-    id: string;
-    name: string;
-    subscription_count: number;
+    id: string; // Mapped from source_id
+    name: string; // Mapped from source_name
+    points_count: number;
     // UI-synthesized fields
     description: string;
     iconUrl: string;
     category: string;
     infoCount: number;
-    subscriberCount: number;
+    subscriberCount: number; // This can't be fulfilled by the new API directly
 }
 
-// API representation of a user's subscribed source
-export interface UserSubscribedSource {
+// API representation of a user's subscribed source from GET /users/{id}/sources
+export interface UserSourceSubscription {
     id: string;
-    name: string;
-    description: string;
+    source_name: string;
+    subscription_count: number;
+    created_at: string;
+    updated_at: string;
 }
 
 // For the "My Focus Points" dashboard widget (UI)
 export interface FocusPoint {
-    id: string; // Changed from number to string to match API UUID
+    id: string; 
     title: string;
     keywords: string[];
     relatedCount: number;
@@ -117,16 +121,16 @@ export interface ApiPoi {
 // Details for a single pricing plan from the API
 export interface Plan {
     name: string;
+    price: number; // Mapped from price
     max_sources: number;
     max_pois: number;
-    price_monthly: number;
 }
 
-// The structure of the entire /plans API response
+// The structure of the entire /users/plans API response
 export interface PlanDetails {
     free: Plan;
-    pro: Plan;
-    enterprise: Plan;
+    premium: Plan;
+    [key: string]: Plan; // Allow for other plans like 'enterprise'
 }
 
 // For the Strategic Cockpit v2 (Guided Exploration)
@@ -150,32 +154,35 @@ export interface RecommendedSubscription {
   category: string;
 }
 
-// For the tasks queue on the Admin page
+// Represents a processing task for the Admin page (UI type)
 export interface ProcessingTask {
     id: string;
     point_id: string;
-    article_id: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    log: string | null;
-    created_at: string;
-    updated_at: string;
-    // UI-enriched fields
     source_name: string;
     point_name: string;
+    task_type: string;
+    url: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
 }
 
-// Raw processing task from API
+// Raw processing task from GET /intelligence/tasks
 export interface ApiProcessingTask {
     id: string;
     point_id: string;
-    article_id: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    log: string | null;
+    source_name: string;
+    point_name: string;
+    task_type: string;
+    url: string;
+    status: string;
+    payload: string | null;
     created_at: string;
     updated_at: string;
 }
 
-// Raw event task from API (for events page)
+
+// Raw event task from API (for events page) - This seems to be from a different service, keeping for compatibility
 export interface ApiTask {
     task_id: string;
     task_type: 'LIVE' | 'OFFLINE';
@@ -196,8 +203,7 @@ export interface ApiTask {
 
 // Result from semantic search
 export interface SearchResult extends Partial<InfoItem> {
-  // Can be extended if search returns more fields like score
-  score?: number;
+  similarity_score?: number;
 }
 
 
