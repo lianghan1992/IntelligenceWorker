@@ -13,15 +13,16 @@ import {
     ApiTask,
     AllPrompts,
     SearchResult,
-    Prompt
+    Prompt,
+    AppEvent
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
 
 const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const headers = {
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...options.headers as Record<string, string>,
     };
 
     const token = getAuthToken();
@@ -259,7 +260,7 @@ export const getProcessingTasksStats = async (): Promise<{ [key: string]: number
 
 // --- Events (Live/Offline Tasks) ---
 
-export const getEvents = async (page: number, limit: number = 20): Promise<{events: Event[], totalPages: number}> => {
+export const getEvents = async (page: number, limit: number = 20): Promise<{events: AppEvent[], totalPages: number}> => {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) }).toString();
     const data: PaginatedResponse<ApiTask> = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/events/tasks?${query}`);
     return {
@@ -268,7 +269,7 @@ export const getEvents = async (page: number, limit: number = 20): Promise<{even
     };
 };
 
-export const convertApiTaskToFrontendEvent = (task: ApiTask): Event => {
+export const convertApiTaskToFrontendEvent = (task: ApiTask): AppEvent => {
   return {
     id: task.task_id,
     title: task.title,

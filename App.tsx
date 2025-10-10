@@ -9,6 +9,7 @@ import { AdminPage } from './components/AdminPage';
 import { AuthModal } from './components/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage';
+import { StrategicCockpit } from './components/StrategicCockpit';
 import { User, View, Subscription, InfoItem, DeepDive } from './types';
 import { getSubscriptions, getArticles, getMe } from './api';
 import { mockDeepDives } from './mockData';

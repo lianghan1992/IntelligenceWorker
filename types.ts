@@ -69,7 +69,7 @@ export interface DeepDive {
 }
 
 // Represents an industry event
-export interface Event {
+export interface AppEvent {
   id: string;
   title: string;
   status: 'UPCOMING' | 'LIVE' | 'SUMMARIZING' | 'CONCLUDED' | 'FAILED';

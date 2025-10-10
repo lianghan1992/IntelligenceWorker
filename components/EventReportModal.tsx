@@ -1,9 +1,9 @@
 import React from 'react';
 import { CloseIcon } from './icons';
-import { Event } from '../types';
+import { AppEvent } from '../types';
 
 interface EventReportModalProps {
-  event: Event | null;
+  event: AppEvent | null;
   onClose: () => void;
 }
 

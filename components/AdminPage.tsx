@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Subscription, ProcessingTask, AdminView, SystemSource, InfoItem, SearchResult } from '../types';
+import { Subscription, ProcessingTask, AdminView, SystemSource, InfoItem, SearchResult, ApiProcessingTask } from '../types';
 import {
   addPoint,
   updatePoint,
@@ -458,7 +458,7 @@ const IntelligenceManager: React.FC = () => {
     const [activeSubTab, setActiveSubTab] = useState<'tasks' | 'articles'>('tasks');
     const [sources, setSources] = useState<SystemSource[]>([]);
     const [pointsBySource, setPointsBySource] = useState<Record<string, Subscription[]>>({});
-    const [tasks, setTasks] = useState<ProcessingTask[]>([]);
+    const [tasks, setTasks] = useState<ApiProcessingTask[]>([]);
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
     const [openSources, setOpenSources] = useState<Set<string>>(new Set());
     
@@ -524,7 +524,7 @@ const IntelligenceManager: React.FC = () => {
             ]);
             
             setTaskStats(statsData);
-            setTasks(tasksData.tasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+            setTasks(tasksData.items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             setTaskTotalPages(tasksData.totalPages > 0 ? tasksData.totalPages : 1);
             setTaskTotal(tasksData.total);
         } catch (err: any) {

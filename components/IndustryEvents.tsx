@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Event, ApiTask } from '../types';
+import { AppEvent, ApiTask } from '../types';
 import { VideoCameraIcon, DocumentTextIcon } from './icons';
 import { getEvents, convertApiTaskToFrontendEvent } from '../api';
 import { EventReportModal } from './EventReportModal';
@@ -42,7 +42,7 @@ const CountdownTimer: React.FC<{ targetDate: string }> = ({ targetDate }) => {
     );
 };
 
-const EventCard: React.FC<{ event: Event; onShowReport: (event: Event) => void; }> = ({ event, onShowReport }) => {
+const EventCard: React.FC<{ event: AppEvent; onShowReport: (event: AppEvent) => void; }> = ({ event, onShowReport }) => {
     const getStatusDetails = () => {
         switch (event.status) {
             case 'LIVE':
@@ -184,7 +184,7 @@ const EventCard: React.FC<{ event: Event; onShowReport: (event: Event) => void; 
     );
 };
 
-const sortEvents = (events: Event[]): Event[] => {
+const sortEvents = (events: AppEvent[]): AppEvent[] => {
     return [...events].sort((a, b) => {
         const statusOrder = { 'LIVE': 1, 'UPCOMING': 2, 'SUMMARIZING': 3, 'CONCLUDED': 4, 'FAILED': 5 };
         if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -198,13 +198,13 @@ const sortEvents = (events: Event[]): Event[] => {
 };
 
 export const IndustryEvents: React.FC = () => {
-    const [events, setEvents] = useState<Event[]>([]);
+    const [events, setEvents] = useState<AppEvent[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [selectedEventForReport, setSelectedEventForReport] = useState<Event | null>(null);
+    const [selectedEventForReport, setSelectedEventForReport] = useState<AppEvent | null>(null);
 
     const observer = useRef<IntersectionObserver>();
     const lastEventElementRef = useCallback((node: HTMLDivElement | null) => {
@@ -247,6 +247,7 @@ export const IndustryEvents: React.FC = () => {
         // which is the correct behavior for this application's proxy configuration.
         // FIX: The `io()` function from socket.io-client requires a URI. Passing `'/'` connects to the origin server, which is correct for the proxy setup.
         // FIX: The io() function requires a URI argument for connection. Pass '/' to connect to the origin server, which works with the proxy setup.
+        // FIX: The io() function requires a URI argument. Pass '/' to connect to the origin server, which is handled by the proxy.
 const socket: Socket = io('/');
 
         socket.on('connect', () => {
@@ -262,7 +263,7 @@ const socket: Socket = io('/');
             console.log('WebSocket event: tasks_status_batch_update received', data);
             if (data && Array.isArray(data.tasks)) {
                 // Per API v11, we should completely replace the list for consistency.
-                const newEvents: Event[] = data.tasks.map(convertApiTaskToFrontendEvent);
+                const newEvents: AppEvent[] = data.tasks.map(convertApiTaskToFrontendEvent);
                 setEvents(sortEvents(newEvents));
             }
         });
