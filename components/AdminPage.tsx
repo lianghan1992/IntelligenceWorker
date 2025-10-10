@@ -455,22 +455,23 @@ const IntelligenceManager: React.FC = () => {
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
     
-    const fetchSourcesAndPoints = useCallback(async () => {
+    // New states for the refined data loading strategy
+    const [isLoadingAllPoints, setIsLoadingAllPoints] = useState(false);
+    const [allPointsLoaded, setAllPointsLoaded] = useState(false);
+
+    // 1. Fetch only sources on initial mount for faster load times.
+    const fetchSources = useCallback(async () => {
         setIsLoading(prev => ({ ...prev, sources: true }));
         setError(prev => ({...prev, sources: ''}));
         try {
             const allSources = await getSources();
             setSources(allSources);
-            const pointsPromises = allSources.map(s => getPointsBySourceName(s.name).catch(e => {
-                console.error(`Failed to fetch points for ${s.name}:`, e);
-                return [];
-            }));
-            const pointsResults = await Promise.all(pointsPromises);
-            const newPointsBySource = allSources.reduce((acc, source, index) => {
-                acc[source.name] = { data: pointsResults[index], isLoading: false };
+            // Initialize pointsBySource with empty data structures.
+            const initialPointsMap = allSources.reduce((acc, source) => {
+                acc[source.name] = { data: [], isLoading: false };
                 return acc;
             }, {} as Record<string, {data: Subscription[], isLoading: boolean}>);
-            setPointsBySource(newPointsBySource);
+            setPointsBySource(initialPointsMap);
         } catch (err: any) {
             setError(prev => ({...prev, sources: "无法加载情报源: " + err.message }));
         } finally {
@@ -512,8 +513,8 @@ const IntelligenceManager: React.FC = () => {
     }, [currentPage, statusFilter, sourceFilter, pointFilter]);
     
     useEffect(() => {
-        fetchSourcesAndPoints();
-    }, [fetchSourcesAndPoints]);
+        fetchSources();
+    }, [fetchSources]);
 
     useEffect(() => {
         if(activeSubTab === 'tasks') {
@@ -522,11 +523,40 @@ const IntelligenceManager: React.FC = () => {
         }
     }, [activeSubTab, fetchStats, fetchTasks]);
 
+    // 2. NEW: Fetch all points data only when the user navigates to the 'articles' tab.
+    useEffect(() => {
+        const loadAllPointsForFilter = async () => {
+            setIsLoadingAllPoints(true);
+            try {
+                const pointsPromises = sources.map(s => getPointsBySourceName(s.name));
+                const pointsResults = await Promise.all(pointsPromises);
+                
+                const newPointsBySource = sources.reduce((acc, source, index) => {
+                    acc[source.name] = { data: pointsResults[index], isLoading: false };
+                    return acc;
+                }, {} as Record<string, {data: Subscription[], isLoading: boolean}>);
+
+                setPointsBySource(newPointsBySource);
+                setAllPointsLoaded(true);
+            } catch (err) {
+                console.error("Failed to load all points for filter:", err);
+                setError(prev => ({...prev, points: "无法准备筛选器数据"}));
+            } finally {
+                setIsLoadingAllPoints(false);
+            }
+        };
+
+        if (activeSubTab === 'articles' && !allPointsLoaded && sources.length > 0) {
+            loadAllPointsForFilter();
+        }
+    }, [activeSubTab, sources, allPointsLoaded]);
+
+
     const handleSaveNewPoint = async (newPointData: Omit<Subscription, 'id'|'keywords'|'newItemsCount'|'is_active'|'last_triggered_at'|'created_at'|'updated_at'|'source_id'>) => {
         setIsLoading(prev => ({ ...prev, mutation: true }));
         try {
             await addPoint(newPointData);
-            await fetchSourcesAndPoints(); 
+            await fetchSources(); 
             setIsAddModalOpen(false);
         } catch (err: any) {
             setError(prev => ({ ...prev, points: '添加失败: ' + err.message }));
@@ -539,7 +569,7 @@ const IntelligenceManager: React.FC = () => {
         setIsLoading(prev => ({ ...prev, mutation: true }));
         try {
             await deletePoints(Array.from(selectedPointIds));
-            await fetchSourcesAndPoints();
+            await fetchSources();
             setOpenSources(new Set());
             setSelectedPointIds(new Set());
             setIsDeleteConfirmOpen(false);
@@ -568,15 +598,34 @@ const IntelligenceManager: React.FC = () => {
         setSelectedPointIds(newSelection);
     };
 
+    // 3. UPDATED: Implement lazy loading for the "情报点管理" section.
     const toggleSource = async (sourceName: string) => {
         const newOpenSources = new Set(openSources);
-        if (newOpenSources.has(sourceName)) {
+        const isCurrentlyOpen = newOpenSources.has(sourceName);
+
+        if (isCurrentlyOpen) {
             newOpenSources.delete(sourceName);
-        } else {
-            newOpenSources.add(sourceName);
+            setOpenSources(newOpenSources);
+            return;
         }
+
+        newOpenSources.add(sourceName);
         setOpenSources(newOpenSources);
+        
+        const hasData = pointsBySource[sourceName] && pointsBySource[sourceName].data.length > 0;
+        if (!hasData) {
+            setPointsBySource(prev => ({ ...prev, [sourceName]: { data: [], isLoading: true } }));
+            try {
+                const points = await getPointsBySourceName(sourceName);
+                setPointsBySource(prev => ({ ...prev, [sourceName]: { data: points, isLoading: false } }));
+            } catch (err: any) {
+                console.error(`Error fetching points for ${sourceName}`, err);
+                setError(prev => ({...prev, points: `无法为 ${sourceName} 加载情报点`}));
+                setPointsBySource(prev => ({ ...prev, [sourceName]: { data: [], isLoading: false } }));
+            }
+        }
     };
+
 
     const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLSelectElement>) => {
         setCurrentPage(1);
@@ -770,9 +819,16 @@ const IntelligenceManager: React.FC = () => {
                 </div>
             )}
             
-            {activeSubTab === 'articles' && !isLoading.sources && (
+            {activeSubTab === 'articles' && (
                 <div className="animate-in fade-in-0 duration-300">
-                    <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
+                    {(isLoading.sources || isLoadingAllPoints) ? (
+                        <div className="text-center p-8 flex items-center justify-center gap-2 text-gray-600">
+                            <Spinner />
+                            {isLoadingAllPoints ? '正在准备筛选器...' : '正在加载情报源...'}
+                        </div>
+                    ) : (
+                        <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
+                    )}
                 </div>
             )}
             

@@ -242,7 +242,7 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function from socket.io-client was called without arguments, causing a "Expected 1 arguments, but got 0" error. Passing `'/'` as an argument connects the socket to the server that served the page, resolving the issue.
+        // Fix: The `io()` function from socket.io-client was called without arguments, causing a "Expected 1 arguments, but got 0" error. Passing `'/'` as an argument connects the socket to the server that served the page, resolving the issue.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
