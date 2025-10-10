@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Subscription, ProcessingTask, AdminView, SystemSource, InfoItem, SearchResult } from '../types';
 import {
   addPoint,
+  updatePoint,
   deletePoints,
   getProcessingTasks,
   getSources,
@@ -14,7 +15,7 @@ import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { InfoDetailModal } from './InfoDetailModal';
 import { UserManager } from './UserManager'; // Import the new component
-import { PlusIcon, TrashIcon, LightBulbIcon, UsersIcon, DiveIcon, VideoCameraIcon, ChevronDownIcon, CloseIcon } from './icons';
+import { PlusIcon, TrashIcon, LightBulbIcon, UsersIcon, DiveIcon, VideoCameraIcon, ChevronDownIcon, CloseIcon, PencilIcon } from './icons';
 
 const Spinner: React.FC<{className?: string}> = ({className = "h-5 w-5 text-gray-500"}) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -465,7 +466,9 @@ const IntelligenceManager: React.FC = () => {
     const [isMutationLoading, setIsMutationLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
+    const [pointToEdit, setPointToEdit] = useState<Subscription | null>(null);
+    
     const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isPointsSectionCollapsed, setIsPointsSectionCollapsed] = useState(true);
@@ -483,34 +486,22 @@ const IntelligenceManager: React.FC = () => {
         setIsLoadingData(true);
         setError(null);
         try {
-            // Step 1: Get all sources
             const allSources = await getSources();
             setSources(allSources);
     
-            // Step 2: Get all points for all sources sequentially for robustness against concurrency issues.
             const pointsMap: Record<string, Subscription[]> = {};
-            const failedSources: string[] = [];
-    
             for (const source of allSources) {
                 try {
                     const points = await getPointsBySourceName(source.name);
                     pointsMap[source.name] = points;
                 } catch (err) {
                     console.error(`Failed to load points for source "${source.name}":`, err);
-                    pointsMap[source.name] = []; // Ensure key exists with empty array on error
-                    failedSources.push(source.name);
+                    pointsMap[source.name] = [];
                 }
             }
-    
             setPointsBySource(pointsMap);
-    
-            if (failedSources.length > 0) {
-                setError(`无法加载以下情报源的数据点: ${failedSources.join(', ')}。请联系管理员检查后端服务。`);
-            }
-    
         } catch (err: any) {
-            setError(err.message || "无法加载情报管理模块的核心数据，请刷新页面重试。");
-            console.error("Critical data loading failure:", err);
+            setError(err.message || "无法加载核心数据");
         } finally {
             setIsLoadingData(false);
         }
@@ -547,14 +538,19 @@ const IntelligenceManager: React.FC = () => {
         }
     }, [activeSubTab, isLoadingData, fetchTasksAndStats]);
 
-    const handleSaveNewPoint = async (newPointData: Omit<Subscription, 'id'|'keywords'|'newItemsCount'|'is_active'|'last_triggered_at'|'created_at'|'updated_at'|'source_id'>) => {
+    const handleSavePoint = async (pointData: Partial<Subscription>) => {
         setIsMutationLoading(true);
         try {
-            await addPoint(newPointData);
-            await loadInitialData(); 
-            setIsAddModalOpen(false);
+            if (modalMode === 'add') {
+                await addPoint(pointData);
+            } else if (modalMode === 'edit' && pointToEdit) {
+                await updatePoint(pointToEdit.id, pointData);
+            }
+            await loadInitialData();
+            setModalMode(null);
+            setPointToEdit(null);
         } catch (err: any) {
-            setError('添加失败: ' + err.message);
+            setError('保存失败: ' + err.message);
         } finally {
             setIsMutationLoading(false);
         }
@@ -660,7 +656,7 @@ const IntelligenceManager: React.FC = () => {
                                                 <TrashIcon className="w-4 h-4" /> <span>删除 ({selectedPointIds.size})</span>
                                             </button>
                                         )}
-                                        <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                                        <button onClick={() => setModalMode('add')} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
                                             <PlusIcon className="w-4 h-4" /> <span>添加</span>
                                         </button>
                                     </div>
@@ -687,12 +683,12 @@ const IntelligenceManager: React.FC = () => {
                                                                 <tbody>
                                                                     {safeSourcePoints.map(point => (
                                                                     <tr key={point.id} className="border-t hover:bg-gray-50">
-                                                                        <td className="p-4 w-12 text-center"><input type="checkbox" className="accent-blue-600" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
-                                                                        <td className="px-4 py-3">{point.point_name}</td>
+                                                                        <td className="pl-4 py-3 w-12 text-center"><input type="checkbox" className="accent-blue-600" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
+                                                                        <td className="px-4 py-3 font-semibold">{point.point_name}</td>
                                                                         <td className="px-4 py-3 max-w-xs truncate"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{point.point_url}</a></td>
                                                                         <td className="px-4 py-3 text-xs">{formatCron(point.cron_schedule)}</td>
                                                                         <td className="px-4 py-3">
-                                                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{point.is_active ? '采集中' : '未知'}</span>
+                                                                            <button onClick={() => { setPointToEdit(point); setModalMode('edit'); }} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md"><PencilIcon className="w-4 h-4" /></button>
                                                                         </td>
                                                                     </tr>
                                                                     ))}
@@ -792,7 +788,15 @@ const IntelligenceManager: React.FC = () => {
                 </div>
             )}
             
-            {isAddModalOpen && <AddSubscriptionModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewPoint} isLoading={isMutationLoading} />}
+            {modalMode && (
+                <AddSubscriptionModal
+                    mode={modalMode}
+                    subscriptionToEdit={pointToEdit}
+                    onClose={() => { setModalMode(null); setPointToEdit(null); }}
+                    onSave={handleSavePoint}
+                    isLoading={isMutationLoading}
+                />
+            )}
             {isDeleteConfirmOpen && (
                 <ConfirmationModal
                     title="确认删除"

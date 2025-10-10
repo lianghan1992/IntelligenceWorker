@@ -14,6 +14,8 @@ import {
   ApiPoi,
   UserSourceSubscription,
   AdminUser,
+  AllPrompts,
+  Prompt,
 } from './types';
 
 // --- Helper Functions ---
@@ -262,9 +264,18 @@ export const getProcessingTasksStats = async (): Promise<{ [key: string]: number
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
-export const addPoint = (data: Omit<Subscription, 'id' | 'keywords' | 'newItemsCount' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'source_id'>): Promise<{message: string, point_id: string}> => {
+export const addPoint = (data: Partial<Subscription>): Promise<{message: string, point_id: string}> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const updatePoint = (pointId: string, data: Partial<Subscription>): Promise<{message: string}> => {
+    // Note: Assuming a standard PUT endpoint exists for updating a point.
+    // This is not in the current API docs but is required for the edit feature.
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}`, {
+        method: 'PUT',
         body: JSON.stringify(data),
     });
 };
@@ -335,6 +346,33 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
   };
   return mockResult;
 };
+
+// --- Prompt Management API ---
+
+export const getPrompts = (): Promise<AllPrompts> => {
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
+};
+
+export const createPrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string, data: Prompt): Promise<{ message: string }> => {
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+export const updatePrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string, data: Partial<Prompt>): Promise<{ message: string }> => {
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
+export const deletePrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string): Promise<{ message: string }> => {
+  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
+    method: 'DELETE',
+  });
+};
+
 
 const createEventTask = (endpoint: string, formData: FormData): Promise<ApiTask> => {
     console.warn(`createEventTask (${endpoint}) is using a mocked response.`);

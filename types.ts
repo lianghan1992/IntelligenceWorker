@@ -46,6 +46,8 @@ export interface Subscription {
   last_triggered_at: string | null;
   created_at: string;
   updated_at: string;
+  url_prompt_key: string;
+  summary_prompt_key: string;
   // UI-synthesized fields
   keywords: string[];
   newItemsCount: number;
@@ -220,6 +222,21 @@ export interface SearchResult extends InfoItem {
   similarity_score?: number;
 }
 
+// AI Prompts
+export interface Prompt {
+    name: string;
+    description: string;
+    prompt: string;
+}
+
+export interface PromptCollection {
+    [key: string]: Prompt;
+}
+
+export interface AllPrompts {
+    url_extraction_prompts: PromptCollection;
+    content_summary_prompts: PromptCollection;
+}
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
