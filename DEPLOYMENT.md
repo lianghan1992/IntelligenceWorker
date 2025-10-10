@@ -7,13 +7,13 @@
 根据您的要求，部署架构如下：
 
 -   **前端应用**: 静态文件 (HTML, JS, CSS) 位于 `/srv/application/AI驱动的汽车行业情报平台/WebService/dist`。
--   **后端API**: 在同一台服务器上运行，监听 `http://127.0.0.1:7656`。
+-   **后端API**: 在同一台服务器上运行，监听 `http://127.0.0.1:7657`。
 -   **公网访问**: 用户通过 `https://intelligenceworker.jingyu.today:8081` 访问。
 -   **网络流程**:
     1.  公网 `8081` 端口的请求由路由器转发到服务器的 `443` 端口。
     2.  Apache在 `443` 端口上监听，处理HTTPS请求。
     3.  Apache提供前端静态文件服务。
-    4.  Apache作为反向代理，将 `/api/` 的请求转发给后端的 `7656` 端口，并将 `/socket.io/` 的WebSocket连接也转发到 `7656` 端口。
+    4.  Apache作为反向代理，将 `/api/` 的请求转发给后端的 `7657` 端口，并将 `/socket.io/` 的WebSocket连接也转发到 `7657` 端口。
 
 ## 2. 前置准备
 
@@ -69,16 +69,16 @@ sudo systemctl restart apache2
     RewriteEngine On
     RewriteCond %{HTTP:Upgrade} websocket [NC]
     RewriteCond %{HTTP:Connection} upgrade [NC]
-    RewriteRule ^/socket.io/(.*) "ws://127.0.0.1:7656/socket.io/$1" [P,L]
+    RewriteRule ^/socket.io/(.*) "ws://127.0.0.1:7657/socket.io/$1" [P,L]
 
     # 3. API 反向代理
     # 将所有 /api/ 开头的请求转发到后端API服务
     # 末尾的斜杠很重要，它能确保路径正确映射
-    # 例如: /api/sources -> http://127.0.0.1:7656/sources
+    # 例如: /api/sources -> http://127.0.0.1:7657/sources
     ProxyRequests off
     ProxyPreserveHost On
-    ProxyPass /api/ http://127.0.0.1:7656/
-    ProxyPassReverse /api/ http://127.0.0.1:7656/
+    ProxyPass /api/ http://127.0.0.1:7657/
+    ProxyPassReverse /api/ http://127.0.0.1:7657/
 
     # 4. 单页应用 (SPA) 路由配置
     # 此配置确保用户在浏览器中直接访问 /feed 或刷新页面时，

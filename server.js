@@ -17,7 +17,7 @@ const app = express();
 app.use(cors());
 
 // --- 代理设置 ---
-const apiTarget = 'http://127.0.0.1:7656';
+const apiTarget = 'http://127.0.0.1:7657';
 
 // 代理所有 /api 请求到后端，并移除 /api 前缀
 app.use('/api', createProxyMiddleware({
