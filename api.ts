@@ -254,6 +254,31 @@ export const searchArticles = async (query: string, point_ids: string[], limit: 
     });
 };
 
+/**
+ * NEW: Performs a combined semantic search and structured filtering for articles.
+ * @param params The combined search and filter parameters.
+ * @returns A paginated list of articles matching the criteria.
+ */
+export const searchArticlesFiltered = (params: {
+    query_text: string;
+    similarity_threshold?: number;
+    point_ids?: string[];
+    source_names?: string[];
+    publish_date_start?: string;
+    publish_date_end?: string;
+    page?: number;
+    limit?: number;
+}): Promise<{ items: SearchResult[], total: number, page: number, limit: number, totalPages: number }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    }).then(response => ({
+        ...response,
+        totalPages: response.total > 0 && params.limit ? Math.ceil(response.total / params.limit) : 1,
+    }));
+};
+
+
 export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
   setFeedback('正在连接到目标URL...');
   await new Promise(res => setTimeout(res, 1500));

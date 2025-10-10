@@ -202,7 +202,9 @@ export interface ApiTask {
 }
 
 // Result from semantic search
-export interface SearchResult extends Partial<InfoItem> {
+// FIX: Made similarity_score optional as it only exists in search results,
+// not in regular article listings, allowing the type to be used for both.
+export interface SearchResult extends InfoItem {
   similarity_score?: number;
 }
 
