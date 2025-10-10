@@ -242,7 +242,7 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // Fix: The `io()` function from socket.io-client requires an argument. Passing `'/'` connects to the server that served the page, resolving the TypeError and enabling the WebSocket connection through the proxy.
+        // FIX: The `io()` function from socket.io-client was called without arguments, causing a "Expected 1 arguments, but got 0" error. Passing `'/'` as an argument connects the socket to the server that served the page, resolving the issue.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {

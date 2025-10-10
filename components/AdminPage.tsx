@@ -1,4 +1,3 @@
-// src/components/AdminPage.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Subscription, ProcessingTask, AdminView, SystemSource, InfoItem, SearchResult } from '../types';
 import {
@@ -9,7 +8,7 @@ import {
   getPointsBySourceName,
   getProcessingTasksStats,
   getArticles,
-  searchArticlesFiltered, // Import the new combined search API
+  searchArticlesFiltered,
 } from '../api';
 import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -33,10 +32,8 @@ const CRON_SCHEDULE_MAP: { [key: string]: string } = {
     '0 */12 * * *': '每12小时',
 };
 
-// Function to format timestamps to Beijing Time (UTC+8)
 const formatToBeijingTime = (dateString: string): string => {
     if (!dateString) return 'N/A';
-    // Add 'Z' to indicate UTC if it's missing, to prevent incorrect local time conversion
     const ensureUTC = dateString.endsWith('Z') ? dateString : dateString + 'Z';
     return new Date(ensureUTC).toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
@@ -63,7 +60,6 @@ const getStatusChip = (status: ProcessingTask['status']) => {
     return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
 };
 
-// --- Date Range Picker Component ---
 const DateRangePicker: React.FC<{
     startDate: string;
     endDate: string;
@@ -86,8 +82,7 @@ const DateRangePicker: React.FC<{
     }, []);
     
     const formatDate = (date: Date | null) => date ? date.toISOString().split('T')[0] : '';
-    const displayFormat = (dateStr: string) => dateStr ? dateStr.replace(/-/g, '/') : '';
-
+    
     const handleDateClick = (day: Date) => {
         if (!start || (start && end)) {
             onChange({ startDate: formatDate(day), endDate: '' });
@@ -118,15 +113,19 @@ const DateRangePicker: React.FC<{
     
     const isSameDay = (d1: Date | null, d2: Date | null) => d1 && d2 && d1.toDateString() === d2.toDateString();
     
-    const renderMonth = (dateToRender: Date) => {
+    const renderMonth = (dateToRender: Date, isPrimary: boolean) => {
         const grid = generateMonthGrid(dateToRender);
         const monthName = dateToRender.toLocaleString('zh-CN', { month: 'long', year: 'numeric' });
         
         return (
             <div className="p-2">
-                <div className="text-center font-semibold mb-2">{monthName}</div>
+                <div className="flex justify-between items-center mb-2 px-2">
+                    {isPrimary && <button onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 hover:bg-gray-100 rounded-full">{'<'}</button>}
+                    <span className="text-center font-semibold">{monthName}</span>
+                     {!isPrimary && <button onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 hover:bg-gray-100 rounded-full">{'>'}</button>}
+                </div>
                 <div className="grid grid-cols-7 text-xs text-center text-gray-500 mb-1">
-                    {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d}>{d}</div>)}
+                    {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d} className="w-8 h-8 flex items-center justify-center">{d}</div>)}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
                     {grid.map((day, i) => {
@@ -144,13 +143,12 @@ const DateRangePicker: React.FC<{
                                 onMouseEnter={() => setHoverDate(day)}
                                 onMouseLeave={() => setHoverDate(null)}
                                 className={`w-8 h-8 rounded-full text-sm transition-colors relative
-                                    ${isSelectedStart || isSelectedEnd ? 'bg-blue-600 text-white font-bold' : ''}
-                                    ${!isSelectedStart && !isSelectedEnd && (isInRange || isHoverInRange) ? 'bg-blue-100 text-blue-800' : ''}
+                                    ${(isInRange || isHoverInRange) ? 'bg-blue-100 text-blue-800 rounded-none' : ''}
+                                    ${isSelectedStart ? 'bg-blue-600 text-white font-bold rounded-r-none' : ''}
+                                    ${isSelectedEnd ? 'bg-blue-600 text-white font-bold rounded-l-none' : ''}
                                     ${!isSelectedStart && !isSelectedEnd && !(isInRange || isHoverInRange) ? 'hover:bg-gray-200' : ''}
                                 `}
                             >
-                                <div className={`absolute top-0 h-full w-1/2 ${ (isSelectedEnd || (isInRange && !isSameDay(day, start))) ? 'bg-blue-100' : 'bg-transparent' }`}></div>
-                                <div className={`absolute top-0 right-0 h-full w-1/2 ${ (isSelectedStart || (isInRange && !isSameDay(day, end))) ? 'bg-blue-100' : 'bg-transparent' }`}></div>
                                  <span className="relative z-10">{day.getDate()}</span>
                             </button>
                         );
@@ -161,27 +159,24 @@ const DateRangePicker: React.FC<{
     };
 
     const nextMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+    const displayValue = startDate && endDate ? `${startDate} - ${endDate}` : startDate ? `${startDate} - ...` : '';
 
     return (
         <div className="relative" ref={ref}>
-            <div className="flex items-center mt-1 border border-gray-300 rounded-md bg-white cursor-pointer h-10" onClick={() => setIsOpen(!isOpen)}>
-                <input type="text" readOnly value={displayFormat(startDate)} placeholder="开始日期" className="w-full p-2 h-full rounded-l-md focus:outline-none cursor-pointer text-center" />
-                <span className="px-2 text-gray-500">-</span>
-                <input type="text" readOnly value={displayFormat(endDate)} placeholder="结束日期" className="w-full p-2 h-full rounded-r-md focus:outline-none cursor-pointer text-center" />
-                { (startDate || endDate) && <CloseIcon onClick={(e) => { e.stopPropagation(); onChange({ startDate: '', endDate: '' }); }} className="w-8 h-8 p-1.5 text-gray-500 hover:text-red-600 mr-1" />}
+            <div onClick={() => setIsOpen(!isOpen)} className="w-full h-10 mt-1 p-2 bg-white border border-gray-300 rounded-lg text-left flex justify-between items-center cursor-pointer">
+                 <span className={displayValue ? "text-gray-800" : "text-gray-400"}>{displayValue || '开始日期 - 结束日期'}</span>
+                 { (startDate || endDate) && <CloseIcon onClick={(e) => { e.stopPropagation(); onChange({ startDate: '', endDate: '' }); }} className="w-4 h-4 text-gray-500 hover:text-red-600" />}
             </div>
             {isOpen && (
                 <div className="absolute z-30 top-full mt-2 bg-white border rounded-lg shadow-xl p-2 flex">
-                    {renderMonth(viewDate)}
-                    {renderMonth(nextMonth)}
+                    {renderMonth(viewDate, true)}
+                    {renderMonth(nextMonth, false)}
                 </div>
             )}
         </div>
     );
 };
 
-
-// --- Article List Manager ---
 const ArticleListManager: React.FC<{
     allSources: SystemSource[];
     pointsBySource: Record<string, {data: Subscription[], isLoading: boolean}>;
@@ -193,12 +188,10 @@ const ArticleListManager: React.FC<{
     const [totalPages, setTotalPages] = useState(1);
     const [totalArticles, setTotalArticles] = useState(0);
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
-
-    // Export & Filter state
     const [isExporting, setIsExporting] = useState(false);
     const initialFilters = {
         searchQuery: '',
-        similarityThreshold: 0.5,
+        similarityThreshold: 0.50,
         selectedSourceNames: [] as string[],
         selectedPointIds: [] as string[],
         startDate: '',
@@ -210,19 +203,14 @@ const ArticleListManager: React.FC<{
 
     const loadArticles = useCallback(async (isNewFilter = false) => {
         const currentPage = isNewFilter ? 1 : page;
-        if (isNewFilter) setPage(1); // Reset page on new filter
+        if (isNewFilter) setPage(1);
     
         setIsLoading(true);
         setError('');
         
         try {
-            let pointIdsToQuery: string[] = [];
-            if (activeFilters.selectedPointIds.length > 0) {
-                pointIdsToQuery = activeFilters.selectedPointIds;
-            } else if (activeFilters.selectedSourceNames.length > 0) {
-                 pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data.map(p => p.id) || []);
-            }
-
+            let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
+            
             if (activeFilters.searchQuery.trim()) {
                 const { items, total, totalPages: newTotalPages } = await searchArticlesFiltered({
                     query_text: activeFilters.searchQuery,
@@ -238,13 +226,15 @@ const ArticleListManager: React.FC<{
                 setTotalArticles(total);
                 setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
             } else {
+                 if (activeFilters.selectedPointIds.length === 0 && activeFilters.selectedSourceNames.length > 0) {
+                    pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data.map(p => p.id) || []);
+                }
                  const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
                     page: currentPage, 
                     limit: ARTICLES_PER_PAGE,
                     publish_date_start: activeFilters.startDate || undefined,
                     publish_date_end: activeFilters.endDate || undefined
                 });
-                
                 setArticles(items);
                 setTotalArticles(total);
                 setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
@@ -261,12 +251,11 @@ const ArticleListManager: React.FC<{
     }, [activeFilters]);
 
     useEffect(() => {
-        const isInitialMount = page === 1 && articles.length === 0;
+        const isInitialMount = page === 1 && articles.length === 0 && !isLoading;
         if (!isInitialMount) {
             loadArticles(false);
         }
     }, [page]);
-
 
     useEffect(() => {
         const validPointIds = new Set(
@@ -279,16 +268,12 @@ const ArticleListManager: React.FC<{
     }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
     const handleApplyFilters = () => setActiveFilters(filters);
-
-    const handleClearFilters = () => {
-        setFilters(initialFilters);
-        setActiveFilters(initialFilters);
-    };
+    const handleClearFilters = () => { setFilters(initialFilters); setActiveFilters(initialFilters); };
     
     const availablePointsForFilter = useMemo(() => {
-        if (filters.selectedSourceNames.length === 0) return allSources.flatMap(s => pointsBySourceForFilter[s.name]?.data || []);
+        if (filters.selectedSourceNames.length === 0) return [];
         return filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data || []);
-    }, [filters.selectedSourceNames, allSources, pointsBySourceForFilter]);
+    }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
     const handleExport = async () => { /* ... */ };
     
@@ -314,9 +299,9 @@ const ArticleListManager: React.FC<{
 
         return (
             <div className="relative w-full" ref={ref}>
-                <button onClick={() => setIsOpen(!isOpen)} disabled={disabled} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md text-left flex justify-between items-center disabled:bg-gray-200 disabled:cursor-not-allowed h-10">
-                    <span className={selected.length > 0 ? "text-gray-800" : "text-gray-500"}>{selectedText}</span>
-                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <button onClick={() => setIsOpen(!isOpen)} disabled={disabled} className="w-full h-10 mt-1 p-2 bg-white border border-gray-300 rounded-lg text-left flex justify-between items-center disabled:bg-gray-100 disabled:cursor-not-allowed">
+                    <span className={selected.length > 0 ? "text-gray-800" : "text-gray-400"}>{selectedText}</span>
+                    <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isOpen && (
                     <div className="absolute z-20 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
@@ -333,24 +318,24 @@ const ArticleListManager: React.FC<{
     };
 
     return (
-        <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">已采集文章</h3>
+        <div className="mt-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">已采集文章</h3>
             {error && <p className="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded-md">{error}</p>}
             
-            <div className="space-y-3 mb-4 p-4 bg-gray-50 rounded-lg border">
-                <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex-1">
-                         <label className="text-xs font-medium text-gray-600">语义搜索</label>
-                         <input type="text" value={filters.searchQuery} onChange={e => setFilters(f => ({...f, searchQuery: e.target.value}))} placeholder="例如：特斯拉最新技术动态" className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md h-10" />
+            <div className="bg-gray-50/70 backdrop-blur-sm p-5 rounded-xl border flex flex-col gap-4 mb-6">
+                <div className="flex flex-col md:flex-row gap-6 items-start">
+                    <div className="flex-grow w-full">
+                        <label className="text-xs font-medium text-gray-500">语义搜索</label>
+                        <input type="text" value={filters.searchQuery} onChange={e => setFilters(f => ({...f, searchQuery: e.target.value}))} placeholder="例如：特斯拉最新技术动态" className="w-full mt-1 p-2 h-10 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
-                     <div className="md:w-64">
-                        <label className="text-xs font-medium text-gray-600">相似度阈值: {filters.similarityThreshold.toFixed(2)}</label>
-                         <input type="range" min="0" max="1" step="0.05" value={filters.similarityThreshold} onChange={e => setFilters(f => ({...f, similarityThreshold: parseFloat(e.target.value)}))} className="w-full mt-1 h-10 accent-blue-600" />
+                    <div className="w-full md:w-72 flex-shrink-0">
+                        <label className="text-xs font-medium text-gray-500">相似度阈值: {filters.similarityThreshold.toFixed(2)}</label>
+                        <input type="range" min="0" max="1" step="0.05" value={filters.similarityThreshold} onChange={e => setFilters(f => ({...f, similarityThreshold: parseFloat(e.target.value)}))} className="w-full mt-2 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                     </div>
                 </div>
-                <div className="flex flex-col md:flex-row flex-wrap gap-4 items-end">
-                     <div className="flex-1 min-w-[200px]">
-                        <label className="text-xs font-medium text-gray-600">情报源</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label className="text-xs font-medium text-gray-500">情报源</label>
                         <MultiSelectDropdown 
                             options={allSources.map(s => ({id: s.name, name: s.name}))}
                             selected={filters.selectedSourceNames}
@@ -358,42 +343,43 @@ const ArticleListManager: React.FC<{
                             placeholder="所有情报源"
                         />
                     </div>
-                     <div className="flex-1 min-w-[200px]">
-                        <label className="text-xs font-medium text-gray-600">情报点</label>
+                    <div>
+                        <label className="text-xs font-medium text-gray-500">情报点</label>
                         <MultiSelectDropdown 
-                            options={availablePointsForFilter.map(p => ({id: p.id, name: `${p.source_name} - ${p.point_name}`}))}
+                            options={availablePointsForFilter.map(p => ({id: p.id, name: p.point_name}))}
                             selected={filters.selectedPointIds}
                             onToggle={(pointId) => setFilters(f => ({...f, selectedPointIds: f.selectedPointIds.includes(pointId) ? f.selectedPointIds.filter(p => p !== pointId) : [...f.selectedPointIds, pointId]}))}
-                            placeholder="所有情报点"
+                            placeholder={filters.selectedSourceNames.length === 0 ? "请先选择情报源" : "所有情报点"}
+                            disabled={filters.selectedSourceNames.length === 0}
                         />
                     </div>
-                    <div className="flex-1 min-w-[250px]">
-                         <label className="text-xs font-medium text-gray-600">发布日期范围</label>
-                         <DateRangePicker 
-                            startDate={filters.startDate}
-                            endDate={filters.endDate}
-                            onChange={({ startDate, endDate }) => setFilters(f => ({...f, startDate, endDate}))}
-                         />
+                    <div>
+                        <label className="text-xs font-medium text-gray-500">发布日期范围</label>
+                        <DateRangePicker 
+                           startDate={filters.startDate}
+                           endDate={filters.endDate}
+                           onChange={({ startDate, endDate }) => setFilters(f => ({...f, startDate, endDate}))}
+                        />
                     </div>
                 </div>
-                <div className="flex justify-end items-center gap-2 pt-3 border-t mt-3">
-                    <button onClick={handleClearFilters} className="h-10 px-4 py-2 bg-white border text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-100">清空筛选</button>
-                    <button onClick={handleApplyFilters} disabled={isLoading} className="h-10 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 flex items-center justify-center disabled:bg-blue-300">
+                 <div className="flex justify-end items-center gap-2 pt-3 border-t border-gray-200/80 mt-2">
+                    <button onClick={handleClearFilters} className="h-9 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md font-semibold text-sm hover:bg-gray-100 transition-colors">清空筛选</button>
+                    <button onClick={handleApplyFilters} disabled={isLoading} className="h-9 px-5 py-2 bg-blue-600 text-white rounded-md font-semibold text-sm hover:bg-blue-700 flex items-center justify-center disabled:bg-blue-300">
                         {isLoading ? <Spinner className="h-4 w-4 text-white" /> : '筛选'}
                     </button>
-                    <button onClick={handleExport} disabled={isExporting} className="h-10 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold text-sm hover:bg-green-700 disabled:bg-green-300 flex items-center justify-center">
+                    <button onClick={handleExport} disabled={isExporting} className="h-9 px-5 py-2 bg-emerald-500 text-white rounded-md font-semibold text-sm hover:bg-emerald-600 disabled:bg-emerald-300 flex items-center justify-center">
                        {isExporting ? <Spinner className="h-4 w-4 text-white" /> : '导出CSV'}
                     </button>
                 </div>
             </div>
 
-             <div className="text-sm text-gray-600 mb-4 font-semibold">
-                找到 {totalArticles} 条相关文章
+            <div className="text-sm text-gray-600 mb-4 font-semibold">
+                找到 {totalArticles.toLocaleString()} 条相关文章
             </div>
 
-            <div className="overflow-x-auto border rounded-lg">
+            <div className="overflow-x-auto border rounded-lg bg-white">
                  <table className="w-full text-sm text-left text-gray-600">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50/50">
                         <tr>
                             <th className="px-4 py-3">标题</th>
                             <th className="px-4 py-3">情报源</th>
@@ -408,7 +394,7 @@ const ArticleListManager: React.FC<{
                         {!isLoading && articles.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-gray-500">无匹配的文章</td></tr>}
                         
                         {articles.map((article) => (
-                            <tr key={article.id} className="bg-white border-b hover:bg-gray-50">
+                            <tr key={article.id} className="bg-white border-b hover:bg-gray-50/50 last:border-b-0">
                                 <td className="px-4 py-3 font-semibold max-w-sm xl:max-w-md">
                                     <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:text-blue-600 hover:underline line-clamp-2" title={article.title}>{article.title}</a>
                                 </td>
@@ -448,28 +434,23 @@ const ArticleListManager: React.FC<{
 };
 
 
-// --- Intelligence Management Module ---
 const IntelligenceManager: React.FC = () => {
     const [activeSubTab, setActiveSubTab] = useState<'tasks' | 'articles'>('tasks');
-
     const [sources, setSources] = useState<SystemSource[]>([]);
     const [pointsBySource, setPointsBySource] = useState<Record<string, {data: Subscription[], isLoading: boolean}>>({});
     const [tasks, setTasks] = useState<ProcessingTask[]>([]);
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
     const [openSources, setOpenSources] = useState<Set<string>>(new Set());
-
     const [isLoading, setIsLoading] = useState({ sources: true, tasks: true, stats: true, points: false, mutation: false });
     const [error, setError] = useState({ sources: '', tasks: '', stats: '', points: '' });
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isPointsSectionCollapsed, setIsPointsSectionCollapsed] = useState(true);
-
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalTasks, setTotalTasks] = useState(0);
     const TASKS_PER_PAGE = 20;
-
     const [statusFilter, setStatusFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
@@ -480,10 +461,9 @@ const IntelligenceManager: React.FC = () => {
         try {
             const allSources = await getSources();
             setSources(allSources);
-             // Pre-fetch all points for all sources for filtering purposes
             const pointsPromises = allSources.map(s => getPointsBySourceName(s.name).catch(e => {
                 console.error(`Failed to fetch points for ${s.name}:`, e);
-                return []; // Return empty array on failure for a specific source
+                return [];
             }));
             const pointsResults = await Promise.all(pointsPromises);
             const newPointsBySource = allSources.reduce((acc, source, index) => {
@@ -527,7 +507,7 @@ const IntelligenceManager: React.FC = () => {
         } catch (err: any) {
             setError(prev => ({ ...prev, tasks: err.message || '无法加载任务队列' }));
         } finally {
-            setIsLoading(prev => ({ ...prev, tasks: false }));
+            setIsLoading(prev => ({...prev, tasks: false }));
         }
     }, [currentPage, statusFilter, sourceFilter, pointFilter]);
     
@@ -559,7 +539,7 @@ const IntelligenceManager: React.FC = () => {
         setIsLoading(prev => ({ ...prev, mutation: true }));
         try {
             await deletePoints(Array.from(selectedPointIds));
-            await fetchSourcesAndPoints(); // Refetch sources and their points
+            await fetchSourcesAndPoints();
             setOpenSources(new Set());
             setSelectedPointIds(new Set());
             setIsDeleteConfirmOpen(false);
@@ -810,15 +790,12 @@ const IntelligenceManager: React.FC = () => {
     );
 };
 
-// --- Placeholder for other modules ---
 const PlaceholderManager: React.FC<{ title: string }> = ({ title }) => (
     <div className="flex items-center justify-center h-full bg-white rounded-xl border border-dashed">
         <p className="text-gray-500">{title} 模块正在开发中...</p>
     </div>
 );
 
-
-// --- Main Admin Page Component ---
 export const AdminPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminView>('intelligence');
     
@@ -846,7 +823,6 @@ export const AdminPage: React.FC = () => {
 
     return (
         <div className="flex flex-col md:flex-row h-full bg-gray-100">
-            {/* Sidebar Navigation */}
             <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col p-4">
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">管理中心</h2>
                 <nav className="flex flex-col space-y-1">
@@ -866,9 +842,7 @@ export const AdminPage: React.FC = () => {
                     ))}
                 </nav>
             </aside>
-            {/* Main Content Area */}
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Mobile Navigation */}
                 <div className="md:hidden p-4 border-b bg-white">
                     <label htmlFor="admin-nav" className="sr-only">选择管理模块</label>
                     <select
