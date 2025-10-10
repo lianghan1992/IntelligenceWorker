@@ -93,14 +93,7 @@ export const forgotPassword = async (email: string): Promise<void> => {
 // --- User Service API ---
 
 export const getPlans = async (): Promise<PlanDetails> => {
-  const plans = await apiFetch(`${USER_SERVICE_PATH}/plans`);
-  // Map price to price_monthly for compatibility with PricingModal
-  for (const key in plans) {
-      if (plans[key].price !== undefined) {
-          (plans[key] as any).price_monthly = plans[key].price;
-      }
-  }
-  return plans;
+  return apiFetch(`${USER_SERVICE_PATH}/plans`);
 };
 
 
@@ -165,15 +158,30 @@ export const getPoints = async (userId: string): Promise<Subscription[]> => {
     return pointsBySource.flat();
 };
 
-export const getArticles = (pointIds: string[], params: { page: number; limit: number }): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
+export const getArticles = (
+  pointIds: string[], 
+  params: { 
+    page: number; 
+    limit: number;
+    publish_date_start?: string;
+    publish_date_end?: string;
+  }
+): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
   const query = new URLSearchParams({
     page: String(params.page),
     limit: String(params.limit),
   });
+  
+  if (params.publish_date_start) {
+    query.append('publish_date_start', params.publish_date_start);
+  }
+  if (params.publish_date_end) {
+    query.append('publish_date_end', params.publish_date_end);
+  }
+
   pointIds.forEach(id => query.append('point_ids', id));
   
-  // Handle case where there are no pointIds to avoid sending an empty query param
-  const queryString = pointIds.length > 0 ? query.toString() : `page=${params.page}&limit=${params.limit}`;
+  const queryString = query.toString();
   
   return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${queryString}`);
 };
@@ -181,7 +189,7 @@ export const getArticles = (pointIds: string[], params: { page: number; limit: n
 export const getSources = async (): Promise<SystemSource[]> => {
   const sourcesFromApi = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
   return sourcesFromApi.map((s: any) => ({
-      id: s.source_id,
+      id: s.id, // API v12 uses 'id' instead of 'source_id'
       name: s.source_name,
       points_count: s.points_count,
       description: `Contains ${s.points_count} intelligence points.`,
@@ -194,8 +202,9 @@ export const getSources = async (): Promise<SystemSource[]> => {
 
 // Note: Event APIs seem to be from a different, older service. Retaining for now.
 export const getEvents = async (page: number, limit: number = 12): Promise<{ events: Event[], totalPages: number }> => {
+    // FIX: This endpoint seems to be missing in the new API. Returning a valid empty structure to prevent crashes.
     console.warn("getEvents is using a mocked response as the endpoint appears to be missing.");
-    return Promise.resolve({ events: [], totalPages: 0 });
+    return Promise.resolve({ events: [], totalPages: 1 });
 };
 
 export const getProcessingTasks = (params: { page: number; limit: number; status?: string; source_name?: string; point_name?: string }): Promise<{ tasks: ApiProcessingTask[], totalPages: number, total: number }> => {

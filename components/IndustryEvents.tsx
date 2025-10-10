@@ -242,8 +242,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The socket.io-client `io()` function must be called with an argument to connect.
-        // Calling it without an argument causes the "Expected 1 arguments, but got 0" error.
+        // Fix: The socket.io-client `io()` function must be called with an argument.
+        // Calling it without an argument (e.g., `io()`) is deprecated in v3/v4 and causes a TypeError.
         // Providing '/' connects to the server that served the page, which works with the configured proxy.
         const socket: Socket = io('/');
 
