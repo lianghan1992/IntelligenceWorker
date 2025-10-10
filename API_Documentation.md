@@ -1,23 +1,18 @@
-# AI驱动的汽车行业情报平台 - API文档
-
-**版本:** 2.2.0
-**基础URL:** `http://127.0.0.1:7657`
-
-本文档为调用后端服务提供了全面的技术指南。所有API请求和响应均使用JSON格式。
-
----
-
-## 目录
+## 1. 目录
 1.  [**用户服务 (User Service)**](#1-用户服务-user-service)
-    *   [1.1. 用户注册](#11-用户注册)
+    *   [1.1. 用户注册 (已更新)](#11-用户注册-已更新)
     *   [1.2. 用户登录](#12-用户登录)
-    *   [1.3. 获取订阅计划](#13-获取订阅计划)
-    *   [1.4. 获取用户订阅的情报源](#14-获取用户订阅的情报源)
-    *   [1.5. 添加情报源订阅](#15-添加情报源订阅)
-    *   [1.6. 取消情报源订阅](#16-取消情报源订阅)
-    *   [1.7. 获取用户关注点](#17-获取用户关注点)
-    *   [1.8. 添加用户关注点](#18-添加用户关注点)
-    *   [1.9. 删除用户关注点](#19-删除用户关注点)
+    *   [1.3. 获取用户列表 (新!)](#13-获取用户列表-新)
+    *   [1.4. 获取单个用户信息 (新!)](#14-获取单个用户信息-新)
+    *   [1.5. 更新用户信息 (新!)](#15-更新用户信息-新)
+    *   [1.6. 删除用户 (新!)](#16-删除用户-新)
+    *   [1.7. 获取订阅计划](#17-获取订阅计划)
+    *   [1.8. 获取用户订阅的情报源](#18-获取用户订阅的情报源)
+    *   [1.9. 添加情报源订阅](#19-添加情报源订阅)
+    *   [1.10. 取消情报源订阅](#110-取消情报源订阅)
+    *   [1.11. 获取用户关注点](#111-获取用户关注点)
+    *   [1.12. 添加用户关注点](#112-添加用户关注点)
+    *   [1.13. 删除用户关注点](#113-删除用户关注点)
 2.  [**情报服务 (Intelligence Service)**](#2-情报服务-intelligence-service)
     *   [2.1. 创建情报点](#21-创建情报点)
     *   [2.2. 获取情报点](#22-获取情报点)
@@ -38,11 +33,13 @@
 
 ## 1. 用户服务 (User Service)
 
-### 1.1. 用户注册
+所有用户服务相关的接口都以 `/users` 为前缀。
 
-创建一个新用户账户。
+### 1.1. 用户注册 (已更新)
 
--   **路径:** `/register`
+创建一个新用户账户。管理员可在后台创建时直接指定订阅计划。
+
+-   **路径:** `/users/register`
 -   **方法:** `POST`
 
 **请求说明**
@@ -52,14 +49,28 @@
 | `username` | string | 是 | 用户的唯一名称 |
 | `email` | string | 是 | 用户的唯一邮箱地址 |
 | `password` | string | 是 | 用户密码 |
+| `plan_name`| string | 否 | 订阅计划名称 (如 "free", "premium")。默认为 "free"。 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
 {
-  "username": "testuser",
-  "email": "user@example.com",
-  "password": "a_strong_password"
+  "username": "testuser_premium",
+  "email": "premium_user@example.com",
+  "password": "a_very_strong_password",
+  "plan_name": "premium"
 }
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/users/register \
+-H "Content-Type: application/json" \
+-d '{
+  "username": "testuser_premium",
+  "email": "premium_user@example.com",
+  "password": "a_very_strong_password",
+  "plan_name": "premium"
+}'
 ```
 
 **返回说明**
@@ -76,8 +87,8 @@
 ```json
 {
   "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-  "username": "testuser",
-  "email": "user@example.com",
+  "username": "testuser_premium",
+  "email": "premium_user@example.com",
   "is_active": true,
   "created_at": "2025-10-10T10:00:00.000Z"
 }
@@ -87,7 +98,7 @@
 
 通过邮箱和密码进行身份验证。
 
--   **路径:** `/login`
+-   **路径:** `/users/login`
 -   **方法:** `POST`
 
 **请求说明**
@@ -97,12 +108,22 @@
 | `email` | string | 是 | 注册时使用的邮箱地址 |
 | `password` | string | 是 | 用户密码 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
 {
   "email": "user@example.com",
   "password": "a_strong_password"
 }
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/users/login \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "user@example.com",
+  "password": "a_strong_password"
+}'
 ```
 
 **返回说明**
@@ -122,12 +143,177 @@
 }
 ```
 
-### 1.3. 获取订阅计划
+### 1.3. 获取用户列表 (新!)
+
+获取系统中的用户列表，支持筛选、搜索和分页。
+
+-   **路径:** `/users/`
+-   **方法:** `GET`
+
+**请求参数**
+
+| 参数 | 类型 | 是否必须 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `page` | integer | 否 | 1 | 页码 |
+| `limit` | integer | 否 | 20 | 每页返回数量 |
+| `plan_name` | string | 否 | - | 按订阅计划名称筛选 (如 "free", "premium") |
+| `status` | string | 否 | - | 按账户状态筛选 (可选值: `active`, `disabled`) |
+| `search_term` | string | 否 | - | 用于模糊搜索 `username` 或 `email` 的关键词 |
+
+**cURL请求示例**
+```bash
+# 获取高级版、已激活的用户，并搜索包含 "test" 的用户
+curl -X GET "http://127.0.0.1:7657/users/?plan_name=premium&status=active&search_term=test"
+```
+
+**返回说明**
+
+返回一个包含分页信息和用户列表的对象。
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | integer | 满足条件的总用户数 |
+| `page` | integer | 当前页码 |
+| `limit` | integer | 每页数量 |
+| `totalPages` | integer | 总页数 |
+| `items` | array | 用户对象列表 |
+
+**`items` 数组中用户对象的字段说明:**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 用户的唯一ID |
+| `username` | string | 用户名 |
+| `email` | string | 用户的邮箱地址 |
+| `plan_name` | string | 用户当前的订阅计划名称 (例如: "免费版", "高级版") |
+| `source_subscription_count` | integer | 用户订阅的情报源数量 |
+| `poi_count` | integer | 用户创建的关注点 (POI) 数量 |
+| `status` | string | 账户状态 (`active` 或 `disabled`) |
+| `created_at` | string | 账户创建时间的 ISO 8601 字符串 |
+
+**返回示例 (200 OK)**
+```json
+{
+  "total": 150,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 8,
+  "items": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "username": "testuser",
+      "email": "user@example.com",
+      "plan_name": "高级版",
+      "source_subscription_count": 10,
+      "poi_count": 5,
+      "status": "active",
+      "created_at": "2025-10-10T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### 1.4. 获取单个用户信息 (新!)
+
+获取指定 ID 用户的详细信息。
+
+-   **路径:** `/users/{user_id}`
+-   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef
+```
+
+**返回说明**
+
+返回单个用户对象，结构与 `GET /users/` 接口中 `items` 数组内的对象一致。
+
+**返回示例 (200 OK)**
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "username": "testuser",
+  "email": "user@example.com",
+  "plan_name": "高级版",
+  "source_subscription_count": 10,
+  "poi_count": 5,
+  "status": "active",
+  "created_at": "2025-10-10T10:00:00.000Z"
+}
+```
+
+### 1.5. 更新用户信息 (新!)
+
+更新指定用户的信息，如用户名、邮箱、订阅计划或账户状态。
+
+-   **路径:** `/users/{user_id}`
+-   **方法:** `PUT`
+
+**请求说明**
+
+所有字段均为可选，只传入需要修改的字段。
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `username` | string | 否 | 新的用户名 |
+| `email` | string | 否 | 新的邮箱地址 |
+| `plan_name` | string | 否 | 新的订阅计划名称 (如 "free", "premium") |
+| `status` | string | 否 | 新的账户状态 (`active` 或 `disabled`) |
+
+**请求示例 (JSON)**
+```json
+{
+  "plan_name": "free",
+  "status": "disabled"
+}
+```
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X PUT http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef \
+-H "Content-Type: application/json" \
+-d '{
+  "plan_name": "free",
+  "status": "disabled"
+}'
+```
+
+**返回说明**
+
+返回更新后的完整用户对象，结构与 `GET /users/{user_id}` 一致。
+
+### 1.6. 删除用户 (新!)
+
+从系统中永久删除一个用户及其所有关联数据。
+
+-   **路径:** `/users/{user_id}`
+-   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef
+```
+
+**返回说明**
+
+-   **204 No Content:** 操作成功，返回空的响应体。
+-   **404 Not Found:** 当提供的 `user_id` 不存在时。
+
+### 1.7. 获取订阅计划
 
 获取系统中所有可用的订阅计划配置。
 
--   **路径:** `/plans`
+-   **路径:** `/users/plans`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/users/plans
+```
 
 **返回说明**
 
@@ -149,12 +335,18 @@
 }
 ```
 
-### 1.4. 获取用户订阅的情报源
+### 1.8. 获取用户订阅的情报源
 
 获取指定用户已订阅的所有情报源列表。
 
--   **路径:** `/{user_id}/sources`
+-   **路径:** `/users/{user_id}/sources`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources
+```
 
 **返回说明**
 
@@ -181,12 +373,18 @@
 ]
 ```
 
-### 1.5. 添加情报源订阅
+### 1.9. 添加情报源订阅
 
 为指定用户订阅一个情报源。
 
--   **路径:** `/{user_id}/sources/{source_id}`
+-   **路径:** `/users/{user_id}/sources/{source_id}`
 -   **方法:** `POST`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {source_id} 替换为实际的ID
+curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+```
 
 **返回示例 (200 OK)**
 ```json
@@ -195,12 +393,18 @@
 }
 ```
 
-### 1.6. 取消情报源订阅
+### 1.10. 取消情报源订阅
 
 取消用户对某个情报源的订阅。
 
--   **路径:** `/{user_id}/sources/{source_id}`
+-   **路径:** `/users/{user_id}/sources/{source_id}`
 -   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {source_id} 替换为实际的ID
+curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+```
 
 **返回示例 (200 OK)**
 ```json
@@ -209,12 +413,18 @@
 }
 ```
 
-### 1.7. 获取用户关注点
+### 1.11. 获取用户关注点
 
 获取指定用户的所有关注点。
 
--   **路径:** `/{user_id}/pois`
+-   **路径:** `/users/{user_id}/pois`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois
+```
 
 **返回说明**
 
@@ -239,11 +449,11 @@
 ]
 ```
 
-### 1.8. 添加用户关注点
+### 1.12. 添加用户关注点
 
 为指定用户创建一个新的关注点。
 
--   **路径:** `/{user_id}/pois`
+-   **路径:** `/users/{user_id}/pois`
 -   **方法:** `POST`
 
 **请求说明**
@@ -253,12 +463,23 @@
 | `content` | string | 是 | 关注点内容 |
 | `keywords` | string | 是 | 相关关键词 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
 {
   "content": "新能源电池",
   "keywords": "固态电池, 宁德时代, 续航"
 }
+```
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois \
+-H "Content-Type: application/json" \
+-d '{
+  "content": "新能源电池",
+  "keywords": "固态电池, 宁德时代, 续航"
+}'
 ```
 
 **返回示例 (201 Created)**
@@ -272,12 +493,18 @@
 }
 ```
 
-### 1.9. 删除用户关注点
+### 1.13. 删除用户关注点
 
 删除一个用户的指定关注点。
 
--   **路径:** `/{user_id}/pois/{poi_id}`
+-   **路径:** `/users/{user_id}/pois/{poi_id}`
 -   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {poi_id} 替换为实际的ID
+curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois/d4e5f6g7-h8i9-0123-4567-cdefab234567
+```
 
 **返回示例 (200 OK)**
 ```json
@@ -310,8 +537,23 @@
 | `url_prompt_key` | string | 否 | URL提取提示词Key。默认 `default_list_parser` |
 | `summary_prompt_key`| string | 否 | 内容总结提示词Key。默认 `default_summary` |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
+{
+  "source_name": "盖世汽车",
+  "point_name": "行业资讯",
+  "point_url": "https://auto.gasgoo.com/news/C-101",
+  "cron_schedule": "0 */2 * * *",
+  "url_prompt_key": "news_site_style_a",
+  "summary_prompt_key": "financial_report_summary"
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/intelligence/points \
+-H "Content-Type: application/json" \
+-d 
 {
   "source_name": "盖世汽车",
   "point_name": "行业资讯",
@@ -343,6 +585,12 @@
 | :--- | :--- | :--- | :--- |
 | `source_name` | string | 是 | 要查询的情报源名称 |
 
+**cURL请求示例**
+```bash
+# 注意URL编码
+curl -X GET "http://127.0.0.1:7657/intelligence/points?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6"
+```
+
 **返回说明**
 
 | 字段 | 类型 | 说明 |
@@ -353,7 +601,7 @@
 | `point_name` | string | 情报点名称 |
 | `point_url` | string | 情报点URL |
 | `cron_schedule` | string | CRON调度表达式 |
-| `is_active` | integer | 是否激活 |
+| `is_active` | boolean | 是否激活 |
 | `last_triggered_at`| string / null | 上次触发时间 |
 | `url_prompt_key` | string | URL提取提示词Key |
 | `summary_prompt_key`| string | 内容总结提示词Key |
@@ -370,7 +618,7 @@
     "point_name": "行业资讯",
     "point_url": "https://auto.gasgoo.com/news/C-101",
     "cron_schedule": "0 */2 * * *",
-    "is_active": true,
+    "is_active": 1,
     "last_triggered_at": null,
     "url_prompt_key": "news_site_style_a",
     "summary_prompt_key": "financial_report_summary",
@@ -393,8 +641,20 @@
 | :--- | :--- | :--- | :--- |
 | `point_ids` | array[string] | 是 | 要删除的情报点ID列表 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
+{
+  "point_ids": [
+    "b1c2d3e4-f5g6-7890-1234-abcdef123456"
+  ]
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X DELETE http://127.0.0.1:7657/intelligence/points \
+-H "Content-Type: application/json" \
+-d 
 {
   "point_ids": [
     "b1c2d3e4-f5g6-7890-1234-abcdef123456"
@@ -415,6 +675,11 @@
 
 -   **路径:** `/intelligence/sources`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/intelligence/sources
+```
 
 **返回说明**
 
@@ -442,6 +707,12 @@
 -   **路径:** `/intelligence/sources/{source_name}`
 -   **方法:** `DELETE`
 
+**cURL请求示例**
+```bash
+# 注意URL编码
+curl -X DELETE "http://127.0.0.1:7657/intelligence/sources/%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6"
+```
+
 **返回示例 (200 OK)**
 ```json
 {
@@ -466,6 +737,11 @@
 | `page` | integer | 否 | 页码，默认1 |
 | `limit` | integer | 否 | 每页数量，默认20 |
 
+**cURL请求示例**
+```bash
+curl -X GET "http://127.0.0.1:7657/intelligence/tasks?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6&status=completed&page=1&limit=5"
+```
+
 **返回说明**
 
 | 字段 | 类型 | 说明 |
@@ -480,7 +756,7 @@
 {
   "total": 100,
   "page": 1,
-  "limit": 20,
+  "limit": 5,
   "items": [
     {
       "id": "f6g7h8i9-j0k1-2345-6789-efabcd456789",
@@ -504,6 +780,11 @@
 
 -   **路径:** `/intelligence/tasks/stats`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/intelligence/tasks/stats
+```
 
 **返回示例 (200 OK)**
 ```json
@@ -535,6 +816,11 @@
 | `page` | integer | 否 | 页码，默认1 |
 | `limit` | integer | 否 | 每页数量，默认20 |
 
+**cURL请求示例**
+```bash
+curl -X GET "http://127.0.0.1:7657/intelligence/articles?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6&page=1&limit=5"
+```
+
 **返回说明**
 
 | 字段 | 类型 | 说明 |
@@ -549,7 +835,7 @@
 {
   "total": 50,
   "page": 1,
-  "limit": 20,
+  "limit": 5,
   "items": [
     {
       "id": "e5f6g7h8-i9j0-1234-5678-defabc345678",
@@ -586,6 +872,17 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `top_k` | integer | 否 | 5 | 返回最相关的结果数量 |
 
+**cURL请求示例**
+```bash
+curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
+-H "Content-Type: application/json" \
+-d 
+{
+  "query_text": "比亚迪电池技术",
+  "point_ids": ["b1c2d3e4-f5g6-7890-1234-abcdef123456"]
+}
+```
+
 **返回示例 (200 OK)**
 ```json
 [
@@ -619,17 +916,30 @@
 | `page` | integer | 否 | 1 | 页码 |
 | `limit` | integer | 否 | 20 | 每页数量 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
 {
   "query_text": "特斯拉最新技术动态",
   "similarity_threshold": 0.5,
-  "point_ids": ["b1c2d3e4-f5g6-7890-1234-abcdef123456"],
   "source_names": ["盖世汽车"],
   "publish_date_start": "2023-10-01",
-  "publish_date_end": "2023-10-09",
   "page": 1,
-  "limit": 20
+  "limit": 5
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/intelligence/search/articles_filtered \
+-H "Content-Type: application/json" \
+-d 
+{
+  "query_text": "特斯拉最新技术动态",
+  "similarity_threshold": 0.5,
+  "source_names": ["盖世汽车"],
+  "publish_date_start": "2023-10-01",
+  "page": 1,
+  "limit": 5
 }
 ```
 
@@ -649,7 +959,7 @@
 {
   "total": 15,
   "page": 1,
-  "limit": 20,
+  "limit": 5,
   "items": [
     {
       "id": "g7h8i9j0-k1l2-3456-7890-fabcde567890",
@@ -673,6 +983,11 @@
 
 -   **路径:** `/intelligence/prompts`
 -   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/intelligence/prompts
+```
 
 **返回示例 (200 OK)**
 ```json
@@ -716,8 +1031,20 @@
 | `description`| string | 是 | 提示词功能的简短描述 |
 | `prompt` | string | 是 | 完整的提示词内容 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
+{
+  "name": "财经新闻解析器",
+  "description": "专门用于解析财经网站文章列表页。",
+  "prompt": "请从以下HTML中提取所有新闻文章的URL..."
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/custom_parser_1 \
+-H "Content-Type: application/json" \
+-d 
 {
   "name": "财经新闻解析器",
   "description": "专门用于解析财经网站文章列表页。",
@@ -747,8 +1074,18 @@
 | `description`| string | 否 | 新的描述 |
 | `prompt` | string | 否 | 新的提示词内容 |
 
-**请求示例**
+**请求示例 (JSON)**
 ```json
+{
+  "name": "更新-财经新闻解析器"
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/custom_parser_1 \
+-H "Content-Type: application/json" \
+-d 
 {
   "name": "更新-财经新闻解析器"
 }
@@ -767,6 +1104,11 @@
 
 -   **路径:** `/intelligence/prompts/{prompt_type}/{prompt_key}`
 -   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+curl -X DELETE http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/custom_parser_1
+```
 
 **返回示例 (200 OK)**
 ```json

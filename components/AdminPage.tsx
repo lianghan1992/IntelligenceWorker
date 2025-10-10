@@ -13,6 +13,7 @@ import {
 import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { InfoDetailModal } from './InfoDetailModal';
+import { UserManager } from './UserManager'; // Import the new component
 import { PlusIcon, TrashIcon, LightBulbIcon, UsersIcon, DiveIcon, VideoCameraIcon, ChevronDownIcon, CloseIcon } from './icons';
 
 const Spinner: React.FC<{className?: string}> = ({className = "h-5 w-5 text-gray-500"}) => (
@@ -824,7 +825,7 @@ export const AdminPage: React.FC = () => {
             case 'intelligence':
                 return <IntelligenceManager />;
             case 'users':
-                return <PlaceholderManager title="用户管理" />;
+                return <UserManager />;
             case 'dives':
                 return <PlaceholderManager title="深度洞察管理" />;
             case 'events':

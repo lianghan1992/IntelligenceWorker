@@ -9,6 +9,18 @@ export interface User {
   email: string;
 }
 
+// New type for the user management list from GET /users
+export interface AdminUser {
+    id: string;
+    username: string;
+    email: string;
+    plan_name: string;
+    source_subscription_count: number;
+    poi_count: number;
+    status: 'active' | 'disabled';
+    created_at: string;
+}
+
 // Represents a single piece of intelligence information
 export interface InfoItem {
   id: string;

@@ -13,6 +13,7 @@ import {
   PlanDetails,
   ApiPoi,
   UserSourceSubscription,
+  AdminUser,
 } from './types';
 
 // --- Helper Functions ---
@@ -69,10 +70,14 @@ export const loginUser = async (email: string, password: string): Promise<User> 
   return user;
 };
 
-export const registerUser = async (username: string, email: string, password: string): Promise<User> => {
+export const registerUser = async (username: string, email: string, password: string, plan_name?: string): Promise<User> => {
+  const body: { [key: string]: string } = { username, email, password };
+    if (plan_name) {
+        body.plan_name = plan_name;
+    }
   const response = await apiFetch(`${USER_SERVICE_PATH}/register`, {
     method: 'POST',
-    body: JSON.stringify({ username, email, password }),
+    body: JSON.stringify(body),
   });
 
   // API returns 'id', we map it to 'user_id' for consistency within the app.
@@ -91,6 +96,30 @@ export const forgotPassword = async (email: string): Promise<void> => {
 };
 
 // --- User Service API ---
+
+export const getUsers = (params: { page: number; limit: number; plan_name?: string; status?: string; search_term?: string }): Promise<{ items: AdminUser[], total: number, page: number, limit: number, totalPages: number }> => {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+  });
+  if (params.plan_name) query.append('plan_name', params.plan_name);
+  if (params.status) query.append('status', params.status);
+  if (params.search_term) query.append('search_term', params.search_term);
+  return apiFetch(`${USER_SERVICE_PATH}/?${query.toString()}`);
+};
+
+export const updateUser = (userId: string, data: { username?: string; email?: string; plan_name?: string; status?: string }): Promise<AdminUser> => {
+  return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
+export const deleteUser = (userId: string): Promise<void> => {
+  return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
+    method: 'DELETE',
+  });
+};
 
 export const getPlans = async (): Promise<PlanDetails> => {
   return apiFetch(`${USER_SERVICE_PATH}/plans`);
