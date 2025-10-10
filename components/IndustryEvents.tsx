@@ -242,10 +242,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The socket.io-client `io()` function was invoked without arguments, which is invalid.
-        // It requires a URI to connect to. Passing `'/'` as an argument establishes a connection
-        // to the server that served the web page, which is the correct behavior for this application's
-        // proxy configuration.
+        // The socket.io-client `io()` function requires a URI to connect to.
+        // Passing `'/'` as an argument establishes a connection to the server that served the web page,
+        // which is the correct behavior for this application's proxy configuration.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {

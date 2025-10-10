@@ -32,9 +32,9 @@ const TOKEN_KEY = 'accessToken';
  */
 async function apiFetch(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem(TOKEN_KEY);
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string>),
   };
 
   if (token) {
