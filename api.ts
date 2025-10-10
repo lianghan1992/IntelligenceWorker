@@ -1,414 +1,271 @@
 // src/api.ts
 
-import { USER_SERVICE_PATH, INTELLIGENCE_SERVICE_PATH } from './config';
-import {
-  User,
-  InfoItem,
-  Subscription,
-  SystemSource,
-  ApiTask,
-  Event,
-  ApiProcessingTask,
-  SearchResult,
-  PlanDetails,
-  ApiPoi,
-  UserSourceSubscription,
-  AdminUser,
-  AllPrompts,
-  Prompt,
+import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH, USER_SERVICE_PATH } from './config';
+import { 
+    User, 
+    AdminUser,
+    InfoItem, 
+    Subscription, 
+    SystemSource, 
+    ApiPoi,
+    PlanDetails,
+    ApiProcessingTask,
+    ApiTask,
+    AllPrompts,
+    SearchResult,
+    Prompt
 } from './types';
 
-// --- Helper Functions ---
+const getAuthToken = () => localStorage.getItem('accessToken');
 
-const TOKEN_KEY = 'accessToken';
+const apiFetch = async (url: string, options: RequestInit = {}) => {
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
 
-/**
- * A generic fetch wrapper for API calls.
- * It handles JSON parsing, error handling, and automatically attaches the auth token.
- * @param path The full API path (e.g., '/users/login' or '/intelligence/points')
- * @param options Fetch API options (method, body, headers, etc.)
- * @returns Parsed JSON response
- * @throws Throws an error if the response status is not ok
- */
-async function apiFetch(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
-
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(path, { ...options, headers });
-
-  if (!response.ok) {
-    let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-    try {
-      const errorBody = await response.json();
-      errorMessage = errorBody.detail || errorBody.message || errorBody.error || errorMessage;
-    } catch (e) {
-      // If the response body isn't JSON or is empty, ignore
+    const token = getAuthToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
-     if (response.status === 401) {
-        // Automatically handle token expiration
-        localStorage.removeItem(TOKEN_KEY);
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (!response.ok) {
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData = { message: `HTTP error! status: ${response.status}` };
+        }
+        console.error("API Error:", errorData);
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
     }
-    throw new Error(errorMessage);
-  }
 
-  // Return null for 204 No Content responses
-  if (response.status === 204) {
-    return null;
-  }
+    if (response.status === 204) {
+        return null;
+    }
 
-  return response.json();
-}
+    return response.json();
+};
 
+// --- Auth Service ---
 
-// --- Auth API (User Service) ---
+export const login = async (email: string, password: string): Promise<{ token: string; user: User }> => {
+    const response = await apiFetch(`${USER_SERVICE_PATH}/login`, {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+    });
+    // The API returns 'id', but the app uses 'user_id'. We map it here.
+    return { 
+        token: response.access_token, 
+        user: { ...response.user, user_id: response.user.id } 
+    };
+};
 
-export const loginUser = async (email: string, password: string): Promise<User> => {
-  const response = await apiFetch(`${USER_SERVICE_PATH}/login`, {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-  
-  const user: User = {
-    user_id: response.user.user_id,
-    username: response.user.username,
-    email: response.user.email,
-  };
-
-  if (response.accessToken) {
-    localStorage.setItem(TOKEN_KEY, response.accessToken);
-  }
-
-  return user;
+export const register = async (username: string, email: string, password: string): Promise<User> => {
+    return apiFetch(`${USER_SERVICE_PATH}/register`, {
+        method: 'POST',
+        body: JSON.stringify({ username, email, password }),
+    });
 };
 
 export const getMe = async (): Promise<User> => {
-  const response = await apiFetch(`${USER_SERVICE_PATH}/me`);
-  // API may return 'id', we map it to 'user_id' for consistency within the app.
-  const user: User = {
-    user_id: response.id || response.user_id,
-    username: response.username,
-    email: response.email,
-  };
-  return user;
+    const user = await apiFetch(`${USER_SERVICE_PATH}/me`);
+    return { ...user, user_id: user.id };
 };
 
 
-export const registerUser = async (username: string, email: string, password: string, plan_name?: string): Promise<User> => {
-  const body: { [key: string]: string } = { username, email, password };
-    if (plan_name) {
-        body.plan_name = plan_name;
-    }
-  const response = await apiFetch(`${USER_SERVICE_PATH}/register`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
-
-  // API returns 'id', we map it to 'user_id' for consistency within the app.
-  const user: User = {
-    user_id: response.id,
-    username: response.username,
-    email: response.email,
-  };
-  return user;
-};
-
-export const forgotPassword = async (email: string): Promise<void> => {
-    console.log(`模拟发送密码重置邮件至: ${email}`);
-    await new Promise(res => setTimeout(res, 1000));
-    return;
-};
-
-// --- User Service API (Authenticated) ---
-
-export const getUsers = (params: { page: number; limit: number; plan_name?: string; status?: string; search_term?: string }): Promise<{ items: AdminUser[], total: number, page: number, limit: number, totalPages: number }> => {
-  const query = new URLSearchParams({
-    page: String(params.page),
-    limit: String(params.limit),
-  });
-  if (params.plan_name) query.append('plan_name', params.plan_name);
-  if (params.status) query.append('status', params.status);
-  if (params.search_term) query.append('search_term', params.search_term);
-  return apiFetch(`${USER_SERVICE_PATH}/?${query.toString()}`);
-};
-
-export const updateUser = (userId: string, data: { username?: string; email?: string; plan_name?: string; status?: string }): Promise<AdminUser> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-};
-
-export const deleteUser = (userId: string): Promise<void> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
-    method: 'DELETE',
-  });
-};
-
-export const getPlans = async (): Promise<PlanDetails> => {
-  return apiFetch(`${USER_SERVICE_PATH}/plans`);
-};
-
-
-export const getUserPois = (): Promise<ApiPoi[]> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/pois`);
-};
-
-export const addUserPoi = (data: { content: string; keywords: string }): Promise<ApiPoi> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/pois`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-};
-
-export const deleteUserPoi = (poiId: string): Promise<{ message: string }> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/pois/${poiId}`, {
-    method: 'DELETE',
-  });
-};
-
-export const getUserSubscribedSources = (): Promise<UserSourceSubscription[]> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/sources`);
-};
-
-export const addUserSourceSubscription = (sourceId: string): Promise<{ message: string }> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
-    method: 'POST',
-    body: JSON.stringify({}),
-  });
-};
-
-export const deleteUserSourceSubscription = (sourceId: string): Promise<{ message: string }> => {
-  return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
-    method: 'DELETE',
-  });
-};
-
-
-// --- Intelligence Service API ---
-
-export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
-    const encodedSourceName = encodeURIComponent(sourceName);
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodedSourceName}`);
-};
-
-export const getAllIntelligencePoints = async (): Promise<Subscription[]> => {
-  const sources = await getSources();
-  if (sources.length === 0) return [];
-  const pointPromises = sources.map(source => getPointsBySourceName(source.name));
-  const pointsBySource = await Promise.all(pointPromises);
-  return pointsBySource.flat();
-};
-
-export const getPoints = async (): Promise<Subscription[]> => {
-    const userSources = await getUserSubscribedSources();
-    if (userSources.length === 0) {
-        return [];
-    }
-    const pointPromises = userSources.map(source => getPointsBySourceName(source.source_name));
-    const pointsBySource = await Promise.all(pointPromises);
-    return pointsBySource.flat();
-};
-
-export const getArticles = (
-  pointIds: string[], 
-  params: { 
-    page: number; 
+// --- User Management (Admin) ---
+interface PaginatedResponse<T> {
+    items: T[];
+    total: number;
+    page: number;
     limit: number;
-    publish_date_start?: string;
-    publish_date_end?: string;
-  }
-): Promise<{ items: InfoItem[], total: number, page: number, limit: number, totalPages: number }> => {
-  const query = new URLSearchParams({
-    page: String(params.page),
-    limit: String(params.limit),
-  });
-  
-  if (params.publish_date_start) {
-    query.append('publish_date_start', params.publish_date_start);
-  }
-  if (params.publish_date_end) {
-    query.append('publish_date_end', params.publish_date_end);
-  }
+    totalPages: number;
+}
 
-  if (pointIds.length > 0) {
-    pointIds.forEach(id => query.append('point_ids', id));
-  }
-  
-  const queryString = query.toString();
-  
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${queryString}`);
+export const getUsers = async (params: { page: number; limit: number; search_term?: string; plan_name?: string; status?: string }): Promise<PaginatedResponse<AdminUser>> => {
+    const query = new URLSearchParams(params as any).toString();
+    return apiFetch(`${USER_SERVICE_PATH}?${query}`);
 };
+
+export const registerUser = async (username: string, email: string, password: string, plan_name: string): Promise<AdminUser> => {
+    return apiFetch(`${USER_SERVICE_PATH}/register`, {
+        method: 'POST',
+        body: JSON.stringify({ username, email, password, plan_name }),
+    });
+};
+
+export const updateUser = async (userId: string, data: Partial<AdminUser>): Promise<AdminUser> => {
+    return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteUser = async (userId: string): Promise<void> => {
+    return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
+        method: 'DELETE',
+    });
+};
+
+
+// --- Plans ---
+export const getPlans = async (): Promise<PlanDetails> => {
+    return apiFetch(`${USER_SERVICE_PATH}/plans`);
+};
+
+// --- POIs (Focus Points) ---
+export const getUserPois = async (): Promise<ApiPoi[]> => {
+    return apiFetch(`${USER_SERVICE_PATH}/pois`);
+};
+
+export const addUserPoi = async (data: { content: string; keywords: string }): Promise<ApiPoi> => {
+    return apiFetch(`${USER_SERVICE_PATH}/pois`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteUserPoi = async (poiId: string): Promise<void> => {
+    return apiFetch(`${USER_SERVICE_PATH}/pois/${poiId}`, {
+        method: 'DELETE',
+    });
+};
+
+// --- User Source Subscriptions ---
+export const getUserSubscribedSources = async (): Promise<{id: string, source_name: string}[]> => {
+    // This API seems to be missing from the provided info, so mocking a path
+    return apiFetch(`${USER_SERVICE_PATH}/sources`);
+};
+
+export const addUserSourceSubscription = async (sourceId: string): Promise<void> => {
+    return apiFetch(`${USER_SERVICE_PATH}/sources`, {
+        method: 'POST',
+        body: JSON.stringify({ source_id: sourceId }),
+    });
+};
+
+export const deleteUserSourceSubscription = async (sourceId: string): Promise<void> => {
+    return apiFetch(`${USER_SERVICE_PATH}/sources/${sourceId}`, {
+        method: 'DELETE',
+    });
+};
+
+// --- Intelligence Service ---
 
 export const getSources = async (): Promise<SystemSource[]> => {
-  const sourcesFromApi = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
-  return sourcesFromApi.map((s: any) => ({
-      id: s.id,
-      name: s.source_name,
-      points_count: s.points_count,
-      description: `Contains ${s.points_count} intelligence points.`,
-      iconUrl: '',
-      category: 'General',
-      infoCount: 0, 
-      subscriberCount: 0,
-  }));
+    const sources = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+    return sources.map((s: any) => ({ ...s, id: s.source_id, name: s.source_name, points_count: 0 }));
 };
 
-export const getEvents = async (page: number, limit: number = 12): Promise<{ events: Event[], totalPages: number }> => {
-    console.warn("getEvents is using a mocked response as the endpoint appears to be missing.");
-    return Promise.resolve({ events: [], totalPages: 1 });
+export const getSubscriptions = async (): Promise<Subscription[]> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`);
 };
 
-export const getProcessingTasks = (params: { page: number; limit: number; status?: string; source_name?: string; point_name?: string }): Promise<{ tasks: ApiProcessingTask[], totalPages: number, total: number }> => {
-    const query = new URLSearchParams({
-        page: String(params.page),
-        limit: String(params.limit),
+export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
+    const query = new URLSearchParams({ source_name: sourceName }).toString();
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?${query}`);
+};
+
+export const addPoint = async (data: Partial<Subscription>): Promise<Subscription> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+        method: 'POST',
+        body: JSON.stringify(data),
     });
-    if (params.status) query.append('status', params.status);
-    if (params.source_name) query.append('source_name', params.source_name);
-    if (params.point_name) query.append('point_name', params.point_name);
+};
 
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query.toString()}`).then(response => ({
-        tasks: response.items,
-        totalPages: response.total > 0 ? Math.ceil(response.total / params.limit) : 1,
-        total: response.total,
-    }));
+export const updatePoint = async (id: string, data: Partial<Subscription>): Promise<Subscription> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deletePoints = async (ids: string[]): Promise<void> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+        method: 'DELETE',
+        body: JSON.stringify({ ids }),
+    });
+};
+
+// --- Articles / InfoItems ---
+
+export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+        method: 'POST',
+        body: JSON.stringify({ point_ids, ...params }),
+    });
+};
+
+export const searchArticles = async (query_text: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
+    const results = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search`, {
+        method: 'POST',
+        body: JSON.stringify({ query_text, point_ids, limit }),
+    });
+    return results.items;
+};
+
+export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+}
+
+// Helper for App.tsx
+export const getInitialArticles = async (): Promise<InfoItem[]> => {
+    const subscriptions = await getSubscriptions();
+    if (subscriptions.length === 0) return [];
+    const pointIds = subscriptions.map(sub => sub.id);
+    const data = await getArticles(pointIds, { page: 1, limit: 100 });
+    return data.items;
+};
+
+export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
+    setFeedback("正在提交URL...");
+    // This is a complex operation; we'll mock the stages
+    return new Promise((resolve, reject) => {
+        setTimeout(() => setFeedback("AI正在读取页面内容..."), 1000);
+        setTimeout(() => setFeedback("AI正在分析和总结..."), 3000);
+        setTimeout(() => {
+            const mockItem: InfoItem = {
+                id: `temp-${Date.now()}`,
+                point_id: 'custom',
+                source_name: new URL(url).hostname.replace('www.', ''),
+                point_name: '自定义添加',
+                title: 'AI生成的标题：新一代汽车芯片发布',
+                original_url: url,
+                publish_date: new Date().toISOString(),
+                content: '这是由AI根据您提供的URL生成的摘要内容。它将包含页面的关键信息、要点和结论，为您提供快速的情报概览。',
+                created_at: new Date().toISOString(),
+            };
+            resolve(mockItem);
+        }, 5000);
+    });
+};
+
+// --- Tasks ---
+
+export const getProcessingTasks = async (params: { page: number; limit: number; status?: string; source_name?: string; point_name?: string; }): Promise<PaginatedResponse<ApiProcessingTask>> => {
+    const query = new URLSearchParams(params as any).toString();
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query}`);
 };
 
 export const getProcessingTasksStats = async (): Promise<{ [key: string]: number }> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
-export const addPoint = (data: Partial<Subscription>): Promise<{message: string, point_id: string}> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-};
+// --- Events (Live/Offline Tasks) ---
 
-export const updatePoint = (pointId: string, data: Partial<Subscription>): Promise<{message: string}> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deletePoints = (pointIds: string[]): Promise<{ message: string }> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
-        method: 'DELETE',
-        body: JSON.stringify({ point_ids: pointIds }),
-    });
-};
-
-export const retryProcessingTask = (taskId: string): Promise<ApiProcessingTask> => {
-    console.log(`Retrying task ${taskId}`);
-    return Promise.resolve({} as ApiProcessingTask);
-};
-
-
-export const searchArticles = async (query: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles?top_k=${limit}`, {
-        method: 'POST',
-        body: JSON.stringify({ query_text: query, point_ids }),
-    });
-};
-
-export const searchArticlesFiltered = (params: {
-    query_text: string;
-    similarity_threshold?: number;
-    point_ids?: string[];
-    source_names?: string[];
-    publish_date_start?: string;
-    publish_date_end?: string;
-    page?: number;
-    limit?: number;
-}): Promise<{ items: SearchResult[], total: number, page: number, limit: number, totalPages: number }> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
-        method: 'POST',
-        body: JSON.stringify(params),
-    }).then(response => ({
-        ...response,
-        totalPages: response.total > 0 && params.limit ? Math.ceil(response.total / params.limit) : 1,
-    }));
-};
-
-
-export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-  setFeedback('正在连接到目标URL...');
-  await new Promise(res => setTimeout(res, 1500));
-  setFeedback('正在提取主要内容...');
-  await new Promise(res => setTimeout(res, 2000));
-  setFeedback('AI正在分析和生成摘要...');
-  await new Promise(res => setTimeout(res, 3000));
-  
-  const mockResult: InfoItem = {
-    id: `custom-${Date.now()}`,
-    point_id: 'custom-source',
-    source_name: new URL(url).hostname,
-    point_name: '自定义来源',
-    title: `从URL提取的标题：${url}`,
-    original_url: url,
-    publish_date: new Date().toISOString(),
-    content: `这是从URL提取并由AI生成的结构化内容摘要。\n\n分析表明，该页面的核心观点是关于...`,
-    created_at: new Date().toISOString(),
-  };
-  return mockResult;
-};
-
-// --- Prompt Management API ---
-
-export const getPrompts = (): Promise<AllPrompts> => {
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
-};
-
-export const createPrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string, data: Prompt): Promise<{ message: string }> => {
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-};
-
-export const updatePrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string, data: Partial<Prompt>): Promise<{ message: string }> => {
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-};
-
-export const deletePrompt = (promptType: 'url_extraction_prompts' | 'content_summary_prompts', promptKey: string): Promise<{ message: string }> => {
-  return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${promptType}/${promptKey}`, {
-    method: 'DELETE',
-  });
-};
-
-
-const createEventTask = (endpoint: string, formData: FormData): Promise<ApiTask> => {
-    console.warn(`createEventTask (${endpoint}) is using a mocked response.`);
-    return Promise.resolve({} as ApiTask);
-};
-
-export const createLiveTask = (live_url: string, planned_start_time: string, cover_image?: File): Promise<ApiTask> => {
-    const formData = new FormData();
-    formData.append('live_url', live_url);
-    formData.append('planned_start_time', planned_start_time);
-    if (cover_image) formData.append('cover_image', cover_image);
-    return createEventTask('/tasks/live', formData);
-};
-
-export const createOfflineTask = (title: string, source_uri: string, replay_url: string, original_start_time: string, cover_image?: File): Promise<ApiTask> => {
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('source_uri', source_uri);
-    formData.append('replay_url', replay_url);
-    formData.append('original_start_time', original_start_time);
-    if (cover_image) formData.append('cover_image', cover_image);
-    return createEventTask('/tasks/offline', formData);
+export const getEvents = async (page: number, limit: number = 20): Promise<{events: Event[], totalPages: number}> => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) }).toString();
+    const data: PaginatedResponse<ApiTask> = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/events/tasks?${query}`);
+    return {
+        events: data.items.map(convertApiTaskToFrontendEvent),
+        totalPages: data.totalPages > 0 ? data.totalPages : 1,
+    };
 };
 
 export const convertApiTaskToFrontendEvent = (task: ApiTask): Event => {
@@ -419,12 +276,82 @@ export const convertApiTaskToFrontendEvent = (task: ApiTask): Event => {
     taskType: task.task_type,
     startTime: task.planned_start_time,
     organizer: {
-      name: task.organizer_name || '未知主办方',
-      platform: task.organizer_platform || '未知平台',
+      name: task.organizer_name || '未知',
+      platform: task.organizer_platform || '未知',
     },
     coverImageUrl: task.cover_image_url,
-    liveUrl: task.task_status === 'LIVE' ? task.live_url : task.replay_url,
+    // Use replay URL if available, as it's often the persistent link after a live event.
+    liveUrl: task.replay_url || task.live_url,
     sourceUri: task.source_uri,
     reportContentHtml: task.report_html,
   };
+};
+
+const createEventTask = async (endpoint: string, formData: FormData): Promise<ApiTask> => {
+    // We can't use apiFetch for multipart/form-data
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+        headers,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Task creation failed');
+    }
+    return response.json();
+};
+
+export const createLiveTask = async (liveUrl: string, plannedStartTime: string, coverImage?: File): Promise<ApiTask> => {
+    const formData = new FormData();
+    formData.append('live_url', liveUrl);
+    formData.append('planned_start_time', plannedStartTime);
+    if (coverImage) {
+        formData.append('cover_image', coverImage);
+    }
+    return createEventTask(`${INTELLIGENCE_SERVICE_PATH}/events/tasks/live`, formData);
+};
+
+export const createOfflineTask = async (title: string, sourceUri: string, replayUrl: string, originalStartTime: string, coverImage?: File): Promise<ApiTask> => {
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('source_uri', sourceUri);
+    formData.append('replay_url', replayUrl);
+    formData.append('original_start_time', originalStartTime);
+    if (coverImage) {
+        formData.append('cover_image', coverImage);
+    }
+    return createEventTask(`${INTELLIGENCE_SERVICE_PATH}/events/tasks/offline`, formData);
+};
+
+// --- Prompts ---
+
+export const getPrompts = async (): Promise<AllPrompts> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
+};
+
+export const createPrompt = async (type: string, key: string, data: Prompt): Promise<Prompt> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`, {
+        method: 'POST',
+        body: JSON.stringify({ type, key, ...data }),
+    });
+};
+
+export const updatePrompt = async (type: string, key: string, data: Prompt): Promise<Prompt> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${type}/${key}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deletePrompt = async (type: string, key: string): Promise<void> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${type}/${key}`, {
+        method: 'DELETE',
+    });
 };

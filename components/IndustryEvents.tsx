@@ -246,7 +246,8 @@ export const IndustryEvents: React.FC = () => {
         // Passing `'/'` as an argument establishes a connection to the server that served the web page,
         // which is the correct behavior for this application's proxy configuration.
         // FIX: The `io()` function from socket.io-client requires a URI. Passing `'/'` connects to the origin server, which is correct for the proxy setup.
-        const socket: Socket = io('/');
+        // FIX: The io() function requires a URI argument for connection. Pass '/' to connect to the origin server, which works with the proxy setup.
+const socket: Socket = io('/');
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');
@@ -261,7 +262,7 @@ export const IndustryEvents: React.FC = () => {
             console.log('WebSocket event: tasks_status_batch_update received', data);
             if (data && Array.isArray(data.tasks)) {
                 // Per API v11, we should completely replace the list for consistency.
-                const newEvents = data.tasks.map(convertApiTaskToFrontendEvent);
+                const newEvents: Event[] = data.tasks.map(convertApiTaskToFrontendEvent);
                 setEvents(sortEvents(newEvents));
             }
         });
