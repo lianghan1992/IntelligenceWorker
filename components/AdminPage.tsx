@@ -87,22 +87,25 @@ const ArticleListManager: React.FC<{
         endDate: '',
     };
     const [filters, setFilters] = useState(initialFilters);
-    const [activeFilters, setActiveFilters] = useState(filters);
+    const [activeFilters, setActiveFilters] = useState(initialFilters);
     const ARTICLES_PER_PAGE = 20;
 
     const loadArticles = useCallback(async (isNewFilter = false) => {
         const currentPage = isNewFilter ? 1 : page;
+        if (isNewFilter) setPage(1); // Reset page on new filter
+    
         setIsLoading(true);
         setError('');
         
         try {
-            let pointIdsToQuery = activeFilters.selectedPointIds;
-            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
+            // Determine the full set of point IDs to query based on filters
+            let pointIdsToQuery: string[] = [];
+            if (activeFilters.selectedPointIds.length > 0) {
+                pointIdsToQuery = activeFilters.selectedPointIds;
+            } else if (activeFilters.selectedSourceNames.length > 0) {
                  pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data.map(p => p.id) || []);
             }
-            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0 && allSources.length > 0) {
-                 pointIdsToQuery = allSources.flatMap(s => pointsBySourceForFilter[s.name]?.data.map(p => p.id) || []);
-            }
+            // An empty pointIdsToQuery array means "all points" to the backend if no sources/points are selected.
 
             if (activeFilters.searchQuery.trim()) {
                 // Use the new, powerful combined search and filter endpoint
@@ -110,7 +113,7 @@ const ArticleListManager: React.FC<{
                     query_text: activeFilters.searchQuery,
                     similarity_threshold: activeFilters.similarityThreshold,
                     point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
-                    source_names: activeFilters.selectedSourceNames.length > 0 ? activeFilters.selectedSourceNames : undefined,
+                    source_names: (activeFilters.selectedPointIds.length === 0 && activeFilters.selectedSourceNames.length > 0) ? activeFilters.selectedSourceNames : undefined,
                     publish_date_start: activeFilters.startDate || undefined,
                     publish_date_end: activeFilters.endDate || undefined,
                     page: currentPage,
@@ -121,7 +124,7 @@ const ArticleListManager: React.FC<{
                 setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
             } else {
                 // Use the standard filtering endpoint when there is no search query
-                const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
+                 const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
                     page: currentPage, 
                     limit: ARTICLES_PER_PAGE,
                     publish_date_start: activeFilters.startDate || undefined,
@@ -137,27 +140,20 @@ const ArticleListManager: React.FC<{
         } finally {
             setIsLoading(false);
         }
-    }, [page, activeFilters, pointsBySourceForFilter, allSources]);
-
-    useEffect(() => {
-        if (isNewFilter(activeFilters, initialFilters)) { // Check if it's not the initial empty load
-            loadArticles(true); // Always treat active filter change as a new filter
-        }
-    }, [activeFilters]);
+    }, [page, activeFilters, pointsBySourceForFilter]);
     
-    // Helper to avoid initial double-load
-    const isNewFilter = (current: typeof initialFilters, initial: typeof initialFilters) => {
-        return JSON.stringify(current) !== JSON.stringify(initial);
-    }
-
+    // Initial load and filter change trigger
     useEffect(() => {
-        // Initial load on component mount
         loadArticles(true);
-    }, []);
+    }, [activeFilters]);
 
+    // Page change trigger
     useEffect(() => {
-        if(page > 1) { // Only load if page changes after the initial load
-             loadArticles(false);
+        // This effect should only run for page changes, not on initial mount.
+        // The initial load is handled by the effect above.
+        const isInitialMount = page === 1 && articles.length === 0;
+        if (!isInitialMount) {
+            loadArticles(false);
         }
     }, [page]);
 
@@ -174,13 +170,11 @@ const ArticleListManager: React.FC<{
     }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
     const handleApplyFilters = () => {
-        setPage(1);
         setActiveFilters(filters);
     };
 
     const handleClearFilters = () => {
         setFilters(initialFilters);
-        setPage(1);
         setActiveFilters(initialFilters);
     };
     
@@ -236,19 +230,20 @@ const ArticleListManager: React.FC<{
             <h3 className="text-lg font-bold text-gray-800 mb-4">已采集文章</h3>
             {error && <p className="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded-md">{error}</p>}
             
-            <div className="space-y-4 mb-4 p-4 bg-gray-50 rounded-lg border">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+            {/* --- Compact Filter Panel --- */}
+            <div className="space-y-3 mb-4 p-4 bg-gray-50 rounded-lg border">
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex-1">
                          <label className="text-xs font-medium text-gray-600">语义搜索</label>
                          <input type="text" value={filters.searchQuery} onChange={e => setFilters(f => ({...f, searchQuery: e.target.value}))} placeholder="例如：特斯拉最新技术动态" className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md h-10" />
                     </div>
-                     <div>
+                     <div className="md:w-64">
                         <label className="text-xs font-medium text-gray-600">相似度阈值: {filters.similarityThreshold.toFixed(2)}</label>
                          <input type="range" min="0" max="1" step="0.05" value={filters.similarityThreshold} onChange={e => setFilters(f => ({...f, similarityThreshold: parseFloat(e.target.value)}))} className="w-full mt-1 h-10 accent-blue-600" />
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                     <div>
+                <div className="flex flex-col md:flex-row flex-wrap gap-4 items-end">
+                     <div className="flex-1 min-w-[200px]">
                         <label className="text-xs font-medium text-gray-600">情报源</label>
                         <MultiSelectDropdown 
                             options={allSources.map(s => ({id: s.name, name: s.name}))}
@@ -257,7 +252,7 @@ const ArticleListManager: React.FC<{
                             placeholder="所有情报源"
                         />
                     </div>
-                     <div>
+                     <div className="flex-1 min-w-[200px]">
                         <label className="text-xs font-medium text-gray-600">情报点</label>
                         <MultiSelectDropdown 
                             options={availablePointsForFilter.map(p => ({id: p.id, name: `${p.source_name} - ${p.point_name}`}))}
@@ -266,18 +261,16 @@ const ArticleListManager: React.FC<{
                             placeholder="所有情报点"
                         />
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1">
-                            <label className="text-xs font-medium text-gray-600">发布开始日期</label>
-                            <input type="date" value={filters.startDate} onChange={e => setFilters(f => ({...f, startDate: e.target.value}))} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md h-10" />
-                        </div>
-                        <div className="flex-1">
-                            <label className="text-xs font-medium text-gray-600">发布结束日期</label>
-                            <input type="date" value={filters.endDate} onChange={e => setFilters(f => ({...f, endDate: e.target.value}))} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md h-10" />
+                    <div className="flex-1 min-w-[250px]">
+                         <label className="text-xs font-medium text-gray-600">发布日期范围</label>
+                        <div className="flex items-center mt-1 border border-gray-300 rounded-md bg-white">
+                            <input type="date" value={filters.startDate} onChange={e => setFilters(f => ({...f, startDate: e.target.value}))} className="w-full p-2 h-10 border-r rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            <span className="px-2 text-gray-500">到</span>
+                            <input type="date" value={filters.endDate} onChange={e => setFilters(f => ({...f, endDate: e.target.value}))} className="w-full p-2 h-10 rounded-r-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-end items-center gap-2 pt-4 border-t mt-4">
+                <div className="flex justify-end items-center gap-2 pt-3 border-t mt-3">
                     <button onClick={handleClearFilters} className="h-10 px-4 py-2 bg-white border text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-100">清空筛选</button>
                     <button onClick={handleApplyFilters} disabled={isLoading} className="h-10 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 flex items-center justify-center disabled:bg-blue-300">
                         {isLoading ? <Spinner className="h-4 w-4 text-white" /> : '筛选'}
@@ -300,16 +293,18 @@ const ArticleListManager: React.FC<{
                     <div
                         key={article.id}
                         onClick={() => setSelectedArticle(article)}
-                        className="p-4 border rounded-lg hover:shadow-md hover:border-blue-300 cursor-pointer transition relative"
+                        className="p-4 border rounded-lg hover:shadow-md hover:border-blue-300 cursor-pointer transition"
                     >
-                        {article.similarity_score != null && (
-                            <div className="absolute top-2 right-2 px-2 py-0.5 text-xs font-bold text-blue-800 bg-blue-100 rounded-full">
-                               相似度: {article.similarity_score.toFixed(3)}
-                            </div>
-                        )}
-                        <div className="flex justify-between items-start">
-                             <a href={article.original_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-gray-800 hover:text-blue-600 hover:underline pr-24">{article.title}</a>
-                             <span className="text-xs text-gray-500 whitespace-nowrap">{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', {timeZone: 'Asia/Shanghai'})}</span>
+                         <div className="flex justify-between items-start gap-4">
+                            <a href={article.original_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-gray-800 hover:text-blue-600 hover:underline flex-grow">{article.title}</a>
+                             <div className="flex-shrink-0 flex items-center gap-3 text-xs text-gray-500 whitespace-nowrap">
+                                {article.similarity_score != null && (
+                                    <span className="px-2 py-0.5 font-bold text-blue-800 bg-blue-100 rounded-full">
+                                       相似度: {article.similarity_score.toFixed(3)}
+                                    </span>
+                                )}
+                                <span>{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', {timeZone: 'Asia/Shanghai'})}</span>
+                             </div>
                         </div>
                         <div className="mt-2 flex items-center gap-2 text-xs flex-wrap">
                            <span className="px-2 py-0.5 font-medium text-gray-700 bg-gray-100 rounded-full">{article.source_name}</span>

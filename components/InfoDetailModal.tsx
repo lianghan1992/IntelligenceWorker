@@ -15,9 +15,6 @@ export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose 
 
     const [imgError, setImgError] = React.useState(false);
 
-    // Simple markdown-like renderer for paragraphs
-    const contentParagraphs = item.content.split('\n').filter(p => p.trim() !== '').map((p, i) => <p key={i}>{p}</p>);
-
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
             <div className="bg-white rounded-2xl w-full max-w-3xl h-[90vh] flex flex-col shadow-xl transform transition-all animate-in zoom-in-95">
@@ -58,9 +55,8 @@ export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose 
                     <article 
                         className="prose prose-slate max-w-none 
                                    prose-p:leading-relaxed"
-                    >
-                        {contentParagraphs}
-                    </article>
+                        dangerouslySetInnerHTML={{ __html: item.content }}
+                    />
                 </div>
             </div>
         </div>
