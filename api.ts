@@ -30,7 +30,11 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, { ...options, headers });
+    // 修复：确保所有相对路径的API调用都使用当前页面的协议和主机，
+    // 这可以从根本上解决 "Mixed Content" 错误。
+    const finalUrl = new URL(url, window.location.origin).href;
+
+    const response = await fetch(finalUrl, { ...options, headers });
 
     // Centralized handling for authentication errors (401 Unauthorized, 403 Forbidden)
     if (response.status === 401 || response.status === 403) {
@@ -227,28 +231,20 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 // --- Articles / InfoItems ---
 
+// 修复：将方法从GET更改为POST，以避免URL长度限制导致的422错误。
+// 这需要后端API的支持，将GET /intelligence/articles更改为接受POST请求。
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    const query = new URLSearchParams();
+    const body = {
+        point_ids: (point_ids && point_ids.length > 0) ? point_ids : undefined,
+        page: params.page,
+        limit: params.limit,
+        publish_date_start: params.publish_date_start || undefined,
+        publish_date_end: params.publish_date_end || undefined,
+    };
     
-    query.append('page', String(params.page));
-    query.append('limit', String(params.limit));
-
-    if (params.publish_date_start) {
-        query.append('publish_date_start', params.publish_date_start);
-    }
-    if (params.publish_date_end) {
-        query.append('publish_date_end', params.publish_date_end);
-    }
-    
-    // 修复：将point_ids数组序列化为多个同名的查询参数，
-    // 例如：&point_ids=A&point_ids=B。这是更标准且兼容性更好的方式。
-    if (point_ids && point_ids.length > 0) {
-        point_ids.forEach(id => query.append('point_ids', id));
-    }
-    
-    // Per API docs, this endpoint uses GET with query parameters.
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query.toString()}`, {
-        method: 'GET',
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+        method: 'POST',
+        body: JSON.stringify(body),
     });
 };
 

@@ -602,10 +602,10 @@ const IntelligenceManager: React.FC = () => {
     };
 
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
+    // FIX: In `availablePointsForFilter`, explicitly type the parameter `p` in the `.map()` callback as `Subscription`. This resolves a TypeScript type inference issue where `p` was being inferred as `unknown`, causing the map to return `unknown[]` instead of `string[]`. By using the spread syntax `...new Set`, we create a unique array of strings while ensuring correct type inference.
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        // FIX: In `availablePointsForFilter`, explicitly type the parameter `p` in the `.map()` callback as `Subscription`. This resolves a TypeScript type inference issue where `p` was being inferred as `unknown`, causing the map to return `unknown[]` instead of `string[]`.
-        return Array.from(new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name)));
+        return [...new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name))];
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
