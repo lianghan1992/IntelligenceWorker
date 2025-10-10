@@ -239,8 +239,11 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
     if (params.publish_date_end) {
         query.append('publish_date_end', params.publish_date_end);
     }
-
-    point_ids.forEach(id => query.append('point_ids', id));
+    
+    // 修复：将point_ids数组转换为单个逗号分隔的字符串，以匹配后端API的预期格式。
+    if (point_ids && point_ids.length > 0) {
+        query.append('point_ids', point_ids.join(','));
+    }
     
     // Per API docs, this endpoint uses GET with query parameters.
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query.toString()}`, {

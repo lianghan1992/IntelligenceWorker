@@ -604,8 +604,8 @@ const IntelligenceManager: React.FC = () => {
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        // FIX: Explicitly cast the array from `pointsBySource` to `Subscription[]` before mapping to ensure correct type inference, which resolves the `unknown[] is not assignable to string[]` error.
-        return Array.from(new Set((pointsBySource[sourceFilter] || []).map(p => (p as Subscription).point_name)));
+        // FIX: In `availablePointsForFilter`, explicitly type the parameter `p` in the `.map()` callback as `Subscription`. This resolves a TypeScript type inference issue where `p` was being inferred as `unknown`, causing the map to return `unknown[]` instead of `string[]`.
+        return Array.from(new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name)));
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
