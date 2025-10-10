@@ -61,6 +61,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
     if (user.email === '326575140@qq.com') {
         finalNavItems.push({ view: 'admin', label: '后台管理', icon: GearIcon });
     }
+    
+    const handleLogout = (e: React.MouseEvent) => {
+        e.preventDefault();
+        localStorage.removeItem('accessToken');
+        window.location.reload();
+    };
 
     return (
         <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm sticky top-0 z-20">
@@ -111,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                     <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">个人资料</a>
                                     <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">设置</a>
                                     <div className="border-t my-1"></div>
-                                    <a href="#" onClick={(e) => { e.preventDefault(); window.location.reload(); }} className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">退出登录</a>
+                                    <a href="#" onClick={handleLogout} className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">退出登录</a>
                                 </div>
                             )}
                         </div>

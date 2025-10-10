@@ -12,13 +12,13 @@ import { AdminPage } from './components/AdminPage';
 import { PricingModal } from './components/PricingModal';
 import { AddSourceModal } from './components/AddSourceModal';
 import { User, InfoItem, Subscription, DeepDive, View } from './types';
-import { getPoints, getArticles } from './api';
+import { getPoints, getArticles, getMe } from './api';
 import { mockDeepDives } from './mockData';
 
-type AppState = 'landing' | 'auth' | 'loading' | 'app';
+type AppState = 'initializing' | 'landing' | 'auth' | 'app';
 
 const App: React.FC = () => {
-    const [appState, setAppState] = useState<AppState>('landing');
+    const [appState, setAppState] = useState<AppState>('initializing');
     const [user, setUser] = useState<User | null>(null);
     const [currentView, setCurrentView] = useState<View>('dashboard');
     const [isLoading, setIsLoading] = useState(true);
@@ -33,24 +33,39 @@ const App: React.FC = () => {
     const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
     const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
 
-    const loadAppData = useCallback(async (userId: string) => {
+    useEffect(() => {
+        const checkAuthStatus = async () => {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                try {
+                    const currentUser = await getMe();
+                    handleLoginSuccess(currentUser);
+                } catch (error) {
+                    console.warn("会话已过期或无效。");
+                    localStorage.removeItem('accessToken');
+                    setAppState('landing');
+                }
+            } else {
+                setAppState('landing');
+            }
+        };
+        checkAuthStatus();
+    }, []);
+
+    const loadAppData = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            // New logic: First get user's subscribed points (subscriptions)
-            const pointsData = await getPoints(userId);
+            const pointsData = await getPoints();
             setSubscriptions(pointsData);
             
-            // Then, if there are subscribed points, fetch articles for them
             if (pointsData.length > 0) {
                 const pointIds = pointsData.map(p => p.id);
                 const articlesData = await getArticles(pointIds, { page: 1, limit: 100 });
                 setInfoItems(articlesData.items);
             } else {
-                setInfoItems([]); // No subscriptions, no articles
+                setInfoItems([]);
             }
-
-            setAppState('app');
         } catch (err: any) {
             setError(err.message || '无法加载应用数据');
             console.error(err);
@@ -61,13 +76,13 @@ const App: React.FC = () => {
     
     useEffect(() => {
         if (user) {
-            loadAppData(user.user_id);
+            loadAppData();
         }
     }, [user, loadAppData]);
 
     const handleLoginSuccess = (loggedInUser: User) => {
         setUser(loggedInUser);
-        setAppState('loading');
+        setAppState('app');
     };
 
     const handleEnter = () => {
@@ -104,6 +119,10 @@ const App: React.FC = () => {
                 return <div>视图未找到</div>;
         }
     };
+
+    if (appState === 'initializing') {
+        return <div className="flex items-center justify-center h-screen">正在初始化...</div>;
+    }
     
     if (appState === 'landing') {
         return <HomePage onEnter={handleEnter} />;
@@ -113,7 +132,7 @@ const App: React.FC = () => {
         return <AuthModal onClose={() => setAppState('landing')} onLoginSuccess={handleLoginSuccess} />;
     }
     
-    if (appState === 'loading' || isLoading) {
+    if (appState === 'app' && isLoading) {
         return <div className="flex items-center justify-center h-screen">正在加载工作台...</div>;
     }
     

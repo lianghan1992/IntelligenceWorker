@@ -115,7 +115,7 @@ const FocusPointCard: React.FC<{ point: FocusPoint, onDelete: () => void }> = ({
 );
 
 
-const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = ({ user, subscriptions }) => {
+const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [focusPoints, setFocusPoints] = useState<FocusPoint[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -136,22 +136,20 @@ const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = (
             setIsLoading(true);
             setError('');
             try {
-                const apiPois = await getUserPois(user.user_id);
+                const apiPois = await getUserPois();
 
                 if (allPointIds.length === 0) {
-                    // If user has no subscriptions, no articles can be found, so counts are 0.
                     const initialPoints = apiPois.map(poi => transformApiPoiToFocusPoint(poi, 0));
                     setFocusPoints(initialPoints);
-                    return; // Exit early
+                    return;
                 }
                 
-                // For each POI, create a promise that will resolve to its related article count
                 const countPromises = apiPois.map(poi => 
                     searchArticles(poi.content, allPointIds, 50)
                         .then(results => ({ poiId: poi.id, count: results.length }))
                         .catch(err => {
                             console.error(`Failed to get count for POI ${poi.id}:`, err);
-                            return { poiId: poi.id, count: 0 }; // Default to 0 on search error for a single POI
+                            return { poiId: poi.id, count: 0 };
                         })
                 );
 
@@ -167,14 +165,14 @@ const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = (
 
             } catch (err: any) {
                 setError('无法加载关注点: ' + err.message);
-                setFocusPoints([]); // Clear points on major fetch error
+                setFocusPoints([]);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchPoisAndCounts();
-    }, [user.user_id, allPointIds]);
+    }, [allPointIds]);
 
     const handleAddFocusPoint = async (title: string, keywords: string) => {
         if (allPointIds.length === 0) {
@@ -187,14 +185,12 @@ const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = (
         setError('');
 
         try {
-            const newApiPoi = await addUserPoi(user.user_id, {
+            const newApiPoi = await addUserPoi({
                 content: title,
                 keywords: keywords,
             });
 
-            // After creating, search for related articles to show the count
             const searchResults = await searchArticles(title, allPointIds, 50);
-
             const newPoint = transformApiPoiToFocusPoint(newApiPoi, searchResults.length);
             
             setFocusPoints(prev => [newPoint, ...prev]);
@@ -212,7 +208,7 @@ const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = (
         setIsLoading(true);
         setError('');
         try {
-            await deleteUserPoi(user.user_id, pointToDelete.id);
+            await deleteUserPoi(pointToDelete.id);
             setFocusPoints(prev => prev.filter(p => p.id !== pointToDelete.id));
             setPointToDelete(null);
         } catch (err: any) {
@@ -317,11 +313,7 @@ const SourceCard: React.FC<{
     </div>
 );
 
-interface SourceSubscriptionsProps {
-    user: User;
-}
-
-const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
+const SourceSubscriptions: React.FC = () => {
     const [allSources, setAllSources] = useState<SystemSource[]>([]);
     const [userSourceIds, setUserSourceIds] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
@@ -333,10 +325,9 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
         try {
             const [baseSources, userSourcesData] = await Promise.all([
                 getSources(),
-                getUserSubscribedSources(user.user_id),
+                getUserSubscribedSources(),
             ]);
             
-            // Enrich sources with accurate, real-time point counts
             const enrichedSources = await Promise.all(
                 baseSources.map(async (source) => {
                     try {
@@ -344,7 +335,7 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
                         return { ...source, points_count: points.length };
                     } catch (err) {
                         console.error(`Failed to get point count for ${source.name}`, err);
-                        return source; // Fallback to original count on error
+                        return source;
                     }
                 })
             );
@@ -357,7 +348,7 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [user.user_id]);
+    }, []);
 
     useEffect(() => {
         fetchData();
@@ -376,15 +367,13 @@ const SourceSubscriptions: React.FC<SourceSubscriptionsProps> = ({ user }) => {
         
         try {
             if (isCurrentlySubscribed) {
-                await deleteUserSourceSubscription(user.user_id, sourceId);
+                await deleteUserSourceSubscription(sourceId);
             } else {
-                await addUserSourceSubscription(user.user_id, sourceId);
+                await addUserSourceSubscription(sourceId);
             }
-            // Optional: refetch data for full consistency after operation
-            // await fetchData(); 
         } catch (err: any) {
             setError(`操作失败: ${err.message}`);
-            setUserSourceIds(originalUserSourceIds); // Revert on failure
+            setUserSourceIds(originalUserSourceIds);
         }
     };
 
@@ -419,8 +408,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
     const loadArticles = useCallback(async () => {
         try {
             const pointIds = subscriptions.map(sub => sub.id);
-            // FIX: If the user has no subscribed points, there are no articles to fetch.
-            // This prevents an invalid API call that results in a 422 error.
             if (pointIds.length === 0) {
                 setInfoItems([]);
                 return; 
@@ -468,10 +455,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 <DashboardWidgets stats={stats} />
                 
                 {/* My Focus Points */}
-                <MyFocusPoints user={user} subscriptions={subscriptions} />
+                <MyFocusPoints subscriptions={subscriptions} />
 
                 {/* Source Subscriptions */}
-                <SourceSubscriptions user={user} />
+                <SourceSubscriptions />
             </div>
         </div>
     );

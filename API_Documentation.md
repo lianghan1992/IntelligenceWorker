@@ -1,22 +1,23 @@
 ## 1. 目录
 1.  [**用户服务 (User Service)**](#1-用户服务-user-service)
     *   [1.1. 用户注册 (已更新)](#11-用户注册-已更新)
-    *   [1.2. 用户登录](#12-用户登录)
-    *   [1.3. 获取用户列表 (新!)](#13-获取用户列表-新)
-    *   [1.4. 获取单个用户信息 (新!)](#14-获取单个用户信息-新)
-    *   [1.5. 更新用户信息 (新!)](#15-更新用户信息-新)
-    *   [1.6. 删除用户 (新!)](#16-删除用户-新)
-    *   [1.7. 获取订阅计划](#17-获取订阅计划)
-    *   [1.8. 获取用户订阅的情报源](#18-获取用户订阅的情报源)
-    *   [1.9. 添加情报源订阅](#19-添加情报源订阅)
-    *   [1.10. 取消情报源订阅](#110-取消情报源订阅)
-    *   [1.11. 获取用户关注点](#111-获取用户关注点)
-    *   [1.12. 添加用户关注点](#112-添加用户关注点)
-    *   [1.13. 删除用户关注点](#113-删除用户关注点)
+    *   [1.2. 用户登录 (已更新)](#12-用户登录-已更新)
+    *   [1.3. 验证Token并获取当前用户信息 (新!)](#13-验证token并获取当前用户信息-新)
+    *   [1.4. 获取用户列表 (新!)](#14-获取用户列表-新)
+    *   [1.5. 获取单个用户信息 (新!)](#15-获取单个用户信息-新)
+    *   [1.6. 更新用户信息 (新!)](#16-更新用户信息-新)
+    *   [1.7. 删除用户 (新!)](#17-删除用户-新)
+    *   [1.8. 获取订阅计划](#18-获取订阅计划)
+    *   [1.9. 获取用户订阅的情报源](#19-获取用户订阅的情报源)
+    *   [1.10. 添加情报源订阅](#110-添加情报源订阅)
+    *   [1.11. 取消情报源订阅](#111-取消情报源订阅)
+    *   [1.12. 获取用户关注点](#112-获取用户关注点)
+    *   [1.13. 添加用户关注点](#113-添加用户关注点)
+    *   [1.14. 删除用户关注点](#114-删除用户关注点)
 2.  [**情报服务 (Intelligence Service)**](#2-情报服务-intelligence-service)
-    *   [2.1. 创建情报点](#21-创建情报点)
+    *   [2.1. 创建情报点 (已更新)](#21-创建情报点-已更新)
     *   [2.2. 获取情报点](#22-获取情报点)
-    *   [2.3. 删除情报点](#23-删除情报点)
+    *   [2.3. 删除情报点 (已更新)](#23-删除情报点-已更新)
     *   [2.4. 获取所有情报源](#24-获取所有情报源)
     *   [2.5. 删除情报源](#25-删除情报源)
     *   [2.6. 查询处理任务](#26-查询处理任务)
@@ -24,10 +25,11 @@
     *   [2.8. 查询已采集文章](#28-查询已采集文章)
     *   [2.9. 语义搜索文章](#29-语义搜索文章)
     *   [2.10. 组合筛选与语义搜索文章 (新!)](#210-组合筛选与语义搜索文章-新)
-    *   [2.11. 获取所有提示词](#211-获取所有提示词)
-    *   [2.12. 创建新提示词](#212-创建新提示词)
-    *   [2.13. 更新提示词](#213-更新提示词)
-    *   [2.14. 删除提示词](#214-删除提示词)
+    *   [2.11. 提示词 (Prompts) 使用说明](#211-提示词-prompts-使用说明)
+    *   [2.12. 获取所有提示词](#212-获取所有提示词)
+    *   [2.13. 创建新提示词](#213-创建新提示词)
+    *   [2.14. 更新提示词](#214-更新提示词)
+    *   [2.15. 删除提示词](#215-删除提示词)
 
 ---
 
@@ -94,9 +96,9 @@ curl -X POST http://127.0.0.1:7657/users/register \
 }
 ```
 
-### 1.2. 用户登录
+### 1.2. 用户登录 (已更新)
 
-通过邮箱和密码进行身份验证。
+通过邮箱和密码进行身份验证，成功后返回 JWT `accessToken`。
 
 -   **路径:** `/users/login`
 -   **方法:** `POST`
@@ -131,19 +133,79 @@ curl -X POST http://127.0.0.1:7657/users/login \
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `message` | string | 登录结果信息 |
-| `user_id` | string | 登录用户的ID |
-| `username` | string | 登录用户的名称 |
+| `user` | object | 登录用户的基本信息 |
+| `user.user_id` | string | 登录用户的ID |
+| `user.username` | string | 登录用户的名称 |
+| `user.email` | string | 登录用户的邮箱 |
+| `accessToken` | string | 用于后续认证的 JWT 令牌 |
 
 **返回示例 (200 OK)**
 ```json
 {
   "message": "登录成功",
-  "user_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-  "username": "testuser"
+  "user": {
+    "user_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "username": "testuser",
+    "email": "user@example.com"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." 
 }
 ```
 
-### 1.3. 获取用户列表 (新!)
+### 1.3. 验证Token并获取当前用户信息 (新!)
+
+前端在每次加载页面时，会使用这个接口来验证本地存储的 `accessToken` 是否有效，并获取当前登录用户的信息。
+
+-   **路径:** `/users/me`
+-   **方法:** `GET`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+
+**cURL请求示例**
+```bash
+# 请将 <accessToken> 替换为实际的 JWT 令牌
+curl -X GET http://127.0.0.1:7657/users/me \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
+```
+
+**返回说明**
+
+返回当前令牌对应的用户信息。
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 用户的唯一ID |
+| `username` | string | 用户名 |
+| `email` | string | 用户的邮箱地址 |
+| `is_active` | boolean | 账户是否激活 |
+| `created_at` | string | 账户创建时间 (ISO 8601) |
+
+**返回示例 (200 OK)**
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+  "username": "testuser",
+  "email": "user@example.com",
+  "is_active": true,
+  "created_at": "2025-10-10T10:00:00.000Z"
+}
+```
+
+**失败返回 (401 Unauthorized)**
+
+当 `accessToken` 无效、被篡改或已过期时，返回 401 Unauthorized。
+
+```json
+{
+  "detail": "无法验证凭据"
+}
+```
+
+### 1.4. 获取用户列表 (新!)
 
 获取系统中的用户列表，支持筛选、搜索和分页。
 
@@ -335,17 +397,24 @@ curl -X GET http://127.0.0.1:7657/users/plans
 }
 ```
 
-### 1.8. 获取用户订阅的情报源
+### 1.9. 获取用户订阅的情报源 (需认证)
 
-获取指定用户已订阅的所有情报源列表。
+获取当前登录用户已订阅的所有情报源列表。
 
--   **路径:** `/users/{user_id}/sources`
+-   **路径:** `/users/me/sources`
 -   **方法:** `GET`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 替换为实际的用户ID
-curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources
+# 请将 <accessToken> 替换为实际的 JWT 令牌
+curl -X GET http://127.0.0.1:7657/users/me/sources \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
 ```
 
 **返回说明**
@@ -373,17 +442,24 @@ curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sou
 ]
 ```
 
-### 1.9. 添加情报源订阅
+### 1.10. 添加情报源订阅 (需认证)
 
-为指定用户订阅一个新的情报源。
+为当前登录用户订阅一个新的情报源。
 
--   **路径:** `/users/{user_id}/sources/{source_id}`
+-   **路径:** `/users/me/sources/{source_id}`
 -   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 和 {source_id} 替换为实际的ID
-curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+# 请将 {source_id} 替换为实际的ID，<accessToken> 替换为实际的 JWT 令牌
+curl -X POST http://127.0.0.1:7657/users/me/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456 \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
 ```
 
 **返回示例 (201 Created)**
@@ -393,34 +469,48 @@ curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/so
 }
 ```
 
-### 1.10. 取消情报源订阅
+### 1.11. 取消情报源订阅 (需认证)
 
-取消指定用户对某个情报源的订阅。
+取消当前登录用户对某个情报源的订阅。
 
--   **路径:** `/users/{user_id}/sources/{source_id}`
+-   **路径:** `/users/me/sources/{source_id}`
 -   **方法:** `DELETE`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 和 {source_id} 替换为实际的ID
-curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+# 请将 {source_id} 替换为实际的ID，<accessToken> 替换为实际的 JWT 令牌
+curl -X DELETE http://127.0.0.1:7657/users/me/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456 \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
 ```
 
 **返回说明**
 
 -   **204 No Content:** 操作成功，返回空的响应体。
 
-### 1.11. 获取用户关注点
+### 1.12. 获取用户关注点 (需认证)
 
-获取指定用户创建的所有自定义关注点。
+获取当前登录用户创建的所有自定义关注点。
 
--   **路径:** `/users/{user_id}/pois`
+-   **路径:** `/users/me/pois`
 -   **方法:** `GET`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 替换为实际的用户ID
-curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois
+# 请将 <accessToken> 替换为实际的 JWT 令牌
+curl -X GET http://127.0.0.1:7657/users/me/pois \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
 ```
 
 **返回说明**
@@ -446,12 +536,18 @@ curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/poi
 ]
 ```
 
-### 1.12. 添加用户关注点
+### 1.13. 添加用户关注点 (需认证)
 
-为指定用户创建一个新的关注点。
+为当前登录用户创建一个新的关注点。
 
--   **路径:** `/users/{user_id}/pois`
+-   **路径:** `/users/me/pois`
 -   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求说明**
 
@@ -470,9 +566,10 @@ curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/poi
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 替换为实际的用户ID
-curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois \
+# 请将 <accessToken> 替换为实际的 JWT 令牌
+curl -X POST http://127.0.0.1:7657/users/me/pois \
 -H "Content-Type: application/json" \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." \
 -d '{
   "content": "800V高压平台技术与应用",
   "keywords": "800V, 高压快充, 碳化硅, SiC"
@@ -483,17 +580,24 @@ curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/po
 
 返回新创建的POI对象，结构与 `GET /{user_id}/pois` 一致。
 
-### 1.13. 删除用户关注点
+### 1.14. 删除用户关注点 (需认证)
 
-删除指定用户的一个关注点。
+删除当前登录用户的一个关注点。
 
--   **路径:** `/users/{user_id}/pois/{poi_id}`
+-   **路径:** `/users/me/pois/{poi_id}`
 -   **方法:** `DELETE`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **cURL请求示例**
 ```bash
-# 请将 {user_id} 和 {poi_id} 替换为实际的ID
-curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois/poi-a1b2c3d4
+# 请将 {poi_id} 替换为实际的ID，<accessToken> 替换为实际的 JWT 令牌
+curl -X DELETE http://127.0.0.1:7657/users/me/pois/poi-a1b2c3d4 \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..."
 ```
 
 **返回说明**
@@ -506,12 +610,18 @@ curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/
 
 所有接口均以 `/intelligence` 为前缀。
 
-### 2.1. 创建情报点
+### 2.1. 创建情报点 (需认证)
 
 创建一个新的情报采集点。
 
 -   **路径:** `/intelligence/points`
 -   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求说明**
 
@@ -540,6 +650,7 @@ curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/
 ```bash
 curl -X POST http://127.0.0.1:7657/intelligence/points \
 -H "Content-Type: application/json" \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." \
 -d 
 {
   "source_name": "盖世汽车",
@@ -615,12 +726,18 @@ curl -X GET "http://127.0.0.1:7657/intelligence/points?source_name=%E7%9B%96%E4%
 ]
 ```
 
-### 2.3. 删除情报点
+### 2.3. 删除情报点 (需认证)
 
 根据ID列表批量删除情报点。
 
 -   **路径:** `/intelligence/points`
 -   **方法:** `DELETE`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求说明**
 
@@ -641,6 +758,7 @@ curl -X GET "http://127.0.0.1:7657/intelligence/points?source_name=%E7%9B%96%E4%
 ```bash
 curl -X DELETE http://127.0.0.1:7657/intelligence/points \
 -H "Content-Type: application/json" \
+-H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." \
 -d 
 {
   "point_ids": [

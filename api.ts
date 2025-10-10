@@ -20,19 +20,26 @@ import {
 
 // --- Helper Functions ---
 
+const TOKEN_KEY = 'accessToken';
+
 /**
  * A generic fetch wrapper for API calls.
- * It handles JSON parsing, error handling, and constructing the correct API path.
+ * It handles JSON parsing, error handling, and automatically attaches the auth token.
  * @param path The full API path (e.g., '/users/login' or '/intelligence/points')
  * @param options Fetch API options (method, body, headers, etc.)
  * @returns Parsed JSON response
  * @throws Throws an error if the response status is not ok
  */
 async function apiFetch(path: string, options: RequestInit = {}) {
-  const headers = {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
   const response = await fetch(path, { ...options, headers });
 
@@ -43,6 +50,10 @@ async function apiFetch(path: string, options: RequestInit = {}) {
       errorMessage = errorBody.detail || errorBody.message || errorBody.error || errorMessage;
     } catch (e) {
       // If the response body isn't JSON or is empty, ignore
+    }
+     if (response.status === 401) {
+        // Automatically handle token expiration
+        localStorage.removeItem(TOKEN_KEY);
     }
     throw new Error(errorMessage);
   }
@@ -65,12 +76,29 @@ export const loginUser = async (email: string, password: string): Promise<User> 
   });
   
   const user: User = {
-    user_id: response.user_id,
+    user_id: response.user.user_id,
+    username: response.user.username,
+    email: response.user.email,
+  };
+
+  if (response.accessToken) {
+    localStorage.setItem(TOKEN_KEY, response.accessToken);
+  }
+
+  return user;
+};
+
+export const getMe = async (): Promise<User> => {
+  const response = await apiFetch(`${USER_SERVICE_PATH}/me`);
+  // API may return 'id', we map it to 'user_id' for consistency within the app.
+  const user: User = {
+    user_id: response.id || response.user_id,
     username: response.username,
-    email: email,
+    email: response.email,
   };
   return user;
 };
+
 
 export const registerUser = async (username: string, email: string, password: string, plan_name?: string): Promise<User> => {
   const body: { [key: string]: string } = { username, email, password };
@@ -97,7 +125,7 @@ export const forgotPassword = async (email: string): Promise<void> => {
     return;
 };
 
-// --- User Service API ---
+// --- User Service API (Authenticated) ---
 
 export const getUsers = (params: { page: number; limit: number; plan_name?: string; status?: string; search_term?: string }): Promise<{ items: AdminUser[], total: number, page: number, limit: number, totalPages: number }> => {
   const query = new URLSearchParams({
@@ -128,38 +156,36 @@ export const getPlans = async (): Promise<PlanDetails> => {
 };
 
 
-export const getUserPois = (userId: string): Promise<ApiPoi[]> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois`);
+export const getUserPois = (): Promise<ApiPoi[]> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/pois`);
 };
 
-export const addUserPoi = (userId: string, data: { content: string; keywords: string }): Promise<ApiPoi> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois`, {
+export const addUserPoi = (data: { content: string; keywords: string }): Promise<ApiPoi> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/pois`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 };
 
-export const deleteUserPoi = (userId: string, poiId: string): Promise<{ message: string }> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/pois/${poiId}`, {
+export const deleteUserPoi = (poiId: string): Promise<{ message: string }> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/pois/${poiId}`, {
     method: 'DELETE',
   });
 };
 
-export const getUserSubscribedSources = (userId: string): Promise<UserSourceSubscription[]> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources`);
+export const getUserSubscribedSources = (): Promise<UserSourceSubscription[]> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/sources`);
 };
 
-export const addUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  // FIX: Added an empty JSON body to the POST request to prevent "Failed to fetch" errors
-  // with certain server configurations that expect a body for POST requests.
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources/${sourceId}`, {
+export const addUserSourceSubscription = (sourceId: string): Promise<{ message: string }> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
     method: 'POST',
     body: JSON.stringify({}),
   });
 };
 
-export const deleteUserSourceSubscription = (userId: string, sourceId: string): Promise<{ message: string }> => {
-  return apiFetch(`${USER_SERVICE_PATH}/${userId}/sources/${sourceId}`, {
+export const deleteUserSourceSubscription = (sourceId: string): Promise<{ message: string }> => {
+  return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
     method: 'DELETE',
   });
 };
@@ -168,8 +194,6 @@ export const deleteUserSourceSubscription = (userId: string, sourceId: string): 
 // --- Intelligence Service API ---
 
 export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
-    // FIX: Ensured sourceName is properly URI encoded to handle special characters, including Chinese.
-    // This is the correct implementation according to web standards and the API documentation.
     const encodedSourceName = encodeURIComponent(sourceName);
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodedSourceName}`);
 };
@@ -182,8 +206,8 @@ export const getAllIntelligencePoints = async (): Promise<Subscription[]> => {
   return pointsBySource.flat();
 };
 
-export const getPoints = async (userId: string): Promise<Subscription[]> => {
-    const userSources = await getUserSubscribedSources(userId);
+export const getPoints = async (): Promise<Subscription[]> => {
+    const userSources = await getUserSubscribedSources();
     if (userSources.length === 0) {
         return [];
     }
@@ -213,7 +237,6 @@ export const getArticles = (
     query.append('publish_date_end', params.publish_date_end);
   }
 
-  // Ensure pointIds are appended correctly if the array is not empty
   if (pointIds.length > 0) {
     pointIds.forEach(id => query.append('point_ids', id));
   }
@@ -226,7 +249,7 @@ export const getArticles = (
 export const getSources = async (): Promise<SystemSource[]> => {
   const sourcesFromApi = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
   return sourcesFromApi.map((s: any) => ({
-      id: s.id, // API v12 uses 'id' instead of 'source_id'
+      id: s.id,
       name: s.source_name,
       points_count: s.points_count,
       description: `Contains ${s.points_count} intelligence points.`,
@@ -237,9 +260,7 @@ export const getSources = async (): Promise<SystemSource[]> => {
   }));
 };
 
-// Note: Event APIs seem to be from a different, older service. Retaining for now.
 export const getEvents = async (page: number, limit: number = 12): Promise<{ events: Event[], totalPages: number }> => {
-    // FIX: This endpoint seems to be missing in the new API. Returning a valid empty structure to prevent crashes.
     console.warn("getEvents is using a mocked response as the endpoint appears to be missing.");
     return Promise.resolve({ events: [], totalPages: 1 });
 };
@@ -272,8 +293,6 @@ export const addPoint = (data: Partial<Subscription>): Promise<{message: string,
 };
 
 export const updatePoint = (pointId: string, data: Partial<Subscription>): Promise<{message: string}> => {
-    // Note: Assuming a standard PUT endpoint exists for updating a point.
-    // This is not in the current API docs but is required for the edit feature.
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -300,11 +319,6 @@ export const searchArticles = async (query: string, point_ids: string[], limit: 
     });
 };
 
-/**
- * NEW: Performs a combined semantic search and structured filtering for articles.
- * @param params The combined search and filter parameters.
- * @returns A paginated list of articles matching the criteria.
- */
 export const searchArticlesFiltered = (params: {
     query_text: string;
     similarity_threshold?: number;
