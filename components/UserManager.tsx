@@ -34,13 +34,24 @@ interface UserModalProps {
 }
 
 const UserModal: React.FC<UserModalProps> = ({ mode, user, plans, onClose, onSave }) => {
+    const initialPlanKey = useMemo(() => {
+        if (mode === 'edit' && user?.plan_name && plans) {
+            const foundPlan = Object.entries(plans).find(
+                ([, planDetails]) => planDetails.name === user.plan_name
+            );
+            return foundPlan ? foundPlan[0] : 'free';
+        }
+        return 'free';
+    }, [mode, user, plans]);
+
     const [formData, setFormData] = useState({
         username: user?.username || '',
         email: user?.email || '',
         password: '',
-        plan_name: user?.plan_name || 'free',
+        plan_name: initialPlanKey,
         status: user?.status || 'active',
     });
+    
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -261,8 +272,8 @@ export const UserManager: React.FC = () => {
                                     <div className="text-xs text-gray-500">{user.email}</div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.plan_name === 'premium' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
-                                        {plans?.[user.plan_name]?.name || user.plan_name}
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${user.plan_name === '高级版' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                                        {user.plan_name}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4">{user.source_subscription_count} / {user.poi_count}</td>
