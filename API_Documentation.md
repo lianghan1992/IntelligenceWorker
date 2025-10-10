@@ -7,6 +7,12 @@
     *   [1.5. 更新用户信息 (新!)](#15-更新用户信息-新)
     *   [1.6. 删除用户 (新!)](#16-删除用户-新)
     *   [1.7. 获取订阅计划](#17-获取订阅计划)
+    *   [1.8. 获取用户订阅的情报源](#18-获取用户订阅的情报源)
+    *   [1.9. 添加情报源订阅](#19-添加情报源订阅)
+    *   [1.10. 取消情报源订阅](#110-取消情报源订阅)
+    *   [1.11. 获取用户关注点](#111-获取用户关注点)
+    *   [1.12. 添加用户关注点](#112-添加用户关注点)
+    *   [1.13. 删除用户关注点](#113-删除用户关注点)
 2.  [**情报服务 (Intelligence Service)**](#2-情报服务-intelligence-service)
     *   [2.1. 创建情报点](#21-创建情报点)
     *   [2.2. 获取情报点](#22-获取情报点)
@@ -328,6 +334,171 @@ curl -X GET http://127.0.0.1:7657/users/plans
   }
 }
 ```
+
+### 1.8. 获取用户订阅的情报源
+
+获取指定用户已订阅的所有情报源列表。
+
+-   **路径:** `/users/{user_id}/sources`
+-   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources
+```
+
+**返回说明**
+
+返回一个情报源对象列表。
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 情报源ID |
+| `source_name` | string | 情报源名称 |
+| `subscription_count` | integer | 此情报源的总订阅数 |
+| `created_at` | string | 创建时间 |
+| `updated_at` | string | 更新时间 |
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "id": "c2d3e4f5-g6h7-8901-2345-bcdefa123456",
+    "source_name": "盖世汽车",
+    "subscription_count": 15,
+    "created_at": "2025-10-09T08:00:00.000Z",
+    "updated_at": "2025-10-10T12:00:00.000Z"
+  }
+]
+```
+
+### 1.9. 添加情报源订阅
+
+为指定用户订阅一个新的情报源。
+
+-   **路径:** `/users/{user_id}/sources/{source_id}`
+-   **方法:** `POST`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {source_id} 替换为实际的ID
+curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+```
+
+**返回示例 (201 Created)**
+```json
+{
+  "message": "Subscription added successfully."
+}
+```
+
+### 1.10. 取消情报源订阅
+
+取消指定用户对某个情报源的订阅。
+
+-   **路径:** `/users/{user_id}/sources/{source_id}`
+-   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {source_id} 替换为实际的ID
+curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/sources/c2d3e4f5-g6h7-8901-2345-bcdefa123456
+```
+
+**返回说明**
+
+-   **204 No Content:** 操作成功，返回空的响应体。
+
+### 1.11. 获取用户关注点
+
+获取指定用户创建的所有自定义关注点。
+
+-   **路径:** `/users/{user_id}/pois`
+-   **方法:** `GET`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X GET http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois
+```
+
+**返回说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `id` | string | 关注点ID |
+| `user_id` | string | 用户ID |
+| `content` | string | 关注点内容，如“自动驾驶” |
+| `keywords` | string | 相关的关键词，逗号分隔 |
+| `created_at` | string | 创建时间 |
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "id": "poi-a1b2c3d4",
+    "user_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "content": "800V高压平台技术与应用",
+    "keywords": "800V, 高压快充, 碳化硅, SiC",
+    "created_at": "2025-10-11T09:00:00.000Z"
+  }
+]
+```
+
+### 1.12. 添加用户关注点
+
+为指定用户创建一个新的关注点。
+
+-   **路径:** `/users/{user_id}/pois`
+-   **方法:** `POST`
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `content` | string | 是 | 关注点内容 |
+| `keywords` | string | 是 | 相关关键词 |
+
+**请求示例 (JSON)**
+```json
+{
+  "content": "800V高压平台技术与应用",
+  "keywords": "800V, 高压快充, 碳化硅, SiC"
+}
+```
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 替换为实际的用户ID
+curl -X POST http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois \
+-H "Content-Type: application/json" \
+-d '{
+  "content": "800V高压平台技术与应用",
+  "keywords": "800V, 高压快充, 碳化硅, SiC"
+}'
+```
+
+**返回说明**
+
+返回新创建的POI对象，结构与 `GET /{user_id}/pois` 一致。
+
+### 1.13. 删除用户关注点
+
+删除指定用户的一个关注点。
+
+-   **路径:** `/users/{user_id}/pois/{poi_id}`
+-   **方法:** `DELETE`
+
+**cURL请求示例**
+```bash
+# 请将 {user_id} 和 {poi_id} 替换为实际的ID
+curl -X DELETE http://127.0.0.1:7657/users/a1b2c3d4-e5f6-7890-1234-567890abcdef/pois/poi-a1b2c3d4
+```
+
+**返回说明**
+
+-   **204 No Content:** 操作成功，返回空的响应体。
 
 ---
 

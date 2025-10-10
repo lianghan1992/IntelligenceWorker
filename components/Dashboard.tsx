@@ -132,19 +132,49 @@ const MyFocusPoints: React.FC<{ user: User, subscriptions: Subscription[] }> = (
     });
 
     useEffect(() => {
-        const fetchPois = async () => {
+        const fetchPoisAndCounts = async () => {
             setIsLoading(true);
+            setError('');
             try {
                 const apiPois = await getUserPois(user.user_id);
-                setFocusPoints(apiPois.map(poi => transformApiPoiToFocusPoint(poi)));
+
+                if (allPointIds.length === 0) {
+                    // If user has no subscriptions, no articles can be found, so counts are 0.
+                    const initialPoints = apiPois.map(poi => transformApiPoiToFocusPoint(poi, 0));
+                    setFocusPoints(initialPoints);
+                    return; // Exit early
+                }
+                
+                // For each POI, create a promise that will resolve to its related article count
+                const countPromises = apiPois.map(poi => 
+                    searchArticles(poi.content, allPointIds, 50)
+                        .then(results => ({ poiId: poi.id, count: results.length }))
+                        .catch(err => {
+                            console.error(`Failed to get count for POI ${poi.id}:`, err);
+                            return { poiId: poi.id, count: 0 }; // Default to 0 on search error for a single POI
+                        })
+                );
+
+                const countsResults = await Promise.all(countPromises);
+                
+                const countsMap = new Map(countsResults.map(res => [res.poiId, res.count]));
+
+                const enrichedFocusPoints = apiPois.map(poi => 
+                    transformApiPoiToFocusPoint(poi, countsMap.get(poi.id) || 0)
+                );
+
+                setFocusPoints(enrichedFocusPoints);
+
             } catch (err: any) {
                 setError('无法加载关注点: ' + err.message);
+                setFocusPoints([]); // Clear points on major fetch error
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchPois();
-    }, [user.user_id]);
+
+        fetchPoisAndCounts();
+    }, [user.user_id, allPointIds]);
 
     const handleAddFocusPoint = async (title: string, keywords: string) => {
         if (allPointIds.length === 0) {
