@@ -119,37 +119,36 @@ export const getPlans = async (): Promise<PlanDetails> => {
 
 // --- POIs (Focus Points) ---
 export const getUserPois = async (): Promise<ApiPoi[]> => {
-    return apiFetch(`${USER_SERVICE_PATH}/pois`);
+    return apiFetch(`${USER_SERVICE_PATH}/me/pois`);
 };
 
 export const addUserPoi = async (data: { content: string; keywords: string }): Promise<ApiPoi> => {
-    return apiFetch(`${USER_SERVICE_PATH}/pois`, {
+    return apiFetch(`${USER_SERVICE_PATH}/me/pois`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
 export const deleteUserPoi = async (poiId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/pois/${poiId}`, {
+    return apiFetch(`${USER_SERVICE_PATH}/me/pois/${poiId}`, {
         method: 'DELETE',
     });
 };
 
 // --- User Source Subscriptions ---
 export const getUserSubscribedSources = async (): Promise<{id: string, source_name: string}[]> => {
-    // This API seems to be missing from the provided info, so mocking a path
-    return apiFetch(`${USER_SERVICE_PATH}/sources`);
+    return apiFetch(`${USER_SERVICE_PATH}/me/sources`);
 };
 
 export const addUserSourceSubscription = async (sourceId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/sources`, {
+    return apiFetch(`${USER_SERVICE_PATH}/me/sources`, {
         method: 'POST',
         body: JSON.stringify({ source_id: sourceId }),
     });
 };
 
 export const deleteUserSourceSubscription = async (sourceId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/sources/${sourceId}`, {
+    return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
         method: 'DELETE',
     });
 };
@@ -162,7 +161,31 @@ export const getSources = async (): Promise<SystemSource[]> => {
 };
 
 export const getSubscriptions = async (): Promise<Subscription[]> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`);
+    try {
+        // This is a workaround because the API doesn't provide a single endpoint
+        // to get all intelligence points for a user.
+        // 1. Get the list of source names the user is subscribed to.
+        const userSources = await getUserSubscribedSources();
+        if (!userSources || userSources.length === 0) {
+            return [];
+        }
+        
+        // 2. For each source, fetch its associated intelligence points in parallel.
+        const pointPromises = userSources.map(source => 
+            getPointsBySourceName(source.source_name).catch(err => {
+                console.error(`Failed to fetch points for source: ${source.source_name}`, err);
+                return []; // Return empty array on failure to not break the entire process
+            })
+        );
+        
+        const results = await Promise.all(pointPromises);
+        
+        // 3. Flatten the array of arrays into a single list of subscriptions.
+        return results.flat();
+    } catch (error) {
+        console.error("Could not fetch subscriptions due to an error fetching user's sources:", error);
+        return [];
+    }
 };
 
 export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {

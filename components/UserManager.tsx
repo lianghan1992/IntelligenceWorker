@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AdminUser, PlanDetails } from '../types';
+import { AdminUser, PlanDetails, Plan } from '../types';
 import { getUsers, getPlans, registerUser, updateUser, deleteUser } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PlusIcon, SearchIcon, TrashIcon, PencilIcon, CloseIcon } from './icons';
@@ -37,7 +37,8 @@ const UserModal: React.FC<UserModalProps> = ({ mode, user, plans, onClose, onSav
     const initialPlanKey = useMemo(() => {
         if (mode === 'edit' && user?.plan_name && plans) {
             const foundPlan = Object.entries(plans).find(
-                ([, planDetails]) => planDetails.name === user.plan_name
+                // FIX: Cast `planDetails` to `Plan` to resolve property 'name' does not exist on type 'unknown' error.
+                ([, planDetails]) => (planDetails as Plan).name === user.plan_name
             );
             return foundPlan ? foundPlan[0] : 'free';
         }
@@ -57,7 +58,8 @@ const UserModal: React.FC<UserModalProps> = ({ mode, user, plans, onClose, onSav
 
     const planOptions = useMemo(() => {
         if (!plans) return [];
-        return Object.entries(plans).map(([key, value]) => ({ key, name: value.name }));
+        // FIX: Cast `value` to `Plan` to resolve property 'name' does not exist on type 'unknown' error.
+        return Object.entries(plans).map(([key, value]) => ({ key, name: (value as Plan).name }));
     }, [plans]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -235,7 +237,8 @@ export const UserManager: React.FC = () => {
                         <select name="plan" value={filters.plan} onChange={handleFilterChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
                             <option value="">所有计划</option>
                             {plans && Object.entries(plans).map(([key, value]) => (
-                                <option key={key} value={key}>{value.name}</option>
+                                // FIX: Cast `value` to `Plan` to resolve property 'name' does not exist on type 'unknown' error.
+                                <option key={key} value={key}>{(value as Plan).name}</option>
                             ))}
                         </select>
                         <select name="status" value={filters.status} onChange={handleFilterChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">

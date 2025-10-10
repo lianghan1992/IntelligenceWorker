@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon, PencilIcon } from './icons';
-import { Subscription, SystemSource, AllPrompts } from '../types';
+import { Subscription, SystemSource, AllPrompts, Prompt } from '../types';
 import { getSources, getPrompts } from '../api';
 import { PromptManagerModal } from './PromptManagerModal';
 
@@ -99,8 +99,9 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
                         className="w-full p-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         disabled={isLoading}
                     >
+                        {/* FIX: Cast prompt to `Prompt` to resolve property 'name' does not exist on type 'unknown' error. */}
                         {promptCollection && Object.entries(promptCollection).map(([key, prompt]) => (
-                            <option key={key} value={key}>{prompt.name}</option>
+                            <option key={key} value={key}>{(prompt as Prompt).name}</option>
                         ))}
                     </select>
                     <button

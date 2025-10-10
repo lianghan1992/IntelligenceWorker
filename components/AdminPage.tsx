@@ -603,7 +603,8 @@ const IntelligenceManager: React.FC = () => {
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        return Array.from(new Set((pointsBySource[sourceFilter] || []).map(p => p.point_name)));
+        // FIX: Explicitly type `p` as `Subscription` to resolve type inference issue.
+        return Array.from(new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name)));
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
