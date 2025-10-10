@@ -228,9 +228,23 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 // --- Articles / InfoItems ---
 
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
-        method: 'POST',
-        body: JSON.stringify({ point_ids, ...params }),
+    const query = new URLSearchParams();
+    
+    query.append('page', String(params.page));
+    query.append('limit', String(params.limit));
+
+    if (params.publish_date_start) {
+        query.append('publish_date_start', params.publish_date_start);
+    }
+    if (params.publish_date_end) {
+        query.append('publish_date_end', params.publish_date_end);
+    }
+
+    point_ids.forEach(id => query.append('point_ids', id));
+    
+    // Per API docs, this endpoint uses GET with query parameters.
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query.toString()}`, {
+        method: 'GET',
     });
 };
 

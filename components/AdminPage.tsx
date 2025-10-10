@@ -580,7 +580,8 @@ const IntelligenceManager: React.FC = () => {
     const handleSelectSource = (sourceName: string, checked: boolean) => {
         const newSelection = new Set(selectedPointIds);
         const sourcePoints = pointsBySource[sourceName] || [];
-        const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map(p => p.id) : [];
+        // FIX: Cast the element `p` to `Subscription` to avoid it being typed as `unknown`. This resolves property access errors.
+        const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map(p => (p as Subscription).id) : [];
         if (checked) {
             sourcePointIds.forEach(id => newSelection.add(id));
         } else {
@@ -604,7 +605,7 @@ const IntelligenceManager: React.FC = () => {
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
         // FIX: Explicitly cast the array from `pointsBySource` to `Subscription[]` before mapping to ensure correct type inference, which resolves the `unknown[] is not assignable to string[]` error.
-        return Array.from(new Set(((pointsBySource[sourceFilter] || []) as Subscription[]).map(p => p.point_name)));
+        return Array.from(new Set((pointsBySource[sourceFilter] || []).map(p => (p as Subscription).point_name)));
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
@@ -667,7 +668,8 @@ const IntelligenceManager: React.FC = () => {
                                      {sources.map(({ name: sourceName, points_count }) => {
                                         const isOpen = openSources.has(sourceName);
                                         const safeSourcePoints = pointsBySource[sourceName] || [];
-                                        const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every(p => selectedPointIds.has(p.id));
+                                        // FIX: Cast the element `p` to `Subscription` to avoid it being typed as `unknown`. This resolves property access errors.
+                                        const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every(p => selectedPointIds.has((p as Subscription).id));
                                         return (
                                             <div key={sourceName} className="border-t first:border-t-0">
                                                 <div className="flex items-center p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleSource(sourceName)}>
