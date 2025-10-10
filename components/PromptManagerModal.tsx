@@ -25,7 +25,6 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
-        key: '',
         name: '',
         description: '',
         prompt: '',
@@ -38,14 +37,13 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
         if (selectedKey && promptCollection[selectedKey]) {
             const currentPrompt = promptCollection[selectedKey];
             setFormData({
-                key: selectedKey,
                 name: currentPrompt.name,
                 description: currentPrompt.description,
                 prompt: currentPrompt.prompt,
             });
             setMode('view');
         } else {
-            setFormData({ key: '', name: '', description: '', prompt: '' });
+            setFormData({ name: '', description: '', prompt: '' });
             setMode('view');
         }
     }, [selectedKey, promptCollection]);
@@ -56,7 +54,7 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
 
     const handleAddNew = () => {
         setSelectedKey(null);
-        setFormData({ key: '', name: '', description: '', prompt: '' });
+        setFormData({ name: '', description: '', prompt: '' });
         setMode('add');
     };
 
@@ -87,8 +85,26 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
         try {
             const data: Prompt = { name: formData.name, description: formData.description, prompt: formData.prompt };
             if (mode === 'add') {
-                await createPrompt(promptType, formData.key, data);
-                onUpdate(formData.key);
+                // Auto-generate a unique key from the name
+                let baseKey = formData.name.trim().toLowerCase()
+                    .replace(/\s+/g, '_') // Replace spaces with underscores
+                    .replace(/[^a-z0-9_]/g, ''); // Remove invalid characters
+                
+                if (!baseKey) {
+                    baseKey = 'custom_prompt'; // Fallback for empty or invalid names
+                }
+
+                let finalKey = baseKey;
+                let counter = 1;
+                const existingKeys = Object.keys(promptCollection);
+
+                while (existingKeys.includes(finalKey)) {
+                    finalKey = `${baseKey}_${counter}`;
+                    counter++;
+                }
+                
+                await createPrompt(promptType, finalKey, data);
+                onUpdate(finalKey);
             } else if (mode === 'edit' && selectedKey) {
                 await updatePrompt(promptType, selectedKey, data);
                 onUpdate(selectedKey);
@@ -100,7 +116,7 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
         }
     };
 
-    const canSave = formData.name && formData.description && formData.prompt && (mode === 'add' ? formData.key : true);
+    const canSave = formData.name && formData.description && formData.prompt;
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
@@ -149,12 +165,6 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
                             <>
                                 {error && <div className="p-3 mb-4 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
                                 <div className="space-y-4">
-                                     {mode === 'add' && (
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-700">提示词 Key (唯一标识)</label>
-                                            <input type="text" value={formData.key} onChange={e => setFormData(f => ({ ...f, key: e.target.value.replace(/\s/g, '_') }))} placeholder="例如: custom_news_parser" className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg" />
-                                        </div>
-                                    )}
                                     <div>
                                         <label className="text-sm font-medium text-gray-700">名称</label>
                                         <input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} readOnly={mode === 'view'} className="mt-1 w-full p-2 bg-gray-50 border border-gray-300 rounded-lg read-only:bg-gray-100" />
@@ -179,7 +189,7 @@ export const PromptManagerModal: React.FC<PromptManagerModalProps> = ({ onClose,
                                     <div className="flex gap-3">
                                         {mode !== 'view' ? (
                                             <>
-                                                <button onClick={() => setMode('view')} className="px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 text-sm">取消</button>
+                                                <button onClick={() => { selectedKey ? setMode('view') : handleSelect(promptList[0]?.[0])}} className="px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 text-sm">取消</button>
                                                 <button onClick={handleSave} disabled={!canSave || isLoading} className="w-28 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 text-sm disabled:bg-blue-300 flex items-center justify-center">
                                                     {isLoading ? <Spinner /> : '保存'}
                                                 </button>
