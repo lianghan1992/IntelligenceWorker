@@ -179,7 +179,7 @@ const DateRangePicker: React.FC<{
 
 const ArticleListManager: React.FC<{
     allSources: SystemSource[];
-    pointsBySource: Record<string, {data: Subscription[], isLoading: boolean}>;
+    pointsBySource: Record<string, Subscription[]>;
 }> = ({ allSources, pointsBySource: pointsBySourceForFilter }) => {
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -227,7 +227,7 @@ const ArticleListManager: React.FC<{
                 setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
             } else {
                  if (activeFilters.selectedPointIds.length === 0 && activeFilters.selectedSourceNames.length > 0) {
-                    pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data.map(p => p.id) || []);
+                    pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
                 }
                  const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
                     page: currentPage, 
@@ -259,20 +259,20 @@ const ArticleListManager: React.FC<{
 
     useEffect(() => {
         const validPointIds = new Set(
-            filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data.map(p => p.id) || [])
+            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id))
         );
         const newSelectedPointIds = filters.selectedPointIds.filter(id => validPointIds.has(id));
         if (newSelectedPointIds.length !== filters.selectedPointIds.length) {
             setFilters(prev => ({ ...prev, selectedPointIds: newSelectedPointIds }));
         }
-    }, [filters.selectedSourceNames, pointsBySourceForFilter]);
+    }, [filters.selectedSourceNames, pointsBySourceForFilter, filters.selectedPointIds]);
 
     const handleApplyFilters = () => setActiveFilters(filters);
     const handleClearFilters = () => { setFilters(initialFilters); setActiveFilters(initialFilters); };
     
     const availablePointsForFilter = useMemo(() => {
         if (filters.selectedSourceNames.length === 0) return [];
-        return filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name]?.data || []);
+        return filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name] || []);
     }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
     const handleExport = async () => { /* ... */ };
@@ -437,146 +437,109 @@ const ArticleListManager: React.FC<{
 const IntelligenceManager: React.FC = () => {
     const [activeSubTab, setActiveSubTab] = useState<'tasks' | 'articles'>('tasks');
     const [sources, setSources] = useState<SystemSource[]>([]);
-    const [pointsBySource, setPointsBySource] = useState<Record<string, {data: Subscription[], isLoading: boolean}>>({});
+    const [pointsBySource, setPointsBySource] = useState<Record<string, Subscription[]>>({});
     const [tasks, setTasks] = useState<ProcessingTask[]>([]);
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
     const [openSources, setOpenSources] = useState<Set<string>>(new Set());
-    const [isLoading, setIsLoading] = useState({ sources: true, tasks: true, stats: true, points: false, mutation: false });
-    const [error, setError] = useState({ sources: '', tasks: '', stats: '', points: '' });
+    
+    // Consolidated loading and error states for robustness
+    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [isMutationLoading, setIsMutationLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedPointIds, setSelectedPointIds] = useState<Set<string>>(new Set());
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [isPointsSectionCollapsed, setIsPointsSectionCollapsed] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalTasks, setTotalTasks] = useState(0);
+
+    // Task list specific states
+    const [taskPage, setTaskPage] = useState(1);
+    const [taskTotalPages, setTaskTotalPages] = useState(1);
+    const [taskTotal, setTaskTotal] = useState(0);
     const TASKS_PER_PAGE = 20;
     const [statusFilter, setStatusFilter] = useState('');
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
-    
-    // New states for the refined data loading strategy
-    const [isLoadingAllPoints, setIsLoadingAllPoints] = useState(false);
-    const [allPointsLoaded, setAllPointsLoaded] = useState(false);
 
-    // 1. Fetch only sources on initial mount for faster load times.
-    const fetchSources = useCallback(async () => {
-        setIsLoading(prev => ({ ...prev, sources: true }));
-        setError(prev => ({...prev, sources: ''}));
+    const loadInitialData = useCallback(async () => {
+        setIsLoadingData(true);
+        setError(null);
         try {
             const allSources = await getSources();
             setSources(allSources);
-            // Initialize pointsBySource with empty data structures.
-            const initialPointsMap = allSources.reduce((acc, source) => {
-                acc[source.name] = { data: [], isLoading: false };
+
+            const pointsPromises = allSources.map(s => getPointsBySourceName(s.name));
+            const pointsResults = await Promise.all(pointsPromises);
+            
+            const pointsMap = allSources.reduce((acc, source, index) => {
+                acc[source.name] = pointsResults[index];
                 return acc;
-            }, {} as Record<string, {data: Subscription[], isLoading: boolean}>);
-            setPointsBySource(initialPointsMap);
+            }, {} as Record<string, Subscription[]>);
+
+            setPointsBySource(pointsMap);
         } catch (err: any) {
-            setError(prev => ({...prev, sources: "无法加载情报源: " + err.message }));
+            setError(err.message || "无法加载初始数据");
         } finally {
-            setIsLoading(prev => ({...prev, sources: false}));
+            setIsLoadingData(false);
         }
     }, []);
 
-    const fetchStats = useCallback(async () => {
-        setIsLoading(prev => ({ ...prev, stats: true }));
-        setError(prev => ({ ...prev, stats: ''}));
-        try {
-            const statsData = await getProcessingTasksStats();
-            setTaskStats(statsData);
-        } catch (err: any) {
-             setError(prev => ({ ...prev, stats: "无法加载任务统计: " + err.message }));
-        } finally {
-            setIsLoading(prev => ({...prev, stats: false }));
-        }
-    }, []);
+    useEffect(() => {
+        loadInitialData();
+    }, [loadInitialData]);
 
-    const fetchTasks = useCallback(async () => {
-        setIsLoading(prev => ({ ...prev, tasks: true }));
-        setError(prev => ({ ...prev, tasks: ''}));
+    const fetchTasksAndStats = useCallback(async () => {
         try {
-            const params: any = { page: currentPage, limit: TASKS_PER_PAGE };
+            const params: any = { page: taskPage, limit: TASKS_PER_PAGE };
             if (statusFilter) params.status = statusFilter;
             if (sourceFilter) params.source_name = sourceFilter;
             if (pointFilter) params.point_name = pointFilter;
             
-            const { tasks: apiTasks, totalPages: apiTotalPages, total } = await getProcessingTasks(params);
-            setTasks(apiTasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-            setTotalPages(apiTotalPages > 0 ? apiTotalPages : 1);
-            setTotalTasks(total);
+            const [statsData, tasksData] = await Promise.all([
+                getProcessingTasksStats(),
+                getProcessingTasks(params)
+            ]);
+            
+            setTaskStats(statsData);
+            setTasks(tasksData.tasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+            setTaskTotalPages(tasksData.totalPages > 0 ? tasksData.totalPages : 1);
+            setTaskTotal(tasksData.total);
         } catch (err: any) {
-            setError(prev => ({ ...prev, tasks: err.message || '无法加载任务队列' }));
-        } finally {
-            setIsLoading(prev => ({...prev, tasks: false }));
+            setError(err.message || '无法加载任务数据');
         }
-    }, [currentPage, statusFilter, sourceFilter, pointFilter]);
+    }, [taskPage, statusFilter, sourceFilter, pointFilter]);
     
     useEffect(() => {
-        fetchSources();
-    }, [fetchSources]);
-
-    useEffect(() => {
-        if(activeSubTab === 'tasks') {
-            fetchStats();
-            fetchTasks();
+        if (activeSubTab === 'tasks' && !isLoadingData) {
+            fetchTasksAndStats();
         }
-    }, [activeSubTab, fetchStats, fetchTasks]);
-
-    // 2. NEW: Fetch all points data only when the user navigates to the 'articles' tab.
-    useEffect(() => {
-        const loadAllPointsForFilter = async () => {
-            setIsLoadingAllPoints(true);
-            try {
-                const pointsPromises = sources.map(s => getPointsBySourceName(s.name));
-                const pointsResults = await Promise.all(pointsPromises);
-                
-                const newPointsBySource = sources.reduce((acc, source, index) => {
-                    acc[source.name] = { data: pointsResults[index], isLoading: false };
-                    return acc;
-                }, {} as Record<string, {data: Subscription[], isLoading: boolean}>);
-
-                setPointsBySource(newPointsBySource);
-                setAllPointsLoaded(true);
-            } catch (err) {
-                console.error("Failed to load all points for filter:", err);
-                setError(prev => ({...prev, points: "无法准备筛选器数据"}));
-            } finally {
-                setIsLoadingAllPoints(false);
-            }
-        };
-
-        if (activeSubTab === 'articles' && !allPointsLoaded && sources.length > 0) {
-            loadAllPointsForFilter();
-        }
-    }, [activeSubTab, sources, allPointsLoaded]);
-
+    }, [activeSubTab, isLoadingData, fetchTasksAndStats]);
 
     const handleSaveNewPoint = async (newPointData: Omit<Subscription, 'id'|'keywords'|'newItemsCount'|'is_active'|'last_triggered_at'|'created_at'|'updated_at'|'source_id'>) => {
-        setIsLoading(prev => ({ ...prev, mutation: true }));
+        setIsMutationLoading(true);
         try {
             await addPoint(newPointData);
-            await fetchSources(); 
+            await loadInitialData(); // Reload all data for consistency
             setIsAddModalOpen(false);
         } catch (err: any) {
-            setError(prev => ({ ...prev, points: '添加失败: ' + err.message }));
+            setError('添加失败: ' + err.message);
         } finally {
-             setIsLoading(prev => ({ ...prev, mutation: false }));
+            setIsMutationLoading(false);
         }
     };
     
     const handleDeleteSelected = async () => {
-        setIsLoading(prev => ({ ...prev, mutation: true }));
+        setIsMutationLoading(true);
         try {
             await deletePoints(Array.from(selectedPointIds));
-            await fetchSources();
+            await loadInitialData(); // Reload all data
             setOpenSources(new Set());
             setSelectedPointIds(new Set());
             setIsDeleteConfirmOpen(false);
         } catch (err: any) {
-             setError(prev => ({ ...prev, points: '删除失败: ' + err.message }));
+            setError('删除失败: ' + err.message);
         } finally {
-            setIsLoading(prev => ({ ...prev, mutation: false }));
+            setIsMutationLoading(false);
         }
     };
 
@@ -588,7 +551,7 @@ const IntelligenceManager: React.FC = () => {
     
     const handleSelectSource = (sourceName: string, checked: boolean) => {
         const newSelection = new Set(selectedPointIds);
-        const sourcePoints = pointsBySource[sourceName]?.data || [];
+        const sourcePoints = pointsBySource[sourceName] || [];
         const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map(p => p.id) : [];
         if (checked) {
             sourcePointIds.forEach(id => newSelection.add(id));
@@ -598,44 +561,21 @@ const IntelligenceManager: React.FC = () => {
         setSelectedPointIds(newSelection);
     };
 
-    // 3. UPDATED: Implement lazy loading for the "情报点管理" section.
-    const toggleSource = async (sourceName: string) => {
+    const toggleSource = (sourceName: string) => {
         const newOpenSources = new Set(openSources);
-        const isCurrentlyOpen = newOpenSources.has(sourceName);
-
-        if (isCurrentlyOpen) {
-            newOpenSources.delete(sourceName);
-            setOpenSources(newOpenSources);
-            return;
-        }
-
-        newOpenSources.add(sourceName);
+        newOpenSources.has(sourceName) ? newOpenSources.delete(sourceName) : newOpenSources.add(sourceName);
         setOpenSources(newOpenSources);
-        
-        const hasData = pointsBySource[sourceName] && pointsBySource[sourceName].data.length > 0;
-        if (!hasData) {
-            setPointsBySource(prev => ({ ...prev, [sourceName]: { data: [], isLoading: true } }));
-            try {
-                const points = await getPointsBySourceName(sourceName);
-                setPointsBySource(prev => ({ ...prev, [sourceName]: { data: points, isLoading: false } }));
-            } catch (err: any) {
-                console.error(`Error fetching points for ${sourceName}`, err);
-                setError(prev => ({...prev, points: `无法为 ${sourceName} 加载情报点`}));
-                setPointsBySource(prev => ({ ...prev, [sourceName]: { data: [], isLoading: false } }));
-            }
-        }
     };
 
-
     const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setCurrentPage(1);
+        setTaskPage(1);
         setter(e.target.value);
     };
 
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        return Array.from(new Set(Object.values(pointsBySource).flatMap(p => p.data).filter(p => p.source_name === sourceFilter).map(p => p.point_name)));
+        return Array.from(new Set((pointsBySource[sourceFilter] || []).map(p => p.point_name)));
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
@@ -658,6 +598,13 @@ const IntelligenceManager: React.FC = () => {
             {label}
         </button>
     );
+    
+    if (isLoadingData) {
+        return <div className="text-center p-8"><Spinner /> 正在加载情报管理模块...</div>
+    }
+    if (error) {
+        return <div className="p-4 bg-red-100 text-red-700 rounded-md">错误: {error}</div>
+    }
     
     return (
         <div className="space-y-6">
@@ -689,28 +636,23 @@ const IntelligenceManager: React.FC = () => {
                                         </button>
                                     </div>
                                 </div>
-                                {error.points && <p className="text-sm text-red-600 mb-2">{error.points}</p>}
                                 
                                 <div className="border rounded-lg overflow-hidden">
-                                     {isLoading.sources ? <div className="text-center py-8"><Spinner /></div> : 
-                                     sources.map(({ name: sourceName, points_count }) => {
+                                     {sources.map(({ name: sourceName, points_count }) => {
                                         const isOpen = openSources.has(sourceName);
-                                        const sourcePointsData = pointsBySource[sourceName];
-                                        const safeSourcePoints = sourcePointsData?.data || [];
+                                        const safeSourcePoints = pointsBySource[sourceName] || [];
                                         const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every(p => selectedPointIds.has(p.id));
                                         return (
-                                            <div key={sourceName} className="border-t">
+                                            <div key={sourceName} className="border-t first:border-t-0">
                                                 <div className="flex items-center p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleSource(sourceName)}>
-                                                    <input type="checkbox" className="mr-4 accent-blue-600" checked={isSourceSelected} onChange={(e) => handleSelectSource(sourceName, e.target.checked)} onClick={e => e.stopPropagation()} disabled={!sourcePointsData} />
+                                                    <input type="checkbox" className="mr-4 accent-blue-600" checked={isSourceSelected} onChange={(e) => handleSelectSource(sourceName, e.target.checked)} onClick={e => e.stopPropagation()} />
                                                     <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-200 mr-2 ${isOpen ? 'rotate-180' : ''}`} />
                                                     <h4 className="font-semibold text-gray-800">{sourceName}</h4>
                                                     <span className="ml-2 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-200 rounded-full">{points_count}</span>
-                                                    {sourcePointsData?.isLoading && <div className="ml-2"><Spinner /></div>}
                                                 </div>
                                                 {isOpen && (
                                                     <div className="bg-white">
-                                                        {sourcePointsData?.isLoading ? <div className="text-center py-4"><Spinner/></div> : 
-                                                        safeSourcePoints.length > 0 ? (
+                                                        {safeSourcePoints.length > 0 ? (
                                                         <div className="overflow-x-auto">
                                                             <table className="w-full text-sm text-left text-gray-600">
                                                                 <tbody>
@@ -740,11 +682,9 @@ const IntelligenceManager: React.FC = () => {
                     </div>
                      <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm mt-6">
                         <h3 className="text-lg font-bold text-gray-800 mb-4">任务队列实时状态</h3>
-                        {error.tasks && <p className="text-sm text-red-600 mb-2">{error.tasks}</p>}
                         
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                            {isLoading.stats ? <div className="col-span-full text-center p-4"><Spinner /></div> : 
-                             allStatKeys.map(key =>(
+                            {allStatKeys.map(key =>(
                                 <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
                                     <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
                                     <p className="text-2xl font-bold text-gray-800">{(taskStats && taskStats[key]) ?? 0}</p>
@@ -788,9 +728,7 @@ const IntelligenceManager: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                   {isLoading.tasks ? (
-                                        <tr><td colSpan={5} className="text-center py-8"><Spinner /></td></tr>
-                                    ) : tasks.length === 0 ? (
+                                   {tasks.length === 0 ? (
                                         <tr><td colSpan={5} className="text-center py-8 text-gray-500">无匹配的任务</td></tr>
                                     ) : tasks.map(task => (
                                         <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
@@ -806,13 +744,13 @@ const IntelligenceManager: React.FC = () => {
                         </div>
 
                          <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-                            <span className="text-sm text-gray-600">共 {totalTasks} 条记录</span>
+                            <span className="text-sm text-gray-600">共 {taskTotal} 条记录</span>
                             <div className="flex items-center gap-2">
-                                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1 || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">首页</button>
-                                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1 || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
-                                <span className="text-sm font-semibold">第 {currentPage} / {totalPages} 页</span>
-                                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
-                                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage >= totalPages || isLoading.tasks} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">尾页</button>
+                                <button onClick={() => setTaskPage(1)} disabled={taskPage === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">首页</button>
+                                <button onClick={() => setTaskPage(p => p - 1)} disabled={taskPage === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+                                <span className="text-sm font-semibold">第 {taskPage} / {taskTotalPages} 页</span>
+                                <button onClick={() => setTaskPage(p => p + 1)} disabled={taskPage >= taskTotalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+                                <button onClick={() => setTaskPage(taskTotalPages)} disabled={taskPage >= taskTotalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">尾页</button>
                             </div>
                         </div>
                     </div>
@@ -821,25 +759,18 @@ const IntelligenceManager: React.FC = () => {
             
             {activeSubTab === 'articles' && (
                 <div className="animate-in fade-in-0 duration-300">
-                    {(isLoading.sources || isLoadingAllPoints) ? (
-                        <div className="text-center p-8 flex items-center justify-center gap-2 text-gray-600">
-                            <Spinner />
-                            {isLoadingAllPoints ? '正在准备筛选器...' : '正在加载情报源...'}
-                        </div>
-                    ) : (
-                        <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
-                    )}
+                    <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
                 </div>
             )}
             
-            {isAddModalOpen && <AddSubscriptionModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewPoint} isLoading={isLoading.mutation} />}
+            {isAddModalOpen && <AddSubscriptionModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewPoint} isLoading={isMutationLoading} />}
             {isDeleteConfirmOpen && (
                 <ConfirmationModal
                     title="确认删除"
                     message={`您确定要删除选中的 ${selectedPointIds.size} 个情报点吗？此操作无法撤销。`}
                     onConfirm={handleDeleteSelected}
                     onCancel={() => setIsDeleteConfirmOpen(false)}
-                    isLoading={isLoading.mutation}
+                    isLoading={isMutationLoading}
                 />
             )}
         </div>
