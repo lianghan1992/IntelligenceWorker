@@ -240,9 +240,10 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
         query.append('publish_date_end', params.publish_date_end);
     }
     
-    // 修复：将point_ids数组转换为单个逗号分隔的字符串，以匹配后端API的预期格式。
+    // 修复：将point_ids数组序列化为多个同名的查询参数，
+    // 例如：&point_ids=A&point_ids=B。这是更标准且兼容性更好的方式。
     if (point_ids && point_ids.length > 0) {
-        query.append('point_ids', point_ids.join(','));
+        point_ids.forEach(id => query.append('point_ids', id));
     }
     
     // Per API docs, this endpoint uses GET with query parameters.

@@ -581,7 +581,7 @@ const IntelligenceManager: React.FC = () => {
         const newSelection = new Set(selectedPointIds);
         const sourcePoints = pointsBySource[sourceName] || [];
         // FIX: Cast the element `p` to `Subscription` to avoid it being typed as `unknown`. This resolves property access errors.
-        const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map(p => (p as Subscription).id) : [];
+        const sourcePointIds = Array.isArray(sourcePoints) ? sourcePoints.map((p: Subscription) => p.id) : [];
         if (checked) {
             sourcePointIds.forEach(id => newSelection.add(id));
         } else {
@@ -669,7 +669,7 @@ const IntelligenceManager: React.FC = () => {
                                         const isOpen = openSources.has(sourceName);
                                         const safeSourcePoints = pointsBySource[sourceName] || [];
                                         // FIX: Cast the element `p` to `Subscription` to avoid it being typed as `unknown`. This resolves property access errors.
-                                        const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every(p => selectedPointIds.has((p as Subscription).id));
+                                        const isSourceSelected = safeSourcePoints.length > 0 && safeSourcePoints.every((p: Subscription) => selectedPointIds.has(p.id));
                                         return (
                                             <div key={sourceName} className="border-t first:border-t-0">
                                                 <div className="flex items-center p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleSource(sourceName)}>
