@@ -137,7 +137,10 @@ export const deleteUserSourceSubscription = (userId: string, sourceId: string): 
 // --- Intelligence Service API ---
 
 export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(sourceName)}`);
+    // FIX: Ensured sourceName is properly URI encoded to handle special characters, including Chinese.
+    // This is the correct implementation according to web standards and the API documentation.
+    const encodedSourceName = encodeURIComponent(sourceName);
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodedSourceName}`);
 };
 
 export const getAllIntelligencePoints = async (): Promise<Subscription[]> => {
@@ -179,7 +182,10 @@ export const getArticles = (
     query.append('publish_date_end', params.publish_date_end);
   }
 
-  pointIds.forEach(id => query.append('point_ids', id));
+  // Ensure pointIds are appended correctly if the array is not empty
+  if (pointIds.length > 0) {
+    pointIds.forEach(id => query.append('point_ids', id));
+  }
   
   const queryString = query.toString();
   

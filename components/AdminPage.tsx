@@ -61,12 +61,12 @@ const getStatusChip = (status: ProcessingTask['status']) => {
 };
 
 const DateRangePicker: React.FC<{
-    startDate: string;
-    endDate: string;
-    onChange: (dates: { startDate: string; endDate: string }) => void;
-}> = ({ startDate, endDate, onChange }) => {
+    value: { startDate: string; endDate: string };
+    onChange: (value: { startDate: string; endDate: string }) => void;
+}> = ({ value, onChange }) => {
+    const { startDate, endDate } = value;
     const [isOpen, setIsOpen] = useState(false);
-    const [viewDate, setViewDate] = useState(new Date());
+    const [viewDate, setViewDate] = useState(startDate ? new Date(startDate) : new Date());
     const [hoverDate, setHoverDate] = useState<Date | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -117,24 +117,36 @@ const DateRangePicker: React.FC<{
         const grid = generateMonthGrid(dateToRender);
         const monthName = dateToRender.toLocaleString('zh-CN', { month: 'long', year: 'numeric' });
         
+        const changeMonth = (amount: number) => {
+            setViewDate(d => new Date(d.getFullYear(), d.getMonth() + amount, 1));
+        };
+        
         return (
             <div className="p-2">
                 <div className="flex justify-between items-center mb-2 px-2">
-                    {isPrimary && <button onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="p-1 hover:bg-gray-100 rounded-full">{'<'}</button>}
+                     <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-gray-100 rounded-full">{'<'}</button>
                     <span className="text-center font-semibold">{monthName}</span>
-                     {!isPrimary && <button onClick={() => setViewDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="p-1 hover:bg-gray-100 rounded-full">{'>'}</button>}
+                     <button onClick={() => changeMonth(1)} className="p-1 hover:bg-gray-100 rounded-full">{'>'}</button>
                 </div>
                 <div className="grid grid-cols-7 text-xs text-center text-gray-500 mb-1">
                     {['日', '一', '二', '三', '四', '五', '六'].map(d => <div key={d} className="w-8 h-8 flex items-center justify-center">{d}</div>)}
                 </div>
                 <div className="grid grid-cols-7 gap-1">
                     {grid.map((day, i) => {
-                        if (!day) return <div key={i}></div>;
+                        if (!day) return <div key={i} className="w-8 h-8"></div>;
 
                         const isSelectedStart = isSameDay(day, start);
                         const isSelectedEnd = isSameDay(day, end);
                         const isInRange = start && end && day > start && day < end;
                         const isHoverInRange = start && !end && hoverDate && day > start && day <= hoverDate;
+
+                        const getRangeClasses = () => {
+                            if (isSelectedStart && isSelectedEnd) return 'rounded-full';
+                            if (isSelectedStart) return 'rounded-l-full';
+                            if (isSelectedEnd) return 'rounded-r-full';
+                            if (isInRange || isHoverInRange) return 'rounded-none';
+                            return 'rounded-full';
+                        };
 
                         return (
                              <button
@@ -142,11 +154,11 @@ const DateRangePicker: React.FC<{
                                 onClick={() => handleDateClick(day)}
                                 onMouseEnter={() => setHoverDate(day)}
                                 onMouseLeave={() => setHoverDate(null)}
-                                className={`w-8 h-8 rounded-full text-sm transition-colors relative
-                                    ${(isInRange || isHoverInRange) ? 'bg-blue-100 text-blue-800 rounded-none' : ''}
-                                    ${isSelectedStart ? 'bg-blue-600 text-white font-bold rounded-r-none' : ''}
-                                    ${isSelectedEnd ? 'bg-blue-600 text-white font-bold rounded-l-none' : ''}
+                                className={`w-8 h-8 text-sm transition-colors relative flex items-center justify-center
+                                    ${(isInRange || isHoverInRange) ? 'bg-blue-100 text-blue-800' : ''}
+                                    ${(isSelectedStart || isSelectedEnd) ? 'bg-blue-600 text-white font-bold' : ''}
                                     ${!isSelectedStart && !isSelectedEnd && !(isInRange || isHoverInRange) ? 'hover:bg-gray-200' : ''}
+                                    ${getRangeClasses()}
                                 `}
                             >
                                  <span className="relative z-10">{day.getDate()}</span>
@@ -159,12 +171,12 @@ const DateRangePicker: React.FC<{
     };
 
     const nextMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
-    const displayValue = startDate && endDate ? `${startDate} - ${endDate}` : startDate ? `${startDate} - ...` : '';
+    const displayValue = startDate && endDate ? `${startDate} - ${endDate}` : startDate ? `${startDate} - 结束日期` : '开始日期 - 结束日期';
 
     return (
         <div className="relative" ref={ref}>
             <div onClick={() => setIsOpen(!isOpen)} className="w-full h-10 mt-1 p-2 bg-white border border-gray-300 rounded-lg text-left flex justify-between items-center cursor-pointer">
-                 <span className={displayValue ? "text-gray-800" : "text-gray-400"}>{displayValue || '开始日期 - 结束日期'}</span>
+                 <span className={startDate ? "text-gray-800" : "text-gray-400"}>{displayValue}</span>
                  { (startDate || endDate) && <CloseIcon onClick={(e) => { e.stopPropagation(); onChange({ startDate: '', endDate: '' }); }} className="w-4 h-4 text-gray-500 hover:text-red-600" />}
             </div>
             {isOpen && (
@@ -194,8 +206,7 @@ const ArticleListManager: React.FC<{
         similarityThreshold: 0.50,
         selectedSourceNames: [] as string[],
         selectedPointIds: [] as string[],
-        startDate: '',
-        endDate: '',
+        dateRange: { startDate: '', endDate: '' },
     };
     const [filters, setFilters] = useState(initialFilters);
     const [activeFilters, setActiveFilters] = useState(initialFilters);
@@ -209,16 +220,25 @@ const ArticleListManager: React.FC<{
         setError('');
         
         try {
+            const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
-            
+
+            // If no points selected, but sources are, get all points from those sources
+            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
+                pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
+            }
+            // If no sources selected either, query all available points
+            if (pointIdsToQuery.length === 0) {
+                 pointIdsToQuery = allPointIds;
+            }
+
             if (activeFilters.searchQuery.trim()) {
                 const { items, total, totalPages: newTotalPages } = await searchArticlesFiltered({
                     query_text: activeFilters.searchQuery,
                     similarity_threshold: activeFilters.similarityThreshold,
                     point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
-                    source_names: (activeFilters.selectedPointIds.length === 0 && activeFilters.selectedSourceNames.length > 0) ? activeFilters.selectedSourceNames : undefined,
-                    publish_date_start: activeFilters.startDate || undefined,
-                    publish_date_end: activeFilters.endDate || undefined,
+                    publish_date_start: activeFilters.dateRange.startDate || undefined,
+                    publish_date_end: activeFilters.dateRange.endDate || undefined,
                     page: currentPage,
                     limit: ARTICLES_PER_PAGE,
                 });
@@ -226,14 +246,11 @@ const ArticleListManager: React.FC<{
                 setTotalArticles(total);
                 setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
             } else {
-                 if (activeFilters.selectedPointIds.length === 0 && activeFilters.selectedSourceNames.length > 0) {
-                    pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
-                }
                  const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
                     page: currentPage, 
                     limit: ARTICLES_PER_PAGE,
-                    publish_date_start: activeFilters.startDate || undefined,
-                    publish_date_end: activeFilters.endDate || undefined
+                    publish_date_start: activeFilters.dateRange.startDate || undefined,
+                    publish_date_end: activeFilters.dateRange.endDate || undefined
                 });
                 setArticles(items);
                 setTotalArticles(total);
@@ -244,7 +261,7 @@ const ArticleListManager: React.FC<{
         } finally {
             setIsLoading(false);
         }
-    }, [page, activeFilters, pointsBySourceForFilter]);
+    }, [page, activeFilters, pointsBySourceForFilter, allSources]);
     
     useEffect(() => {
         loadArticles(true);
@@ -356,9 +373,8 @@ const ArticleListManager: React.FC<{
                     <div>
                         <label className="text-xs font-medium text-gray-500">发布日期范围</label>
                         <DateRangePicker 
-                           startDate={filters.startDate}
-                           endDate={filters.endDate}
-                           onChange={({ startDate, endDate }) => setFilters(f => ({...f, startDate, endDate}))}
+                           value={filters.dateRange}
+                           onChange={(dateRange) => setFilters(f => ({...f, dateRange }))}
                         />
                     </div>
                 </div>
@@ -442,7 +458,7 @@ const IntelligenceManager: React.FC = () => {
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
     const [openSources, setOpenSources] = useState<Set<string>>(new Set());
     
-    // Consolidated loading and error states for robustness
+    // FIX: Simplified loading and error states for robustness
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [isMutationLoading, setIsMutationLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -461,24 +477,44 @@ const IntelligenceManager: React.FC = () => {
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
 
+    // FIX: Re-architected data loading to a simple, robust pre-loading strategy.
     const loadInitialData = useCallback(async () => {
         setIsLoadingData(true);
         setError(null);
         try {
+            // Step 1: Get all sources
             const allSources = await getSources();
             setSources(allSources);
-
+    
+            // Step 2: Get all points for all sources concurrently.
+            // Use Promise.allSettled to prevent one failed API call from stopping the entire process.
             const pointsPromises = allSources.map(s => getPointsBySourceName(s.name));
-            const pointsResults = await Promise.all(pointsPromises);
+            const pointsResults = await Promise.allSettled(pointsPromises);
             
-            const pointsMap = allSources.reduce((acc, source, index) => {
-                acc[source.name] = pointsResults[index];
-                return acc;
-            }, {} as Record<string, Subscription[]>);
-
+            const pointsMap: Record<string, Subscription[]> = {};
+            const failedSources: string[] = [];
+    
+            allSources.forEach((source, index) => {
+                const result = pointsResults[index];
+                if (result.status === 'fulfilled') {
+                    pointsMap[source.name] = result.value;
+                } else {
+                    console.error(`Failed to load points for source "${source.name}":`, result.reason);
+                    pointsMap[source.name] = []; // Ensure key exists with empty array
+                    failedSources.push(source.name);
+                }
+            });
+    
             setPointsBySource(pointsMap);
+    
+            if (failedSources.length > 0) {
+                setError(`无法加载以下情报源的数据点: ${failedSources.join(', ')}。请联系管理员检查后端服务。`);
+            }
+    
         } catch (err: any) {
-            setError(err.message || "无法加载初始数据");
+            // This catches critical errors like getSources() failing.
+            setError(err.message || "无法加载情报管理模块的核心数据，请刷新页面重试。");
+            console.error("Critical data loading failure:", err);
         } finally {
             setIsLoadingData(false);
         }
@@ -505,7 +541,7 @@ const IntelligenceManager: React.FC = () => {
             setTaskTotalPages(tasksData.totalPages > 0 ? tasksData.totalPages : 1);
             setTaskTotal(tasksData.total);
         } catch (err: any) {
-            setError(err.message || '无法加载任务数据');
+            setError(prev => prev ? `${prev}\n无法加载任务数据: ${err.message}` : `无法加载任务数据: ${err.message}`);
         }
     }, [taskPage, statusFilter, sourceFilter, pointFilter]);
     
@@ -519,7 +555,7 @@ const IntelligenceManager: React.FC = () => {
         setIsMutationLoading(true);
         try {
             await addPoint(newPointData);
-            await loadInitialData(); // Reload all data for consistency
+            await loadInitialData(); 
             setIsAddModalOpen(false);
         } catch (err: any) {
             setError('添加失败: ' + err.message);
@@ -532,7 +568,7 @@ const IntelligenceManager: React.FC = () => {
         setIsMutationLoading(true);
         try {
             await deletePoints(Array.from(selectedPointIds));
-            await loadInitialData(); // Reload all data
+            await loadInitialData();
             setOpenSources(new Set());
             setSelectedPointIds(new Set());
             setIsDeleteConfirmOpen(false);
@@ -599,13 +635,6 @@ const IntelligenceManager: React.FC = () => {
         </button>
     );
     
-    if (isLoadingData) {
-        return <div className="text-center p-8"><Spinner /> 正在加载情报管理模块...</div>
-    }
-    if (error) {
-        return <div className="p-4 bg-red-100 text-red-700 rounded-md">错误: {error}</div>
-    }
-    
     return (
         <div className="space-y-6">
             <div className="flex space-x-2 border-b border-gray-200 pb-2">
@@ -613,7 +642,11 @@ const IntelligenceManager: React.FC = () => {
                 <TabButton tabKey="articles" label="已采集文章" />
             </div>
 
-            {activeSubTab === 'tasks' && (
+            {error && <div className="p-4 bg-red-100 text-red-700 rounded-md whitespace-pre-wrap">{error}</div>}
+
+            {isLoadingData && <div className="text-center p-8"><Spinner /> 正在加载情报管理模块...</div>}
+
+            {!isLoadingData && activeSubTab === 'tasks' && (
                 <div className="animate-in fade-in-0 duration-300">
                     <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
                         <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsPointsSectionCollapsed(prev => !prev)}>
@@ -757,7 +790,7 @@ const IntelligenceManager: React.FC = () => {
                 </div>
             )}
             
-            {activeSubTab === 'articles' && (
+            {!isLoadingData && activeSubTab === 'articles' && (
                 <div className="animate-in fade-in-0 duration-300">
                     <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
                 </div>
