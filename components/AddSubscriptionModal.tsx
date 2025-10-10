@@ -24,6 +24,8 @@ const cronOptions = [
     { label: '每3小时', value: '0 */3 * * *' },
     { label: '每6小时', value: '0 */6 * * *' },
     { label: '每12小时', value: '0 */12 * * *' },
+    { label: '每天', value: '0 0 * * *' },
+    { label: '每周', value: '0 0 * * 0' },
 ];
 
 export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onClose, onSave, isLoading = false }) => {

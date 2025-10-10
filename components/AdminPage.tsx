@@ -31,6 +31,8 @@ const CRON_SCHEDULE_MAP: { [key: string]: string } = {
     '0 */3 * * *': '每3小时',
     '0 */6 * * *': '每6小时',
     '0 */12 * * *': '每12小时',
+    '0 0 * * *': '每天',
+    '0 0 * * 0': '每周',
 };
 
 const formatToBeijingTime = (dateString: string): string => {
