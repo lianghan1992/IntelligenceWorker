@@ -32,6 +32,17 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 
     const response = await fetch(url, { ...options, headers });
 
+    if (response.status === 401) {
+        // Unauthorized. Token is invalid or expired.
+        // Clear the token and reload the page to force re-authentication.
+        localStorage.removeItem('accessToken');
+        window.location.reload();
+        // Throw an error to stop the current execution flow.
+        // The page will reload, so this error won't be seen by the user,
+        // but it's good practice to reject the promise.
+        throw new Error('会话已过期，请重新登录。');
+    }
+
     if (!response.ok) {
         let errorData;
         try {
@@ -40,7 +51,8 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
             errorData = { message: `HTTP error! status: ${response.status}` };
         }
         console.error("API Error:", errorData);
-        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+        const errorMessage = errorData.detail || errorData.message || `Request failed with status ${response.status}`;
+        throw new Error(errorMessage);
     }
 
     if (response.status === 204) {

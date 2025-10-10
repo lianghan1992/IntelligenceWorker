@@ -45,11 +45,9 @@ const App: React.FC = () => {
             setInfoItems([]);
         }
     } catch (error) {
+      // The global apiFetch handler will now deal with 401s by reloading the page.
+      // We just need to log other potential errors here.
       console.error("Failed to load initial data", error);
-      if ((error as any).message.includes('401')) {
-          localStorage.removeItem('accessToken');
-          setUser(null);
-      }
     } finally {
       setIsLoading(false);
     }
