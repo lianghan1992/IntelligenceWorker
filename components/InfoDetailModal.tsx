@@ -16,7 +16,7 @@ export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose 
     const [imgError, setImgError] = React.useState(false);
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
+        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in-0">
             <div className="bg-white rounded-2xl w-full max-w-3xl h-[90vh] flex flex-col shadow-xl transform transition-all animate-in zoom-in-95">
                 <div className="p-5 border-b flex justify-between items-center flex-shrink-0">
                     <div className="flex items-center space-x-3 overflow-hidden">
