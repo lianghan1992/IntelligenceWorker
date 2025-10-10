@@ -32,15 +32,13 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 
     const response = await fetch(url, { ...options, headers });
 
-    if (response.status === 401) {
-        // Unauthorized. Token is invalid or expired.
-        // Clear the token and reload the page to force re-authentication.
+    // Centralized handling for authentication errors (401 Unauthorized, 403 Forbidden)
+    if (response.status === 401 || response.status === 403) {
         localStorage.removeItem('accessToken');
         window.location.reload();
         // Throw an error to stop the current execution flow.
-        // The page will reload, so this error won't be seen by the user,
-        // but it's good practice to reject the promise.
-        throw new Error('会话已过期，请重新登录。');
+        // The page reload will handle redirecting to the login page.
+        throw new Error('会话已过期或权限不足，请重新登录。');
     }
 
     if (!response.ok) {
@@ -69,9 +67,10 @@ export const login = async (email: string, password: string): Promise<{ token: s
         method: 'POST',
         body: JSON.stringify({ email, password }),
     });
-    // The API returns 'id', but the app uses 'user_id'. We map it here.
+    // According to docs, the token is named 'accessToken'.
+    // We assume the user object contains 'id' like the /me endpoint, which is mapped to 'user_id'.
     return { 
-        token: response.access_token, 
+        token: response.accessToken, 
         user: { ...response.user, user_id: response.user.id } 
     };
 };
