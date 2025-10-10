@@ -458,7 +458,6 @@ const IntelligenceManager: React.FC = () => {
     const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
     const [openSources, setOpenSources] = useState<Set<string>>(new Set());
     
-    // FIX: Simplified loading and error states for robustness
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [isMutationLoading, setIsMutationLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -477,7 +476,6 @@ const IntelligenceManager: React.FC = () => {
     const [sourceFilter, setSourceFilter] = useState('');
     const [pointFilter, setPointFilter] = useState('');
 
-    // FIX: Re-architected data loading to a simple, robust pre-loading strategy.
     const loadInitialData = useCallback(async () => {
         setIsLoadingData(true);
         setError(null);
@@ -486,24 +484,20 @@ const IntelligenceManager: React.FC = () => {
             const allSources = await getSources();
             setSources(allSources);
     
-            // Step 2: Get all points for all sources concurrently.
-            // Use Promise.allSettled to prevent one failed API call from stopping the entire process.
-            const pointsPromises = allSources.map(s => getPointsBySourceName(s.name));
-            const pointsResults = await Promise.allSettled(pointsPromises);
-            
+            // Step 2: Get all points for all sources sequentially for robustness against concurrency issues.
             const pointsMap: Record<string, Subscription[]> = {};
             const failedSources: string[] = [];
     
-            allSources.forEach((source, index) => {
-                const result = pointsResults[index];
-                if (result.status === 'fulfilled') {
-                    pointsMap[source.name] = result.value;
-                } else {
-                    console.error(`Failed to load points for source "${source.name}":`, result.reason);
-                    pointsMap[source.name] = []; // Ensure key exists with empty array
+            for (const source of allSources) {
+                try {
+                    const points = await getPointsBySourceName(source.name);
+                    pointsMap[source.name] = points;
+                } catch (err) {
+                    console.error(`Failed to load points for source "${source.name}":`, err);
+                    pointsMap[source.name] = []; // Ensure key exists with empty array on error
                     failedSources.push(source.name);
                 }
-            });
+            }
     
             setPointsBySource(pointsMap);
     
@@ -512,7 +506,6 @@ const IntelligenceManager: React.FC = () => {
             }
     
         } catch (err: any) {
-            // This catches critical errors like getSources() failing.
             setError(err.message || "无法加载情报管理模块的核心数据，请刷新页面重试。");
             console.error("Critical data loading failure:", err);
         } finally {

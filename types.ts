@@ -30,7 +30,7 @@ export interface Subscription {
   source_name: string;
   point_url: string;
   cron_schedule: string;
-  is_active: boolean;
+  is_active: number; // Corresponds to backend integer type
   last_triggered_at: string | null;
   created_at: string;
   updated_at: string;

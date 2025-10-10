@@ -388,8 +388,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
     
     const loadArticles = useCallback(async () => {
         try {
-            // If user has subscriptions, load articles from them. Otherwise, load all recent articles.
             const pointIds = subscriptions.map(sub => sub.id);
+            // FIX: If the user has no subscribed points, there are no articles to fetch.
+            // This prevents an invalid API call that results in a 422 error.
+            if (pointIds.length === 0) {
+                setInfoItems([]);
+                return; 
+            }
             const data = await getArticles(pointIds, { page: 1, limit: 200 });
             setInfoItems(data.items);
         } catch (error) {

@@ -55,7 +55,8 @@ export const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ onCl
             point_url: pointUrl,
             cron_schedule: cronSchedule,
             source_id: '', // Backend will generate
-            is_active: true,
+            // FIX: The `is_active` property expects a number (0 or 1), not a boolean. Changed `true` to `1`.
+            is_active: 1,
             last_triggered_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

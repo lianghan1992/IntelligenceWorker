@@ -353,7 +353,7 @@
 | `point_name` | string | 情报点名称 |
 | `point_url` | string | 情报点URL |
 | `cron_schedule` | string | CRON调度表达式 |
-| `is_active` | boolean | 是否激活 |
+| `is_active` | integer | 是否激活 |
 | `last_triggered_at`| string / null | 上次触发时间 |
 | `url_prompt_key` | string | URL提取提示词Key |
 | `summary_prompt_key`| string | 内容总结提示词Key |
