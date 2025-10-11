@@ -231,20 +231,27 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 // --- Articles / InfoItems ---
 
-// 修复：将方法从GET更改为POST，以避免URL长度限制导致的422错误。
-// 这需要后端API的支持，将GET /intelligence/articles更改为接受POST请求。
+// 修复：将方法从 POST 改回 GET 以匹配后端 API，解决 405 Method Not Allowed 错误。
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    const body = {
-        point_ids: (point_ids && point_ids.length > 0) ? point_ids : undefined,
-        page: params.page,
-        limit: params.limit,
-        publish_date_start: params.publish_date_start || undefined,
-        publish_date_end: params.publish_date_end || undefined,
-    };
+    const queryParams = new URLSearchParams({
+        page: String(params.page),
+        limit: String(params.limit),
+    });
+
+    if (point_ids && point_ids.length > 0) {
+        point_ids.forEach(id => queryParams.append('point_ids', id));
+    }
+    if (params.publish_date_start) {
+        queryParams.append('publish_date_start', params.publish_date_start);
+    }
+    if (params.publish_date_end) {
+        queryParams.append('publish_date_end', params.publish_date_end);
+    }
+
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles?${queryParams.toString()}`;
     
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
-        method: 'POST',
-        body: JSON.stringify(body),
+    return apiFetch(url, {
+        method: 'GET',
     });
 };
 
