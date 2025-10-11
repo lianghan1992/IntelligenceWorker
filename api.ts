@@ -246,11 +246,23 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 // --- Articles / InfoItems ---
 
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
+    
+    const hasPointFilter = point_ids && point_ids.length > 0;
+    const hasDateFilter = params.publish_date_start || params.publish_date_end;
+
+    // SCENARIO 1: Generic browsing with no filters. Use the simpler GET endpoint.
+    if (!hasPointFilter && !hasDateFilter) {
+        const query = new URLSearchParams({
+            page: String(params.page),
+            limit: String(params.limit),
+        }).toString();
+        return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query}`);
+    }
+
+    // SCENARIO 2: Any kind of filtering is applied. Use the more robust POST endpoint.
     const body: { [key: string]: any } = {
-        // 最终修复：当意图是“筛选”而非“搜索”时，向后端API强制要求的 `query_text` 字段传递一个通配符 `*`。
-        // 这解决了因该字段不能为空字符串而导致的 "422 Unprocessable Content" 错误。
-        query_text: '*',
-        point_ids: point_ids.length > 0 ? point_ids : undefined,
+        query_text: '*', // Use wildcard for non-semantic filtering
+        point_ids: hasPointFilter ? point_ids : undefined,
         page: params.page,
         limit: params.limit,
     };
@@ -269,6 +281,7 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
         body: JSON.stringify(body),
     });
 };
+
 
 export const searchArticles = async (query_text: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
     // 最终修复：此函数也应该使用支持POST的正确端点。
