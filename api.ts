@@ -245,31 +245,6 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 // --- Articles / InfoItems ---
 
-export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    // 始终使用更强大和可靠的 POST 接口，以避免 GET 请求的 URL 长度限制，并遵循 API 文档的建议。
-    const body: { [key: string]: any } = {
-        query_text: '*', // 用于非语义的结构化筛选
-        point_ids: (point_ids && point_ids.length > 0) ? point_ids : undefined,
-        page: params.page,
-        limit: params.limit,
-    };
-
-    if (params.publish_date_start) {
-        body.publish_date_start = params.publish_date_start;
-    }
-    if (params.publish_date_end) {
-        body.publish_date_end = params.publish_date_end;
-    }
-
-    const url = `${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`;
-    
-    return apiFetch(url, {
-        method: 'POST',
-        body: JSON.stringify(body),
-    });
-};
-
-
 export const searchArticles = async (query_text: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
     // 最终修复：此函数也应该使用支持POST的正确端点。
     // 注意：简单搜索可以调用 `/search/articles`，但为了统一和稳健，我们统一使用更强大的 `articles_filtered`
@@ -293,7 +268,7 @@ export const getInitialArticles = async (): Promise<InfoItem[]> => {
     const subscriptions = await getSubscriptions();
     if (subscriptions.length === 0) return [];
     const pointIds = subscriptions.map(sub => sub.id);
-    const data = await getArticles(pointIds, { page: 1, limit: 100 });
+    const data = await searchArticlesFiltered({ query_text: '*', page: 1, limit: 100, point_ids: pointIds });
     return data.items;
 };
 

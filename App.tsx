@@ -11,7 +11,7 @@ import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage';
 import { StrategicCockpit } from './components/StrategicCockpit';
 import { User, View, Subscription, InfoItem, DeepDive } from './types';
-import { getSubscriptions, getArticles, getMe } from './api';
+import { getSubscriptions, searchArticlesFiltered, getMe } from './api';
 import { mockDeepDives } from './mockData';
 
 const App: React.FC = () => {
@@ -39,7 +39,12 @@ const App: React.FC = () => {
         setSubscriptions(subs);
         if (subs.length > 0) {
             const pointIds = subs.map(s => s.id);
-            const articlesData = await getArticles(pointIds, { page: 1, limit: 50 });
+            const articlesData = await searchArticlesFiltered({
+                query_text: '*',
+                point_ids: pointIds,
+                page: 1,
+                limit: 50,
+            });
             setInfoItems(articlesData.items);
         } else {
             setInfoItems([]);

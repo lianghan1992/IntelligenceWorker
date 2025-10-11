@@ -8,7 +8,6 @@ import {
   getSources,
   getPointsBySourceName,
   getProcessingTasksStats,
-  getArticles,
   searchArticlesFiltered,
 } from '../api';
 import { AddSubscriptionModal } from './AddSubscriptionModal';
@@ -248,39 +247,35 @@ const ArticleListManager: React.FC<{
             const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
 
-            // If no points selected, but sources are, get all points from those sources
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
                 pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
             }
-            // If no sources selected either, query all available points
-            if (pointIdsToQuery.length === 0) {
+            
+            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
                  pointIdsToQuery = allPointIds;
             }
 
+            const params: { [key: string]: any } = {
+                page: currentPage,
+                limit: ARTICLES_PER_PAGE,
+                point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
+                publish_date_start: activeFilters.dateRange.startDate || undefined,
+                publish_date_end: activeFilters.dateRange.endDate || undefined,
+            };
+
             if (activeFilters.searchQuery.trim()) {
-                const { items, total, totalPages: newTotalPages } = await searchArticlesFiltered({
-                    query_text: activeFilters.searchQuery,
-                    similarity_threshold: activeFilters.similarityThreshold,
-                    point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
-                    publish_date_start: activeFilters.dateRange.startDate || undefined,
-                    publish_date_end: activeFilters.dateRange.endDate || undefined,
-                    page: currentPage,
-                    limit: ARTICLES_PER_PAGE,
-                });
-                setArticles(items);
-                setTotalArticles(total);
-                setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+                params.query_text = activeFilters.searchQuery;
+                params.similarity_threshold = activeFilters.similarityThreshold;
             } else {
-                 const { items, total, totalPages: newTotalPages } = await getArticles(pointIdsToQuery, { 
-                    page: currentPage, 
-                    limit: ARTICLES_PER_PAGE,
-                    publish_date_start: activeFilters.dateRange.startDate || undefined,
-                    publish_date_end: activeFilters.dateRange.endDate || undefined
-                });
-                setArticles(items);
-                setTotalArticles(total);
-                setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+                params.query_text = '*';
             }
+            
+            const { items, total, totalPages: newTotalPages } = await searchArticlesFiltered(params);
+            
+            setArticles(items);
+            setTotalArticles(total);
+            setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+
         } catch (err: any) {
             setError(err.message || "无法加载文章");
         } finally {
@@ -628,7 +623,7 @@ const PointListManager: React.FC<{
 
 
 const IntelligenceManager: React.FC = () => {
-    const [activeSubTab, setActiveSubTab] = useState<'points' | 'tasks' | 'articles'>('points');
+    const [activeSubTab, setActiveSubTab] = useState<'points' | 'tasks' | 'articles'>('articles');
     const [sources, setSources] = useState<SystemSource[]>([]);
     const [pointsBySource, setPointsBySource] = useState<Record<string, Subscription[]>>({});
     const [tasks, setTasks] = useState<ApiProcessingTask[]>([]);
