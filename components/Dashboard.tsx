@@ -412,7 +412,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 setInfoItems([]);
                 return; 
             }
-            const data = await getArticles(pointIds, { page: 1, limit: 200 });
+            const data = await getArticles(pointIds, { page: 1, limit: 50 });
             setInfoItems(data.items);
         } catch (error) {
             console.error("Failed to load articles:", error);

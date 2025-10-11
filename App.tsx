@@ -39,7 +39,7 @@ const App: React.FC = () => {
         setSubscriptions(subs);
         if (subs.length > 0) {
             const pointIds = subs.map(s => s.id);
-            const articlesData = await getArticles(pointIds, { page: 1, limit: 200 });
+            const articlesData = await getArticles(pointIds, { page: 1, limit: 50 });
             setInfoItems(articlesData.items);
         } else {
             setInfoItems([]);
