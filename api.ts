@@ -231,29 +231,29 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 // --- Articles / InfoItems ---
 
-// 修复#1：将方法从 POST 改回 GET 以匹配后端 API，解决 405 Method Not Allowed 错误。
-// 修复#2：将 point_ids 格式化为逗号分隔的字符串，以解决 422 Unprocessable Content 错误。
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    const queryParams = new URLSearchParams({
-        page: String(params.page),
-        limit: String(params.limit),
-    });
+    // 最终修复：根据API文档和多次调试结果，切换到更稳健的POST /articles/search接口。
+    // 这可以从根本上解决GET请求因URL过长或后端参数处理问题导致的422错误。
+    const body: { [key: string]: any } = {
+        query_text: "", // 传入空字符串以匹配所有文章，仅使用过滤器
+        point_ids: point_ids.length > 0 ? point_ids : undefined,
+        page: params.page,
+        limit: params.limit,
+    };
 
-    if (point_ids && point_ids.length > 0) {
-        // 后端期望的是逗号分隔的字符串，而不是重复的参数
-        queryParams.append('point_ids', point_ids.join(','));
-    }
     if (params.publish_date_start) {
-        queryParams.append('publish_date_start', params.publish_date_start);
+        body.publish_date_start = params.publish_date_start;
     }
     if (params.publish_date_end) {
-        queryParams.append('publish_date_end', params.publish_date_end);
+        body.publish_date_end = params.publish_date_end;
     }
 
-    const url = `${INTELLIGENCE_SERVICE_PATH}/articles?${queryParams.toString()}`;
+    // 使用search接口，因为它接受POST请求和复杂的过滤条件
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/search`;
     
     return apiFetch(url, {
-        method: 'GET',
+        method: 'POST',
+        body: JSON.stringify(body),
     });
 };
 
