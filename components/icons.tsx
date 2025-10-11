@@ -130,3 +130,29 @@ export const UsersIcon = createIcon(
 export const PencilIcon = createIcon(
     <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
 );
+
+export const ClusterIcon = createIcon(
+    <>
+        <path d="M3.75 3A1.75 1.75 0 002 4.75v.5A1.75 1.75 0 003.75 7h12.5A1.75 1.75 0 0018 5.25v-.5A1.75 1.75 0 0016.25 3H3.75z" opacity="0.4" />
+        <path d="M3.75 9A1.75 1.75 0 002 10.75v.5A1.75 1.75 0 003.75 13h12.5a1.75 1.75 0 001.75-1.75v-.5A1.75 1.75 0 0016.25 9H3.75z" opacity="0.6" />
+        <path d="M3.75 15A1.75 1.75 0 002 16.75v.5c0 .966.784 1.75 1.75 1.75h12.5A1.75 1.75 0 0018 17.25v-.5A1.75 1.75 0 0016.25 15H3.75z" />
+    </>
+);
+
+export const SentimentHappyIcon = createIcon(
+    <>
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-5 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clipRule="evenodd" />
+    </>
+);
+
+export const SentimentNeutralIcon = createIcon(
+    <>
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zm-5 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z" clipRule="evenodd" />
+    </>
+);
+
+export const SentimentSadIcon = createIcon(
+    <>
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zM12.707 13.707a1 1 0 01-1.414 0L10 12.293l-1.293 1.414a1 1 0 01-1.414-1.414l2-2a1 1 0 011.414 0l2 2a1 1 0 010 1.414z" clipRule="evenodd" />
+    </>
+);

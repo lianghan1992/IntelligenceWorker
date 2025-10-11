@@ -32,7 +32,26 @@ export interface InfoItem {
   publish_date: string;
   content: string;
   created_at: string;
+  // AI-enhanced fields (mocked for now)
+  influence?: 'high' | 'medium' | 'low';
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  entities?: string[];
 }
+
+// Represents an event cluster, grouping multiple InfoItems
+export interface EventCluster {
+  id: string;
+  type: 'cluster';
+  title: string;
+  summary: string;
+  sourceNames: string[];
+  items: InfoItem[];
+  publish_date: string; // For sorting, use the latest article's date
+}
+
+// A union type for items displayed in the info feed
+export type FeedDisplayItem = InfoItem | EventCluster;
+
 
 // Represents a user's subscription to a specific intelligence point (now called Intelligence Point in API)
 export interface Subscription {

@@ -243,12 +243,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // Fix for "Expected 1 arguments, but got 0" error: The `io()` function must be called with a server path.
-        // With the current proxy setup, connecting to '/' resolves the issue.
-// FIX: The `io()` function must be called with a server path.
-        // FIX: The `io()` function must be called with a server path to satisfy its type signature and connect correctly.
-// FIX: Pass the root path `'/'` to the `io()` function to ensure it connects to the current host, which is correctly proxied.
-        const socket: Socket = io('/');
+        // FIX: The `io()` function should be called without arguments for same-origin connections.
+        // The client will automatically connect to the host that serves the page, and the configured proxy will handle the connection.
+        const socket: Socket = io();
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');
