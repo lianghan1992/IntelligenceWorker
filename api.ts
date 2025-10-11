@@ -173,7 +173,19 @@ export const deleteUserSourceSubscription = async (sourceId: string): Promise<vo
 
 export const getSources = async (): Promise<SystemSource[]> => {
     const sources = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
-    return sources.map((s: any) => ({ ...s, id: s.source_id, name: s.source_name, points_count: 0 }));
+    // Per API doc, response items have: id, source_name, points_count
+    // SystemSource type requires: id, name, points_count
+    return sources.map((s: any) => ({
+        id: s.id, // Use id from API
+        name: s.source_name, // Map source_name to name
+        points_count: s.points_count, // Use points_count from API
+        // UI-synthesized fields
+        description: '',
+        iconUrl: '',
+        category: '',
+        infoCount: 0,
+        subscriberCount: 0,
+    }));
 };
 
 export const getSubscriptions = async (): Promise<Subscription[]> => {

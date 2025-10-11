@@ -38,8 +38,17 @@ const CRON_SCHEDULE_MAP: { [key: string]: string } = {
 
 const formatToBeijingTime = (dateString: string): string => {
     if (!dateString) return 'N/A';
-    const ensureUTC = dateString.endsWith('Z') ? dateString : dateString + 'Z';
-    return new Date(ensureUTC).toLocaleString('zh-CN', {
+    // Standardize the date string to a more reliable ISO 8601 format before parsing.
+    // This handles cases where 'T' separator is a space.
+    let parsableDateString = dateString.replace(' ', 'T');
+    if (!parsableDateString.endsWith('Z')) {
+        parsableDateString += 'Z';
+    }
+    const date = new Date(parsableDateString);
+    if (isNaN(date.getTime())) {
+        return 'Invalid Date'; // Explicitly handle parsing errors
+    }
+    return date.toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         year: 'numeric',
         month: '2-digit',
@@ -753,8 +762,8 @@ const IntelligenceManager: React.FC = () => {
                                         <th className="px-4 py-3">情报源/点</th>
                                         <th className="px-4 py-3">URL</th>
                                         <th className="px-4 py-3">状态</th>
-                                        <th className="px-4 py-3">创建时间 (北京)</th>
-                                        <th className="px-4 py-3">最后更新 (北京)</th>
+                                        <th className="px-4 py-3">创建时间</th>
+                                        <th className="px-4 py-3">最后更新</th>
                                     </tr>
                                 </thead>
                                 <tbody>
