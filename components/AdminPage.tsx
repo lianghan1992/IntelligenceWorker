@@ -280,7 +280,9 @@ const ArticleListManager: React.FC<{
 
     useEffect(() => {
         const validPointIds = new Set(
-            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id))
+            // FIX: Explicitly type the parameter `p` in the `.map()` callback as `Subscription`
+            // to resolve a TypeScript type inference issue where `p` was being inferred as `unknown`.
+            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map((p: Subscription) => p.id))
         );
         const newSelectedPointIds = filters.selectedPointIds.filter(id => validPointIds.has(id));
         if (newSelectedPointIds.length !== filters.selectedPointIds.length) {

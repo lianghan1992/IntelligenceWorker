@@ -231,7 +231,8 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 // --- Articles / InfoItems ---
 
-// 修复：将方法从 POST 改回 GET 以匹配后端 API，解决 405 Method Not Allowed 错误。
+// 修复#1：将方法从 POST 改回 GET 以匹配后端 API，解决 405 Method Not Allowed 错误。
+// 修复#2：将 point_ids 格式化为逗号分隔的字符串，以解决 422 Unprocessable Content 错误。
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
     const queryParams = new URLSearchParams({
         page: String(params.page),
@@ -239,7 +240,8 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
     });
 
     if (point_ids && point_ids.length > 0) {
-        point_ids.forEach(id => queryParams.append('point_ids', id));
+        // 后端期望的是逗号分隔的字符串，而不是重复的参数
+        queryParams.append('point_ids', point_ids.join(','));
     }
     if (params.publish_date_start) {
         queryParams.append('publish_date_start', params.publish_date_start);
