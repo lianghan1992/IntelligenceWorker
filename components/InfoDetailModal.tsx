@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { InfoItem } from '../types';
 import { CloseIcon } from './icons';
 
@@ -7,6 +7,66 @@ interface InfoDetailModalProps {
     onClose: () => void;
 }
 
+// A simple markdown to HTML converter for basic formatting.
+const markdownToHtml = (markdown: string): string => {
+    if (!markdown) return '';
+  
+    const lines = markdown.split('\n');
+    let html = '';
+    let paragraphBuffer: string[] = [];
+  
+    const flushParagraph = () => {
+      if (paragraphBuffer.length > 0) {
+        html += `<p>${paragraphBuffer.join('<br/>')}</p>`;
+        paragraphBuffer = [];
+      }
+    };
+  
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+  
+      if (trimmedLine === '') {
+        flushParagraph();
+        continue;
+      }
+  
+      // Headings
+      if (trimmedLine.startsWith('### ')) {
+        flushParagraph();
+        html += `<h3>${trimmedLine.substring(4)}</h3>`;
+        continue;
+      }
+      if (trimmedLine.startsWith('## ')) {
+        flushParagraph();
+        html += `<h2>${trimmedLine.substring(3)}</h2>`;
+        continue;
+      }
+      if (trimmedLine.startsWith('# ')) {
+        flushParagraph();
+        html += `<h1>${trimmedLine.substring(2)}</h1>`;
+        continue;
+      }
+  
+      // Images: ![alt](src)
+      const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+      if (imageRegex.test(trimmedLine)) {
+        flushParagraph();
+        html += trimmedLine.replace(imageRegex, '<img src="$2" alt="$1" class="max-w-full h-auto rounded-lg my-4 shadow-md" />');
+        continue;
+      }
+      
+      // If it's none of the above, it's part of a paragraph
+      // Process inline markdown like bold within the paragraph lines
+      let processedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      paragraphBuffer.push(processedLine);
+    }
+  
+    flushParagraph(); // Flush any remaining paragraph content
+  
+    return html;
+  };
+  
+
 export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose }) => {
     const source = {
         name: item.source_name,
@@ -14,6 +74,8 @@ export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose 
     };
 
     const [imgError, setImgError] = React.useState(false);
+
+    const contentHtml = useMemo(() => markdownToHtml(item.content), [item.content]);
 
     return (
         <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in-0">
@@ -54,8 +116,11 @@ export const InfoDetailModal: React.FC<InfoDetailModalProps> = ({ item, onClose 
                     </span>
                     <article 
                         className="prose prose-slate max-w-none 
-                                   prose-p:leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: item.content }}
+                                   prose-h1:font-bold prose-h1:text-2xl prose-h1:mb-4 prose-h1:border-b prose-h1:pb-2
+                                   prose-h2:font-semibold prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3
+                                   prose-h3:font-semibold prose-h3:text-lg prose-h3:mt-4 prose-h3:mb-2
+                                   prose-p:leading-relaxed prose-strong:font-semibold"
+                        dangerouslySetInnerHTML={{ __html: contentHtml }}
                     />
                 </div>
             </div>
