@@ -14,7 +14,8 @@ import {
     AllPrompts,
     SearchResult,
     Prompt,
-    AppEvent
+    AppEvent,
+    UserSourceSubscription
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
@@ -71,11 +72,11 @@ export const login = async (email: string, password: string): Promise<{ token: s
         method: 'POST',
         body: JSON.stringify({ email, password }),
     });
-    // According to docs, the token is named 'accessToken'.
-    // We assume the user object contains 'id' like the /me endpoint, which is mapped to 'user_id'.
+    // FIX: The user object from the login response already matches the `User` type with `user_id`.
+    // The previous implementation was incorrectly trying to map a non-existent `id` field.
     return { 
         token: response.accessToken, 
-        user: { ...response.user, user_id: response.user.id } 
+        user: response.user
     };
 };
 
@@ -151,14 +152,14 @@ export const deleteUserPoi = async (poiId: string): Promise<void> => {
 };
 
 // --- User Source Subscriptions ---
-export const getUserSubscribedSources = async (): Promise<{id: string, source_name: string}[]> => {
+export const getUserSubscribedSources = async (): Promise<UserSourceSubscription[]> => {
     return apiFetch(`${USER_SERVICE_PATH}/me/sources`);
 };
 
 export const addUserSourceSubscription = async (sourceId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/sources`, {
+    // FIX: Changed endpoint to include sourceId in the path and removed body, as per API docs.
+    return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
         method: 'POST',
-        body: JSON.stringify({ source_id: sourceId }),
     });
 };
 
@@ -223,9 +224,10 @@ export const updatePoint = async (id: string, data: Partial<Subscription>): Prom
 };
 
 export const deletePoints = async (ids: string[]): Promise<void> => {
+    // FIX: Changed the request body key from 'ids' to 'point_ids' to match API docs.
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ point_ids: ids }),
     });
 };
 

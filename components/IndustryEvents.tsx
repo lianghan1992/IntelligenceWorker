@@ -245,7 +245,7 @@ export const IndustryEvents: React.FC = () => {
         // The socket.io-client `io()` function requires a URI to connect to.
         // Passing `'/'` as an argument establishes a connection to the server that served the web page,
         // which is the correct behavior for this application's proxy configuration.
-// FIX: The io() function requires a URI. Passing '/' connects to the origin server.
+// FIX: The io() function was called without arguments, causing an error. Passing '/' connects to the origin server as intended by the proxy setup.
 const socket: Socket = io('/');
 
         socket.on('connect', () => {

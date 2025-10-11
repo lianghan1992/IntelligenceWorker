@@ -921,6 +921,9 @@ curl -X GET http://127.0.0.1:7657/intelligence/tasks/stats
 | `page` | integer | 否 | 页码，默认1 |
 | `limit` | integer | 否 | 每页数量，默认20 |
 
+> **⚠️ 使用限制**
+> 当使用 `point_ids` 参数进行筛选且ID数量过多（例如超过50个）时，可能会导致URL过长而请求失败。在这种情况下，强烈建议使用更强大和稳健的 `POST /intelligence/search/articles_filtered` 接口。
+
 **cURL请求示例**
 ```bash
 curl -X GET "http://127.0.0.1:7657/intelligence/articles?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6&page=1&limit=5"
@@ -1012,7 +1015,7 @@ curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
 
 | 字段 | 类型 | 是否必须 | 默认值 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| `query_text` | string | 是 | - | 用于语义搜索的自然语言文本 |
+| `query_text` | string | 是 | - | **[验证规则]** 搜索关键词，不能为空字符串，至少需要一个字符。 |
 | `similarity_threshold` | number | 否 | 0.5 | 相似度得分阈值 (0.0-1.0) |
 | `point_ids` | array[string] | 否 | - | 按一个或多个情报点ID过滤 |
 | `source_names` | array[string] | 否 | - | 按一个或多个情报源名称过滤 |
@@ -1020,6 +1023,8 @@ curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
 | `publish_date_end` | string | 否 | - | 发布日期范围的结束点 (格式: YYYY-MM-DD) |
 | `page` | integer | 否 | 1 | 页码 |
 | `limit` | integer | 否 | 20 | 每页数量 |
+
+**使用场景 1：关键词搜索与筛选**
 
 **请求示例 (JSON)**
 ```json
@@ -1030,6 +1035,20 @@ curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
   "publish_date_start": "2023-10-01",
   "page": 1,
   "limit": 5
+}
+```
+
+**使用场景 2：仅筛选，不进行语义搜索**
+
+当您不需要进行关键词搜索，只想根据 `point_ids` 或其他条件筛选文章时（例如：获取用户订阅的所有情报点的最新文章），`query_text` 字段必须传递一个通配符，例如星号 `*`。
+
+**请求示例 (JSON)**
+```json
+{
+  "query_text": "*",
+  "point_ids": ["b1c2d3e4-f5g6-7890-1234-abcdef123456", "another-point-id"],
+  "page": 1,
+  "limit": 20
 }
 ```
 
