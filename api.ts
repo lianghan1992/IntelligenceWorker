@@ -50,7 +50,7 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
         try {
             errorData = await response.json();
         } catch (e) {
-            errorData = { message: `HTTP error! status: ${response.status}` };
+            errorData = { detail: `HTTP error! status: ${response.status}`, message: `HTTP error! status: ${response.status}` };
         }
         console.error("API Error:", errorData);
         const errorMessage = errorData.detail || errorData.message || `Request failed with status ${response.status}`;
@@ -232,8 +232,6 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 // --- Articles / InfoItems ---
 
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    // 最终修复：根据API文档和多次调试结果，切换到更稳健的POST /articles/search接口。
-    // 这可以从根本上解决GET请求因URL过长或后端参数处理问题导致的422错误。
     const body: { [key: string]: any } = {
         query_text: "", // 传入空字符串以匹配所有文章，仅使用过滤器
         point_ids: point_ids.length > 0 ? point_ids : undefined,
@@ -248,8 +246,8 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
         body.publish_date_end = params.publish_date_end;
     }
 
-    // 使用search接口，因为它接受POST请求和复杂的过滤条件
-    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/search`;
+    // 最终修复：使用API文档 2.10 中定义的正确端点
+    const url = `${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`;
     
     return apiFetch(url, {
         method: 'POST',
@@ -258,15 +256,18 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
 };
 
 export const searchArticles = async (query_text: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
-    const results = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search`, {
+    // 最终修复：此函数也应该使用支持POST的正确端点。
+    // 注意：简单搜索可以调用 `/search/articles`，但为了统一和稳健，我们统一使用更强大的 `articles_filtered`
+    const results = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
-        body: JSON.stringify({ query_text, point_ids, limit }),
+        body: JSON.stringify({ query_text, point_ids, limit, page: 1 }),
     });
     return results.items;
 };
 
 export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search`, {
+    // 最终修复：确保此函数也调用正确的端点
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
         body: JSON.stringify(params),
     });
