@@ -246,6 +246,7 @@ export const IndustryEvents: React.FC = () => {
         // Fix for "Expected 1 arguments, but got 0" error: The `io()` function must be called with a server path.
         // With the current proxy setup, connecting to '/' resolves the issue.
 // FIX: The `io()` function must be called with a server path.
+        // FIX: The `io()` function must be called with a server path to satisfy its type signature and connect correctly.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {

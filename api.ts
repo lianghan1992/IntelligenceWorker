@@ -246,23 +246,10 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 // --- Articles / InfoItems ---
 
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
-    
-    const hasPointFilter = point_ids && point_ids.length > 0;
-    const hasDateFilter = params.publish_date_start || params.publish_date_end;
-
-    // SCENARIO 1: Generic browsing with no filters. Use the simpler GET endpoint.
-    if (!hasPointFilter && !hasDateFilter) {
-        const query = new URLSearchParams({
-            page: String(params.page),
-            limit: String(params.limit),
-        }).toString();
-        return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles?${query}`);
-    }
-
-    // SCENARIO 2: Any kind of filtering is applied. Use the more robust POST endpoint.
+    // 始终使用更强大和可靠的 POST 接口，以避免 GET 请求的 URL 长度限制，并遵循 API 文档的建议。
     const body: { [key: string]: any } = {
-        query_text: '*', // Use wildcard for non-semantic filtering
-        point_ids: hasPointFilter ? point_ids : undefined,
+        query_text: '*', // 用于非语义的结构化筛选
+        point_ids: (point_ids && point_ids.length > 0) ? point_ids : undefined,
         page: params.page,
         limit: params.limit,
     };
