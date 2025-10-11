@@ -233,7 +233,9 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 
 export const getArticles = async (point_ids: string[], params: { page: number, limit: number, publish_date_start?: string, publish_date_end?: string }): Promise<PaginatedResponse<InfoItem>> => {
     const body: { [key: string]: any } = {
-        query_text: "", // 传入空字符串以匹配所有文章，仅使用过滤器
+        // 最终修复：当意图是“筛选”而非“搜索”时，向后端API强制要求的 `query_text` 字段传递一个通配符 `*`。
+        // 这解决了因该字段不能为空字符串而导致的 "422 Unprocessable Content" 错误。
+        query_text: '*',
         point_ids: point_ids.length > 0 ? point_ids : undefined,
         page: params.page,
         limit: params.limit,
@@ -246,7 +248,6 @@ export const getArticles = async (point_ids: string[], params: { page: number, l
         body.publish_date_end = params.publish_date_end;
     }
 
-    // 最终修复：使用API文档 2.10 中定义的正确端点
     const url = `${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`;
     
     return apiFetch(url, {
