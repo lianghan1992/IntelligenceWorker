@@ -38,16 +38,28 @@ const CRON_SCHEDULE_MAP: { [key: string]: string } = {
 
 const formatToBeijingTime = (dateString: string): string => {
     if (!dateString) return 'N/A';
-    // Standardize the date string to a more reliable ISO 8601 format before parsing.
-    // This handles cases where 'T' separator is a space.
-    let parsableDateString = dateString.replace(' ', 'T');
-    if (!parsableDateString.endsWith('Z')) {
-        parsableDateString += 'Z';
+
+    let parsableDateString = dateString;
+
+    // Handle potential microseconds (more than 3 digits after dot) which JS Date struggles with.
+    const dotIndex = parsableDateString.indexOf('.');
+    if (dotIndex !== -1) {
+        // Find end of fractional part (either Z, +, -, or end of string)
+        const timeZoneIndex = parsableDateString.substring(dotIndex).search(/[Z+-]/);
+        const endOfFractional = timeZoneIndex !== -1 ? dotIndex + timeZoneIndex : parsableDateString.length;
+        
+        // If there are more than 3 fractional digits (milliseconds), truncate them.
+        if (endOfFractional > dotIndex + 4) { 
+            parsableDateString = parsableDateString.substring(0, dotIndex + 4) + parsableDateString.substring(endOfFractional);
+        }
     }
+    
     const date = new Date(parsableDateString);
+
     if (isNaN(date.getTime())) {
-        return 'Invalid Date'; // Explicitly handle parsing errors
+        return 'Invalid Date';
     }
+
     return date.toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         year: 'numeric',

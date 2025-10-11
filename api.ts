@@ -217,7 +217,7 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
 };
 
 export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
-    const query = new URLSearchParams({ source_name: sourceName }).toString();
+    const query = new URLSearchParams({ source_name: sourceName.trim() }).toString();
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?${query}`);
 };
 

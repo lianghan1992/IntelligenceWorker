@@ -117,6 +117,7 @@ const EventCard: React.FC<{ event: AppEvent; onShowReport: (event: AppEvent) => 
                 <div className="mt-auto pt-4 border-t border-gray-100">
                     {(() => {
                         const pad = (num: number) => num.toString().padStart(2, '0');
+                        const eventDate = new Date(event.startTime);
                         const year = eventDate.getFullYear();
                         const month = pad(eventDate.getMonth() + 1);
                         const day = pad(eventDate.getDate());
@@ -242,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The io() function requires a server URL. Passing '/' connects to the
-        // origin server, which is correct given the project's proxy configuration.
+        // Fix for "Expected 1 arguments, but got 0" error: The `io()` function must be called with a server path.
+        // With the current proxy setup, connecting to '/' resolves the issue.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
