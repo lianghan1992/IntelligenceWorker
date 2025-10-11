@@ -242,8 +242,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-// FIX: The io() function was called without arguments, causing an error. Passing '/' connects to the origin server as intended by the proxy setup.
-const socket: Socket = io('/');
+        // FIX: The io() function requires a server URL. Passing '/' connects to the
+        // origin server, which is correct given the project's proxy configuration.
+        const socket: Socket = io('/');
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');
