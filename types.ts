@@ -292,6 +292,4 @@ export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';
 // 最终修复：为了彻底解决因文件结构混乱导致的 `html2canvas` 类型解析错误，
 // 在此提供一个明确且唯一的模块声明。这将确保 TypeScript 编译器能够正确识别
 // 通过 importmap 加载的 `html2canvas` 库，从而清除所有相关的编译错误。
-declare module 'html2canvas' {
-  export default function html2canvas(element: HTMLElement, options?: any): Promise<HTMLCanvasElement>;
-}
+declare module 'html2canvas';
