@@ -1,4 +1,4 @@
-import { DeepDive, RecommendedSubscription } from './types';
+import { DeepDive, RecommendedSubscription, TechPrediction, PredictionEvidence } from './types';
 
 // --- Recommended Subscriptions ---
 // 根据用户请求清空示例数据
@@ -7,3 +7,163 @@ export const mockRecommendedSubscriptions: RecommendedSubscription[] = [];
 // --- Deep Dives ---
 // 根据用户请求清空示例数据
 export const mockDeepDives: DeepDive[] = [];
+
+
+// --- New Tech Forecast Mock Data ---
+
+export const mockPredictionEvidence: PredictionEvidence[] = [
+  // Xiaomi SU9 Evidence
+  {
+    evidence_id: 'EVD-XMSU9-001',
+    source_name: '某论坛网友爆料',
+    published_at: '2025-09-15T10:00:00Z',
+    source_quote: '听说小米SU9的座舱芯片会用上高通最新的旗舰芯片，可能是8295。',
+    original_url: '#',
+    initial_confidence: 40,
+  },
+  {
+    evidence_id: 'EVD-XMSU9-002',
+    source_name: '工信部公告',
+    published_at: '2025-10-10T08:00:00Z',
+    source_quote: '新车申报信息显示，车辆型号为XMSU9的智能座舱系统搭载了高通骁龙8295处理器。',
+    original_url: '#',
+    initial_confidence: 90,
+  },
+  {
+    evidence_id: 'EVD-XMSU9-003',
+    source_name: '小米汽车发布会',
+    published_at: '2025-10-28T14:00:00Z',
+    source_quote: '雷军在发布会上正式宣布：小米SU9全系标配高通骁龙8295座舱芯片，带来极致流畅的交互体验。',
+    original_url: '#',
+    initial_confidence: 100,
+  },
+  {
+    evidence_id: 'EVD-XMSU9-004',
+    source_name: '供应链消息人士',
+    published_at: '2025-09-20T11:00:00Z',
+    source_quote: '小米SU9的激光雷达供应商基本确定为禾赛科技，型号可能是AT128。',
+    original_url: '#',
+    initial_confidence: 65,
+  },
+  {
+    evidence_id: 'EVD-XMSU9-005',
+    source_name: '汽车之家谍照分析',
+    published_at: '2025-10-05T18:00:00Z',
+    source_quote: '从最新的路试谍照来看，车顶的激光雷达轮廓与禾赛AT128高度吻合。',
+    original_url: '#',
+    initial_confidence: 80,
+  },
+  // Li L6 Evidence
+  {
+    evidence_id: 'EVD-LIL6-001',
+    source_name: '理想汽车财报电话会',
+    published_at: '2025-08-15T16:00:00Z',
+    source_quote: '李想在电话会中提到，下一款车型（预计为L6）将采用磷酸铁锂电池，以优化成本结构。',
+    original_url: '#',
+    initial_confidence: 70,
+  },
+  {
+    evidence_id: 'EVD-LIL6-002',
+    source_name: '宁德时代技术日',
+    published_at: '2025-09-30T10:30:00Z',
+    source_quote: '宁德时代在活动中透露，已与某头部新势力车企达成神行超充电池的供应协议，首款搭载车型将于明年上半年上市。',
+    original_url: '#',
+    initial_confidence: 75,
+  },
+  {
+    evidence_id: 'EVD-LIL6-003',
+    source_name: '懂车帝独家',
+    published_at: '2025-10-12T09:00:00Z',
+    source_quote: '据可靠消息，理想L6将首发搭载宁德时代神行超充电池，容量约为85kWh。',
+    original_url: '#',
+    initial_confidence: 85,
+  },
+];
+
+
+export const mockTechPredictions: TechPrediction[] = [
+  {
+    prediction_id: 'PRED-XMSU9-ZNCZ-ZCX',
+    vehicle_model: '小米SU9',
+    category: '智能座舱',
+    sub_category: '座舱芯片',
+    current_prediction: '高通骁龙8295',
+    confidence_score: 100,
+    prediction_status: '官方证实',
+    reasoning_log: '基于官方发布会信息，覆盖早期所有传闻。',
+    supporting_evidence_ids: ['EVD-XMSU9-001', 'EVD-XMSU9-002', 'EVD-XMSU9-003'],
+    last_updated_at: '2025-10-28T14:05:10Z',
+  },
+  {
+    prediction_id: 'PRED-XMSU9-ZNJC-JGLD',
+    vehicle_model: '小米SU9',
+    category: '智能驾驶',
+    sub_category: '激光雷达',
+    current_prediction: '禾赛AT128',
+    confidence_score: 80,
+    prediction_status: '基本确认',
+    reasoning_log: '结合供应链消息和谍照分析，高度指向此型号。',
+    supporting_evidence_ids: ['EVD-XMSU9-004', 'EVD-XMSU9-005'],
+    last_updated_at: '2025-10-05T18:15:22Z',
+  },
+  {
+    prediction_id: 'PRED-XMSU9-ZNJC-JSXP',
+    vehicle_model: '小米SU9',
+    category: '智能驾驶',
+    sub_category: '计算芯片',
+    current_prediction: 'NVIDIA Drive Orin-X (双)',
+    confidence_score: 65,
+    prediction_status: '高概率',
+    reasoning_log: '基于对标车型配置和行业趋势分析。',
+    supporting_evidence_ids: [],
+    last_updated_at: '2025-09-18T11:45:00Z',
+  },
+  {
+    prediction_id: 'PRED-XMSU9-SDXT-DCRL',
+    vehicle_model: '小米SU9',
+    category: '三电系统',
+    sub_category: '电池容量',
+    current_prediction: '101kWh',
+    confidence_score: 95,
+    prediction_status: '基本确认',
+    reasoning_log: '工信部公告明确了电池容量信息。',
+    supporting_evidence_ids: [],
+    last_updated_at: '2025-10-10T08:30:00Z',
+  },
+  {
+    prediction_id: 'PRED-LIL6-SDXT-DCRL',
+    vehicle_model: '理想L6',
+    category: '三电系统',
+    sub_category: '电池包',
+    current_prediction: '宁德时代 神行超充电池 (85kWh)',
+    confidence_score: 85,
+    prediction_status: '基本确认',
+    reasoning_log: '多方信源交叉验证，指向宁德时代神行电池。',
+    supporting_evidence_ids: ['EVD-LIL6-001', 'EVD-LIL6-002', 'EVD-LIL6-003'],
+    last_updated_at: '2025-10-12T09:10:00Z',
+  },
+  {
+    prediction_id: 'PRED-LIL6-ZNCZ-ZCX',
+    vehicle_model: '理想L6',
+    category: '智能座舱',
+    sub_category: '座舱芯片',
+    current_prediction: '高通骁龙8295',
+    confidence_score: 70,
+    prediction_status: '高概率',
+    reasoning_log: '基于理想L系列旗舰配置下放的常规策略。',
+    supporting_evidence_ids: [],
+    last_updated_at: '2025-09-01T15:00:00Z',
+  },
+    {
+    prediction_id: 'PRED-LIL6-ZNCZ-PM',
+    vehicle_model: '理想L6',
+    category: '智能座舱',
+    sub_category: '屏幕配置',
+    current_prediction: '中控+副驾双联屏 (取消仪表盘)',
+    confidence_score: 55,
+    prediction_status: '传闻',
+    reasoning_log: '早期内饰谍照显示可能采用类似L7的布局，但有伪装。',
+    supporting_evidence_ids: [],
+    last_updated_at: '2025-08-20T12:00:00Z',
+  },
+];

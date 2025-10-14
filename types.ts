@@ -257,8 +257,33 @@ export interface AllPrompts {
     content_summary_prompts: PromptCollection;
 }
 
+// --- New Types for Tech Forecast ---
+export type PredictionStatus = '传闻' | '高概率' | '基本确认' | '官方证实';
+
+export interface TechPrediction {
+    prediction_id: string;
+    vehicle_model: string;
+    category: string;
+    sub_category: string;
+    current_prediction: string;
+    confidence_score: number;
+    prediction_status: PredictionStatus;
+    reasoning_log: string;
+    supporting_evidence_ids: string[];
+    last_updated_at: string;
+}
+
+export interface PredictionEvidence {
+    evidence_id: string;
+    source_name: string;
+    published_at: string;
+    source_quote: string;
+    original_url: string;
+    initial_confidence: number;
+}
+
 // Navigation views
-export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';
 
 // Admin page views
 export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';

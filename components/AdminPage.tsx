@@ -750,7 +750,9 @@ const IntelligenceManager: React.FC = () => {
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        return [...new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name))];
+        // FIX: Add explicit type assertion for `p` to resolve a TypeScript type inference issue
+        // where `p` could be inferred as `unknown` when accessing an indexed property.
+        return [...new Set((pointsBySource[sourceFilter] || []).map((p) => (p as Subscription).point_name))];
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];

@@ -10,6 +10,7 @@ import { AuthModal } from './components/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage';
 import { StrategicCockpit } from './components/StrategicCockpit';
+import { NewTechForecast } from './components/NewTechForecast';
 import { User, View, Subscription, InfoItem, DeepDive } from './types';
 import { getSubscriptions, searchArticlesFiltered, getMe } from './api';
 import { mockDeepDives } from './mockData';
@@ -116,6 +117,8 @@ const App: React.FC = () => {
         return <StrategicCockpit subscriptions={subscriptions} />;
       case 'feed':
         return <InfoFeed items={infoItems} subscriptions={subscriptions} />;
+      case 'forecast':
+        return <NewTechForecast />;
       case 'dives':
         return <DeepDives dives={deepDives} />;
       case 'events':

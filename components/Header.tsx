@@ -12,6 +12,7 @@ import {
     ChevronDownIcon,
     MenuIcon,
     CloseIcon,
+    BrainIcon,
 } from './icons';
 
 interface HeaderProps {
@@ -25,6 +26,7 @@ const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSV
     { view: 'dashboard', label: '我的工作台', icon: HomeIcon },
     { view: 'cockpit', label: 'AI情报洞察', icon: EyeIcon },
     { view: 'feed', label: '情报信息流', icon: FeedIcon },
+    { view: 'forecast', label: '技术预测', icon: BrainIcon },
     { view: 'dives', label: '深度洞察', icon: DiveIcon },
     { view: 'events', label: '行业事件', icon: VideoCameraIcon },
     { view: 'ai', label: 'AI报告生成', icon: SparklesIcon },
