@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../types';
 import { mockTechPredictions, mockPredictionEvidence } from '../mockData';
-import { CloseIcon, PlusIcon, PencilIcon } from './icons';
+import { CloseIcon, PlusIcon, PencilIcon, DownloadIcon } from './icons';
 
 // --- Types ---
 interface Vehicle {
@@ -275,6 +275,44 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
         setSelectedPrediction(null);
         setVisibleEvidenceCount(5);
     };
+    
+    const handleExportCsv = () => {
+        if (!selectedVehicleName || Object.keys(predictionsByCategory).length === 0) {
+            alert("没有可导出的数据。");
+            return;
+        }
+    
+        const headers = ['分类', '子分类', '预测内容', '置信度', '状态', '相关情报数量', '最新更新时间'];
+        const rows = Object.entries(predictionsByCategory).flatMap(([category, preds]) =>
+            (preds as TechPrediction[]).map(p => [
+                category,
+                p.sub_category,
+                `"${p.current_prediction.replace(/"/g, '""')}"`, // Handle quotes for CSV
+                p.confidence_score,
+                p.prediction_status,
+                p.supporting_evidence_ids.length,
+                new Date(p.last_updated_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })
+            ])
+        );
+    
+        // Prepend BOM for UTF-8 compatibility in Excel
+        let csvContent = "\uFEFF";
+        csvContent += headers.join(',') + '\r\n';
+        csvContent += rows.map(row => row.join(',')).join('\r\n');
+    
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `${selectedVehicleName}_技术预测.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+    };
 
     return (
         <div className="h-full bg-gray-50/70 flex overflow-hidden">
@@ -330,7 +368,13 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
 
             {/* Middle Column: Prediction Board */}
             <main className="flex-1 h-full overflow-y-auto p-6">
-                 <h1 className="text-2xl font-bold text-gray-900 mb-4">{selectedVehicleName} - 技术预测看板</h1>
+                <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedVehicleName} - 技术预测看板</h1>
+                    <button onClick={handleExportCsv} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                        <DownloadIcon className="w-4 h-4" />
+                        导出CSV
+                    </button>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {Object.entries(predictionsByCategory).map(([category, predictions]) => {
                         const totalEvidenceCount = new Set((predictions as TechPrediction[]).flatMap(p => p.supporting_evidence_ids)).size;
