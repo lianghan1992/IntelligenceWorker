@@ -187,12 +187,26 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
     }, [vehicles, selectedVehicleName]);
 
     const intelligenceCountByVehicle = useMemo(() => {
-        const counts = new Map<string, number>();
+        // Step 1: Create a map from vehicle model to a Set of unique evidence IDs.
+        const evidenceSetsByVehicle = new Map<string, Set<string>>();
         predictions.forEach(p => {
-            const currentCount = counts.get(p.vehicle_model) || new Set();
-            p.supporting_evidence_ids.forEach(id => (currentCount as Set<string>).add(id));
-            counts.set(p.vehicle_model, (currentCount as Set<string>).size);
+            // Ensure a Set exists for the current vehicle model.
+            if (!evidenceSetsByVehicle.has(p.vehicle_model)) {
+                evidenceSetsByVehicle.set(p.vehicle_model, new Set<string>());
+            }
+            // Get the Set and add all supporting evidence IDs to it.
+            const evidenceSet = evidenceSetsByVehicle.get(p.vehicle_model)!;
+            p.supporting_evidence_ids.forEach(id => {
+                evidenceSet.add(id);
+            });
         });
+
+        // Step 2: Create the final map from vehicle model to the count of unique evidence IDs.
+        const counts = new Map<string, number>();
+        evidenceSetsByVehicle.forEach((evidenceSet, vehicleModel) => {
+            counts.set(vehicleModel, evidenceSet.size);
+        });
+
         return counts;
     }, [predictions]);
 
@@ -295,8 +309,8 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
                             </div>
 
                             <div className="relative z-10">
-                                <p className="text-sm font-semibold opacity-80">{vehicle.manufacturer}</p>
-                                <h3 className="text-lg font-bold -mt-1">{vehicle.name}</h3>
+                                <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full mb-1.5">{vehicle.manufacturer}</span>
+                                <h3 className="text-lg font-bold">{vehicle.name}</h3>
                                 {vehicle.releaseDate && <p className="text-xs opacity-70 mt-1">预计发布: {vehicle.releaseDate}</p>}
                             </div>
 

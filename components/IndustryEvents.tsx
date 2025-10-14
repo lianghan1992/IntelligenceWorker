@@ -243,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function was called without arguments, causing a TypeScript error.
-        // Passing `'/'` connects to the same host and satisfies the function's type signature.
+        // FIX: The `io()` function was called without arguments, which can cause an error.
+        // Passing `'/'` as an argument connects the client to the server on the same host.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
