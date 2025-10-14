@@ -78,36 +78,10 @@ export const mockPredictionEvidence: PredictionEvidence[] = [
     original_url: '#',
     initial_confidence: 85,
   },
-  // NIO ET9 Evidence
-  {
-    evidence_id: 'EVD-NIOET9-001',
-    source_name: 'NIO Day 2024',
-    published_at: '2024-12-21T19:00:00Z',
-    source_quote: '蔚来ET9正式发布，搭载全域900V高压架构，并首发自研智能驾驶芯片神玑NX9031。',
-    original_url: '#',
-    initial_confidence: 100,
-  },
-  {
-    evidence_id: 'EVD-NIOET9-002',
-    source_name: '高通骁龙峰会',
-    published_at: '2024-10-25T11:00:00Z',
-    source_quote: '蔚来汽车确认将成为首批搭载骁龙8 Gen 3汽车平台的车企之一，应用于其下一代旗舰车型。',
-    original_url: '#',
-    initial_confidence: 80,
-  },
-  {
-    evidence_id: 'EVD-NIOET9-003',
-    source_name: '图达通发布会',
-    published_at: '2024-11-10T15:00:00Z',
-    source_quote: '我们的Falcon猎鹰激光雷达已获得蔚来下一代旗舰车型的定点，将提供前所未有的感知能力。',
-    original_url: '#',
-    initial_confidence: 90,
-  },
 ];
 
 
 export const mockTechPredictions: TechPrediction[] = [
-  // Xiaomi SU9
   {
     prediction_id: 'PRED-XMSU9-ZNCZ-ZCX',
     vehicle_model: '小米SU9',
@@ -153,10 +127,9 @@ export const mockTechPredictions: TechPrediction[] = [
     confidence_score: 95,
     prediction_status: '基本确认',
     reasoning_log: '工信部公告明确了电池容量信息。',
-    supporting_evidence_ids: ['EVD-XMSU9-002'],
+    supporting_evidence_ids: [],
     last_updated_at: '2025-10-10T08:30:00Z',
   },
-  // Li L6
   {
     prediction_id: 'PRED-LIL6-SDXT-DCRL',
     vehicle_model: '理想L6',
@@ -181,7 +154,7 @@ export const mockTechPredictions: TechPrediction[] = [
     supporting_evidence_ids: [],
     last_updated_at: '2025-09-01T15:00:00Z',
   },
-  {
+    {
     prediction_id: 'PRED-LIL6-ZNCZ-PM',
     vehicle_model: '理想L6',
     category: '智能座舱',
@@ -192,66 +165,5 @@ export const mockTechPredictions: TechPrediction[] = [
     reasoning_log: '早期内饰谍照显示可能采用类似L7的布局，但有伪装。',
     supporting_evidence_ids: [],
     last_updated_at: '2025-08-20T12:00:00Z',
-  },
-  // NIO ET9
-  {
-    prediction_id: 'PRED-NIOET9-ZNJC-JSXP',
-    vehicle_model: '蔚来ET9',
-    category: '智能驾驶',
-    sub_category: '计算芯片',
-    current_prediction: '神玑NX9031 (自研)',
-    confidence_score: 100,
-    prediction_status: '官方证实',
-    reasoning_log: 'NIO Day 2024官方发布会已公布。',
-    supporting_evidence_ids: ['EVD-NIOET9-001'],
-    last_updated_at: '2024-12-21T19:30:00Z',
-  },
-  {
-    prediction_id: 'PRED-NIOET9-ZNCZ-ZCX',
-    vehicle_model: '蔚来ET9',
-    category: '智能座舱',
-    sub_category: '座舱芯片',
-    current_prediction: '高通骁龙 8 Gen 3 (汽车平台)',
-    confidence_score: 80,
-    prediction_status: '基本确认',
-    reasoning_log: '蔚来在高通峰会已确认将首批搭载。',
-    supporting_evidence_ids: ['EVD-NIOET9-002'],
-    last_updated_at: '2024-10-25T11:15:00Z',
-  },
-  {
-    prediction_id: 'PRED-NIOET9-SDXT-GYPT',
-    vehicle_model: '蔚来ET9',
-    category: '三电系统',
-    sub_category: '高压平台',
-    current_prediction: '全域900V',
-    confidence_score: 100,
-    prediction_status: '官方证实',
-    reasoning_log: 'NIO Day 2024官方发布会已公布。',
-    supporting_evidence_ids: ['EVD-NIOET9-001'],
-    last_updated_at: '2024-12-21T19:20:00Z',
-  },
-  {
-    prediction_id: 'PRED-NIOET9-CDJS-XJXT',
-    vehicle_model: '蔚来ET9',
-    category: '底盘技术',
-    sub_category: '悬架系统',
-    current_prediction: '天行全主动悬架',
-    confidence_score: 100,
-    prediction_status: '官方证实',
-    reasoning_log: 'NIO Day 2024官方发布会已公布。',
-    supporting_evidence_ids: ['EVD-NIOET9-001'],
-    last_updated_at: '2024-12-21T19:40:00Z',
-  },
-  {
-    prediction_id: 'PRED-NIOET9-ZNJC-JGLD',
-    vehicle_model: '蔚来ET9',
-    category: '智能驾驶',
-    sub_category: '激光雷达',
-    current_prediction: '图达通 Falcon (猎鹰)',
-    confidence_score: 90,
-    prediction_status: '基本确认',
-    reasoning_log: '供应商图达通已宣布获得蔚来旗舰车型定点。',
-    supporting_evidence_ids: ['EVD-NIOET9-003'],
-    last_updated_at: '2024-11-10T15:10:00Z',
   },
 ];

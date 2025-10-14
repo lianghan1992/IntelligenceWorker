@@ -228,7 +228,6 @@ export const IndustryEvents: React.FC = () => {
 
             setError(null);
             try {
-                // Fix: Pass the 'page' argument to the getEvents function to fetch paginated event data.
                 const { events: newEvents, totalPages: newTotalPages } = await getEvents(page);
                 setEvents(prevEvents => sortEvents(page === 1 ? newEvents : [...prevEvents, ...newEvents]));
                 setTotalPages(newTotalPages);
@@ -244,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function was called without a server URL, causing an error.
-        // Passing `'/'` connects the socket to the server on the same host, which is correctly proxied by Vite/Node.
+        // FIX: The `io()` function was called without arguments, which can cause an error.
+        // Passing `'/'` as an argument connects the client to the server on the same host.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
