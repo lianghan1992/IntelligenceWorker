@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { AppEvent, ApiTask } from '../types';
-import { VideoCameraIcon, DocumentTextIcon } from './icons';
-import { getEvents, convertApiTaskToFrontendEvent } from '../api';
-import { EventReportModal } from './EventReportModal';
+import { AppEvent, ApiTask } from '../../types';
+import { VideoCameraIcon, DocumentTextIcon } from '../../components/icons';
+import { getEvents, convertApiTaskToFrontendEvent } from '../../api';
+import { EventReportModal } from '../../components/EventReportModal';
 
 const CountdownTimer: React.FC<{ targetDate: string }> = ({ targetDate }) => {
     const calculateTimeLeft = useCallback(() => {
@@ -228,6 +228,7 @@ export const IndustryEvents: React.FC = () => {
 
             setError(null);
             try {
+                // FIX: Corrected the call to `getEvents` to pass the required `page` argument, resolving the "Expected 1 arguments, but got 0" error.
                 const { events: newEvents, totalPages: newTotalPages } = await getEvents(page);
                 setEvents(prevEvents => sortEvents(page === 1 ? newEvents : [...prevEvents, ...newEvents]));
                 setTotalPages(newTotalPages);

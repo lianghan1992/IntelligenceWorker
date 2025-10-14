@@ -289,11 +289,9 @@ export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' 
 export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';
 
 // --- Type Declarations for untyped libraries ---
-// FIX: Replaced the ambient module declaration for 'html2canvas' with a more robust version
-// to finally resolve the persistent TS2307 and TS2664 build errors. This structure explicitly
-// declares the module and its default export in a way that is compatible with the project's
-// strict module resolution settings.
+// 最终修复：为了彻底解决因文件结构混乱导致的 `html2canvas` 类型解析错误，
+// 在此提供一个明确且唯一的模块声明。这将确保 TypeScript 编译器能够正确识别
+// 通过 importmap 加载的 `html2canvas` 库，从而清除所有相关的编译错误。
 declare module 'html2canvas' {
-  const html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
-  export default html2canvas;
+  export default function html2canvas(element: HTMLElement, options?: any): Promise<HTMLCanvasElement>;
 }

@@ -228,6 +228,7 @@ export const IndustryEvents: React.FC = () => {
 
             setError(null);
             try {
+                // FIX: Corrected the call to `getEvents` to pass the required `page` argument, resolving the "Expected 1 arguments, but got 0" error.
                 const { events: newEvents, totalPages: newTotalPages } = await getEvents(page);
                 setEvents(prevEvents => sortEvents(page === 1 ? newEvents : [...prevEvents, ...newEvents]));
                 setTotalPages(newTotalPages);
