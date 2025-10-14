@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../types';
 import { mockTechPredictions, mockPredictionEvidence } from '../mockData';
-import { CloseIcon, PlusIcon, PencilIcon } from './icons';
+import { CloseIcon, PlusIcon, PencilIcon, DownloadIcon } from './icons';
 
 // --- Types ---
 interface Vehicle {
@@ -37,6 +38,14 @@ const generateImageUrl = (vehicleName: string) => {
 
 
 // --- Sub-Components ---
+
+const Spinner: React.FC = () => (
+    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
 const VehicleModal: React.FC<{
     mode: 'add' | 'edit';
     vehicleToEdit?: Vehicle;
@@ -162,8 +171,12 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
     const initialVehicles = useMemo(() => {
         const uniqueNames = Array.from(new Set(predictions.map(p => p.vehicle_model)));
         return uniqueNames.map((name, index) => {
-            // 智能提取车企名称
-            const manufacturer = name.includes('SU9') ? '小米' : '理想';
+             // 智能提取车企名称
+            let manufacturer = '未知';
+            if (name.includes('小米')) manufacturer = '小米';
+            if (name.includes('理想')) manufacturer = '理想';
+            if (name.includes('蔚来')) manufacturer = '蔚来';
+
             return {
                 name,
                 manufacturer,
@@ -179,6 +192,8 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
     const [selectedPrediction, setSelectedPrediction] = useState<TechPrediction | null>(null);
     const [modalState, setModalState] = useState<{ mode: 'add' | 'edit'; vehicle?: Vehicle } | null>(null);
     const [visibleEvidenceCount, setVisibleEvidenceCount] = useState(5);
+    const [isExporting, setIsExporting] = useState(false);
+
 
     useEffect(() => {
         if (!selectedVehicleName && vehicles.length > 0) {
@@ -187,21 +202,17 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
     }, [vehicles, selectedVehicleName]);
 
     const intelligenceCountByVehicle = useMemo(() => {
-        // Step 1: Create a map from vehicle model to a Set of unique evidence IDs.
         const evidenceSetsByVehicle = new Map<string, Set<string>>();
         predictions.forEach(p => {
-            // Ensure a Set exists for the current vehicle model.
             if (!evidenceSetsByVehicle.has(p.vehicle_model)) {
                 evidenceSetsByVehicle.set(p.vehicle_model, new Set<string>());
             }
-            // Get the Set and add all supporting evidence IDs to it.
             const evidenceSet = evidenceSetsByVehicle.get(p.vehicle_model)!;
             p.supporting_evidence_ids.forEach(id => {
                 evidenceSet.add(id);
             });
         });
 
-        // Step 2: Create the final map from vehicle model to the count of unique evidence IDs.
         const counts = new Map<string, number>();
         evidenceSetsByVehicle.forEach((evidenceSet, vehicleModel) => {
             counts.set(vehicleModel, evidenceSet.size);
@@ -276,6 +287,31 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
         setVisibleEvidenceCount(5);
     };
 
+    const handleExport = async () => {
+        setIsExporting(true);
+        const boardElement = document.getElementById('prediction-board-grid');
+        if (boardElement) {
+            try {
+                const canvas = await html2canvas(boardElement, {
+                    scale: 2, // Improve quality
+                    useCORS: true,
+                    backgroundColor: '#f9fafb' // Match page background
+                });
+                const image = canvas.toDataURL('image/png', 1.0);
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = `${selectedVehicleName}_技术预测报告.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error("导出图片失败:", error);
+                alert("导出图片失败，请检查控制台获取更多信息。");
+            }
+        }
+        setIsExporting(false);
+    };
+
     return (
         <div className="h-full bg-gray-50/70 flex overflow-hidden">
             {/* Left Column: Vehicle Selector */}
@@ -330,8 +366,18 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
 
             {/* Middle Column: Prediction Board */}
             <main className="flex-1 h-full overflow-y-auto p-6">
-                 <h1 className="text-2xl font-bold text-gray-900 mb-4">{selectedVehicleName} - 技术预测看板</h1>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                 <div className="flex justify-between items-center mb-4">
+                    <h1 className="text-2xl font-bold text-gray-900">{selectedVehicleName} - 技术预测看板</h1>
+                    <button 
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-sm hover:bg-green-700 transition-colors disabled:bg-green-300 disabled:cursor-not-allowed"
+                    >
+                        {isExporting ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
+                        <span>{isExporting ? '生成中...' : '导出长图'}</span>
+                    </button>
+                </div>
+                <div id="prediction-board-grid" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {Object.entries(predictionsByCategory).map(([category, predictions]) => {
                         const totalEvidenceCount = new Set((predictions as TechPrediction[]).flatMap(p => p.supporting_evidence_ids)).size;
                         return (

@@ -243,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function was called without arguments, which can cause an error.
-        // Passing `'/'` as an argument connects the client to the server on the same host.
+        // Fix: The `io()` function requires a server URL. Calling it without arguments is deprecated and can cause runtime errors.
+        // Passing `'/'` as an argument connects the client to the server on the same host, which works with the current proxy setup.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
