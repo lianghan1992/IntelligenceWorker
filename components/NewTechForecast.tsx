@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { TechPrediction, PredictionEvidence, PredictionStatus } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../types';
 import { mockTechPredictions, mockPredictionEvidence } from '../mockData';
-import { ChevronDownIcon, CloseIcon, ChevronRightIcon } from './icons';
+import { ChevronDownIcon, CloseIcon, PlusIcon } from './icons';
 
 // --- Helper Functions ---
 const getConfidenceStyles = (score: number) => {
@@ -22,76 +22,81 @@ const getStatusStyles = (status: PredictionStatus) => {
 };
 
 // --- Sub-Components ---
-
-const EvidenceSidebar: React.FC<{
-    prediction: TechPrediction;
-    onClose: () => void;
-}> = ({ prediction, onClose }) => {
-    const evidence = useMemo(() => {
-        return mockPredictionEvidence
-            .filter(e => prediction.supporting_evidence_ids.includes(e.evidence_id))
-            .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
-    }, [prediction]);
+const AddVehicleModal: React.FC<{ onClose: () => void; onAdd: (name: string) => void; }> = ({ onClose, onAdd }) => {
+    const [name, setName] = useState('');
+    
+    const handleAdd = () => {
+        if (name.trim()) {
+            onAdd(name.trim());
+        }
+    };
 
     return (
-        <div className="absolute inset-0 bg-black/30 animate-in fade-in-0" onClick={onClose}>
-            <div 
-                className="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right-full duration-300"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="p-5 border-b flex justify-between items-center">
-                    <div>
-                        <h3 className="text-lg font-bold text-gray-900">{prediction.sub_category} - 溯源</h3>
-                        <p className="text-sm text-gray-500">{prediction.vehicle_model}</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-                        <CloseIcon className="w-5 h-5" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">新增预测车型</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+                        <CloseIcon className="w-6 h-6" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50">
-                    {evidence.map((item, index) => (
-                        <div key={item.evidence_id} className="bg-white p-4 rounded-lg border border-gray-200 relative">
-                             <div className="absolute -left-2.5 top-5 w-5 h-5 bg-white border-2 border-blue-500 rounded-full"></div>
-                             {index < evidence.length - 1 && <div className="absolute -left-0.5 top-10 bottom-0 w-0.5 bg-blue-200"></div>}
-                            <div className="pl-6">
-                                <p className="text-xs text-gray-500">{new Date(item.published_at).toLocaleString('zh-CN')}</p>
-                                <p className="font-semibold text-gray-800 my-1">{item.source_name}</p>
-                                <blockquote className="border-l-4 border-gray-200 pl-3 text-sm text-gray-600 my-2">"{item.source_quote}"</blockquote>
-                                <div className="flex justify-between items-center mt-2">
-                                     <a href={item.original_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">查看原文</a>
-                                     <span className="text-xs font-bold text-gray-500">初始置信度: {item.initial_confidence}%</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                     {evidence.length === 0 && <p className="text-gray-500 text-center py-10">暂无外部证据支持该预测。</p>}
+                <div className="p-6">
+                    <label htmlFor="vehicle-name" className="block text-sm font-medium text-gray-700 mb-1">车型名称</label>
+                    <input
+                        id="vehicle-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="例如：蔚来ET9"
+                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                    <button onClick={handleAdd} disabled={!name.trim()} className="py-2 px-6 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300">
+                        确认新增
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-const Accordion: React.FC<{ title: string; count: number; children: React.ReactNode }> = ({ title, count, children }) => {
-    const [isOpen, setIsOpen] = useState(true);
-    return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <button onClick={() => setIsOpen(!isOpen)} className="w-full p-4 text-left flex justify-between items-center hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                    <h3 className="font-bold text-gray-800">{title}</h3>
-                    <span className="px-2 py-0.5 text-xs font-bold text-blue-800 bg-blue-100 rounded-full">{count} 项</span>
-                </div>
-                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {isOpen && <div className="border-t border-gray-200">{children}</div>}
+
+const EvidenceCard: React.FC<{ item: PredictionEvidence }> = ({ item }) => (
+    <div className="bg-white p-4 rounded-lg border border-gray-200 relative animate-in fade-in-0 duration-300">
+        <div className="absolute -left-2.5 top-5 w-5 h-5 bg-white border-2 border-blue-500 rounded-full"></div>
+        <div className="pl-6">
+            <p className="text-xs text-gray-500">{new Date(item.published_at).toLocaleString('zh-CN')}</p>
+            <p className="font-semibold text-gray-800 my-1">{item.source_name}</p>
+            <blockquote className="border-l-4 border-gray-200 pl-3 text-sm text-gray-600 my-2">"{item.source_quote}"</blockquote>
+            <div className="flex justify-between items-center mt-2">
+                 <a href={item.original_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">查看原文</a>
+                 <span className="text-xs font-bold text-gray-500">初始置信度: {item.initial_confidence}%</span>
+            </div>
         </div>
-    );
-};
+    </div>
+);
 
-export const NewTechForecast: React.FC = () => {
-    const [selectedVehicle, setSelectedVehicle] = useState('小米SU9');
+// --- Main Component ---
+interface NewTechForecastProps {
+    user: User;
+}
+
+export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
+    const initialVehicles = useMemo(() => Array.from(new Set(mockTechPredictions.map(p => p.vehicle_model))), []);
+    const [vehicles, setVehicles] = useState<string[]>(initialVehicles);
+    const [selectedVehicle, setSelectedVehicle] = useState(vehicles[0] || '');
     const [selectedPrediction, setSelectedPrediction] = useState<TechPrediction | null>(null);
+    const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+    const [visibleEvidenceCount, setVisibleEvidenceCount] = useState(5);
 
-    const vehicles = useMemo(() => Array.from(new Set(mockTechPredictions.map(p => p.vehicle_model))), []);
+    // 当车型列表变化时（例如新增），确保有选中的车型
+    useEffect(() => {
+        if (!selectedVehicle && vehicles.length > 0) {
+            setSelectedVehicle(vehicles[0]);
+        }
+    }, [vehicles, selectedVehicle]);
+
 
     const predictionsByCategory = useMemo(() => {
         return mockTechPredictions
@@ -102,85 +107,154 @@ export const NewTechForecast: React.FC = () => {
                 return acc;
             }, {} as Record<string, TechPrediction[]>);
     }, [selectedVehicle]);
+    
+    // 创建一个从证据ID到车型的映射，用于在右侧栏展示“全部情报”
+    const evidenceToVehicleMap = useMemo(() => {
+        const map = new Map<string, string>();
+        mockTechPredictions.forEach(pred => {
+            pred.supporting_evidence_ids.forEach(id => {
+                map.set(id, pred.vehicle_model);
+            });
+        });
+        return map;
+    }, []);
+
+    const evidenceToShow = useMemo(() => {
+        let relevantEvidence: PredictionEvidence[];
+        if (selectedPrediction) {
+            // 模式2：显示与选中预测相关的证据
+            const evidenceIds = new Set(selectedPrediction.supporting_evidence_ids);
+            relevantEvidence = mockPredictionEvidence.filter(e => evidenceIds.has(e.evidence_id));
+        } else {
+            // 模式1：显示当前选中车型的所有证据
+            relevantEvidence = mockPredictionEvidence.filter(e => evidenceToVehicleMap.get(e.evidence_id) === selectedVehicle);
+        }
+        return relevantEvidence.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
+    }, [selectedVehicle, selectedPrediction, evidenceToVehicleMap]);
+
+    const visibleEvidence = useMemo(() => evidenceToShow.slice(0, visibleEvidenceCount), [evidenceToShow, visibleEvidenceCount]);
+
+    const handleAddVehicle = (name: string) => {
+        if (!vehicles.includes(name)) {
+            setVehicles(prev => [name, ...prev]);
+        }
+        setSelectedVehicle(name);
+        setIsAddVehicleModalOpen(false);
+    };
+
+    const handleSelectVehicle = (vehicle: string) => {
+        setSelectedVehicle(vehicle);
+        setSelectedPrediction(null); // 切换车型时，清空选中的预测
+        setVisibleEvidenceCount(5); // 重置懒加载计数
+    };
 
     return (
-        <div className="h-full bg-gray-50/70 flex relative overflow-hidden">
+        <div className="h-full bg-gray-50/70 flex overflow-hidden">
             {/* Left Column: Vehicle Selector */}
-            <aside className="w-1/5 h-full overflow-y-auto bg-white border-r p-4 space-y-2">
-                <h2 className="text-sm font-semibold text-gray-500 px-2 uppercase tracking-wider">选择车型</h2>
-                {vehicles.map(vehicle => (
+            <aside className="w-64 h-full overflow-y-auto bg-white border-r p-4 space-y-2 flex-shrink-0">
+                <h2 className="text-sm font-semibold text-gray-500 px-2 uppercase tracking-wider mb-2">选择车型</h2>
+                {/* 仅管理员可见的新增按钮。硬编码用户邮箱用于演示目的。 */}
+                {user.email === '326575140@qq.com' && (
                     <button
-                        key={vehicle}
-                        onClick={() => setSelectedVehicle(vehicle)}
-                        className={`w-full text-left px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors flex justify-between items-center ${
-                            selectedVehicle === vehicle
-                                ? 'bg-blue-600 text-white shadow'
-                                : 'text-gray-700 hover:bg-gray-100'
-                        }`}
+                        onClick={() => setIsAddVehicleModalOpen(true)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors flex items-center gap-3 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-dashed border-blue-300"
                     >
-                        <span>{vehicle}</span>
-                        {selectedVehicle === vehicle && <ChevronRightIcon className="w-5 h-5"/>}
+                        <PlusIcon className="w-5 h-5" />
+                        <span>新增车型</span>
                     </button>
+                )}
+                {vehicles.map((vehicle, index) => (
+                    <div
+                        key={vehicle}
+                        onClick={() => handleSelectVehicle(vehicle)}
+                        className={`w-full p-4 rounded-lg font-bold text-white transition-all duration-300 cursor-pointer relative overflow-hidden group h-20 flex flex-col justify-end ${
+                            selectedVehicle === vehicle ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                        }`}
+                        style={{
+                            backgroundImage: `url('https://source.unsplash.com/random/400x200?car,night,${index}')`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                        }}
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/10 group-hover:from-black/80 transition-all"></div>
+                        <span className="relative z-10 text-lg">{vehicle}</span>
+                    </div>
                 ))}
             </aside>
 
             {/* Middle Column: Prediction Board */}
-            <main className="w-3/5 h-full overflow-y-auto p-6 space-y-4">
-                 <h1 className="text-2xl font-bold text-gray-900">{selectedVehicle} - 技术预测看板</h1>
-                {Object.entries(predictionsByCategory).map(([category, predictionsUnknown]) => {
-                    // FIX: Cast the value from Object.entries to the correct type to resolve TS errors.
-                    // `predictionsUnknown` is inferred as `unknown`, so we assert it's `TechPrediction[]`.
-                    const predictions = predictionsUnknown as TechPrediction[];
-                    return (
-                        <Accordion key={category} title={category} count={predictions.length}>
-                            <div className="divide-y divide-gray-100">
-                            {predictions.map(p => {
-                                const confidence = getConfidenceStyles(p.confidence_score);
-                                const status = getStatusStyles(p.prediction_status);
-                                return (
-                                    <div key={p.prediction_id} onClick={() => setSelectedPrediction(p)} className="p-4 hover:bg-blue-50 cursor-pointer">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h4 className="font-semibold text-gray-800">{p.sub_category}</h4>
-                                            <span className={`px-2 py-1 text-xs font-bold rounded-full ${status}`}>{p.prediction_status}</span>
-                                        </div>
-                                        <p className="text-lg font-bold text-blue-700">{p.current_prediction}</p>
-                                        <div className="mt-3">
-                                            <div className="flex justify-between items-center mb-1 text-xs">
-                                                <span className="font-semibold text-gray-600">置信度</span>
-                                                <span className={`font-bold ${confidence.text}`}>{p.confidence_score}%</span>
+            <main className="flex-1 h-full overflow-y-auto p-6">
+                 <h1 className="text-2xl font-bold text-gray-900 mb-4">{selectedVehicle} - 技术预测看板</h1>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {Object.entries(predictionsByCategory).map(([category, predictions]) => {
+                        const totalEvidenceCount = new Set((predictions as TechPrediction[]).flatMap(p => p.supporting_evidence_ids)).size;
+                        return (
+                            <div key={category} className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+                                <div className="p-4 border-b">
+                                    <h3 className="font-bold text-gray-800">{category}</h3>
+                                    <p className="text-xs text-gray-500">{totalEvidenceCount} 条相关情报</p>
+                                </div>
+                                <div className="divide-y divide-gray-100 flex-1">
+                                {(predictions as TechPrediction[]).map(p => {
+                                    const confidence = getConfidenceStyles(p.confidence_score);
+                                    const status = getStatusStyles(p.prediction_status);
+                                    return (
+                                        <div key={p.prediction_id} onClick={() => { setSelectedPrediction(p); setVisibleEvidenceCount(5); }} className={`p-4 hover:bg-blue-50 cursor-pointer transition-colors ${selectedPrediction?.prediction_id === p.prediction_id ? 'bg-blue-50' : ''}`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="font-semibold text-gray-800">{p.sub_category}</h4>
+                                                <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${status} flex-shrink-0`}>{p.prediction_status}</span>
                                             </div>
-                                            <div className="w-full bg-gray-200 rounded-full h-2">
-                                                <div className={`${confidence.bar} h-2 rounded-full`} style={{ width: `${p.confidence_score}%` }}></div>
+                                            <div className="flex justify-between items-baseline">
+                                                <p className="text-lg font-bold text-blue-700">{p.current_prediction}</p>
+                                                <span className="text-xs text-gray-500 font-medium">{p.supporting_evidence_ids.length}条证据</span>
+                                            </div>
+                                            <div className="mt-3">
+                                                <div className="flex justify-between items-center mb-1 text-xs">
+                                                    <span className="font-semibold text-gray-600">置信度</span>
+                                                    <span className={`font-bold ${confidence.text}`}>{p.confidence_score}%</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                                    <div className={`${confidence.bar} h-2 rounded-full`} style={{ width: `${p.confidence_score}%` }}></div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            更新于 {new Date(p.last_updated_at).toLocaleDateString('zh-CN')} - {p.reasoning_log}
-                                        </p>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                                </div>
                             </div>
-                        </Accordion>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </main>
 
-            {/* Right Column (Conditional): Evidence Sidebar */}
-             <aside className="w-1/5 h-full bg-gray-100 border-l p-6 overflow-y-auto">
-                 <h2 className="text-lg font-bold text-gray-800 mb-4">决策大脑</h2>
-                 <div className="bg-white p-4 rounded-lg border shadow-sm">
-                    <p className="text-sm text-gray-600">
-                        这里是 **Auto-Prophet** 预测引擎的核心展示区。
+            {/* Right Column: Raw Intelligence */}
+             <aside className="w-1/3 max-w-lg h-full bg-white border-l flex flex-col flex-shrink-0">
+                <div className="p-5 border-b flex-shrink-0">
+                    <h3 className="text-lg font-bold text-gray-900">原始情报</h3>
+                    <p className="text-sm text-gray-500 truncate">
+                        {selectedPrediction 
+                            ? `关于 “${selectedPrediction.sub_category}” 的 ${evidenceToShow.length} 条情报`
+                            : `关于 “${selectedVehicle}” 的 ${evidenceToShow.length} 条情报`
+                        }
                     </p>
-                    <ul className="mt-3 text-xs text-gray-500 space-y-2 list-disc list-inside">
-                        <li>点击左侧选择您关注的车型。</li>
-                        <li>在中间的看板查看各技术维度的最新预测。</li>
-                        <li>点击任意一条预测，即可在右侧滑出的面板中，追溯支撑该预测的所有情报证据。</li>
-                    </ul>
-                 </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/70">
+                    {visibleEvidence.map((item, index) => (
+                        <div key={item.evidence_id} className="relative">
+                            <EvidenceCard item={item} />
+                            {index < visibleEvidence.length - 1 && <div className="absolute -left-0.5 top-10 bottom-0 w-0.5 bg-blue-200"></div>}
+                        </div>
+                    ))}
+                     {evidenceToShow.length === 0 && <p className="text-gray-500 text-center py-10">暂无相关情报。</p>}
+                     {evidenceToShow.length > visibleEvidenceCount && (
+                         <button onClick={() => setVisibleEvidenceCount(prev => prev + 5)} className="w-full py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
+                             加载更多
+                         </button>
+                     )}
+                </div>
             </aside>
-
-            {selectedPrediction && <EvidenceSidebar prediction={selectedPrediction} onClose={() => setSelectedPrediction(null)} />}
+            
+            {isAddVehicleModalOpen && <AddVehicleModal onClose={() => setIsAddVehicleModalOpen(false)} onAdd={handleAddVehicle} />}
         </div>
     );
 };

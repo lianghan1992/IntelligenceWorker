@@ -118,7 +118,8 @@ const App: React.FC = () => {
       case 'feed':
         return <InfoFeed items={infoItems} subscriptions={subscriptions} />;
       case 'forecast':
-        return <NewTechForecast />;
+        // 将 user prop 传递给 NewTechForecast 组件
+        return <NewTechForecast user={user} />;
       case 'dives':
         return <DeepDives dives={deepDives} />;
       case 'events':

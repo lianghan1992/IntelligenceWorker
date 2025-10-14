@@ -243,9 +243,9 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function should be called without arguments for same-origin connections.
-        // The client will automatically connect to the host that serves the page, and the configured proxy will handle the connection.
-        const socket: Socket = io();
+        // FIX: The `io()` function for same-origin connections was causing a TypeScript error.
+        // Passing `'/'` connects to the same host and satisfies the type checker, working correctly with the proxy.
+        const socket: Socket = io('/');
 
         socket.on('connect', () => {
             console.log('WebSocket connected. Joining room: live_recorder');
