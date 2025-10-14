@@ -1,7 +1,16 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../types';
 import { mockTechPredictions, mockPredictionEvidence } from '../mockData';
-import { ChevronDownIcon, CloseIcon, PlusIcon } from './icons';
+import { CloseIcon, PlusIcon, PencilIcon } from './icons';
+
+// --- Types ---
+interface Vehicle {
+    name: string;
+    imageUrl: string;
+    manufacturer: string;
+    releaseDate: string;
+    description: string;
+}
 
 // --- Helper Functions ---
 const getConfidenceStyles = (score: number) => {
@@ -21,39 +30,104 @@ const getStatusStyles = (status: PredictionStatus) => {
     }
 };
 
+const generateImageUrl = (vehicleName: string) => {
+    const query = encodeURIComponent(`car,${vehicleName.split(' ')[0]}`);
+    return `https://source.unsplash.com/random/400x200?${query}&sig=${Math.random()}`;
+};
+
+
 // --- Sub-Components ---
-const AddVehicleModal: React.FC<{ onClose: () => void; onAdd: (name: string) => void; }> = ({ onClose, onAdd }) => {
-    const [name, setName] = useState('');
-    
-    const handleAdd = () => {
-        if (name.trim()) {
-            onAdd(name.trim());
+const VehicleModal: React.FC<{
+    mode: 'add' | 'edit';
+    vehicleToEdit?: Vehicle;
+    onClose: () => void;
+    onSave: (data: { name: string; imageUrl: string; manufacturer: string; releaseDate: string; description: string; originalName?: string }) => void;
+}> = ({ mode, vehicleToEdit, onClose, onSave }) => {
+    const [name, setName] = useState(vehicleToEdit?.name || '');
+    const [manufacturer, setManufacturer] = useState(vehicleToEdit?.manufacturer || '');
+    const [releaseDate, setReleaseDate] = useState(vehicleToEdit?.releaseDate || '');
+    const [description, setDescription] = useState(vehicleToEdit?.description || '');
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(vehicleToEdit?.imageUrl || null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            const file = event.target.files[0];
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPreviewUrl(reader.result as string);
+            };
+            reader.readAsDataURL(file);
         }
+    };
+
+    const handleSave = () => {
+        if (!name.trim() || !manufacturer.trim()) return;
+
+        let finalImageUrl = previewUrl;
+        if (!finalImageUrl) {
+            finalImageUrl = generateImageUrl(name);
+        }
+
+        onSave({
+            name: name.trim(),
+            imageUrl: finalImageUrl!,
+            manufacturer: manufacturer.trim(),
+            releaseDate,
+            description: description.trim(),
+            originalName: vehicleToEdit?.name,
+        });
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-gray-900">新增预测车型</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
-                        <CloseIcon className="w-6 h-6" />
-                    </button>
+                    <h3 className="text-lg font-semibold text-gray-900">{mode === 'add' ? '新增预测车型' : '编辑车型信息'}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors"> <CloseIcon className="w-6 h-6" /> </button>
                 </div>
-                <div className="p-6">
-                    <label htmlFor="vehicle-name" className="block text-sm font-medium text-gray-700 mb-1">车型名称</label>
-                    <input
-                        id="vehicle-name"
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="例如：蔚来ET9"
-                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="vehicle-manufacturer" className="block text-sm font-medium text-gray-700 mb-1">车企</label>
+                            <input id="vehicle-manufacturer" type="text" value={manufacturer} onChange={(e) => setManufacturer(e.target.value)} placeholder="例如：小米" required className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                            <label htmlFor="vehicle-name" className="block text-sm font-medium text-gray-700 mb-1">车型名称</label>
+                            <input id="vehicle-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：SU9" required className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                    </div>
+                     <div>
+                        <label htmlFor="release-date" className="block text-sm font-medium text-gray-700 mb-1">预计发布时间</label>
+                        <input id="release-date" type="date" value={releaseDate} onChange={(e) => setReleaseDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                     <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">车型描述</label>
+                        <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="输入关于该车型的简短描述..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">背景图片 (可选)</label>
+                        <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full h-40 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors overflow-hidden"
+                        >
+                            {previewUrl ? (
+                                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="text-center text-gray-500">
+                                    <p>点击上传图片</p>
+                                    <p className="text-xs mt-1">不上传将自动生成</p>
+                                </div>
+                            )}
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                        </div>
+                    </div>
                 </div>
                 <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                    <button onClick={handleAdd} disabled={!name.trim()} className="py-2 px-6 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300">
-                        确认新增
+                    <button onClick={handleSave} disabled={!name.trim() || !manufacturer.trim()} className="py-2 px-6 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300">
+                        保存
                     </button>
                 </div>
             </div>
@@ -83,108 +157,166 @@ interface NewTechForecastProps {
 }
 
 export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
-    const initialVehicles = useMemo(() => Array.from(new Set(mockTechPredictions.map(p => p.vehicle_model))), []);
-    const [vehicles, setVehicles] = useState<string[]>(initialVehicles);
-    const [selectedVehicle, setSelectedVehicle] = useState(vehicles[0] || '');
+    const [predictions, setPredictions] = useState<TechPrediction[]>(mockTechPredictions);
+    
+    const initialVehicles = useMemo(() => {
+        const uniqueNames = Array.from(new Set(predictions.map(p => p.vehicle_model)));
+        return uniqueNames.map((name, index) => {
+            // 智能提取车企名称
+            const manufacturer = name.includes('SU9') ? '小米' : '理想';
+            return {
+                name,
+                manufacturer,
+                releaseDate: `2025-10-0${index+1}`,
+                description: `这是关于 ${name} 的一段示例描述，介绍了它的市场定位和核心技术亮点。`,
+                imageUrl: generateImageUrl(name)
+            };
+        });
+    }, []);
+
+    const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
+    const [selectedVehicleName, setSelectedVehicleName] = useState(vehicles[0]?.name || '');
     const [selectedPrediction, setSelectedPrediction] = useState<TechPrediction | null>(null);
-    const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+    const [modalState, setModalState] = useState<{ mode: 'add' | 'edit'; vehicle?: Vehicle } | null>(null);
     const [visibleEvidenceCount, setVisibleEvidenceCount] = useState(5);
 
-    // 当车型列表变化时（例如新增），确保有选中的车型
     useEffect(() => {
-        if (!selectedVehicle && vehicles.length > 0) {
-            setSelectedVehicle(vehicles[0]);
+        if (!selectedVehicleName && vehicles.length > 0) {
+            setSelectedVehicleName(vehicles[0].name);
         }
-    }, [vehicles, selectedVehicle]);
+    }, [vehicles, selectedVehicleName]);
 
+    const intelligenceCountByVehicle = useMemo(() => {
+        const counts = new Map<string, number>();
+        predictions.forEach(p => {
+            const currentCount = counts.get(p.vehicle_model) || new Set();
+            p.supporting_evidence_ids.forEach(id => (currentCount as Set<string>).add(id));
+            counts.set(p.vehicle_model, (currentCount as Set<string>).size);
+        });
+        return counts;
+    }, [predictions]);
 
     const predictionsByCategory = useMemo(() => {
-        return mockTechPredictions
-            .filter(p => p.vehicle_model === selectedVehicle)
+        return predictions
+            .filter(p => p.vehicle_model === selectedVehicleName)
             .reduce((acc, p) => {
                 if (!acc[p.category]) acc[p.category] = [];
                 acc[p.category].push(p);
                 return acc;
             }, {} as Record<string, TechPrediction[]>);
-    }, [selectedVehicle]);
+    }, [selectedVehicleName, predictions]);
     
-    // 创建一个从证据ID到车型的映射，用于在右侧栏展示“全部情报”
     const evidenceToVehicleMap = useMemo(() => {
         const map = new Map<string, string>();
-        mockTechPredictions.forEach(pred => {
+        predictions.forEach(pred => {
             pred.supporting_evidence_ids.forEach(id => {
                 map.set(id, pred.vehicle_model);
             });
         });
         return map;
-    }, []);
+    }, [predictions]);
 
     const evidenceToShow = useMemo(() => {
         let relevantEvidence: PredictionEvidence[];
         if (selectedPrediction) {
-            // 模式2：显示与选中预测相关的证据
             const evidenceIds = new Set(selectedPrediction.supporting_evidence_ids);
             relevantEvidence = mockPredictionEvidence.filter(e => evidenceIds.has(e.evidence_id));
         } else {
-            // 模式1：显示当前选中车型的所有证据
-            relevantEvidence = mockPredictionEvidence.filter(e => evidenceToVehicleMap.get(e.evidence_id) === selectedVehicle);
+            relevantEvidence = mockPredictionEvidence.filter(e => evidenceToVehicleMap.get(e.evidence_id) === selectedVehicleName);
         }
         return relevantEvidence.sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
-    }, [selectedVehicle, selectedPrediction, evidenceToVehicleMap]);
+    }, [selectedVehicleName, selectedPrediction, evidenceToVehicleMap]);
 
     const visibleEvidence = useMemo(() => evidenceToShow.slice(0, visibleEvidenceCount), [evidenceToShow, visibleEvidenceCount]);
 
-    const handleAddVehicle = (name: string) => {
-        if (!vehicles.includes(name)) {
-            setVehicles(prev => [name, ...prev]);
+    const handleSaveVehicle = (data: { name: string; imageUrl: string; manufacturer: string; releaseDate: string; description: string; originalName?: string }) => {
+        const vehicleData = {
+            name: data.name,
+            imageUrl: data.imageUrl,
+            manufacturer: data.manufacturer,
+            releaseDate: data.releaseDate,
+            description: data.description,
+        };
+
+        if (data.originalName) { // Edit mode
+            setVehicles(prev => prev.map(v => v.name === data.originalName ? vehicleData : v));
+            if (data.name !== data.originalName) {
+                setPredictions(prev => prev.map(p => p.vehicle_model === data.originalName ? { ...p, vehicle_model: data.name } : p));
+            }
+            if (selectedVehicleName === data.originalName) {
+                setSelectedVehicleName(data.name);
+            }
+        } else { // Add mode
+            const existing = vehicles.find(v => v.name === data.name);
+            if (!existing) {
+                setVehicles(prev => [vehicleData, ...prev]);
+            }
+            setSelectedVehicleName(data.name);
         }
-        setSelectedVehicle(name);
-        setIsAddVehicleModalOpen(false);
+        setModalState(null);
     };
 
-    const handleSelectVehicle = (vehicle: string) => {
-        setSelectedVehicle(vehicle);
-        setSelectedPrediction(null); // 切换车型时，清空选中的预测
-        setVisibleEvidenceCount(5); // 重置懒加载计数
+    const handleSelectVehicle = (vehicleName: string) => {
+        setSelectedVehicleName(vehicleName);
+        setSelectedPrediction(null);
+        setVisibleEvidenceCount(5);
     };
 
     return (
         <div className="h-full bg-gray-50/70 flex overflow-hidden">
             {/* Left Column: Vehicle Selector */}
-            <aside className="w-64 h-full overflow-y-auto bg-white border-r p-4 space-y-2 flex-shrink-0">
+            <aside className="w-72 h-full overflow-y-auto bg-white border-r p-4 space-y-3 flex-shrink-0">
                 <h2 className="text-sm font-semibold text-gray-500 px-2 uppercase tracking-wider mb-2">选择车型</h2>
-                {/* 仅管理员可见的新增按钮。硬编码用户邮箱用于演示目的。 */}
                 {user.email === '326575140@qq.com' && (
-                    <button
-                        onClick={() => setIsAddVehicleModalOpen(true)}
-                        className="w-full text-left px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors flex items-center gap-3 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-dashed border-blue-300"
-                    >
+                    <button onClick={() => setModalState({ mode: 'add' })} className="w-full text-left px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors flex items-center gap-3 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-dashed border-blue-300">
                         <PlusIcon className="w-5 h-5" />
                         <span>新增车型</span>
                     </button>
                 )}
-                {vehicles.map((vehicle, index) => (
-                    <div
-                        key={vehicle}
-                        onClick={() => handleSelectVehicle(vehicle)}
-                        className={`w-full p-4 rounded-lg font-bold text-white transition-all duration-300 cursor-pointer relative overflow-hidden group h-20 flex flex-col justify-end ${
-                            selectedVehicle === vehicle ? 'ring-2 ring-blue-500 shadow-lg' : ''
-                        }`}
-                        style={{
-                            backgroundImage: `url('https://source.unsplash.com/random/400x200?car,night,${index}')`,
-                            backgroundSize: 'cover',
-                            backgroundPosition: 'center',
-                        }}
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/10 group-hover:from-black/80 transition-all"></div>
-                        <span className="relative z-10 text-lg">{vehicle}</span>
-                    </div>
-                ))}
+                {vehicles.map((vehicle) => {
+                    const intelCount = intelligenceCountByVehicle.get(vehicle.name) || 0;
+                    return (
+                        <div
+                            key={vehicle.name}
+                            onClick={() => handleSelectVehicle(vehicle.name)}
+                            className={`w-full p-4 rounded-lg text-white transition-all duration-300 cursor-pointer relative overflow-hidden group h-28 flex flex-col justify-end ${
+                                selectedVehicleName === vehicle.name ? 'ring-2 ring-blue-500 shadow-lg' : ''
+                            }`}
+                            style={{
+                                backgroundImage: `url('${vehicle.imageUrl}')`,
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                            }}
+                        >
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20 group-hover:from-black/90 transition-all"></div>
+                            
+                            <div className="absolute top-2 right-2 z-20">
+                                <span className="px-2 py-0.5 text-xs font-bold bg-white/20 backdrop-blur-sm rounded-full">{intelCount} 条情报</span>
+                            </div>
+
+                            <div className="relative z-10">
+                                <p className="text-sm font-semibold opacity-80">{vehicle.manufacturer}</p>
+                                <h3 className="text-lg font-bold -mt-1">{vehicle.name}</h3>
+                                {vehicle.releaseDate && <p className="text-xs opacity-70 mt-1">预计发布: {vehicle.releaseDate}</p>}
+                            </div>
+
+                            {user.email === '326575140@qq.com' && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setModalState({ mode: 'edit', vehicle }); }}
+                                    className="absolute bottom-3 right-3 p-1.5 bg-black/30 rounded-full text-white opacity-0 group-hover:opacity-100 hover:bg-black/60 transition-all z-20"
+                                    title="编辑车型"
+                                >
+                                    <PencilIcon className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
             </aside>
 
             {/* Middle Column: Prediction Board */}
             <main className="flex-1 h-full overflow-y-auto p-6">
-                 <h1 className="text-2xl font-bold text-gray-900 mb-4">{selectedVehicle} - 技术预测看板</h1>
+                 <h1 className="text-2xl font-bold text-gray-900 mb-4">{selectedVehicleName} - 技术预测看板</h1>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {Object.entries(predictionsByCategory).map(([category, predictions]) => {
                         const totalEvidenceCount = new Set((predictions as TechPrediction[]).flatMap(p => p.supporting_evidence_ids)).size;
@@ -234,7 +366,7 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
                     <p className="text-sm text-gray-500 truncate">
                         {selectedPrediction 
                             ? `关于 “${selectedPrediction.sub_category}” 的 ${evidenceToShow.length} 条情报`
-                            : `关于 “${selectedVehicle}” 的 ${evidenceToShow.length} 条情报`
+                            : `关于 “${selectedVehicleName}” 的 ${evidenceToShow.length} 条情报`
                         }
                     </p>
                 </div>
@@ -254,7 +386,7 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
                 </div>
             </aside>
             
-            {isAddVehicleModalOpen && <AddVehicleModal onClose={() => setIsAddVehicleModalOpen(false)} onAdd={handleAddVehicle} />}
+            {modalState?.mode && <VehicleModal mode={modalState.mode} vehicleToEdit={modalState.vehicle} onClose={() => setModalState(null)} onSave={handleSaveVehicle} />}
         </div>
     );
 };

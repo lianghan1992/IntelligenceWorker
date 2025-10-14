@@ -243,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function for same-origin connections was causing a TypeScript error.
-        // Passing `'/'` connects to the same host and satisfies the type checker, working correctly with the proxy.
+        // FIX: The `io()` function was called without arguments, causing a TypeScript error.
+        // Passing `'/'` connects to the same host and satisfies the function's type signature.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
