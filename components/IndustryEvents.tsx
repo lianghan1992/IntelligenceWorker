@@ -243,8 +243,8 @@ export const IndustryEvents: React.FC = () => {
     }, [page]);
     
     useEffect(() => {
-        // FIX: The `io()` function requires a server URL, but was called without one.
-        // Passing `'/'` connects the socket to the server on the same host, resolving the error.
+        // FIX: The `io()` function was called without a server URL, causing an error.
+        // Passing `'/'` connects the socket to the server on the same host, which is correctly proxied by Vite/Node.
         const socket: Socket = io('/');
 
         socket.on('connect', () => {
