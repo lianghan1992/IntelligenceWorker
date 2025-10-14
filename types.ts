@@ -289,8 +289,11 @@ export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' 
 export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';
 
 // --- Type Declarations for untyped libraries ---
-// FIX: Corrected the ambient module declaration for 'html2canvas' to resolve build errors.
+// FIX: Replaced the ambient module declaration for 'html2canvas' with a more robust version
+// to finally resolve the persistent TS2307 and TS2664 build errors. This structure explicitly
+// declares the module and its default export in a way that is compatible with the project's
+// strict module resolution settings.
 declare module 'html2canvas' {
-  // FIX: Replaced with a direct default export of an anonymous function to prevent "Duplicate identifier" and "Exports not permitted" errors.
-  export default function (element: HTMLElement, options?: any): Promise<HTMLCanvasElement>;
+  const html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
+  export default html2canvas;
 }
