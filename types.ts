@@ -287,3 +287,10 @@ export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' 
 
 // Admin page views
 export type AdminView = 'intelligence' | 'users' | 'dives' | 'events';
+
+// --- Type Declarations for untyped libraries ---
+// FIX: Replaced shorthand module declaration with a more explicit one to resolve module resolution errors and provide basic types for html2canvas.
+declare module 'html2canvas' {
+  function html2canvas(element: HTMLElement, options?: any): Promise<HTMLCanvasElement>;
+  export default html2canvas;
+}
