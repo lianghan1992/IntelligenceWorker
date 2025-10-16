@@ -55,6 +55,14 @@ export const ConferenceManager: React.FC = () => {
         setError('');
         try {
             const fetchedTasks = await getLivestreamTasks();
+            
+            // Defensive check: Ensure fetchedTasks is an array before processing
+            if (!Array.isArray(fetchedTasks)) {
+                console.warn("API at /livestream/tasks did not return an array. Defaulting to empty array.");
+                setTasks([]);
+                return;
+            }
+
             const statusOrder: { [key in LivestreamTask['status']]: number } = {
                 'running': 1, 'pending': 2, 'stopped': 3, 'completed': 4, 'failed': 5,
             };
