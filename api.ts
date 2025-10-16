@@ -53,7 +53,23 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
             errorData = { detail: `HTTP error! status: ${response.status}`, message: `HTTP error! status: ${response.status}` };
         }
         console.error("API Error:", errorData);
-        const errorMessage = errorData.detail || errorData.message || `Request failed with status ${response.status}`;
+        
+        let errorMessage;
+        if (errorData.detail) {
+            if (Array.isArray(errorData.detail)) {
+                // Format FastAPI validation errors
+                errorMessage = errorData.detail.map((err: any) => {
+                    // err.loc is typically ["body", "field_name"]
+                    const field = err.loc && err.loc.length > 1 ? err.loc[1] : 'N/A';
+                    return `字段 '${field}': ${err.msg}`;
+                }).join('\n');
+            } else {
+                errorMessage = errorData.detail;
+            }
+        } else {
+             errorMessage = errorData.message || `Request failed with status ${response.status}`;
+        }
+        
         throw new Error(errorMessage);
     }
 
