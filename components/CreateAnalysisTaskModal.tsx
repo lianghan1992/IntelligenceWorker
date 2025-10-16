@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+// FIX: Import `useMemo` from `react` to resolve the "Cannot find name" error.
+import React, { useState, useRef, useMemo } from 'react';
 import { CloseIcon } from './icons';
-import { createLiveAnalysisTask, createVideoAnalysisTask } from '../api';
-import { LivestreamTask } from '../types';
+import { createLiveAnalysisTask, createVideoAnalysisTask, createSummitAnalysisTask } from '../api';
 
 interface CreateAnalysisTaskModalProps {
   onClose: () => void;
-  onSuccess: (newEvent: LivestreamTask) => void;
+  onSuccess: () => void;
 }
 
 type TaskType = 'live' | 'video' | 'summit';
@@ -19,83 +19,52 @@ const Spinner: React.FC = () => (
 
 export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
-
-    // Live Task State
-    const [liveTitle, setLiveTitle] = useState('');
-    const [liveUrl, setLiveUrl] = useState('');
-    const [eventDate, setEventDate] = useState('');
-    
-    // Video Task State
-    const [videoTitle, setVideoTitle] = useState('');
-    const [videoPath, setVideoPath] = useState('');
-    const [videoEventDate, setVideoEventDate] = useState('');
-
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    
-    const isLiveFormValid = liveTitle.trim() !== '' && liveUrl.trim() !== '' && eventDate.trim() !== '';
-    const isVideoFormValid = videoTitle.trim() !== '' && videoPath.trim() !== '' && videoEventDate.trim() !== '';
+
+    // Form state
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [promptType, setPromptType] = useState('default');
+    const [liveUrl, setLiveUrl] = useState('');
+    const [eventDate, setEventDate] = useState('');
+    const [videoPath, setVideoPath] = useState('');
+    const [folderPath, setFolderPath] = useState('');
+
+    const isFormValid = useMemo(() => {
+        if (!title.trim() || !eventDate.trim()) return false;
+        switch (taskType) {
+            case 'live': return liveUrl.trim() !== '';
+            case 'video': return videoPath.trim() !== '';
+            case 'summit': return folderPath.trim() !== '';
+            default: return false;
+        }
+    }, [title, eventDate, taskType, liveUrl, videoPath, folderPath]);
 
     const handleSubmit = async () => {
         setIsLoading(true);
         setError('');
         try {
-            let newEventData: LivestreamTask;
-            if (taskType === 'live') {
-                if (!isLiveFormValid) {
-                    setError('任务标题、直播URL和事件日期是必填项。');
-                    setIsLoading(false);
-                    return;
-                }
+            const commonData = {
+                event_name: title,
+                event_date: eventDate.split('T')[0], // Ensure YYYY-MM-DD format
+                description,
+                prompt_file: promptType !== 'default' ? `${promptType}.md` : undefined,
+            };
 
-                const { task_id } = await createLiveAnalysisTask({
-                    url: liveUrl,
-                    event_name: liveTitle,
-                    event_date: eventDate,
-                });
-                
-                newEventData = {
-                    task_id,
-                    event_name: liveTitle,
-                    description: '',
-                    task_type: 'live',
-                    status: 'pending',
-                    created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
-                    source_url: liveUrl,
-                    event_date: eventDate,
-                    prompt_file_path: null,
-                    output_directory: null,
-                };
-            } else { // video or summit
-                if(!isVideoFormValid){
-                    setError('任务标题、视频路径和事件日期是必填项。');
-                    setIsLoading(false);
-                    return;
-                }
-                const { task_id } = await createVideoAnalysisTask({
-                    video_path: videoPath,
-                    event_name: videoTitle,
-                    event_date: videoEventDate,
-                });
-
-                newEventData = {
-                    task_id,
-                    event_name: videoTitle,
-                    description: null,
-                    task_type: 'video', // Assuming summit is also video for now
-                    status: 'pending',
-                    created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
-                    source_url: videoPath,
-                    event_date: videoEventDate,
-                    prompt_file_path: null,
-                    output_directory: null,
-                };
+            switch (taskType) {
+                case 'live':
+                    await createLiveAnalysisTask({ ...commonData, url: liveUrl });
+                    break;
+                case 'video':
+                    await createVideoAnalysisTask({ ...commonData, video_path: videoPath });
+                    break;
+                case 'summit':
+                    await createSummitAnalysisTask({ ...commonData, folder_path: folderPath });
+                    break;
             }
-            onSuccess(newEventData);
+            onSuccess();
+            onClose();
         } catch (err: any) {
             setError(err.message || '发生未知错误，请重试。');
         } finally {
@@ -107,9 +76,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         <button
             onClick={() => setTaskType(type)}
             className={`flex-1 py-2.5 text-sm font-semibold rounded-md transition-colors ${
-                taskType === type
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-600 hover:bg-gray-100'
+                taskType === type ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'
             }`}
             disabled={isLoading}
         >
@@ -119,12 +86,10 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-gray-900">创建新的分析任务</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
-                        <CloseIcon className="w-6 h-6" />
-                    </button>
+                    <h3 className="text-lg font-semibold text-gray-900">新增分析任务</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700" disabled={isLoading}><CloseIcon className="w-6 h-6" /></button>
                 </div>
 
                 <div className="p-4 bg-gray-50 border-b">
@@ -135,92 +100,68 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     </div>
                 </div>
 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
+                        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：2024蔚来NIO Day直播" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="输入任务的简短描述..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 resize-none" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">分析模板</label>
+                        <select value={promptType} onChange={e => setPromptType(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
+                           <option value="default">默认分析</option>
+                           <option value="car_launch_event">新车发布会</option>
+                           <option value="car_review">汽车测评</option>
+                           <option value="summit_analysis">行业峰会</option>
+                        </select>
+                    </div>
+
                     {taskType === 'live' && (
                         <>
-                             <div>
-                                <label htmlFor="live-title" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
-                                <input
-                                    type="text" id="live-title" value={liveTitle} onChange={(e) => setLiveTitle(e.target.value)}
-                                    placeholder="例如：2025 CES 汽车技术发布会"
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
+                                <input type="url" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://live.bilibili.com/22625027" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                             </div>
-                             <div>
-                                <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
-                                <input
-                                    type="url" id="url" value={liveUrl} onChange={(e) => setLiveUrl(e.target.value)}
-                                    placeholder="https://live.example.com/12345"
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
-                            </div>
-                             <div>
-                                <label htmlFor="eventDate" className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
-                                <input
-                                    type="date" id="eventDate" value={eventDate} onChange={(e) => setEventDate(e.target.value)}
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">计划开始时间 <span className="text-red-500">*</span></label>
+                                <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                             </div>
                         </>
                     )}
                     {taskType === 'video' && (
-                         <>
+                        <>
                             <div>
-                                <label htmlFor="videoTitle" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
-                                <input
-                                    type="text" id="videoTitle" value={videoTitle} onChange={(e) => setVideoTitle(e.target.value)}
-                                    placeholder="例如：2025 CES 汽车技术发布会回顾"
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
+                                <label className="block text-sm font-medium text-gray-700 mb-1">视频文件路径 <span className="text-red-500">*</span></label>
+                                <input type="text" value={videoPath} onChange={e => setVideoPath(e.target.value)} placeholder="/path/to/your/video.mp4" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                                <p className="text-xs text-gray-500 mt-1">请输入服务器上视频文件的绝对路径。</p>
                             </div>
                             <div>
-                                <label htmlFor="videoPath" className="block text-sm font-medium text-gray-700 mb-1">视频路径 (服务器路径) <span className="text-red-500">*</span></label>
-                                <input
-                                    type="text" id="videoPath" value={videoPath} onChange={(e) => setVideoPath(e.target.value)}
-                                    placeholder="/data/videos/ces2025.mp4"
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
-                            </div>
-                             <div>
-                                <label htmlFor="videoEventDate" className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
-                                <input
-                                    type="date" id="videoEventDate" value={videoEventDate} onChange={(e) => setVideoEventDate(e.target.value)}
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
+                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
+                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                             </div>
                         </>
                     )}
                     {taskType === 'summit' && (
-                        <div className="text-center p-8 bg-gray-100 rounded-lg">
-                            <p className="text-gray-500">图片集分析功能正在开发中...</p>
-                        </div>
-                    )}
-
-                     {error && (
-                        <div className="text-sm text-red-700 bg-red-100 p-3 rounded-lg mt-4">
-                            <strong>错误:</strong> {error}
-                        </div>
+                         <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">图片文件夹路径 <span className="text-red-500">*</span></label>
+                                <input type="text" value={folderPath} onChange={e => setFolderPath(e.target.value)} placeholder="/path/to/summit/images" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                                <p className="text-xs text-gray-500 mt-1">请输入服务器上图片文件夹的绝对路径。</p>
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
+                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            </div>
+                        </>
                     )}
                 </div>
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3 rounded-b-2xl">
-                    <button 
-                        onClick={onClose}
-                        className="py-2 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-semibold text-sm hover:bg-gray-100 transition-colors"
-                        disabled={isLoading}
-                    >
-                        取消
-                    </button>
-                     <button 
-                        onClick={handleSubmit}
-                        disabled={(taskType === 'live' ? !isLiveFormValid : !isVideoFormValid) || isLoading || taskType === 'summit'}
-                        className="py-2 px-4 w-32 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center justify-center"
-                    >
+
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                    <button onClick={handleSubmit} disabled={!isFormValid || isLoading} className="w-32 py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center">
                         {isLoading ? <Spinner /> : '创建任务'}
                     </button>
                 </div>
