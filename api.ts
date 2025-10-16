@@ -409,6 +409,37 @@ export const stopLivestreamTask = async (taskId: string): Promise<{ message: str
     });
 };
 
+export const getLivestreamTaskReport = async (taskId: string, fileType: string = 'summary'): Promise<string> => {
+    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/results/${fileType}`;
+    
+    const headers: Record<string, string> = {};
+    const token = getAuthToken();
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const finalUrl = new URL(url, window.location.origin).href;
+    const response = await fetch(finalUrl, { headers });
+
+    if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('accessToken');
+        window.location.reload();
+        throw new Error('会话已过期或权限不足，请重新登录。');
+    }
+
+    if (!response.ok) {
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch (e) {
+            errorData = { detail: `HTTP error! status: ${response.status}` };
+        }
+        const errorMessage = errorData.detail || `Request failed with status ${response.status}`;
+        throw new Error(errorMessage);
+    }
+    return response.text();
+};
+
 
 // --- Prompts ---
 

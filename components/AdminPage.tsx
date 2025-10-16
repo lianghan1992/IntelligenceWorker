@@ -14,6 +14,7 @@ import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { InfoDetailModal } from './InfoDetailModal';
 import { UserManager } from './UserManager'; // Import the new component
+import { ConferenceManager } from './ConferenceManager';
 import { PlusIcon, TrashIcon, LightBulbIcon, UsersIcon, DiveIcon, VideoCameraIcon, ChevronDownIcon, CloseIcon, PencilIcon, SearchIcon } from './icons';
 
 const Spinner: React.FC<{className?: string}> = ({className = "h-5 w-5 text-gray-500"}) => (
@@ -921,7 +922,7 @@ export const AdminPage: React.FC = () => {
         { key: 'intelligence', label: '情报管理', icon: LightBulbIcon },
         { key: 'users', label: '用户管理', icon: UsersIcon },
         { key: 'dives', label: '深度洞察', icon: DiveIcon },
-        { key: 'events', label: '事件管理', icon: VideoCameraIcon },
+        { key: 'events', label: '发布会管理', icon: VideoCameraIcon },
     ];
 
     const renderContent = () => {
@@ -933,7 +934,7 @@ export const AdminPage: React.FC = () => {
             case 'dives':
                 return <PlaceholderManager title="深度洞察管理" />;
             case 'events':
-                return <PlaceholderManager title="事件管理" />;
+                return <ConferenceManager />;
             default:
                 return null;
         }
