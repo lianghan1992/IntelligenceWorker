@@ -49,11 +49,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                         <TaskTypeIcon type={task.task_type} />
                     </div>
                     <div className="flex-1">
-                        <h3 className="font-bold text-gray-800 leading-tight">{task.title}</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                            {task.task_type === 'live' && `B站直播间: ${task.bililive_id || 'N/A'}`}
-                            {task.task_type === 'video' && `视频分析任务`}
-                            {task.task_type === 'summit' && `峰会图片集分析`}
+                        <h3 className="font-bold text-gray-800 leading-tight">{task.event_name}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate" title={task.source_url}>
+                           源: {task.source_url}
                         </p>
                     </div>
                 </div>
@@ -68,7 +66,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
             <div className="text-xs text-gray-400 border-t pt-3 mt-auto space-y-1">
                 <p>创建于: {new Date(task.created_at).toLocaleString('zh-CN')}</p>
-                <p>更新于: {new Date(task.updated_at).toLocaleString('zh-CN')}</p>
+                {task.completed_at && <p>完成于: {new Date(task.completed_at).toLocaleString('zh-CN')}</p>}
             </div>
             
             <div className="mt-4 pt-3 border-t flex items-center justify-between">

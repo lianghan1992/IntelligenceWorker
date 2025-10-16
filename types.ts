@@ -247,22 +247,33 @@ export interface PredictionEvidence {
 // --- New Types for Livestream Service ---
 export interface LivestreamTask {
   task_id: string;
-  title: string;
-  description: string | null;
+  event_name: string; // Mapped from event_name in API
+  description?: string | null; // User-provided, might not be in API response
   task_type: 'live' | 'video' | 'summit';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
   created_at: string;
-  updated_at: string;
-  bililive_id?: string;
-  prompt_type?: string;
+  started_at: string | null;
+  completed_at: string | null;
+  source_url: string; // URL for live, path for video/summit
+  event_date: string;
+  prompt_file_path: string | null;
+  output_directory: string | null;
+
+  // Fields specific to 'live' tasks
+  discovered_host_name?: string;
+  discovered_room_name?: string;
+  platform_name?: string;
+
   results?: {
     summary_available: boolean;
     detailed_report_available: boolean;
     pdf_available: boolean;
   };
-  // FIX: Add optional property for EventReportModal component.
+
+  // UI-synthesized field
   reportContentHtml?: string;
 }
+
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';

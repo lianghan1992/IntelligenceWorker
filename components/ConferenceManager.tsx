@@ -176,8 +176,8 @@ export const ConferenceManager: React.FC = () => {
                             return (
                                 <tr key={task.task_id} className="border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
-                                        <div className="font-semibold text-gray-800">{task.title}</div>
-                                        <div className="text-xs text-gray-500">{task.description || '无描述'}</div>
+                                        <div className="font-semibold text-gray-800">{task.event_name}</div>
+                                        <div className="text-xs text-gray-500 truncate max-w-xs" title={task.source_url}>{task.source_url}</div>
                                     </td>
                                     <td className="px-6 py-4"><TaskTypeDisplay type={task.task_type} /></td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span></td>
@@ -200,7 +200,7 @@ export const ConferenceManager: React.FC = () => {
             </div>
 
             {isCreateModalOpen && <CreateAnalysisTaskModal onClose={() => setIsCreateModalOpen(false)} onSuccess={loadTasks} />}
-            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.title}" 吗？此操作无法撤销。`} onConfirm={() => handleMutation(taskToDelete.task_id, 'delete')} onCancel={() => setTaskToDelete(null)} />}
+            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.event_name}" 吗？此操作无法撤销。`} onConfirm={() => handleMutation(taskToDelete.task_id, 'delete')} onCancel={() => setTaskToDelete(null)} />}
             {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
         </div>
     );

@@ -1306,7 +1306,7 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/live" \
+curl -X POST "http://localhost:7657/livestream/tasks/live" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
@@ -1344,7 +1344,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/live" \
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/video" \
+curl -X POST "http://localhost:7657/livestream/tasks/video" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
@@ -1375,18 +1375,18 @@ curl -X POST "http://localhost:8000/livestream/tasks/video" \
 
 | 字段 | 类型 | 是否必须 | 说明 |
 |------|------|----------|------|
-| `folder_path` | string | 是 | 服务器本地图片文件夹的绝对路径 |
+| `images_directory` | string | 是 | 服务器本地图片文件夹的绝对路径 |
 | `event_name` | string | 是 | 事件名称 |
 | `event_date` | string | 是 | 事件日期 (YYYY-MM-DD格式) |
 | `prompt_file` | string | 否 | 分析提示词文件名 |
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/summit" \
+curl -X POST "http://localhost:7657/livestream/tasks/summit" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "folder_path": "/path/to/summit/images",
+  "images_directory": "/path/to/summit/images",
   "event_name": "2025汽车行业峰会",
   "event_date": "2025-11-15",
   "prompt_file": "summit_analysis.md"
@@ -1411,7 +1411,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/summit" \
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:8000/livestream/tasks" \
+curl -X GET "http://localhost:7657/livestream/tasks" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1420,24 +1420,32 @@ curl -X GET "http://localhost:8000/livestream/tasks" \
 [
   {
     "task_id": "task_123456",
-    "title": "汽车发布会直播分析",
-    "description": "分析某品牌新车发布会直播内容",
+    "event_name": "汽车发布会直播分析",
     "task_type": "live",
     "status": "completed",
     "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T11:45:00Z",
-    "bililive_id": "12345678",
-    "prompt_type": "car_launch_event"
+    "started_at": "2024-01-15T10:35:00Z",
+    "completed_at": "2024-01-15T11:45:00Z",
+    "source_url": "https://live.bilibili.com/8178490",
+    "event_date": "2025-10-15",
+    "prompt_file_path": "car_launch_event.md",
+    "output_directory": "/path/to/output",
+    "discovered_host_name": "某汽车品牌官方",
+    "discovered_room_name": "新车发布会直播间",
+    "platform_name": "哔哩哔哩"
   },
   {
     "task_id": "task_789012",
-    "title": "汽车测评视频分析",
-    "description": "分析汽车性能测评视频",
+    "event_name": "汽车测评视频分析",
     "task_type": "video",
-    "status": "running",
+    "status": "processing",
     "created_at": "2024-01-15T14:20:00Z",
-    "updated_at": "2024-01-15T14:25:00Z",
-    "prompt_type": "car_review"
+    "started_at": "2024-01-15T14:25:00Z",
+    "completed_at": null,
+    "source_url": "/path/to/video.mp4",
+    "event_date": "2025-10-20",
+    "prompt_file_path": "car_review.md",
+    "output_directory": "/path/to/output2"
   }
 ]
 ```
@@ -1458,7 +1466,7 @@ curl -X GET "http://localhost:8000/livestream/tasks" \
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:8000/livestream/tasks/task_123456" \
+curl -X GET "http://localhost:7657/livestream/tasks/task_123456" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1466,15 +1474,19 @@ curl -X GET "http://localhost:8000/livestream/tasks/task_123456" \
 ```json
 {
   "task_id": "task_123456",
-  "title": "汽车发布会直播分析",
-  "description": "分析某品牌新车发布会直播内容",
+  "event_name": "汽车发布会直播分析",
   "task_type": "live",
   "status": "completed",
   "created_at": "2024-01-15T10:30:00Z",
-  "updated_at": "2024-01-15T11:45:00Z",
-  "bililive_id": "12345678",
-  "prompt_type": "car_launch_event",
+  "started_at": "2024-01-15T10:35:00Z",
+  "completed_at": "2024-01-15T11:45:00Z",
+  "source_url": "https://live.bilibili.com/8178490",
+  "event_date": "2025-10-15",
+  "prompt_file_path": "car_launch_event.md",
   "output_directory": "/path/to/output",
+  "discovered_host_name": "某汽车品牌官方",
+  "discovered_room_name": "新车发布会直播间",
+  "platform_name": "哔哩哔哩",
   "results": {
     "summary_available": true,
     "detailed_report_available": true,
@@ -1500,7 +1512,7 @@ curl -X GET "http://localhost:8000/livestream/tasks/task_123456" \
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:8000/livestream/tasks/task_123456/results/summary" \
+curl -X GET "http://localhost:7657/livestream/tasks/task_123456/results/summary" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -o summary.txt
 ```
@@ -1525,7 +1537,7 @@ curl -X GET "http://localhost:8000/livestream/tasks/task_123456/results/summary"
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/task_123456/delete" \
+curl -X POST "http://localhost:7657/livestream/tasks/task_123456/delete" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1552,7 +1564,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/task_123456/delete" \
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/task_123456/start" \
+curl -X POST "http://localhost:7657/livestream/tasks/task_123456/start" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1579,7 +1591,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/task_123456/start" \
 
 **请求示例**
 ```bash
-curl -X POST "http://localhost:8000/livestream/tasks/task_123456/stop" \
+curl -X POST "http://localhost:7657/livestream/tasks/task_123456/stop" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1600,7 +1612,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/task_123456/stop" \
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:8000/livestream/services/bililive/info" \
+curl -X GET "http://localhost:7657/livestream/services/bililive/info" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -1625,7 +1637,7 @@ curl -X GET "http://localhost:8000/livestream/services/bililive/info" \
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:8000/livestream/services/bililive/status" \
+curl -X GET "http://localhost:7657/livestream/services/bililive/status" \
 -H "Authorization: Bearer YOUR_TOKEN"
 ```
 

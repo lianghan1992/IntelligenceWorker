@@ -47,28 +47,27 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     setIsLoading(false);
                     return;
                 }
-                const bililiveIdMatch = liveUrl.match(/\/(\d+)/);
-                if (!bililiveIdMatch) {
-                    setError('无法从URL中提取B站直播间ID。请确保URL格式正确。');
-                    setIsLoading(false);
-                    return;
-                }
-                const bililiveId = bililiveIdMatch[1];
+
                 const { task_id } = await createLiveAnalysisTask({
                     url: liveUrl,
                     event_name: liveTitle,
-                    event_date: starttime,
+                    event_date: starttime.split('T')[0], // Extract YYYY-MM-DD
                 });
-                // The API only returns the task_id. We construct a temporary object for the UI.
+                
+                // Construct a temporary object for the UI based on the new LivestreamTask type
                 newEventData = {
                     task_id,
-                    title: liveTitle,
+                    event_name: liveTitle,
                     description: '',
                     task_type: 'live',
                     status: 'pending',
                     created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    bililive_id: bililiveId,
+                    started_at: null,
+                    completed_at: null,
+                    source_url: liveUrl,
+                    event_date: starttime.split('T')[0],
+                    prompt_file_path: null,
+                    output_directory: null,
                 };
             } else { // offline
                 if(!isOfflineFormValid){
@@ -79,16 +78,22 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 const { task_id } = await createVideoAnalysisTask({
                     video_path: sourceUri,
                     event_name: offlineTitle,
-                    event_date: offlineStarttime,
+                    event_date: offlineStarttime.split('T')[0],
                 });
+
                 newEventData = {
                     task_id,
-                    title: offlineTitle,
+                    event_name: offlineTitle,
                     description: null,
                     task_type: 'video',
                     status: 'pending',
                     created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
+                    started_at: null,
+                    completed_at: null,
+                    source_url: sourceUri,
+                    event_date: offlineStarttime.split('T')[0],
+                    prompt_file_path: null,
+                    output_directory: null,
                 };
             }
             onSuccess(newEventData);

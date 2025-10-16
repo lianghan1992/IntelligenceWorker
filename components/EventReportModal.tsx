@@ -16,7 +16,7 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
             <div className="bg-white rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-xl transform transition-all animate-in zoom-in-95">
                 <div className="p-5 border-b flex justify-between items-center flex-shrink-0">
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-900 truncate pr-4">{event.title}</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 truncate pr-4">{event.event_name}</h3>
                         <p className="text-sm text-gray-500">事件总结报告</p>
                     </div>
                     <div className="flex items-center space-x-2">

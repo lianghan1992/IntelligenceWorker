@@ -29,17 +29,17 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
     const [liveUrl, setLiveUrl] = useState('');
     const [eventDate, setEventDate] = useState('');
     const [videoPath, setVideoPath] = useState('');
-    const [folderPath, setFolderPath] = useState('');
+    const [imagesDirectory, setImagesDirectory] = useState('');
 
     const isFormValid = useMemo(() => {
-        if (!title.trim()) return false;
+        if (!title.trim() || !eventDate.trim()) return false;
         switch (taskType) {
-            case 'live': return liveUrl.trim() !== '' && eventDate.trim() !== '';
-            case 'video': return videoPath.trim() !== '' && eventDate.trim() !== '';
-            case 'summit': return folderPath.trim() !== '' && eventDate.trim() !== '';
+            case 'live': return liveUrl.trim() !== '';
+            case 'video': return videoPath.trim() !== '';
+            case 'summit': return imagesDirectory.trim() !== '';
             default: return false;
         }
-    }, [title, taskType, liveUrl, eventDate, videoPath, folderPath]);
+    }, [title, eventDate, taskType, liveUrl, videoPath, imagesDirectory]);
 
     const handleSubmit = async () => {
         setIsLoading(true);
@@ -47,7 +47,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         try {
             const commonData = {
                 event_name: title,
-                event_date: eventDate,
+                event_date: eventDate.split('T')[0], // Ensure YYYY-MM-DD format
                 description,
                 prompt_file: promptType !== 'default' ? `${promptType}.md` : undefined,
             };
@@ -60,7 +60,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     await createVideoAnalysisTask({ ...commonData, video_path: videoPath });
                     break;
                 case 'summit':
-                    await createSummitAnalysisTask({ ...commonData, folder_path: folderPath });
+                    await createSummitAnalysisTask({ ...commonData, images_directory: imagesDirectory });
                     break;
             }
             onSuccess();
@@ -149,7 +149,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                          <>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">图片文件夹路径 <span className="text-red-500">*</span></label>
-                                <input type="text" value={folderPath} onChange={e => setFolderPath(e.target.value)} placeholder="/path/to/summit/images" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                                <input type="text" value={imagesDirectory} onChange={e => setImagesDirectory(e.target.value)} placeholder="/path/to/summit/images" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                                 <p className="text-xs text-gray-500 mt-1">请输入服务器上图片文件夹的绝对路径。</p>
                             </div>
                              <div>
