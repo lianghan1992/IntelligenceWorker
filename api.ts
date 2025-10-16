@@ -386,9 +386,9 @@ export const createVideoAnalysisTask = async (data: { video_path: string; event_
     });
 };
 
-export const createSummitAnalysisTask = async (data: { images_directory: string; event_name: string; event_date: string; description?: string; prompt_file?: string }): Promise<{ task_id: string; message: string }> => {
+export const createSummitAnalysisTask = async (data: { folder_path: string; event_name: string; event_date: string; description?: string; prompt_file?: string }): Promise<{ task_id: string; message: string }> => {
     const body = {
-        images_directory: data.images_directory,
+        folder_path: data.folder_path,
         event_name: data.event_name,
         event_date: data.event_date,
         prompt_file: data.prompt_file,

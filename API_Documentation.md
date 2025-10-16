@@ -1375,7 +1375,7 @@ curl -X POST "http://localhost:7657/livestream/tasks/video" \
 
 | 字段 | 类型 | 是否必须 | 说明 |
 |------|------|----------|------|
-| `images_directory` | string | 是 | 服务器本地图片文件夹的绝对路径 |
+| `folder_path` | string | 是 | 服务器本地图片文件夹的绝对路径 |
 | `event_name` | string | 是 | 事件名称 |
 | `event_date` | string | 是 | 事件日期 (YYYY-MM-DD格式) |
 | `prompt_file` | string | 否 | 分析提示词文件名 |
@@ -1386,7 +1386,7 @@ curl -X POST "http://localhost:7657/livestream/tasks/summit" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "images_directory": "/path/to/summit/images",
+  "folder_path": "/path/to/summit/images",
   "event_name": "2025汽车行业峰会",
   "event_date": "2025-11-15",
   "prompt_file": "summit_analysis.md"
