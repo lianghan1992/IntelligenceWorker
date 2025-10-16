@@ -1,5 +1,3 @@
-// src/api.ts
-
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH, USER_SERVICE_PATH } from './config';
 import { 
     User, 
@@ -362,49 +360,43 @@ export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 
-export const createLiveAnalysisTask = async (data: { url: string; event_name: string; event_date: string; description?: string; prompt_type?: string }): Promise<{ task_id: string; message: string }> => {
+export const createLiveAnalysisTask = async (data: { url: string; event_name: string; event_date: string; description?: string; prompt_file?: string }): Promise<{ task_id: string; message: string }> => {
+    const body = {
+        url: data.url,
+        event_name: data.event_name,
+        event_date: data.event_date,
+        prompt_file: data.prompt_file,
+    };
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/live`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
     });
 };
 
-export const createVideoAnalysisTask = async (formData: FormData): Promise<{ task_id: string; message: string }> => {
-    const token = getAuthToken();
-    const headers: HeadersInit = {};
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    const finalUrl = new URL(`${LIVESTREAM_SERVICE_PATH}/tasks/video`, window.location.origin).href;
-    const response = await fetch(finalUrl, {
+export const createVideoAnalysisTask = async (data: { video_path: string; event_name: string; event_date: string; description?: string; prompt_file?: string }): Promise<{ task_id: string; message: string }> => {
+     const body = {
+        video_path: data.video_path,
+        event_name: data.event_name,
+        event_date: data.event_date,
+        prompt_file: data.prompt_file,
+    };
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/video`, {
         method: 'POST',
-        body: formData,
-        headers,
+        body: JSON.stringify(body),
     });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Task creation failed');
-    }
-    return response.json();
 };
 
-export const createSummitAnalysisTask = async (formData: FormData): Promise<{ task_id: string; message: string }> => {
-    const token = getAuthToken();
-    const headers: HeadersInit = {};
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    const finalUrl = new URL(`${LIVESTREAM_SERVICE_PATH}/tasks/summit`, window.location.origin).href;
-    const response = await fetch(finalUrl, {
+export const createSummitAnalysisTask = async (data: { folder_path: string; event_name: string; event_date: string; description?: string; prompt_file?: string }): Promise<{ task_id: string; message: string }> => {
+    const body = {
+        folder_path: data.folder_path,
+        event_name: data.event_name,
+        event_date: data.event_date,
+        prompt_file: data.prompt_file,
+    };
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/summit`, {
         method: 'POST',
-        body: formData,
-        headers,
+        body: JSON.stringify(body),
     });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Task creation failed');
-    }
-    return response.json();
 };
 
 export const deleteLivestreamTask = async (taskId: string): Promise<{ message: string }> => {

@@ -17,25 +17,6 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-const FileInput: React.FC<{
-    onChange: (files: FileList | null) => void;
-    multiple?: boolean;
-    accept: string;
-    files: File[] | null;
-}> = ({ onChange, multiple = false, accept, files }) => (
-    <div className="mt-2 flex items-center justify-center w-full">
-        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">点击上传</span> 或拖拽文件</p>
-                <p className="text-xs text-gray-500">{multiple ? "可选择多个文件" : "选择单个文件"}</p>
-            </div>
-            <input type="file" className="hidden" multiple={multiple} accept={accept} onChange={e => onChange(e.target.files)} />
-        </label>
-    </div>
-);
-
-
 export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
     const [isLoading, setIsLoading] = useState(false);
@@ -47,50 +28,39 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
     const [promptType, setPromptType] = useState('default');
     const [liveUrl, setLiveUrl] = useState('');
     const [eventDate, setEventDate] = useState('');
-    const [videoFile, setVideoFile] = useState<File[] | null>(null);
-    const [imageFiles, setImageFiles] = useState<File[] | null>(null);
+    const [videoPath, setVideoPath] = useState('');
+    const [folderPath, setFolderPath] = useState('');
 
     const isFormValid = useMemo(() => {
         if (!title.trim()) return false;
         switch (taskType) {
             case 'live': return liveUrl.trim() !== '' && eventDate.trim() !== '';
-            case 'video': return videoFile && videoFile.length > 0;
-            case 'summit': return imageFiles && imageFiles.length > 0;
+            case 'video': return videoPath.trim() !== '' && eventDate.trim() !== '';
+            case 'summit': return folderPath.trim() !== '' && eventDate.trim() !== '';
             default: return false;
         }
-    }, [title, taskType, liveUrl, eventDate, videoFile, imageFiles]);
+    }, [title, taskType, liveUrl, eventDate, videoPath, folderPath]);
 
     const handleSubmit = async () => {
         setIsLoading(true);
         setError('');
         try {
+            const commonData = {
+                event_name: title,
+                event_date: eventDate,
+                description,
+                prompt_file: promptType !== 'default' ? `${promptType}.md` : undefined,
+            };
+
             switch (taskType) {
                 case 'live':
-                    await createLiveAnalysisTask({
-                        url: liveUrl,
-                        event_name: title,
-                        event_date: eventDate,
-                        description,
-                        prompt_type: promptType
-                    });
+                    await createLiveAnalysisTask({ ...commonData, url: liveUrl });
                     break;
                 case 'video':
-                    if (!videoFile || videoFile.length === 0) throw new Error('请选择一个视频文件。');
-                    const videoFormData = new FormData();
-                    videoFormData.append('title', title);
-                    if(description) videoFormData.append('description', description);
-                    if(promptType) videoFormData.append('prompt_type', promptType);
-                    videoFormData.append('video_file', videoFile[0]);
-                    await createVideoAnalysisTask(videoFormData);
+                    await createVideoAnalysisTask({ ...commonData, video_path: videoPath });
                     break;
                 case 'summit':
-                    if (!imageFiles || imageFiles.length === 0) throw new Error('请选择至少一张图片。');
-                    const summitFormData = new FormData();
-                    summitFormData.append('title', title);
-                    if(description) summitFormData.append('description', description);
-                    if(promptType) summitFormData.append('prompt_type', promptType);
-                    imageFiles.forEach(file => summitFormData.append('images', file));
-                    await createSummitAnalysisTask(summitFormData);
+                    await createSummitAnalysisTask({ ...commonData, folder_path: folderPath });
                     break;
             }
             onSuccess();
@@ -113,12 +83,6 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
             {label}
         </button>
     );
-
-    const renderSelectedFiles = (files: File[] | null) => {
-        if (!files || files.length === 0) return null;
-        if (files.length === 1) return <p className="text-xs text-gray-500 mt-1">已选择: {files[0].name}</p>;
-        return <p className="text-xs text-gray-500 mt-1">已选择 {files.length} 个文件。</p>;
-    }
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -169,18 +133,30 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                         </>
                     )}
                     {taskType === 'video' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">视频文件 <span className="text-red-500">*</span></label>
-                            <FileInput onChange={files => setVideoFile(files ? Array.from(files) : null)} accept="video/*" files={videoFile} />
-                            {renderSelectedFiles(videoFile)}
-                        </div>
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">视频文件路径 <span className="text-red-500">*</span></label>
+                                <input type="text" value={videoPath} onChange={e => setVideoPath(e.target.value)} placeholder="/path/to/your/video.mp4" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                                <p className="text-xs text-gray-500 mt-1">请输入服务器上视频文件的绝对路径。</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
+                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            </div>
+                        </>
                     )}
                     {taskType === 'summit' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">图片文件 <span className="text-red-500">*</span></label>
-                            <FileInput onChange={files => setImageFiles(files ? Array.from(files) : null)} multiple accept="image/*" files={imageFiles} />
-                            {renderSelectedFiles(imageFiles)}
-                        </div>
+                         <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">图片文件夹路径 <span className="text-red-500">*</span></label>
+                                <input type="text" value={folderPath} onChange={e => setFolderPath(e.target.value)} placeholder="/path/to/summit/images" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                                <p className="text-xs text-gray-500 mt-1">请输入服务器上图片文件夹的绝对路径。</p>
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
+                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            </div>
+                        </>
                     )}
                 </div>
 

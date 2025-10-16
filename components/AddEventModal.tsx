@@ -1,8 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { CloseIcon } from './icons';
-// FIX: Replaced non-existent API functions with correct ones.
 import { createLiveAnalysisTask, createVideoAnalysisTask } from '../api';
-// FIX: Replaced non-existent ApiTask with LivestreamTask.
 import { LivestreamTask } from '../types';
 
 interface AddEventModalProps {
@@ -26,35 +24,17 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [liveTitle, setLiveTitle] = useState('');
     const [liveUrl, setLiveUrl] = useState('');
     const [starttime, setStarttime] = useState('');
-    const [coverImage, setCoverImage] = useState<File | null>(null);
-    const liveFileInputRef = useRef<HTMLInputElement>(null);
-
+    
     // Offline Task State
     const [offlineTitle, setOfflineTitle] = useState('');
     const [sourceUri, setSourceUri] = useState('');
-    const [replayUrl, setReplayUrl] = useState('');
     const [offlineStarttime, setOfflineStarttime] = useState('');
-    const [offlineCoverImage, setOfflineCoverImage] = useState<File | null>(null);
-    const offlineFileInputRef = useRef<HTMLInputElement>(null);
-
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-
-    const handleLiveFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            setCoverImage(event.target.files[0]);
-        }
-    };
-    
-    const handleOfflineFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files && event.target.files[0]) {
-            setOfflineCoverImage(event.target.files[0]);
-        }
-    };
     
     const isLiveFormValid = liveTitle.trim() !== '' && liveUrl.trim() !== '' && starttime.trim() !== '';
-    const isOfflineFormValid = offlineTitle.trim() !== '' && sourceUri.trim() !== '' && replayUrl.trim() !== '' && offlineStarttime.trim() !== '';
+    const isOfflineFormValid = offlineTitle.trim() !== '' && sourceUri.trim() !== '' && offlineStarttime.trim() !== '';
 
     const handleSubmit = async () => {
         setIsLoading(true);
@@ -74,8 +54,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     return;
                 }
                 const bililiveId = bililiveIdMatch[1];
-                // FIX: Corrected the object passed to `createLiveAnalysisTask` to match the function signature in `api.ts`.
-                // The API expects `url`, `event_name`, and `event_date`, not `bililive_id` and `title`.
                 const { task_id } = await createLiveAnalysisTask({
                     url: liveUrl,
                     event_name: liveTitle,
@@ -94,19 +72,15 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 };
             } else { // offline
                 if(!isOfflineFormValid){
-                    setError('任务标题、源URI、回放URL和原始开始时间都是必填项。');
+                    setError('任务标题、源URI和原始开始时间都是必填项。');
                     setIsLoading(false);
                     return;
                 }
-                const formData = new FormData();
-                formData.append('title', offlineTitle);
-                formData.append('source_uri', sourceUri);
-                formData.append('replay_url', replayUrl);
-                formData.append('starttime', `${offlineStarttime}:00`);
-                if (offlineCoverImage) {
-                    formData.append('cover_image', offlineCoverImage);
-                }
-                const { task_id } = await createVideoAnalysisTask(formData);
+                const { task_id } = await createVideoAnalysisTask({
+                    video_path: sourceUri,
+                    event_name: offlineTitle,
+                    event_date: offlineStarttime,
+                });
                 newEventData = {
                     task_id,
                     title: offlineTitle,
@@ -185,19 +159,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                     disabled={isLoading}
                                 />
                             </div>
-                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>
-                                <div className="mt-2 flex items-center justify-center w-full">
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                                            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">点击上传</span></p>
-                                        </div>
-                                        <input ref={liveFileInputRef} id="dropzone-file" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleLiveFileChange} />
-                                    </label>
-                                </div> 
-                                {coverImage && <p className="text-xs text-gray-500 mt-1">已选择: {coverImage.name}</p>}
-                            </div>
                         </>
                     ) : (
                          <>
@@ -211,23 +172,14 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                 />
                             </div>
                             <div>
-                                <label htmlFor="sourceuri" className="block text-sm font-medium text-gray-700 mb-1">源 URI (URL或服务器路径) <span className="text-red-500">*</span></label>
+                                <label htmlFor="sourceuri" className="block text-sm font-medium text-gray-700 mb-1">源 URI (服务器文件路径) <span className="text-red-500">*</span></label>
                                 <input
                                     type="text" id="sourceuri" value={sourceUri} onChange={(e) => setSourceUri(e.target.value)}
-                                    placeholder="http://example.com/video.mp4 或 /data/videos/video.mp4"
+                                    placeholder="/data/videos/video.mp4"
                                     className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     disabled={isLoading}
                                 />
-                            </div>
-                            <div>
-                                <label htmlFor="replayurl" className="block text-sm font-medium text-gray-700 mb-1">回放/原始页面 URL <span className="text-red-500">*</span></label>
-                                <input
-                                    type="url" id="replayurl" value={replayUrl} onChange={(e) => setReplayUrl(e.target.value)}
-                                    placeholder="http://live.example.com/room/123"
-                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={isLoading}
-                                />
-                                <p className="text-xs text-gray-500 mt-1">供前端展示“观看回放”链接，可以是原始直播间页面。</p>
+                                <p className="text-xs text-gray-500 mt-1">请输入服务器上视频文件的绝对路径。</p>
                             </div>
                              <div>
                                 <label htmlFor="offlinestarttime" className="block text-sm font-medium text-gray-700 mb-1">原始开始时间 <span className="text-red-500">*</span></label>
@@ -237,19 +189,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                     disabled={isLoading}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">用于前端排序和显示，请填写准确。</p>
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>
-                                <div className="mt-2 flex items-center justify-center w-full">
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <svg className="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
-                                            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">点击上传</span></p>
-                                        </div>
-                                        <input ref={offlineFileInputRef} id="offline-dropzone-file" type="file" className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleOfflineFileChange} />
-                                    </label>
-                                </div> 
-                                {offlineCoverImage && <p className="text-xs text-gray-500 mt-1">已选择: {offlineCoverImage.name}</p>}
                             </div>
                         </>
                     )}

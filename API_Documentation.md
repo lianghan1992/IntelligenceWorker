@@ -1289,7 +1289,7 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 
 ### 3.1. 创建直播分析任务
 
-创建一个新的直播分析任务，用于分析指定的直播流。
+创建一个新的直播分析任务，用于分析指定的直播流。任务创建后，后台会自动同步到 bililive 服务进行监控和录制。
 
 -   **路径:** `/livestream/tasks/live`
 -   **方法:** `POST`
@@ -1299,10 +1299,10 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 
 | 字段 | 类型 | 是否必须 | 说明 |
 |------|------|----------|------|
-| `bililive_id` | string | 是 | B站直播间ID |
-| `title` | string | 是 | 任务标题 |
-| `description` | string | 否 | 任务描述 |
-| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+| `url` | string | 是 | 直播间URL地址 |
+| `event_name` | string | 是 | 事件名称 |
+| `event_date` | string | 是 | 事件日期 (YYYY-MM-DD格式) |
+| `prompt_file` | string | 否 | 分析提示词文件名 |
 
 **请求示例**
 ```bash
@@ -1310,10 +1310,10 @@ curl -X POST "http://localhost:8000/livestream/tasks/live" \
 -H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "bililive_id": "12345678",
-  "title": "汽车发布会直播分析",
-  "description": "分析某品牌新车发布会直播内容",
-  "prompt_type": "car_launch_event"
+  "url": "https://live.bilibili.com/8178490",
+  "event_name": "汽车发布会直播分析",
+  "event_date": "2025-10-15",
+  "prompt_file": "car_launch_event.md"
 }'
 ```
 
@@ -1327,7 +1327,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/live" \
 
 ### 3.2. 创建视频分析任务
 
-创建一个新的视频分析任务，用于分析上传的视频文件。
+创建一个新的视频分析任务，用于分析服务器本地的视频文件。
 
 -   **路径:** `/livestream/tasks/video`
 -   **方法:** `POST`
@@ -1337,19 +1337,22 @@ curl -X POST "http://localhost:8000/livestream/tasks/live" \
 
 | 字段 | 类型 | 是否必须 | 说明 |
 |------|------|----------|------|
-| `video_file` | file | 是 | 视频文件 (multipart/form-data) |
-| `title` | string | 是 | 任务标题 |
-| `description` | string | 否 | 任务描述 |
-| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+| `video_path` | string | 是 | 服务器本地视频文件的绝对路径 |
+| `event_name` | string | 是 | 事件名称 |
+| `event_date` | string | 是 | 事件日期 (YYYY-MM-DD格式) |
+| `prompt_file` | string | 否 | 分析提示词文件名 |
 
 **请求示例**
 ```bash
 curl -X POST "http://localhost:8000/livestream/tasks/video" \
 -H "Authorization: Bearer YOUR_TOKEN" \
--F "video_file=@/path/to/video.mp4" \
--F "title=汽车测评视频分析" \
--F "description=分析汽车性能测评视频" \
--F "prompt_type=car_review"
+-H "Content-Type: application/json" \
+-d '{
+  "video_path": "/path/to/your/video.mp4",
+  "event_name": "XX品牌2025秋季新品发布会",
+  "event_date": "2025-10-20",
+  "prompt_file": "car_launch_event.md"
+}'
 ```
 
 **返回示例 (200 OK)**
@@ -1362,7 +1365,7 @@ curl -X POST "http://localhost:8000/livestream/tasks/video" \
 
 ### 3.3. 创建峰会图片集分析任务
 
-创建一个新的峰会图片集分析任务，用于分析上传的多张图片。
+创建一个新的峰会图片集分析任务，用于分析服务器本地文件夹中的图片集合。
 
 -   **路径:** `/livestream/tasks/summit`
 -   **方法:** `POST`
@@ -1372,20 +1375,22 @@ curl -X POST "http://localhost:8000/livestream/tasks/video" \
 
 | 字段 | 类型 | 是否必须 | 说明 |
 |------|------|----------|------|
-| `images` | file[] | 是 | 图片文件列表 (multipart/form-data) |
-| `title` | string | 是 | 任务标题 |
-| `description` | string | 否 | 任务描述 |
-| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+| `folder_path` | string | 是 | 服务器本地图片文件夹的绝对路径 |
+| `event_name` | string | 是 | 事件名称 |
+| `event_date` | string | 是 | 事件日期 (YYYY-MM-DD格式) |
+| `prompt_file` | string | 否 | 分析提示词文件名 |
 
 **请求示例**
 ```bash
 curl -X POST "http://localhost:8000/livestream/tasks/summit" \
 -H "Authorization: Bearer YOUR_TOKEN" \
--F "images=@/path/to/image1.jpg" \
--F "images=@/path/to/image2.jpg" \
--F "title=汽车峰会图片分析" \
--F "description=分析汽车行业峰会演讲图片" \
--F "prompt_type=summit_analysis"
+-H "Content-Type: application/json" \
+-d '{
+  "folder_path": "/path/to/summit/images",
+  "event_name": "2025汽车行业峰会",
+  "event_date": "2025-11-15",
+  "prompt_file": "summit_analysis.md"
+}'
 ```
 
 **返回示例 (200 OK)**
