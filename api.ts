@@ -10,12 +10,11 @@ import {
     ApiPoi,
     PlanDetails,
     ApiProcessingTask,
-    ApiTask,
     AllPrompts,
     SearchResult,
     Prompt,
-    AppEvent,
-    UserSourceSubscription
+    UserSourceSubscription,
+    LivestreamTask
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
@@ -65,6 +64,8 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     return response.json();
 };
 
+const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
+
 // --- Auth Service ---
 
 export const login = async (email: string, password: string): Promise<{ token: string; user: User }> => {
@@ -72,24 +73,57 @@ export const login = async (email: string, password: string): Promise<{ token: s
         method: 'POST',
         body: JSON.stringify({ email, password }),
     });
-    // FIX: The user object from the login response already matches the `User` type with `user_id`.
-    // The previous implementation was incorrectly trying to map a non-existent `id` field.
+    
+    const userFromApi = response.user;
+    
+    // The backend API now consistently returns 'id'.
+    if (!userFromApi.id) {
+        throw new Error("Login response is missing a user ID.");
+    }
+    
+    const finalUser: User = {
+        id: userFromApi.id,
+        username: userFromApi.username,
+        email: userFromApi.email,
+    };
+
     return { 
         token: response.accessToken, 
-        user: response.user
+        user: finalUser
     };
 };
 
 export const register = async (username: string, email: string, password: string): Promise<User> => {
-    return apiFetch(`${USER_SERVICE_PATH}/register`, {
+    const response = await apiFetch(`${USER_SERVICE_PATH}/register`, {
         method: 'POST',
         body: JSON.stringify({ username, email, password }),
     });
+    // The register endpoint returns 'id', which matches our internal User type.
+    if (!response.id) {
+        throw new Error("Register response is missing a user ID.");
+    }
+    return { 
+        id: response.id,
+        username: response.username,
+        email: response.email,
+    };
 };
 
 export const getMe = async (): Promise<User> => {
-    const user = await apiFetch(`${USER_SERVICE_PATH}/me`);
-    return { ...user, user_id: user.id };
+    const userFromApi = await apiFetch(`${USER_SERVICE_PATH}/me`);
+
+    // The backend API now consistently returns 'id'.
+    if (!userFromApi.id) {
+        throw new Error("/me endpoint response is missing a user ID.");
+    }
+
+    const finalUser: User = {
+        id: userFromApi.id,
+        username: userFromApi.username,
+        email: userFromApi.email,
+    };
+    
+    return finalUser;
 };
 
 
@@ -306,78 +340,75 @@ export const getProcessingTasksStats = async (): Promise<{ [key: string]: number
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
-// --- Events (Live/Offline Tasks) ---
+// --- Livestream Analysis Service (New) ---
 
-export const getEvents = async (page: number, limit: number = 20): Promise<{events: AppEvent[], totalPages: number}> => {
-    const query = new URLSearchParams({ page: String(page), limit: String(limit) }).toString();
-    const data: PaginatedResponse<ApiTask> = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/events/tasks?${query}`);
-    return {
-        events: data.items.map(convertApiTaskToFrontendEvent),
-        totalPages: data.totalPages > 0 ? data.totalPages : 1,
-    };
+export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 
-export const convertApiTaskToFrontendEvent = (task: ApiTask): AppEvent => {
-  return {
-    id: task.task_id,
-    title: task.title,
-    status: task.task_status,
-    taskType: task.task_type,
-    startTime: task.planned_start_time,
-    organizer: {
-      name: task.organizer_name || '未知',
-      platform: task.organizer_platform || '未知',
-    },
-    coverImageUrl: task.cover_image_url,
-    // Use replay URL if available, as it's often the persistent link after a live event.
-    liveUrl: task.replay_url || task.live_url,
-    sourceUri: task.source_uri,
-    reportContentHtml: task.report_html,
-  };
+export const createLiveAnalysisTask = async (data: { bililive_id: string; title: string; description?: string; prompt_type?: string }): Promise<{ task_id: string; message: string }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/live`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
 };
 
-const createEventTask = async (endpoint: string, formData: FormData): Promise<ApiTask> => {
-    // We can't use apiFetch for multipart/form-data
+export const createVideoAnalysisTask = async (formData: FormData): Promise<{ task_id: string; message: string }> => {
     const token = getAuthToken();
     const headers: HeadersInit = {};
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-
-    const response = await fetch(endpoint, {
+    const finalUrl = new URL(`${LIVESTREAM_SERVICE_PATH}/tasks/video`, window.location.origin).href;
+    const response = await fetch(finalUrl, {
         method: 'POST',
         body: formData,
         headers,
     });
-
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Task creation failed');
+        throw new Error(errorData.detail || 'Task creation failed');
     }
     return response.json();
 };
 
-export const createLiveTask = async (liveUrl: string, plannedStartTime: string, coverImage?: File): Promise<ApiTask> => {
-    const formData = new FormData();
-    formData.append('live_url', liveUrl);
-    formData.append('planned_start_time', plannedStartTime);
-    if (coverImage) {
-        formData.append('cover_image', coverImage);
+export const createSummitAnalysisTask = async (formData: FormData): Promise<{ task_id: string; message: string }> => {
+    const token = getAuthToken();
+    const headers: HeadersInit = {};
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
     }
-    return createEventTask(`${INTELLIGENCE_SERVICE_PATH}/events/tasks/live`, formData);
+    const finalUrl = new URL(`${LIVESTREAM_SERVICE_PATH}/tasks/summit`, window.location.origin).href;
+    const response = await fetch(finalUrl, {
+        method: 'POST',
+        body: formData,
+        headers,
+    });
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Task creation failed');
+    }
+    return response.json();
 };
 
-export const createOfflineTask = async (title: string, sourceUri: string, replayUrl: string, originalStartTime: string, coverImage?: File): Promise<ApiTask> => {
-    const formData = new FormData();
-    formData.append('title', title);
-    formData.append('source_uri', sourceUri);
-    formData.append('replay_url', replayUrl);
-    formData.append('original_start_time', originalStartTime);
-    if (coverImage) {
-        formData.append('cover_image', coverImage);
-    }
-    return createEventTask(`${INTELLIGENCE_SERVICE_PATH}/events/tasks/offline`, formData);
+export const deleteLivestreamTask = async (taskId: string): Promise<{ message: string }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/delete`, {
+        method: 'POST',
+    });
 };
+
+export const startLivestreamTask = async (taskId: string): Promise<{ message: string }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, {
+        method: 'POST',
+    });
+};
+
+export const stopLivestreamTask = async (taskId: string): Promise<{ message: string }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, {
+        method: 'POST',
+    });
+};
+
 
 // --- Prompts ---
 

@@ -1,11 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { CloseIcon } from './icons';
-import { createLiveTask, createOfflineTask } from '../api';
-import { ApiTask } from '../types';
+// FIX: Replaced non-existent API functions with correct ones.
+import { createLiveAnalysisTask, createVideoAnalysisTask } from '../api';
+// FIX: Replaced non-existent ApiTask with LivestreamTask.
+import { LivestreamTask } from '../types';
 
 interface AddEventModalProps {
   onClose: () => void;
-  onSuccess: (newEvent: ApiTask) => void;
+  onSuccess: (newEvent: LivestreamTask) => void;
 }
 
 type TaskType = 'live' | 'offline';
@@ -21,6 +23,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [taskType, setTaskType] = useState<TaskType>('live');
 
     // Live Task State
+    const [liveTitle, setLiveTitle] = useState('');
     const [liveUrl, setLiveUrl] = useState('');
     const [starttime, setStarttime] = useState('');
     const [coverImage, setCoverImage] = useState<File | null>(null);
@@ -50,30 +53,66 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         }
     };
     
-    const isLiveFormValid = liveUrl.trim() !== '' && starttime.trim() !== '';
+    const isLiveFormValid = liveTitle.trim() !== '' && liveUrl.trim() !== '' && starttime.trim() !== '';
     const isOfflineFormValid = offlineTitle.trim() !== '' && sourceUri.trim() !== '' && replayUrl.trim() !== '' && offlineStarttime.trim() !== '';
 
     const handleSubmit = async () => {
         setIsLoading(true);
         setError('');
         try {
-            let newEventData: ApiTask;
+            let newEventData: LivestreamTask;
             if (taskType === 'live') {
                 if (!isLiveFormValid) {
-                    setError('直播URL和计划开始时间是必填项。');
+                    setError('任务标题、直播URL和计划开始时间是必填项。');
                     setIsLoading(false);
                     return;
                 }
-                const formattedStartTime = `${starttime}:00`;
-                newEventData = await createLiveTask(liveUrl, formattedStartTime, coverImage || undefined);
+                const bililiveIdMatch = liveUrl.match(/\/(\d+)/);
+                if (!bililiveIdMatch) {
+                    setError('无法从URL中提取B站直播间ID。请确保URL格式正确。');
+                    setIsLoading(false);
+                    return;
+                }
+                const bililiveId = bililiveIdMatch[1];
+                const { task_id } = await createLiveAnalysisTask({ 
+                    bililive_id: bililiveId,
+                    title: liveTitle
+                });
+                // The API only returns the task_id. We construct a temporary object for the UI.
+                newEventData = {
+                    task_id,
+                    title: liveTitle,
+                    description: '',
+                    task_type: 'live',
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    bililive_id: bililiveId,
+                };
             } else { // offline
                 if(!isOfflineFormValid){
                     setError('任务标题、源URI、回放URL和原始开始时间都是必填项。');
                     setIsLoading(false);
                     return;
                 }
-                const formattedOfflineStartTime = `${offlineStarttime}:00`;
-                newEventData = await createOfflineTask(offlineTitle, sourceUri, replayUrl, formattedOfflineStartTime, offlineCoverImage || undefined);
+                const formData = new FormData();
+                formData.append('title', offlineTitle);
+                formData.append('source_uri', sourceUri);
+                formData.append('replay_url', replayUrl);
+                formData.append('starttime', `${offlineStarttime}:00`);
+                if (offlineCoverImage) {
+                    formData.append('cover_image', offlineCoverImage);
+                }
+                const { task_id } = await createVideoAnalysisTask(formData);
+                newEventData = {
+                    task_id,
+                    title: offlineTitle,
+                    description: null,
+                    task_type: 'video',
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
             }
             onSuccess(newEventData);
         } catch (err: any) {
@@ -117,6 +156,15 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 <div className="p-6 space-y-4">
                     {taskType === 'live' ? (
                         <>
+                             <div>
+                                <label htmlFor="live-title" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
+                                <input
+                                    type="text" id="live-title" value={liveTitle} onChange={(e) => setLiveTitle(e.target.value)}
+                                    placeholder="例如：2024蔚来NIO Day直播"
+                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    disabled={isLoading}
+                                />
+                            </div>
                              <div>
                                 <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
                                 <input

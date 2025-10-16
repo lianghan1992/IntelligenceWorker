@@ -1,10 +1,9 @@
 // src/types.ts
 
 // Basic User Information
-// Note: The API is inconsistent. register returns 'id', login returns 'user_id'.
-// The app internally will always use 'user_id'.
+// The API now consistently returns 'id' for the user identifier.
 export interface User {
-  user_id: string;
+  id: string;
   username: string;
   email: string;
 }
@@ -85,23 +84,6 @@ export interface DeepDive {
     primary: string;
     secondary: string;
   };
-}
-
-// Represents an industry event
-export interface AppEvent {
-  id: string;
-  title: string;
-  status: 'UPCOMING' | 'LIVE' | 'SUMMARIZING' | 'CONCLUDED' | 'FAILED';
-  taskType: 'LIVE' | 'OFFLINE';
-  startTime: string;
-  organizer: {
-    name: string;
-    platform: string;
-  };
-  coverImageUrl: string | null;
-  liveUrl: string | null;
-  sourceUri: string | null;
-  reportContentHtml: string | null;
 }
 
 // Represents a single slide in the report generator
@@ -214,26 +196,6 @@ export interface ApiProcessingTask {
     updated_at: string;
 }
 
-
-// Raw event task from API (for events page) - This seems to be from a different service, keeping for compatibility
-export interface ApiTask {
-    task_id: string;
-    task_type: 'LIVE' | 'OFFLINE';
-    task_status: 'UPCOMING' | 'LIVE' | 'SUMMARIZING' | 'CONCLUDED' | 'FAILED';
-    live_url: string | null;
-    replay_url: string | null;
-    source_uri: string | null;
-    planned_start_time: string; // ISO 8601
-    created_at: string; // ISO 8601
-    organizer_name: string | null;
-    organizer_platform: string | null;
-    title: string;
-    cover_image_url: string | null;
-    report_html: string | null;
-    report_pdf_status: 'pending' | 'generating' | 'completed' | 'failed' | null;
-    report_pdf_download_url: string | null;
-}
-
 // Result from semantic search
 // FIX: Made similarity_score optional as it only exists in search results,
 // not in regular article listings, allowing the type to be used for both.
@@ -280,6 +242,26 @@ export interface PredictionEvidence {
     source_quote: string;
     original_url: string;
     initial_confidence: number;
+}
+
+// --- New Types for Livestream Service ---
+export interface LivestreamTask {
+  task_id: string;
+  title: string;
+  description: string | null;
+  task_type: 'live' | 'video' | 'summit';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  created_at: string;
+  updated_at: string;
+  bililive_id?: string;
+  prompt_type?: string;
+  results?: {
+    summary_available: boolean;
+    detailed_report_available: boolean;
+    pdf_available: boolean;
+  };
+  // FIX: Add optional property for EventReportModal component.
+  reportContentHtml?: string;
 }
 
 // Navigation views

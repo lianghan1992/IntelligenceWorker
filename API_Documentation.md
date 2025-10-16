@@ -25,11 +25,24 @@
     *   [2.8. 查询已采集文章](#28-查询已采集文章)
     *   [2.9. 语义搜索文章](#29-语义搜索文章)
     *   [2.10. 组合筛选与语义搜索文章 (新!)](#210-组合筛选与语义搜索文章-新)
-    *   [2.11. 提示词 (Prompts) 使用说明](#211-提示词-prompts-使用说明)
-    *   [2.12. 获取所有提示词](#212-获取所有提示词)
-    *   [2.13. 创建新提示词](#213-创建新提示词)
-    *   [2.14. 更新提示词](#214-更新提示词)
-    *   [2.15. 删除提示词](#215-删除提示词)
+    *   [2.11. 获取情报信息流 (新!)](#211-获取情报信息流-新)
+    *   [2.12. 提示词 (Prompts) 使用说明](#212-提示词-prompts-使用说明)
+    *   [2.13. 获取所有提示词](#213-获取所有提示词)
+    *   [2.14. 创建新提示词](#214-创建新提示词)
+    *   [2.15. 更新提示词](#215-更新提示词)
+    *   [2.16. 删除提示词](#216-删除提示词)
+3.  [**直播分析服务 (Livestream Service) (新!)**](#3-直播分析服务-livestream-service-新)
+    *   [3.1. 创建直播分析任务](#31-创建直播分析任务)
+    *   [3.2. 创建视频分析任务](#32-创建视频分析任务)
+    *   [3.3. 创建峰会图片集分析任务](#33-创建峰会图片集分析任务)
+    *   [3.4. 获取任务列表](#34-获取任务列表)
+    *   [3.5. 获取任务详情](#35-获取任务详情)
+    *   [3.6. 获取任务结果文件](#36-获取任务结果文件)
+    *   [3.7. 删除任务](#37-删除任务)
+    *   [3.8. 启动任务](#38-启动任务)
+    *   [3.9. 停止任务](#39-停止任务)
+    *   [3.10. 获取Bililive服务信息](#310-获取bililive服务信息)
+    *   [3.11. 获取Bililive服务状态](#311-获取bililive服务状态)
 
 ---
 
@@ -134,7 +147,7 @@ curl -X POST http://127.0.0.1:7657/users/login \
 | :--- | :--- | :--- |
 | `message` | string | 登录结果信息 |
 | `user` | object | 登录用户的基本信息 |
-| `user.user_id` | string | 登录用户的ID |
+| `user.id` | string | 登录用户的ID |
 | `user.username` | string | 登录用户的名称 |
 | `user.email` | string | 登录用户的邮箱 |
 | `accessToken` | string | 用于后续认证的 JWT 令牌 |
@@ -144,7 +157,7 @@ curl -X POST http://127.0.0.1:7657/users/login \
 {
   "message": "登录成功",
   "user": {
-    "user_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
     "username": "testuser",
     "email": "user@example.com"
   },
@@ -954,7 +967,12 @@ curl -X GET "http://127.0.0.1:7657/intelligence/articles?source_name=%E7%9B%96%E
       "original_url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
       "publish_date": "2025-10-10",
       "content": "文章内容...",
-      "created_at": "2025-10-10T13:10:00.000Z"
+      "created_at": "2025-10-10T13:10:00.000Z",
+      "summary": "本文介绍了比亚迪最新发布的刀片电池技术，该技术将电动汽车的续航里程提升至1000公里以上，对新能源汽车市场将产生重要影响。",
+      "keywords": "比亚迪,刀片电池,新能源汽车,续航里程",
+      "influence_score": 8,
+      "sentiment": "positive",
+      "entities": "[\"比亚迪\", \"刀片电池\"]"
     }
   ]
 }
@@ -1242,12 +1260,404 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 }
 ```
 
-### 2.14. 删除提示词
+### 2.16. 删除提示词
 
 删除一个指定的提示词（默认提示词无法删除）。
 
 -   **路径:** `/intelligence/prompts/{prompt_type}/{prompt_key}`
 -   **方法:** `DELETE`
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `prompt_type` | string | 提示词类型 |
+| `prompt_key` | string | 提示词键名 |
+
+**返回示例 (200 OK)**
+```json
+{
+  "message": "Prompt deleted successfully."
+}
+```
+
+---
+
+## 3. 直播分析服务 (Livestream Service) (新!)
+
+直播分析服务提供对直播内容、视频文件和峰会图片集的智能分析功能。所有接口都以 `/livestream` 为前缀，需要用户认证。
+
+### 3.1. 创建直播分析任务
+
+创建一个新的直播分析任务，用于分析指定的直播流。
+
+-   **路径:** `/livestream/tasks/live`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+|------|------|----------|------|
+| `bililive_id` | string | 是 | B站直播间ID |
+| `title` | string | 是 | 任务标题 |
+| `description` | string | 否 | 任务描述 |
+| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/live" \
+-H "Authorization: Bearer YOUR_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "bililive_id": "12345678",
+  "title": "汽车发布会直播分析",
+  "description": "分析某品牌新车发布会直播内容",
+  "prompt_type": "car_launch_event"
+}'
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "task_123456",
+  "message": "Live analysis task created successfully"
+}
+```
+
+### 3.2. 创建视频分析任务
+
+创建一个新的视频分析任务，用于分析上传的视频文件。
+
+-   **路径:** `/livestream/tasks/video`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+|------|------|----------|------|
+| `video_file` | file | 是 | 视频文件 (multipart/form-data) |
+| `title` | string | 是 | 任务标题 |
+| `description` | string | 否 | 任务描述 |
+| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/video" \
+-H "Authorization: Bearer YOUR_TOKEN" \
+-F "video_file=@/path/to/video.mp4" \
+-F "title=汽车测评视频分析" \
+-F "description=分析汽车性能测评视频" \
+-F "prompt_type=car_review"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "task_789012",
+  "message": "Video analysis task created successfully"
+}
+```
+
+### 3.3. 创建峰会图片集分析任务
+
+创建一个新的峰会图片集分析任务，用于分析上传的多张图片。
+
+-   **路径:** `/livestream/tasks/summit`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+|------|------|----------|------|
+| `images` | file[] | 是 | 图片文件列表 (multipart/form-data) |
+| `title` | string | 是 | 任务标题 |
+| `description` | string | 否 | 任务描述 |
+| `prompt_type` | string | 否 | 分析提示词类型，默认为"default" |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/summit" \
+-H "Authorization: Bearer YOUR_TOKEN" \
+-F "images=@/path/to/image1.jpg" \
+-F "images=@/path/to/image2.jpg" \
+-F "title=汽车峰会图片分析" \
+-F "description=分析汽车行业峰会演讲图片" \
+-F "prompt_type=summit_analysis"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "task_345678",
+  "message": "Summit analysis task created successfully"
+}
+```
+
+### 3.4. 获取任务列表
+
+获取当前用户的所有分析任务列表。
+
+-   **路径:** `/livestream/tasks`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:8000/livestream/tasks" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "task_id": "task_123456",
+    "title": "汽车发布会直播分析",
+    "description": "分析某品牌新车发布会直播内容",
+    "task_type": "live",
+    "status": "completed",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T11:45:00Z",
+    "bililive_id": "12345678",
+    "prompt_type": "car_launch_event"
+  },
+  {
+    "task_id": "task_789012",
+    "title": "汽车测评视频分析",
+    "description": "分析汽车性能测评视频",
+    "task_type": "video",
+    "status": "running",
+    "created_at": "2024-01-15T14:20:00Z",
+    "updated_at": "2024-01-15T14:25:00Z",
+    "prompt_type": "car_review"
+  }
+]
+```
+
+### 3.5. 获取任务详情
+
+获取指定任务的详细信息。
+
+-   **路径:** `/livestream/tasks/{task_id}`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:8000/livestream/tasks/task_123456" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "task_123456",
+  "title": "汽车发布会直播分析",
+  "description": "分析某品牌新车发布会直播内容",
+  "task_type": "live",
+  "status": "completed",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T11:45:00Z",
+  "bililive_id": "12345678",
+  "prompt_type": "car_launch_event",
+  "output_directory": "/path/to/output",
+  "results": {
+    "summary_available": true,
+    "detailed_report_available": true,
+    "pdf_available": true
+  }
+}
+```
+
+### 3.6. 获取任务结果文件
+
+下载指定任务的结果文件。
+
+-   **路径:** `/livestream/tasks/{task_id}/results/{file_type}`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+| `file_type` | string | 文件类型：summary（摘要）、detailed（详细报告）、pdf（PDF报告） |
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:8000/livestream/tasks/task_123456/results/summary" \
+-H "Authorization: Bearer YOUR_TOKEN" \
+-o summary.txt
+```
+
+**返回说明**
+- 成功时返回对应的文件内容
+- 文件不存在时返回404错误
+
+### 3.7. 删除任务
+
+删除指定的分析任务及其相关文件。
+
+-   **路径:** `/livestream/tasks/{task_id}/delete`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/task_123456/delete" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "message": "Task deleted successfully"
+}
+```
+
+### 3.8. 启动任务
+
+启动指定的分析任务。
+
+-   **路径:** `/livestream/tasks/{task_id}/start`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/task_123456/start" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "message": "Task started successfully"
+}
+```
+
+### 3.9. 停止任务
+
+停止正在运行的分析任务。
+
+-   **路径:** `/livestream/tasks/{task_id}/stop`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:8000/livestream/tasks/task_123456/stop" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "message": "Task stopped successfully"
+}
+```
+
+### 3.10. 获取Bililive服务信息
+
+获取Bililive服务的基本信息和配置。
+
+-   **路径:** `/livestream/services/bililive/info`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:8000/livestream/services/bililive/info" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "service_name": "Bililive Recording Service",
+  "version": "1.0.0",
+  "status": "running",
+  "supported_platforms": ["bilibili"],
+  "max_concurrent_streams": 5
+}
+```
+
+### 3.11. 获取Bililive服务状态
+
+获取Bililive服务的当前运行状态。
+
+-   **路径:** `/livestream/services/bililive/status`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:8000/livestream/services/bililive/status" \
+-H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "status": "running",
+  "active_streams": 2,
+  "total_recorded_duration": "4h 32m",
+  "last_health_check": "2024-01-15T15:30:00Z",
+  "disk_usage": {
+    "used": "2.5GB",
+    "available": "47.5GB"
+  }
+}
+```
+
+---
+
+## 错误响应格式
+
+所有API在出现错误时都会返回统一的错误格式：
+
+```json
+{
+  "detail": "错误描述信息"
+}
+```
+
+常见的HTTP状态码：
+- `200`: 请求成功
+- `400`: 请求参数错误
+- `401`: 未认证或认证失败
+- `403`: 权限不足
+- `404`: 资源不存在
+- `422`: 请求数据验证失败
+- `500`: 服务器内部错误
 
 **cURL请求示例**
 ```bash

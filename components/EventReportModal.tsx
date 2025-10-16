@@ -1,9 +1,10 @@
 import React from 'react';
 import { CloseIcon } from './icons';
-import { AppEvent } from '../types';
+// FIX: Replace non-existent `AppEvent` with `LivestreamTask`
+import { LivestreamTask } from '../types';
 
 interface EventReportModalProps {
-  event: AppEvent | null;
+  event: LivestreamTask | null;
   onClose: () => void;
 }
 
