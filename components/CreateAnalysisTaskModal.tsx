@@ -46,18 +46,19 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
     const [description, setDescription] = useState('');
     const [promptType, setPromptType] = useState('default');
     const [liveUrl, setLiveUrl] = useState('');
+    const [eventDate, setEventDate] = useState('');
     const [videoFile, setVideoFile] = useState<File[] | null>(null);
     const [imageFiles, setImageFiles] = useState<File[] | null>(null);
 
     const isFormValid = useMemo(() => {
         if (!title.trim()) return false;
         switch (taskType) {
-            case 'live': return liveUrl.trim() !== '';
+            case 'live': return liveUrl.trim() !== '' && eventDate.trim() !== '';
             case 'video': return videoFile && videoFile.length > 0;
             case 'summit': return imageFiles && imageFiles.length > 0;
             default: return false;
         }
-    }, [title, taskType, liveUrl, videoFile, imageFiles]);
+    }, [title, taskType, liveUrl, eventDate, videoFile, imageFiles]);
 
     const handleSubmit = async () => {
         setIsLoading(true);
@@ -65,11 +66,12 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         try {
             switch (taskType) {
                 case 'live':
-                    const bililiveIdMatch = liveUrl.match(/\/(\d+)/);
-                    if (!bililiveIdMatch) throw new Error('无法从URL中提取B站直播间ID。');
                     await createLiveAnalysisTask({
-                        bililive_id: bililiveIdMatch[1],
-                        title, description, prompt_type: promptType
+                        url: liveUrl,
+                        event_name: title,
+                        event_date: eventDate,
+                        description,
+                        prompt_type: promptType
                     });
                     break;
                 case 'video':
@@ -155,10 +157,16 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     </div>
 
                     {taskType === 'live' && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
-                            <input type="url" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://live.bilibili.com/22625027" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                        </div>
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
+                                <input type="url" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://live.bilibili.com/22625027" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">计划开始时间 <span className="text-red-500">*</span></label>
+                                <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            </div>
+                        </>
                     )}
                     {taskType === 'video' && (
                         <div>

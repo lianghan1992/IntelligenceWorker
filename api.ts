@@ -362,7 +362,7 @@ export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 
-export const createLiveAnalysisTask = async (data: { bililive_id: string; title: string; description?: string; prompt_type?: string }): Promise<{ task_id: string; message: string }> => {
+export const createLiveAnalysisTask = async (data: { url: string; event_name: string; event_date: string; description?: string; prompt_type?: string }): Promise<{ task_id: string; message: string }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/live`, {
         method: 'POST',
         body: JSON.stringify(data),

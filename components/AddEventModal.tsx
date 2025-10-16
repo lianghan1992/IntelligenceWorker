@@ -74,9 +74,12 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     return;
                 }
                 const bililiveId = bililiveIdMatch[1];
-                const { task_id } = await createLiveAnalysisTask({ 
-                    bililive_id: bililiveId,
-                    title: liveTitle
+                // FIX: Corrected the object passed to `createLiveAnalysisTask` to match the function signature in `api.ts`.
+                // The API expects `url`, `event_name`, and `event_date`, not `bililive_id` and `title`.
+                const { task_id } = await createLiveAnalysisTask({
+                    url: liveUrl,
+                    event_name: liveTitle,
+                    event_date: starttime,
                 });
                 // The API only returns the task_id. We construct a temporary object for the UI.
                 newEventData = {
