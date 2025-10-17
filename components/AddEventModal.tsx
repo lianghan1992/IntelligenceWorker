@@ -31,7 +31,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [taskType, setTaskType] = useState<TaskType>('live');
 
     const [eventName, setEventName] = useState('');
-    const [description, setDescription] = useState('');
     const [sourceUrl, setSourceUrl] = useState('');
     const [eventTime, setEventTime] = useState('');
     const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
@@ -60,8 +59,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return eventName.trim() !== '' && description.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
-    }, [eventName, description, sourceUrl, eventTime, promptName, coverImageFile]);
+        return eventName.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
+    }, [eventName, sourceUrl, eventTime, promptName, coverImageFile]);
     
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -95,7 +94,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 newEventData = {
                     task_id,
                     event_name: eventName,
-                    description: description,
                     task_type: 'live',
                     status: 'pending',
                     created_at: new Date().toISOString(),
@@ -113,7 +111,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 newEventData = {
                     task_id,
                     event_name: eventName,
-                    description: description,
                     task_type: 'video',
                     status: 'pending',
                     created_at: new Date().toISOString(),
@@ -179,10 +176,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={isLoading}
                         />
-                    </div>
-                     <div>
-                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">任务描述 <span className="text-red-500">*</span></label>
-                        <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="对任务的简短描述" rows={2} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 resize-none" disabled={isLoading}></textarea>
                     </div>
                      <div>
                         <label htmlFor="source-url" className="block text-sm font-medium text-gray-700 mb-1">{taskType === 'live' ? '直播间 URL' : '源 URI (服务器文件路径)'} <span className="text-red-500">*</span></label>
