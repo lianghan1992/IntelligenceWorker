@@ -361,7 +361,7 @@ export const getLivestreamPrompts = async (): Promise<{ prompts: LivestreamPromp
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 };
 
-export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
+export const getLivestreamTasks = async (): Promise<{ tasks: LivestreamTask[] }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 

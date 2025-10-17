@@ -35,7 +35,15 @@ export const IndustryEvents: React.FC = () => {
             setError(null);
             try {
                 // The new API returns tasks sorted by creation date, we'll sort them by status priority client-side
-                const fetchedTasks = await getLivestreamTasks();
+                const response = await getLivestreamTasks();
+                const fetchedTasks = response.tasks;
+
+                if (!Array.isArray(fetchedTasks)) {
+                    console.warn("IndustryEvents: API at /livestream/tasks did not return a `tasks` array. Defaulting to empty array.");
+                    setTasks([]);
+                    return;
+                }
+                
                 const statusOrder: { [key in LivestreamTask['status']]: number } = {
                     'running': 1,
                     'pending': 2,

@@ -52,11 +52,12 @@ export const ConferenceManager: React.FC = () => {
         setIsLoading(true);
         setError('');
         try {
-            const fetchedTasks = await getLivestreamTasks();
+            const response = await getLivestreamTasks();
+            const fetchedTasks = response.tasks;
             
             // Defensive check: Ensure fetchedTasks is an array before processing
             if (!Array.isArray(fetchedTasks)) {
-                console.warn("API at /livestream/tasks did not return an array. Defaulting to empty array.");
+                console.warn("API at /livestream/tasks did not return a `tasks` array. Defaulting to empty array.");
                 setTasks([]);
                 return;
             }
