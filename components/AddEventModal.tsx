@@ -79,12 +79,12 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         try {
             let newEventData: LivestreamTask;
             const cover_image_data = await fileToBase64(coverImageFile!);
+            // 修复：移除多余的 `title` 字段，并将 `prompt` 重命名为 `prompt_name` 以匹配API签名。
             const commonPayload = {
-                title: eventName,
                 description: description,
                 event_name: eventName,
                 event_date: eventTime.split('T')[0],
-                prompt: promptName,
+                prompt_name: promptName,
                 cover_image_data,
             };
 

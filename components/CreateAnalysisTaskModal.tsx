@@ -85,11 +85,10 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         try {
             const cover_image_data = await fileToBase64(coverImageFile!);
             const commonPayload = { 
-                title: eventName,
                 description: description,
                 event_name: eventName, 
                 event_date: eventDate.split('T')[0], // API expects YYYY-MM-DD
-                prompt: promptName, 
+                prompt_name: promptName, 
                 cover_image_data 
             };
             
