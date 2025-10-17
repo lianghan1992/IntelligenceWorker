@@ -2,15 +2,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LivestreamTask } from '../types';
 import {
     getLivestreamTasks,
-    startLivestreamTask,
-    stopLivestreamTask,
     deleteLivestreamTask,
     getLivestreamTaskReport,
 } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
 import { CreateAnalysisTaskModal } from './CreateAnalysisTaskModal';
-import { PlusIcon, PlayIcon, StopIcon, TrashIcon, CheckIcon, VideoCameraIcon, FilmIcon, PhotoIcon } from './icons';
+import { PlusIcon, TrashIcon, CheckIcon, VideoCameraIcon, FilmIcon, PhotoIcon } from './icons';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-gray-500" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -88,21 +86,17 @@ export const ConferenceManager: React.FC = () => {
         );
     }, [tasks, filters]);
 
-    const handleMutation = async (taskId: string, action: 'start' | 'stop' | 'delete') => {
+    const handleDelete = async (taskId: string) => {
         setIsMutating(taskId);
         setError('');
         try {
-            switch (action) {
-                case 'start': await startLivestreamTask(taskId); break;
-                case 'stop': await stopLivestreamTask(taskId); break;
-                case 'delete': await deleteLivestreamTask(taskId); break;
-            }
+            await deleteLivestreamTask(taskId);
             await loadTasks();
         } catch (err: any) {
-            setError(`操作失败: ${err.message}`);
+            setError(`删除失败: ${err.message}`);
         } finally {
             setIsMutating(null);
-            if (action === 'delete') setTaskToDelete(null);
+            setTaskToDelete(null);
         }
     };
 
@@ -186,8 +180,6 @@ export const ConferenceManager: React.FC = () => {
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
                                             <div className="flex items-center gap-2">
                                                 {task.status === 'completed' && <button onClick={() => handleViewReport(task)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="查看报告"><CheckIcon className="w-4 h-4" /></button>}
-                                                {(task.status === 'pending' || task.status === 'stopped' || task.status === 'failed') && <button onClick={() => handleMutation(task.task_id, 'start')} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="启动"><PlayIcon className="w-4 h-4" /></button>}
-                                                {task.status === 'running' && <button onClick={() => handleMutation(task.task_id, 'stop')} className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-gray-100 rounded-md" title="停止"><StopIcon className="w-4 h-4" /></button>}
                                                 <button onClick={() => setTaskToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除"><TrashIcon className="w-4 h-4" /></button>
                                             </div>
                                         )}
@@ -200,7 +192,7 @@ export const ConferenceManager: React.FC = () => {
             </div>
 
             {isCreateModalOpen && <CreateAnalysisTaskModal onClose={() => setIsCreateModalOpen(false)} onSuccess={loadTasks} />}
-            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.event_name}" 吗？此操作无法撤销。`} onConfirm={() => handleMutation(taskToDelete.task_id, 'delete')} onCancel={() => setTaskToDelete(null)} />}
+            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.event_name}" 吗？此操作无法撤销。`} onConfirm={() => handleDelete(taskToDelete.task_id)} onCancel={() => setTaskToDelete(null)} />}
             {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
         </div>
     );

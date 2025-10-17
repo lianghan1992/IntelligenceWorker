@@ -1,6 +1,6 @@
 import React from 'react';
 import { LivestreamTask } from '../types';
-import { VideoCameraIcon, FilmIcon, PhotoIcon, PlayIcon, StopIcon, TrashIcon, CheckIcon } from './icons';
+import { VideoCameraIcon, FilmIcon, PhotoIcon, CheckIcon } from './icons';
 
 interface TaskCardProps {
     task: LivestreamTask;
@@ -38,8 +38,6 @@ const getStatusDetails = (status: LivestreamTask['status']) => {
 export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
     const statusDetails = getStatusDetails(task.status);
     const canViewReport = task.status === 'completed';
-    const canStart = task.status === 'pending' || task.status === 'stopped' || task.status === 'failed';
-    const canStop = task.status === 'running';
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col h-full shadow-sm hover:shadow-lg transition-shadow duration-300">
@@ -71,39 +69,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
             
             <div className="mt-4 pt-3 border-t flex items-center justify-between">
                 <button
-                    onClick={() => alert('报告查看功能将在后台管理模块中实现。')}
+                    onClick={() => alert('报告查看功能请前往后台管理模块。')}
                     disabled={!canViewReport}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-md transition-colors disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 bg-green-100 text-green-700 hover:bg-green-200"
                 >
                     <CheckIcon className="w-4 h-4"/>
                     <span>查看报告</span>
                 </button>
-                <div className="flex items-center gap-2">
-                     <button
-                        onClick={() => alert('任务启动功能将在后台管理模块中实现。')}
-                        disabled={!canStart}
-                        title="启动"
-                        className="p-2 rounded-md transition-colors disabled:cursor-not-allowed disabled:text-gray-300 text-gray-600 hover:bg-gray-100"
-                    >
-                        <PlayIcon className="w-5 h-5"/>
-                    </button>
-                     <button
-                        onClick={() => alert('任务停止功能将在后台管理模块中实现。')}
-                        disabled={!canStop}
-                        title="停止"
-                        className="p-2 rounded-md transition-colors disabled:cursor-not-allowed disabled:text-gray-300 text-gray-600 hover:bg-gray-100"
-                    >
-                        <StopIcon className="w-5 h-5"/>
-                    </button>
-                     <button
-                        onClick={() => alert('任务删除功能将在后台管理模块中实现。')}
-                        disabled
-                        title="删除"
-                        className="p-2 rounded-md transition-colors disabled:cursor-not-allowed disabled:text-gray-300 text-gray-600 hover:bg-gray-100"
-                    >
-                        <TrashIcon className="w-5 h-5"/>
-                    </button>
-                </div>
             </div>
         </div>
     );

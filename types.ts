@@ -245,6 +245,12 @@ export interface PredictionEvidence {
 }
 
 // --- New Types for Livestream Service ---
+export interface LivestreamPrompt {
+    name: string;
+    display_name: string;
+    description: string;
+}
+
 export interface LivestreamTask {
   task_id: string;
   event_name: string; // Mapped from event_name in API
@@ -256,8 +262,9 @@ export interface LivestreamTask {
   completed_at: string | null;
   source_url: string; // URL for live, path for video/summit
   event_date: string;
-  prompt_file_path: string | null;
+  prompt_name: string;
   output_directory: string | null;
+  cover_image_url?: string | null;
 
   // Fields specific to 'live' tasks
   discovered_host_name?: string;

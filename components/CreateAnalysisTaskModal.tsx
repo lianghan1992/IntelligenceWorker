@@ -1,7 +1,7 @@
-// FIX: Import `useMemo` from `react` to resolve the "Cannot find name" error.
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { CloseIcon } from './icons';
-import { createLiveAnalysisTask, createVideoAnalysisTask, createSummitAnalysisTask } from '../api';
+import { createLiveAnalysisTask, createVideoAnalysisTask, createSummitAnalysisTask, getLivestreamPrompts } from '../api';
+import { LivestreamPrompt } from '../types';
 
 interface CreateAnalysisTaskModalProps {
   onClose: () => void;
@@ -17,50 +17,89 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
 
     // Form state
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [promptType, setPromptType] = useState('default');
-    const [liveUrl, setLiveUrl] = useState('');
+    const [eventName, setEventName] = useState('');
     const [eventDate, setEventDate] = useState('');
-    const [videoPath, setVideoPath] = useState('');
-    const [folderPath, setFolderPath] = useState('');
+    const [promptName, setPromptName] = useState('');
+    const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+    const [url, setUrl] = useState('');
+    const [archiveFile, setArchiveFile] = useState<File | null>(null);
+    const coverImageInputRef = useRef<HTMLInputElement>(null);
+    const archiveInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const fetchPrompts = async () => {
+            try {
+                const response = await getLivestreamPrompts();
+                setPrompts(response.prompts);
+                if (response.prompts.length > 0) {
+                    setPromptName(response.prompts[0].name);
+                }
+            } catch (err) {
+                console.error("Failed to fetch prompts", err);
+                setError("无法加载分析模板列表");
+            }
+        };
+        fetchPrompts();
+    }, []);
 
     const isFormValid = useMemo(() => {
-        if (!title.trim() || !eventDate.trim()) return false;
-        switch (taskType) {
-            case 'live': return liveUrl.trim() !== '';
-            case 'video': return videoPath.trim() !== '';
-            case 'summit': return folderPath.trim() !== '';
-            default: return false;
+        if (!eventName.trim() || !eventDate.trim() || !promptName || !coverImageFile) return false;
+        if (taskType === 'summit') {
+            return url.trim() !== '' && archiveFile !== null;
         }
-    }, [title, eventDate, taskType, liveUrl, videoPath, folderPath]);
+        return url.trim() !== '';
+    }, [eventName, eventDate, promptName, coverImageFile, taskType, url, archiveFile]);
+    
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileSetter: React.Dispatch<React.SetStateAction<File | null>>) => {
+        if (e.target.files && e.target.files[0]) {
+            fileSetter(e.target.files[0]);
+        }
+    };
+
 
     const handleSubmit = async () => {
+        if (!isFormValid) {
+            setError("请填写所有必填项。");
+            return;
+        }
+
         setIsLoading(true);
         setError('');
         try {
-            const commonData = {
-                event_name: title,
-                event_date: eventDate.split('T')[0], // Ensure YYYY-MM-DD format
-                description,
-                prompt_file: promptType !== 'default' ? `${promptType}.md` : undefined,
+            const cover_image_data = await fileToBase64(coverImageFile!);
+            const commonPayload = { 
+                event_name: eventName, 
+                event_date: eventDate, 
+                prompt_name: promptName, 
+                cover_image_data 
             };
-
+            
             switch (taskType) {
                 case 'live':
-                    await createLiveAnalysisTask({ ...commonData, url: liveUrl });
+                    await createLiveAnalysisTask({ ...commonPayload, url });
                     break;
                 case 'video':
-                    await createVideoAnalysisTask({ ...commonData, video_path: videoPath });
+                    await createVideoAnalysisTask({ ...commonPayload, url });
                     break;
                 case 'summit':
-                    await createSummitAnalysisTask({ ...commonData, folder_path: folderPath });
+                    const archive_data = await fileToBase64(archiveFile!);
+                    await createSummitAnalysisTask({ ...commonPayload, url, archive_data });
                     break;
             }
             onSuccess();
@@ -83,6 +122,24 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
             {label}
         </button>
     );
+    
+    const getUrlLabel = () => {
+        switch(taskType) {
+            case 'live': return '直播间 URL';
+            case 'video': return '视频 URL';
+            case 'summit': return '峰会参考 URL';
+            default: return 'URL';
+        }
+    }
+    
+    const getUrlPlaceholder = () => {
+        switch(taskType) {
+            case 'live': return 'https://live.bilibili.com/12345';
+            case 'video': return 'https://www.bilibili.com/video/BV123...';
+            case 'summit': return 'https://example.com/summit-2024';
+            default: return '';
+        }
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -96,67 +153,54 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     <div className="flex space-x-2 bg-gray-200 p-1 rounded-lg">
                         <TabButton type="live" label="直播分析" />
                         <TabButton type="video" label="视频分析" />
-                        <TabButton type="summit" label="图片集分析" />
+                        <TabButton type="summit" label="峰会分析" />
                     </div>
                 </div>
 
                 <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
-                        <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="例如：2024蔚来NIO Day直播" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
-                        <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} placeholder="输入任务的简短描述..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 resize-none" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">事件名称 <span className="text-red-500">*</span></label>
+                        <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} placeholder="例如：2024蔚来NIO Day" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">分析模板</label>
-                        <select value={promptType} onChange={e => setPromptType(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
-                           <option value="default">默认分析</option>
-                           <option value="car_launch_event">新车发布会</option>
-                           <option value="car_review">汽车测评</option>
-                           <option value="summit_analysis">行业峰会</option>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">事件时间 <span className="text-red-500">*</span></label>
+                        <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">分析模板 <span className="text-red-500">*</span></label>
+                        <select value={promptName} onChange={e => setPromptName(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
+                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.display_name}</option>)}
                         </select>
                     </div>
 
-                    {taskType === 'live' && (
-                        <>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">直播间 URL <span className="text-red-500">*</span></label>
-                                <input type="url" value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://live.bilibili.com/22625027" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">计划开始时间 <span className="text-red-500">*</span></label>
-                                <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                            </div>
-                        </>
-                    )}
-                    {taskType === 'video' && (
-                        <>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">视频文件路径 <span className="text-red-500">*</span></label>
-                                <input type="text" value={videoPath} onChange={e => setVideoPath(e.target.value)} placeholder="/path/to/your/video.mp4" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                                <p className="text-xs text-gray-500 mt-1">请输入服务器上视频文件的绝对路径。</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
-                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                            </div>
-                        </>
-                    )}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{getUrlLabel()} <span className="text-red-500">*</span></label>
+                        <input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder={getUrlPlaceholder()} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                    
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 <span className="text-red-500">*</span></label>
+                        <div
+                            onClick={() => coverImageInputRef.current?.click()}
+                            className="w-full p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                        >
+                            <span className="text-sm text-gray-500">{coverImageFile ? `已选择: ${coverImageFile.name}` : '点击选择图片文件'}</span>
+                            <input type="file" ref={coverImageInputRef} onChange={(e) => handleFileChange(e, setCoverImageFile)} accept="image/*" className="hidden" />
+                        </div>
+                    </div>
+                    
                     {taskType === 'summit' && (
-                         <>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">图片文件夹路径 <span className="text-red-500">*</span></label>
-                                <input type="text" value={folderPath} onChange={e => setFolderPath(e.target.value)} placeholder="/path/to/summit/images" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                                <p className="text-xs text-gray-500 mt-1">请输入服务器上图片文件夹的绝对路径。</p>
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">图片集压缩文件 <span className="text-red-500">*</span></label>
+                             <div
+                                onClick={() => archiveInputRef.current?.click()}
+                                className="w-full p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
+                            >
+                                <span className="text-sm text-gray-500">{archiveFile ? `已选择: ${archiveFile.name}` : '点击选择 .zip 文件'}</span>
+                                <input type="file" ref={archiveInputRef} onChange={(e) => handleFileChange(e, setArchiveFile)} accept=".zip,.rar,.7z" className="hidden" />
                             </div>
-                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
-                                <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
-                            </div>
-                        </>
+                        </div>
                     )}
                 </div>
 
