@@ -3,12 +3,14 @@ import { LivestreamTask } from '../types';
 import {
     getLivestreamTasks,
     deleteLivestreamTask,
+    startLivestreamTask,
+    stopLivestreamTask,
     getLivestreamTaskReport,
 } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
 import { CreateAnalysisTaskModal } from './CreateAnalysisTaskModal';
-import { PlusIcon, TrashIcon, CheckIcon, VideoCameraIcon, FilmIcon, PhotoIcon } from './icons';
+import { PlusIcon, TrashIcon, CheckIcon, VideoCameraIcon, FilmIcon, PhotoIcon, PlayIcon, StopIcon } from './icons';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-gray-500" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -86,6 +88,32 @@ export const ConferenceManager: React.FC = () => {
             (filters.status === 'all' || task.status === filters.status)
         );
     }, [tasks, filters]);
+    
+    const handleStart = async (taskId: string) => {
+        setIsMutating(taskId);
+        setError('');
+        try {
+            await startLivestreamTask(taskId);
+            await loadTasks(); // Refetch
+        } catch (err: any) {
+            setError(`启动任务失败: ${err.message}`);
+        } finally {
+            setIsMutating(null);
+        }
+    };
+
+    const handleStop = async (taskId: string) => {
+        setIsMutating(taskId);
+        setError('');
+        try {
+            await stopLivestreamTask(taskId);
+            await loadTasks(); // Refetch
+        } catch (err: any) {
+            setError(`停止任务失败: ${err.message}`);
+        } finally {
+            setIsMutating(null);
+        }
+    };
 
     const handleDelete = async (taskId: string) => {
         setIsMutating(taskId);
@@ -181,6 +209,16 @@ export const ConferenceManager: React.FC = () => {
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
                                             <div className="flex items-center gap-2">
                                                 {task.status === 'completed' && <button onClick={() => handleViewReport(task)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="查看报告"><CheckIcon className="w-4 h-4" /></button>}
+                                                {(task.status === 'pending' || task.status === 'stopped' || task.status === 'failed') && (
+                                                    <button onClick={() => handleStart(task.task_id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="启动任务">
+                                                        <PlayIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {task.status === 'running' && (
+                                                    <button onClick={() => handleStop(task.task_id)} className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-gray-100 rounded-md" title="停止任务">
+                                                        <StopIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 <button onClick={() => setTaskToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除"><TrashIcon className="w-4 h-4" /></button>
                                             </div>
                                         )}

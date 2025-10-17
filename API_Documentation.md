@@ -31,7 +31,7 @@
     *   [2.14. 创建新提示词](#214-创建新提示词)
     *   [2.15. 更新提示词](#215-更新提示词)
     *   [2.16. 删除提示词](#216-删除提示词)
-3.  [**直播分析服务 (Livestream Service) (已更新)**](#3-直播分析服务-livestream-service-已更新)
+3.  [**直播分析服务 (Livestream Service) (新!)**](#3-直播分析服务-livestream-service-新)
     *   [3.1. 获取可用提示词列表](#31-获取可用提示词列表)
     *   [3.2. 创建直播分析任务](#32-创建直播分析任务)
     *   [3.3. 创建视频分析任务](#33-创建视频分析任务)
@@ -39,7 +39,11 @@
     *   [3.5. 获取任务列表](#35-获取任务列表)
     *   [3.6. 获取任务详情](#36-获取任务详情)
     *   [3.7. 删除任务](#37-删除任务)
-    *   [3.8. 获取任务结果文件](#38-获取任务结果文件)
+    *   [3.8. 启动任务](#38-启动任务)
+    *   [3.9. 停止任务](#39-停止任务)
+    *   [3.10. 下载结果文件](#310-下载结果文件)
+    *   [3.11. 获取Bililive服务信息](#311-获取bililive服务信息)
+    *   [3.12. 获取Bililive服务状态](#312-获取bililive服务状态)
 
 ---
 
@@ -1280,22 +1284,20 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 
 ---
 
-## 3. 直播分析服务 (Livestream Service) (已更新)
+## 3. 直播分析服务 (Livestream Service) (新!)
 
 直播分析服务提供对直播内容、视频文件和峰会图片集的智能分析功能。所有接口都以 `/livestream` 为前缀，需要用户认证。
 
 ### 3.1. 获取可用提示词列表
 
-获取当前系统中可用于直播分析服务的提示词（分析模板）列表。
+获取当前可用的提示词列表，用于创建分析任务时选择合适的提示词。
 
 -   **路径:** `/livestream/prompts`
 -   **方法:** `GET`
--   **认证:** 需要Bearer Token
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/prompts" \
--H "Authorization: Bearer YOUR_TOKEN"
+curl -X GET "http://localhost:7657/livestream/prompts"
 ```
 
 **返回示例 (200 OK)**
@@ -1303,55 +1305,56 @@ curl -X GET "http://localhost:7657/livestream/prompts" \
 {
   "prompts": [
     {
-      "name": "车企发布会完整总结.md",
-      "display_name": "车企发布会完整总结",
-      "description": "针对汽车行业发布会的完整分析总结模板"
+      "name": "default_live",
+      "description": "默认直播分析提示词"
     },
     {
-      "name": "峰会论坛总结.md",
-      "display_name": "峰会论坛总结",
-      "description": "针对行业峰会和论坛的分析总结模板"
+      "name": "default_video", 
+      "description": "默认视频分析提示词"
+    },
+    {
+      "name": "default_summit",
+      "description": "默认峰会分析提示词"
     }
-  ]
+  ],
+  "total": 3
 }
 ```
 
 ### 3.2. 创建直播分析任务
 
-创建一个新的直播分析任务，用于实时分析指定的直播流。
+创建一个新的直播分析任务，用于分析指定的直播流。
 
 -   **路径:** `/livestream/tasks/live`
 -   **方法:** `POST`
--   **认证:** 需要Bearer Token
 
 **请求说明**
 
 | 字段 | 类型 | 是否必须 | 说明 |
-|:---|:---|:---|:---|
-| `url` | string | 是 | 直播间URL地址 |
-| `event_name` | string | 是 | 事件名称（用于前端展示） |
-| `event_date` | string | 是 | 事件发生日期和时间 (格式: `YYYY-MM-DD HH:MM:SS`) |
-| `prompt_name` | string | 是 | 使用的提示词文件名 (从 `GET /livestream/prompts` 获取) |
+|------|------|----------|------|
+| `url` | string | 是 | 直播间URL地址（bilibili、微博等bililive-go支持的渠道） |
+| `event_name` | string | 是 | 直播名称（用于前端展示） |
+| `event_date` | string | 是 | 开始直播时间（YYYY-MM-DD格式） |
+| `prompt_name` | string | 否 | 提示词名称（默认使用default_live） |
 | `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
 
 **请求示例**
 ```bash
 curl -X POST "http://localhost:7657/livestream/tasks/live" \
--H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "url": "https://live.bilibili.com/12345",
-  "event_name": "某车企新车发布会",
-  "event_date": "2024-10-17 10:00:00",
-  "prompt_name": "车企发布会完整总结.md",
-  "cover_image_data": "data:image/jpeg;base64,..."
+  "url": "https://live.bilibili.com/8178490",
+  "event_name": "汽车发布会直播分析",
+  "event_date": "2025-01-20",
+  "prompt_name": "default_live",
+  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 }'
 ```
 
-**返回示例 (201 Created)**
+**返回示例 (200 OK)**
 ```json
 {
-  "task_id": "37c0e469-cf43-4326-9a7c-7c829053e69c",
+  "task_id": "ef891ebd-0096-4ee2-b72c-ee867cfca481",
   "message": "直播分析任务创建成功",
   "status": "pending"
 }
@@ -1359,40 +1362,38 @@ curl -X POST "http://localhost:7657/livestream/tasks/live" \
 
 ### 3.3. 创建视频分析任务
 
-创建一个新的视频分析任务，用于分析指定的在线视频。
+创建一个新的视频分析任务，支持本地路径和远程视频文件URL。
 
 -   **路径:** `/livestream/tasks/video`
 -   **方法:** `POST`
--   **认证:** 需要Bearer Token
 
 **请求说明**
 
 | 字段 | 类型 | 是否必须 | 说明 |
-|:---|:---|:---|:---|
-| `url` | string | 是 | 视频的URL地址 |
-| `event_name` | string | 是 | 事件名称 |
-| `event_date` | string | 是 | 事件发生日期和时间 (格式: `YYYY-MM-DD HH:MM:SS`) |
-| `prompt_name` | string | 是 | 使用的提示词文件名 |
+|------|------|----------|------|
+| `url` | string | 是 | 视频文件路径或URL |
+| `event_name` | string | 是 | 视频名称（用于前端展示） |
+| `event_date` | string | 是 | 事件时间（YYYY-MM-DD格式） |
+| `prompt_name` | string | 否 | 提示词名称（默认使用default_video） |
 | `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
 
 **请求示例**
 ```bash
 curl -X POST "http://localhost:7657/livestream/tasks/video" \
--H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "url": "https://www.bilibili.com/video/BV1234567890",
-  "event_name": "某车企技术分享视频",
-  "event_date": "2024-10-16 14:30:00",
-  "prompt_name": "车企发布会完整总结.md",
-  "cover_image_data": "data:image/jpeg;base64,..."
+  "url": "/path/to/your/video.mp4",
+  "event_name": "XX品牌2025秋季新品发布会",
+  "event_date": "2025-01-20",
+  "prompt_name": "default_video",
+  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 }'
 ```
 
-**返回示例 (201 Created)**
+**返回示例 (200 OK)**
 ```json
 {
-  "task_id": "e650e126-9dbd-4f6d-9d15-7f2ca18f3bc0",
+  "task_id": "task_789012",
   "message": "视频分析任务创建成功",
   "status": "pending"
 }
@@ -1400,42 +1401,40 @@ curl -X POST "http://localhost:7657/livestream/tasks/video" \
 
 ### 3.4. 创建峰会图片集分析任务
 
-创建一个新的峰会图片集分析任务，用于分析上传的图片压缩包。
+创建一个新的峰会图片集分析任务，用于分析压缩包中的图片集合。
 
 -   **路径:** `/livestream/tasks/summit`
 -   **方法:** `POST`
--   **认证:** 需要Bearer Token
 
 **请求说明**
 
 | 字段 | 类型 | 是否必须 | 说明 |
-|:---|:---|:---|:---|
-| `url` | string | 是 | 峰会的参考URL地址 |
-| `event_name` | string | 是 | 事件名称 |
-| `event_date` | string | 是 | 事件发生日期和时间 (格式: `YYYY-MM-DD HH:MM:SS`) |
-| `prompt_name` | string | 是 | 使用的提示词文件名 |
+|------|------|----------|------|
+| `url` | string | 是 | 任意URL（用于前端展示链接） |
+| `event_name` | string | 是 | 峰会名称（用于前端展示） |
+| `event_date` | string | 是 | 开始时间（YYYY-MM-DD格式） |
+| `prompt_name` | string | 否 | 提示词名称（默认使用default_summit） |
 | `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
-| `archive_data` | string | 是 | 图片集压缩文件 (如.zip) 的base64编码数据 |
+| `archive_data` | string | 是 | 图片集压缩文件的base64编码数据（支持zip或rar） |
 
 **请求示例**
 ```bash
 curl -X POST "http://localhost:7657/livestream/tasks/summit" \
--H "Authorization: Bearer YOUR_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
-  "url": "https://example.com/summit-2024",
-  "event_name": "2024汽车行业峰会",
-  "event_date": "2024-10-15 09:00:00",
-  "prompt_name": "峰会论坛总结.md",
-  "cover_image_data": "data:image/jpeg;base64,...",
-  "archive_data": "data:application/zip;base64,..."
+  "url": "https://example.com/summit-info",
+  "event_name": "2025汽车行业峰会",
+  "event_date": "2025-01-15",
+  "prompt_name": "default_summit",
+  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "archive_data": "UEsDBBQAAAAIABpbUE..."
 }'
 ```
 
-**返回示例 (201 Created)**
+**返回示例 (200 OK)**
 ```json
 {
-  "task_id": "f5fe094d-c67b-4541-ba67-367f5b10aea7",
+  "task_id": "task_345678",
   "message": "峰会图片集分析任务创建成功",
   "status": "pending"
 }
@@ -1447,17 +1446,50 @@ curl -X POST "http://localhost:7657/livestream/tasks/summit" \
 
 -   **路径:** `/livestream/tasks`
 -   **方法:** `GET`
--   **认证:** 需要Bearer Token
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/tasks" \
--H "Authorization: Bearer YOUR_TOKEN"
+curl -X GET "http://localhost:7657/livestream/tasks"
 ```
 
-**返回说明**
-
-返回一个包含任务对象的数组，每个对象包含任务ID、类型、状态、创建时间等信息。
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "task_id": "task_123456",
+    "event_name": "汽车发布会直播分析",
+    "task_type": "live",
+    "status": "completed",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T11:45:00Z",
+    "source_url": "https://live.bilibili.com/8178490",
+    "event_date": "2025-10-15",
+    "prompt_name": "default_live"
+  },
+  {
+    "task_id": "task_789012",
+    "event_name": "汽车测评视频分析",
+    "task_type": "video",
+    "status": "processing",
+    "created_at": "2024-01-15T14:20:00Z",
+    "updated_at": "2024-01-15T14:25:00Z",
+    "source_url": "/path/to/video.mp4",
+    "event_date": "2025-10-20",
+    "prompt_name": "default_video"
+  },
+  {
+    "task_id": "task_345678",
+    "event_name": "2025汽车行业峰会",
+    "task_type": "summit",
+    "status": "pending",
+    "created_at": "2024-01-15T16:10:00Z",
+    "updated_at": "2024-01-15T16:10:00Z",
+    "source_url": "https://example.com/summit-info",
+    "event_date": "2025-11-15",
+    "prompt_name": "default_summit"
+  }
+]
+```
 
 ### 3.6. 获取任务详情
 
@@ -1465,17 +1497,39 @@ curl -X GET "http://localhost:7657/livestream/tasks" \
 
 -   **路径:** `/livestream/tasks/{task_id}`
 -   **方法:** `GET`
--   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/tasks/37c0e469-cf43-4326-9a7c-7c829053e69c" \
--H "Authorization: Bearer YOUR_TOKEN"
+curl -X GET "http://localhost:7657/livestream/tasks/task_123456"
 ```
 
-**返回说明**
-
-返回指定任务的完整详细信息。
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "task_123456",
+  "event_name": "汽车发布会直播分析",
+  "task_type": "live",
+  "status": "completed",
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T11:45:00Z",
+  "source_url": "https://live.bilibili.com/8178490",
+  "event_date": "2025-10-15",
+  "prompt_name": "default_live",
+  "bililive_task_id": "bililive_456789",
+  "archive_file_path": null,
+  "results": {
+    "summary_available": true,
+    "detailed_report_available": true,
+    "pdf_available": true
+  }
+}
+```
 
 ### 3.7. 删除任务
 
@@ -1483,12 +1537,16 @@ curl -X GET "http://localhost:7657/livestream/tasks/37c0e469-cf43-4326-9a7c-7c82
 
 -   **路径:** `/livestream/tasks/{task_id}`
 -   **方法:** `DELETE`
--   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
 
 **请求示例**
 ```bash
-curl -X DELETE "http://localhost:7657/livestream/tasks/37c0e469-cf43-4326-9a7c-7c829053e69c" \
--H "Authorization: Bearer YOUR_TOKEN"
+curl -X DELETE "http://localhost:7657/livestream/tasks/task_123456"
 ```
 
 **返回示例 (200 OK)**
@@ -1498,24 +1556,124 @@ curl -X DELETE "http://localhost:7657/livestream/tasks/37c0e469-cf43-4326-9a7c-7
 }
 ```
 
-### 3.8. 获取任务结果文件
+### 3.8. 启动任务
 
-获取指定任务的分析结果文件，如总结报告。
+启动或重新启动指定的分析任务。
 
--   **路径:** `/livestream/tasks/{task_id}/results/{file_type}`
--   **方法:** `GET`
--   **认证:** 需要Bearer Token
+-   **路径:** `/livestream/tasks/{task_id}/start`
+-   **方法:** `POST`
 
 **路径参数**
 
 | 参数 | 类型 | 说明 |
-|:---|:---|:---|
+|------|------|------|
 | `task_id` | string | 任务ID |
-| `file_type`| string | 文件类型, 例如 'summary', 'detailed', 'pdf' |
 
-**返回说明**
+**请求示例**
+```bash
+curl -X POST "http://localhost:7657/livestream/tasks/task_123456/start"
+```
 
-返回原始文件内容（如Markdown或PDF）。
+**返回示例 (200 OK)**
+```json
+{
+  "message": "直播任务已重新启动",
+  "status": "processing"
+}
+```
+
+### 3.9. 停止任务
+
+停止正在运行的分析任务。
+
+-   **路径:** `/livestream/tasks/{task_id}/stop`
+-   **方法:** `POST`
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**请求示例**
+```bash
+curl -X POST "http://localhost:7657/livestream/tasks/task_123456/stop"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "message": "任务已停止",
+  "status": "stopped"
+}
+```
+
+### 3.10. 下载结果文件
+
+下载指定任务的分析结果文件。
+
+-   **路径:** `/livestream/tasks/{task_id}/results/{file_type}`
+-   **方法:** `GET`
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+| `file_type` | string | 文件类型（summary/detailed/pdf/log） |
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:7657/livestream/tasks/task_123456/results/summary" \
+-o summary.md
+```
+
+**返回示例 (200 OK)**
+- 成功时返回文件内容（文件下载）
+- 失败时返回JSON错误信息
+
+### 3.11. 获取Bililive服务信息
+
+获取Bililive服务的基本信息。
+
+-   **路径:** `/livestream/services/bililive/info`
+-   **方法:** `GET`
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:7657/livestream/services/bililive/info"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "service_name": "bililive-go",
+  "version": "1.0.0",
+  "status": "running",
+  "port": 8080
+}
+```
+
+### 3.12. 获取Bililive服务状态
+
+获取Bililive服务的当前运行状态。
+
+-   **路径:** `/livestream/services/bililive/status`
+-   **方法:** `GET`
+
+**请求示例**
+```bash
+curl -X GET "http://localhost:7657/livestream/services/bililive/status"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "status": "running",
+  "uptime": "2 days, 3 hours",
+  "active_tasks": 2
+}
+```
 
 ---
 

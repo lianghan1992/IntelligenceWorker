@@ -357,7 +357,7 @@ export const getProcessingTasksStats = async (): Promise<{ [key: string]: number
 
 // --- Livestream Analysis Service (Updated) ---
 
-export const getLivestreamPrompts = async (): Promise<{ prompts: LivestreamPrompt[] }> => {
+export const getLivestreamPrompts = async (): Promise<{ prompts: LivestreamPrompt[], total: number }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 };
 
@@ -389,6 +389,18 @@ export const createSummitAnalysisTask = async (data: { url: string; event_name: 
 export const deleteLivestreamTask = async (taskId: string): Promise<{ message: string }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, {
         method: 'DELETE',
+    });
+};
+
+export const startLivestreamTask = async (taskId: string): Promise<{ message: string; status: string; }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, {
+        method: 'POST',
+    });
+};
+
+export const stopLivestreamTask = async (taskId: string): Promise<{ message: string; status: string; }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, {
+        method: 'POST',
     });
 };
 

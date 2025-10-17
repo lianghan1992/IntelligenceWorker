@@ -205,7 +205,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">分析模板 <span className="text-red-500">*</span></label>
                         <select value={promptName} onChange={e => setPromptName(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" disabled={isLoading || prompts.length === 0}>
-                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.display_name}</option>)}
+                           {/* FIX: Property 'display_name' does not exist on type 'LivestreamPrompt'. Changed to use 'name' property instead. */}
+                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.name}</option>)}
                         </select>
                     </div>
                     <div>
