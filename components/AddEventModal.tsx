@@ -79,20 +79,18 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         try {
             let newEventData: LivestreamTask;
             const cover_image_data = await fileToBase64(coverImageFile!);
-            // 修复：移除多余的 `title` 字段，并将 `prompt` 重命名为 `prompt_name` 以匹配API签名。
-            const commonPayload = {
-                description: description,
+            const formattedEventDate = eventTime ? eventTime.replace('T', ' ') + ':00' : '';
+
+            const payload = {
                 event_name: eventName,
-                event_date: eventTime.split('T')[0],
+                event_date: formattedEventDate,
                 prompt_name: promptName,
                 cover_image_data,
+                url: sourceUrl,
             };
 
             if (taskType === 'live') {
-                const { task_id } = await createLiveAnalysisTask({
-                    ...commonPayload,
-                    url: sourceUrl,
-                });
+                const { task_id } = await createLiveAnalysisTask(payload);
                 
                 newEventData = {
                     task_id,
@@ -110,10 +108,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     output_directory: null,
                 };
             } else { // offline
-                const { task_id } = await createVideoAnalysisTask({
-                    ...commonPayload,
-                    url: sourceUrl,
-                });
+                const { task_id } = await createVideoAnalysisTask(payload);
                 
                 newEventData = {
                     task_id,

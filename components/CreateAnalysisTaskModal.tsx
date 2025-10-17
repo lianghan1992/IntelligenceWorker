@@ -84,12 +84,13 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         setError('');
         try {
             const cover_image_data = await fileToBase64(coverImageFile!);
-            const commonPayload = { 
-                description: description,
-                event_name: eventName, 
-                event_date: eventDate.split('T')[0], // API expects YYYY-MM-DD
-                prompt_name: promptName, 
-                cover_image_data 
+            const formattedEventDate = eventDate ? eventDate.replace('T', ' ') + ':00' : '';
+
+            const commonPayload = {
+                event_name: eventName,
+                event_date: formattedEventDate,
+                prompt_name: promptName,
+                cover_image_data,
             };
             
             switch (taskType) {
@@ -100,8 +101,11 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     await createVideoAnalysisTask({ ...commonPayload, url });
                     break;
                 case 'summit':
-                    const archive_data = await fileToBase64(archiveFile!);
-                    await createSummitAnalysisTask({ ...commonPayload, url, archive_file: archive_data });
+                    await createSummitAnalysisTask({
+                        ...commonPayload,
+                        url,
+                        archive_file: archiveFile!.name,
+                    });
                     break;
             }
             onSuccess();
