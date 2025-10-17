@@ -405,7 +405,7 @@ export const stopLivestreamTask = async (taskId: string): Promise<{ message: str
 };
 
 export const getLivestreamTaskReport = async (taskId: string, fileType: string = 'summary'): Promise<string> => {
-    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/results/${fileType}`;
+    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/download/${fileType}`;
     
     const headers: Record<string, string> = {};
     const token = getAuthToken();

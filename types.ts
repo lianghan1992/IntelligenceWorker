@@ -247,6 +247,7 @@ export interface PredictionEvidence {
 // --- New Types for Livestream Service ---
 export interface LivestreamPrompt {
     name: string;
+    display_name: string;
     description: string;
 }
 

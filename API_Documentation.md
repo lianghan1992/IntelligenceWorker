@@ -1305,19 +1305,17 @@ curl -X GET "http://localhost:7657/livestream/prompts"
 {
   "prompts": [
     {
-      "name": "default_live",
-      "description": "默认直播分析提示词"
+      "name": "峰会论坛总结.md",
+      "display_name": "峰会论坛总结",
+      "description": "针对行业峰会和论坛的分析总结模板"
     },
     {
-      "name": "default_video", 
-      "description": "默认视频分析提示词"
-    },
-    {
-      "name": "default_summit",
-      "description": "默认峰会分析提示词"
+      "name": "车企发布会完整总结.md",
+      "display_name": "车企发布会完整总结",
+      "description": "针对汽车行业发布会的完整分析总结模板"
     }
   ],
-  "total": 3
+  "total": 2
 }
 ```
 
@@ -1612,7 +1610,7 @@ curl -X POST "http://localhost:7657/livestream/tasks/task_123456/stop"
 
 下载指定任务的分析结果文件。
 
--   **路径:** `/livestream/tasks/{task_id}/results/{file_type}`
+-   **路径:** `/livestream/tasks/{task_id}/download/{file_type}`
 -   **方法:** `GET`
 
 **路径参数**
@@ -1624,7 +1622,7 @@ curl -X POST "http://localhost:7657/livestream/tasks/task_123456/stop"
 
 **请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/tasks/task_123456/results/summary" \
+curl -X GET "http://localhost:7657/livestream/tasks/task_123456/download/summary" \
 -o summary.md
 ```
 
