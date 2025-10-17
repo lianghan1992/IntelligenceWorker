@@ -17,12 +17,10 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-// FIX: Added helper to convert file to base64 for API payload.
 const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        // The API likely expects the raw base64 string without the data URI prefix.
         reader.onload = () => resolve((reader.result as string).split(',')[1]);
         reader.onerror = error => reject(error);
     });
@@ -32,9 +30,7 @@ const fileToBase64 = (file: File): Promise<string> => {
 export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
 
-    // FIX: Unified form state for simplicity and to handle new API requirements.
     const [eventName, setEventName] = useState('');
-    // FIX: Add description state to match API requirements.
     const [description, setDescription] = useState('');
     const [sourceUrl, setSourceUrl] = useState('');
     const [eventTime, setEventTime] = useState('');
@@ -64,7 +60,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        // FIX: Add description to form validation.
         return eventName.trim() !== '' && description.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
     }, [eventName, description, sourceUrl, eventTime, promptName, coverImageFile]);
     
@@ -84,7 +79,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         try {
             let newEventData: LivestreamTask;
             const cover_image_data = await fileToBase64(coverImageFile!);
-            // FIX: Create a payload that matches the API function signature, including title, description, and using `prompt` key.
             const commonPayload = {
                 title: eventName,
                 description: description,
@@ -100,7 +94,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     url: sourceUrl,
                 });
                 
-                // FIX: Update object to match LivestreamTask type, using `analysis_started_at` etc.
                 newEventData = {
                     task_id,
                     event_name: eventName,
@@ -122,7 +115,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     url: sourceUrl,
                 });
                 
-                // FIX: Update object to match LivestreamTask type, using `analysis_started_at` etc.
                 newEventData = {
                     task_id,
                     event_name: eventName,
@@ -142,7 +134,11 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
             onSuccess(newEventData);
             onClose();
         } catch (err: any) {
-            setError(err.message || '发生未知错误，请重试。');
+             let errorMessage = err.message || '发生未知错误，请重试。';
+             if (errorMessage.includes('this live has a listener')) {
+                errorMessage = '创建失败：该直播间已在监控中，请勿重复添加。';
+             }
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
