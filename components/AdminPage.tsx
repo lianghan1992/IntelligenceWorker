@@ -271,11 +271,12 @@ const ArticleListManager: React.FC<{
                 params.query_text = '*';
             }
             
-            const { items, total, totalPages: newTotalPages } = await searchArticlesFiltered(params);
+            const { items, total } = await searchArticlesFiltered(params);
             
             setArticles(items);
             setTotalArticles(total);
-            setTotalPages(newTotalPages > 0 ? newTotalPages : 1);
+            const calculatedTotalPages = Math.ceil(total / ARTICLES_PER_PAGE);
+            setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
 
         } catch (err: any) {
             setError(err.message || "无法加载文章");
@@ -327,7 +328,7 @@ const ArticleListManager: React.FC<{
         setIsExporting(true);
         setError('');
         try {
-            // 1. Fetch ALL filtered data, not just the current page
+            // Build base parameters
             const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
@@ -336,30 +337,52 @@ const ArticleListManager: React.FC<{
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
                 pointIdsToQuery = allPointIds;
             }
-
-            const params: { [key: string]: any } = {
-                page: 1,
-                limit: 10000, // Fetch a large number to get all results
+    
+            const baseParams: { [key: string]: any } = {
+                limit: 100, // Use the max allowed limit by the API
                 point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
                 publish_date_start: activeFilters.dateRange.startDate || undefined,
                 publish_date_end: activeFilters.dateRange.endDate || undefined,
             };
-
+    
             if (activeFilters.searchQuery.trim()) {
-                params.query_text = activeFilters.searchQuery;
-                params.similarity_threshold = activeFilters.similarityThreshold;
+                baseParams.query_text = activeFilters.searchQuery;
+                baseParams.similarity_threshold = activeFilters.similarityThreshold;
             } else {
-                params.query_text = '*';
+                baseParams.query_text = '*';
             }
-
-            const { items: allItems } = await searchArticlesFiltered(params);
-
+    
+            // Paginated fetching to get all items
+            let allItems: SearchResult[] = [];
+            let currentPage = 1;
+            let totalPagesToFetch = 1;
+    
+            // First request to get total count and first page
+            const firstPageResponse = await searchArticlesFiltered({ ...baseParams, page: currentPage });
+            allItems = allItems.concat(firstPageResponse.items);
+            
+            if (firstPageResponse.total > 0) {
+                totalPagesToFetch = Math.ceil(firstPageResponse.total / baseParams.limit);
+            }
+    
+            // Fetch subsequent pages if necessary
+            if (totalPagesToFetch > 1) {
+                const promises = [];
+                for (currentPage = 2; currentPage <= totalPagesToFetch; currentPage++) {
+                    promises.push(searchArticlesFiltered({ ...baseParams, page: currentPage }));
+                }
+                const responses = await Promise.all(promises);
+                for (const response of responses) {
+                    allItems = allItems.concat(response.items);
+                }
+            }
+    
             if (allItems.length === 0) {
                 alert("没有可导出的数据。");
                 return;
             }
-
-            // 2. Generate CSV content
+    
+            // Generate CSV content
             const headers = ['标题', '情报源', '情报点', '发布日期', '相似度', '原文链接'];
             const rows = allItems.map(article => [
                 article.title,
@@ -369,12 +392,12 @@ const ArticleListManager: React.FC<{
                 article.similarity_score?.toFixed(3) ?? 'N/A',
                 article.original_url
             ].map(escapeCsvField));
-
+    
             let csvContent = "\uFEFF"; // BOM for Excel UTF-8 compatibility
             csvContent += headers.join(',') + '\r\n';
             csvContent += rows.map(row => row.join(',')).join('\r\n');
-
-            // 3. Trigger download
+    
+            // Trigger download
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
@@ -384,7 +407,7 @@ const ArticleListManager: React.FC<{
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-
+    
         } catch (err: any) {
             setError('导出失败: ' + err.message);
         } finally {
@@ -767,7 +790,8 @@ const IntelligenceManager: React.FC = () => {
             
             setTaskStats(statsData);
             setTasks(tasksData.items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-            setTaskTotalPages(tasksData.totalPages > 0 ? tasksData.totalPages : 1);
+            const calculatedTaskTotalPages = Math.ceil(tasksData.total / TASKS_PER_PAGE);
+            setTaskTotalPages(calculatedTaskTotalPages > 0 ? calculatedTaskTotalPages : 1);
             setTaskTotal(tasksData.total);
         } catch (err: any) {
             setError(prev => prev ? `${prev}\n无法加载任务数据: ${err.message}` : `无法加载任务数据: ${err.message}`);
