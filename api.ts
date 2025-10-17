@@ -361,25 +361,25 @@ export const getLivestreamPrompts = async (): Promise<{ prompts: LivestreamPromp
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 };
 
-export const getLivestreamTasks = async (): Promise<{ tasks: LivestreamTask[] }> => {
+export const getLivestreamTasks = async (): Promise<{ tasks: LivestreamTask[], total: number }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 
-export const createLiveAnalysisTask = async (data: { url: string; event_name: string; event_date: string; prompt_name: string; cover_image_data: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createLiveAnalysisTask = async (data: { url: string; prompt: string; title: string; description: string; event_name: string; event_date: string; cover_image_data: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/live`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const createVideoAnalysisTask = async (data: { url: string; event_name: string; event_date: string; prompt_name: string; cover_image_data: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createVideoAnalysisTask = async (data: { url: string; prompt: string; title: string; description: string; event_name: string; event_date: string; cover_image_data: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/video`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const createSummitAnalysisTask = async (data: { url: string; event_name: string; event_date: string; prompt_name: string; cover_image_data: string; archive_data: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createSummitAnalysisTask = async (data: { url: string; prompt: string; title: string; description: string; event_name: string; event_date: string; cover_image_data: string; archive_file: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/summit`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -405,7 +405,7 @@ export const stopLivestreamTask = async (taskId: string): Promise<{ message: str
 };
 
 export const getLivestreamTaskReport = async (taskId: string, fileType: string = 'summary'): Promise<string> => {
-    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/download/${fileType}`;
+    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/results/${fileType}`;
     
     const headers: Record<string, string> = {};
     const token = getAuthToken();

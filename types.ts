@@ -253,29 +253,26 @@ export interface LivestreamPrompt {
 
 export interface LivestreamTask {
   task_id: string;
-  event_name: string; // Mapped from event_name in API
-  description?: string | null; // User-provided, might not be in API response
+  event_name: string;
+  description?: string | null;
   task_type: 'live' | 'video' | 'summit';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
   created_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-  source_url: string; // URL for live, path for video/summit
+  updated_at: string;
+  analysis_started_at: string | null;
+  analysis_completed_at: string | null;
+  source_url: string;
   event_date: string;
   prompt_name: string;
   output_directory: string | null;
   cover_image_url?: string | null;
-
-  // Fields specific to 'live' tasks
-  discovered_host_name?: string;
-  discovered_room_name?: string;
-  platform_name?: string;
-
-  results?: {
-    summary_available: boolean;
-    detailed_report_available: boolean;
-    pdf_available: boolean;
-  };
+  
+  discovered_host_name?: string | null;
+  discovered_room_name?: string | null;
+  platform_name?: string | null;
+  
+  summary_report?: string | null;
+  detailed_report?: string | null;
 
   // UI-synthesized field
   reportContentHtml?: string;

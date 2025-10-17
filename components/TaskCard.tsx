@@ -64,7 +64,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
             <div className="text-xs text-gray-400 border-t pt-3 mt-auto space-y-1">
                 <p>创建于: {new Date(task.created_at).toLocaleString('zh-CN')}</p>
-                {task.completed_at && <p>完成于: {new Date(task.completed_at).toLocaleString('zh-CN')}</p>}
+                {/* FIX: Use `analysis_completed_at` instead of `completed_at` to match the LivestreamTask type. */}
+                {task.analysis_completed_at && <p>完成于: {new Date(task.analysis_completed_at).toLocaleString('zh-CN')}</p>}
             </div>
             
             <div className="mt-4 pt-3 border-t flex items-center justify-between">

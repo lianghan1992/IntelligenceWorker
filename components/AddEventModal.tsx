@@ -34,6 +34,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
 
     // FIX: Unified form state for simplicity and to handle new API requirements.
     const [eventName, setEventName] = useState('');
+    // FIX: Add description state to match API requirements.
+    const [description, setDescription] = useState('');
     const [sourceUrl, setSourceUrl] = useState('');
     const [eventTime, setEventTime] = useState('');
     const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
@@ -62,8 +64,9 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return eventName.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
-    }, [eventName, sourceUrl, eventTime, promptName, coverImageFile]);
+        // FIX: Add description to form validation.
+        return eventName.trim() !== '' && description.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
+    }, [eventName, description, sourceUrl, eventTime, promptName, coverImageFile]);
     
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -81,52 +84,55 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         try {
             let newEventData: LivestreamTask;
             const cover_image_data = await fileToBase64(coverImageFile!);
+            // FIX: Create a payload that matches the API function signature, including title, description, and using `prompt` key.
             const commonPayload = {
+                title: eventName,
+                description: description,
                 event_name: eventName,
                 event_date: eventTime.split('T')[0],
-                prompt_name: promptName,
+                prompt: promptName,
                 cover_image_data,
             };
 
             if (taskType === 'live') {
-                // FIX: Pass all required properties to createLiveAnalysisTask.
                 const { task_id } = await createLiveAnalysisTask({
                     ...commonPayload,
                     url: sourceUrl,
                 });
                 
-                // FIX: Update object to match LivestreamTask type, removing `prompt_file_path` and adding `prompt_name`.
+                // FIX: Update object to match LivestreamTask type, using `analysis_started_at` etc.
                 newEventData = {
                     task_id,
                     event_name: eventName,
-                    description: '',
+                    description: description,
                     task_type: 'live',
                     status: 'pending',
                     created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
+                    updated_at: new Date().toISOString(),
+                    analysis_started_at: null,
+                    analysis_completed_at: null,
                     source_url: sourceUrl,
                     event_date: eventTime.split('T')[0],
                     prompt_name: promptName,
                     output_directory: null,
                 };
             } else { // offline
-                // FIX: Pass `url` instead of `video_path` and include all required properties.
                 const { task_id } = await createVideoAnalysisTask({
                     ...commonPayload,
                     url: sourceUrl,
                 });
                 
-                // FIX: Update object to match LivestreamTask type, removing `prompt_file_path` and adding `prompt_name`.
+                // FIX: Update object to match LivestreamTask type, using `analysis_started_at` etc.
                 newEventData = {
                     task_id,
                     event_name: eventName,
-                    description: null,
+                    description: description,
                     task_type: 'video',
                     status: 'pending',
                     created_at: new Date().toISOString(),
-                    started_at: null,
-                    completed_at: null,
+                    updated_at: new Date().toISOString(),
+                    analysis_started_at: null,
+                    analysis_completed_at: null,
                     source_url: sourceUrl,
                     event_date: eventTime.split('T')[0],
                     prompt_name: promptName,
@@ -182,6 +188,10 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={isLoading}
                         />
+                    </div>
+                     <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">任务描述 <span className="text-red-500">*</span></label>
+                        <textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="对任务的简短描述" rows={2} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 resize-none" disabled={isLoading}></textarea>
                     </div>
                      <div>
                         <label htmlFor="source-url" className="block text-sm font-medium text-gray-700 mb-1">{taskType === 'live' ? '直播间 URL' : '源 URI (服务器文件路径)'} <span className="text-red-500">*</span></label>

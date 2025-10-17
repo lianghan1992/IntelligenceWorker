@@ -21,7 +21,7 @@ const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
         reader.onerror = error => reject(error);
     });
 };
@@ -34,6 +34,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
 
     // Form state
     const [eventName, setEventName] = useState('');
+    const [description, setDescription] = useState('');
     const [eventDate, setEventDate] = useState('');
     const [promptName, setPromptName] = useState('');
     const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
@@ -59,12 +60,12 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
     }, []);
 
     const isFormValid = useMemo(() => {
-        if (!eventName.trim() || !eventDate.trim() || !promptName || !coverImageFile) return false;
+        if (!eventName.trim() || !description.trim() || !eventDate.trim() || !promptName || !coverImageFile) return false;
         if (taskType === 'summit') {
             return url.trim() !== '' && archiveFile !== null;
         }
         return url.trim() !== '';
-    }, [eventName, eventDate, promptName, coverImageFile, taskType, url, archiveFile]);
+    }, [eventName, description, eventDate, promptName, coverImageFile, taskType, url, archiveFile]);
     
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileSetter: React.Dispatch<React.SetStateAction<File | null>>) => {
         if (e.target.files && e.target.files[0]) {
@@ -84,9 +85,11 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
         try {
             const cover_image_data = await fileToBase64(coverImageFile!);
             const commonPayload = { 
+                title: eventName,
+                description: description,
                 event_name: eventName, 
                 event_date: eventDate.split('T')[0], // API expects YYYY-MM-DD
-                prompt_name: promptName, 
+                prompt: promptName, 
                 cover_image_data 
             };
             
@@ -99,7 +102,7 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                     break;
                 case 'summit':
                     const archive_data = await fileToBase64(archiveFile!);
-                    await createSummitAnalysisTask({ ...commonPayload, url, archive_data });
+                    await createSummitAnalysisTask({ ...commonPayload, url, archive_file: archive_data });
                     break;
             }
             onSuccess();
@@ -160,8 +163,12 @@ export const CreateAnalysisTaskModal: React.FC<CreateAnalysisTaskModalProps> = (
                 <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">事件名称 <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">任务/事件名称 <span className="text-red-500">*</span></label>
                         <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} placeholder="例如：2024蔚来NIO Day" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">任务描述 <span className="text-red-500">*</span></label>
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="对任务的简短描述" rows={2} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 resize-none"></textarea>
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">事件时间 <span className="text-red-500">*</span></label>

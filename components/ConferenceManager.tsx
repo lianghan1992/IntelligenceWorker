@@ -130,16 +130,28 @@ export const ConferenceManager: React.FC = () => {
     };
 
     const handleViewReport = async (task: LivestreamTask) => {
-        setIsMutating(task.task_id);
-        setError('');
-        try {
-            const reportContent = await getLivestreamTaskReport(task.task_id, 'detailed');
-            setTaskToView({ ...task, reportContentHtml: reportContent });
-        } catch (err: any) {
-            setError(`加载报告失败: ${err.message}`);
-            setTaskToView({ ...task, reportContentHtml: `<p class="text-red-500">加载报告失败: ${err.message}</p>` });
-        } finally {
-            setIsMutating(null);
+        // Prioritize using the report content from the task object if available
+        if (task.detailed_report) {
+            setTaskToView({ ...task, reportContentHtml: task.detailed_report });
+            return;
+        }
+
+        // Fallback to fetching if the task is completed but the report isn't in the object
+        if (task.status === 'completed') {
+            setIsMutating(task.task_id);
+            setError('');
+            try {
+                const reportContent = await getLivestreamTaskReport(task.task_id, 'detailed');
+                setTaskToView({ ...task, reportContentHtml: reportContent });
+            } catch (err: any) {
+                const errorMessage = `加载报告失败: ${err.message}`;
+                setError(errorMessage);
+                setTaskToView({ ...task, reportContentHtml: `<p class="text-red-500">${errorMessage}</p>` });
+            } finally {
+                setIsMutating(null);
+            }
+        } else {
+            setError('任务尚未完成，无法查看报告。');
         }
     };
 
