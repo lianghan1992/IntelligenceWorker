@@ -315,7 +315,82 @@ const ArticleListManager: React.FC<{
         return filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name] || []);
     }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
-    const handleExport = async () => { /* ... */ };
+    const escapeCsvField = (field: any): string => {
+        const str = String(field ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        setError('');
+        try {
+            // 1. Fetch ALL filtered data, not just the current page
+            const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
+            let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
+            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
+                pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
+            }
+            if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
+                pointIdsToQuery = allPointIds;
+            }
+
+            const params: { [key: string]: any } = {
+                page: 1,
+                limit: 10000, // Fetch a large number to get all results
+                point_ids: pointIdsToQuery.length > 0 ? pointIdsToQuery : undefined,
+                publish_date_start: activeFilters.dateRange.startDate || undefined,
+                publish_date_end: activeFilters.dateRange.endDate || undefined,
+            };
+
+            if (activeFilters.searchQuery.trim()) {
+                params.query_text = activeFilters.searchQuery;
+                params.similarity_threshold = activeFilters.similarityThreshold;
+            } else {
+                params.query_text = '*';
+            }
+
+            const { items: allItems } = await searchArticlesFiltered(params);
+
+            if (allItems.length === 0) {
+                alert("没有可导出的数据。");
+                return;
+            }
+
+            // 2. Generate CSV content
+            const headers = ['标题', '情报源', '情报点', '发布日期', '相似度', '原文链接'];
+            const rows = allItems.map(article => [
+                article.title,
+                article.source_name,
+                article.point_name,
+                new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN'),
+                article.similarity_score?.toFixed(3) ?? 'N/A',
+                article.original_url
+            ].map(escapeCsvField));
+
+            let csvContent = "\uFEFF"; // BOM for Excel UTF-8 compatibility
+            csvContent += headers.join(',') + '\r\n';
+            csvContent += rows.map(row => row.join(',')).join('\r\n');
+
+            // 3. Trigger download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `情报导出_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+        } catch (err: any) {
+            setError('导出失败: ' + err.message);
+        } finally {
+            setIsExporting(false);
+        }
+    };
     
     const MultiSelectDropdown: React.FC<{
         options: {id: string, name: string}[];
