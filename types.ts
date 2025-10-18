@@ -247,8 +247,8 @@ export interface PredictionEvidence {
 // --- New Types for Livestream Service ---
 export interface LivestreamPrompt {
     name: string;
-    display_name: string;
     description: string;
+    content: string;
 }
 
 export interface LivestreamTask {
@@ -256,23 +256,16 @@ export interface LivestreamTask {
   event_name: string;
   description?: string | null;
   task_type: 'live' | 'video' | 'summit';
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  status: 'pending' | 'running' | 'completed' | 'failed';
   created_at: string;
-  updated_at: string;
-  analysis_started_at: string | null;
-  analysis_completed_at: string | null;
-  source_url: string;
-  event_date: string;
-  prompt_name: string;
-  output_directory: string | null;
-  cover_image_url?: string | null;
+  completion_time?: string | null;
+  url?: string;
+  event_date?: string;
+  prompt?: string;
+  output_directory?: string | null;
   
   discovered_host_name?: string | null;
   discovered_room_name?: string | null;
-  platform_name?: string | null;
-  
-  summary_report?: string | null;
-  detailed_report?: string | null;
 
   // UI-synthesized field
   reportContentHtml?: string;

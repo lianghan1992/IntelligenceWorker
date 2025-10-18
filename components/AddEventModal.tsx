@@ -1,14 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { CloseIcon } from './icons';
-import { createLiveAnalysisTask, createVideoAnalysisTask, getLivestreamPrompts } from '../api';
+import { createLiveAnalysisTask, createVideoAnalysisTask, createSummitAnalysisTask, getLivestreamPrompts } from '../api';
 import { LivestreamTask, LivestreamPrompt } from '../types';
 
 interface AddEventModalProps {
   onClose: () => void;
-  onSuccess: (newEvent: LivestreamTask) => void;
+  onSuccess: (newEvent?: LivestreamTask) => void;
 }
 
-type TaskType = 'live' | 'offline';
+type TaskType = 'live' | 'video' | 'summit';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -16,16 +16,6 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
-
-const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = error => reject(error);
-    });
-};
-
 
 export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
@@ -35,12 +25,9 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [eventTime, setEventTime] = useState('');
     const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
     const [promptName, setPromptName] = useState('');
-    const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const fetchPrompts = async () => {
@@ -59,14 +46,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return eventName.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName && coverImageFile;
-    }, [eventName, sourceUrl, eventTime, promptName, coverImageFile]);
-    
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setCoverImageFile(e.target.files[0]);
-        }
-    };
+        return eventName.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName;
+    }, [eventName, sourceUrl, eventTime, promptName]);
 
     const handleSubmit = async () => {
         if (!isFormValid) {
@@ -76,54 +57,26 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         setIsLoading(true);
         setError('');
         try {
-            let newEventData: LivestreamTask;
-            const cover_image_data = await fileToBase64(coverImageFile!);
-            const formattedEventDate = eventTime ? eventTime.replace('T', ' ') + ':00' : '';
+            const formattedEventDate = eventTime ? eventTime.split('T')[0] : '';
 
-            const payload = {
+            const commonPayload = {
                 event_name: eventName,
                 event_date: formattedEventDate,
-                prompt_name: promptName,
-                cover_image_data,
-                url: sourceUrl,
+                prompt: promptName,
             };
 
-            if (taskType === 'live') {
-                const { task_id } = await createLiveAnalysisTask(payload);
-                
-                newEventData = {
-                    task_id,
-                    event_name: eventName,
-                    task_type: 'live',
-                    status: 'pending',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    analysis_started_at: null,
-                    analysis_completed_at: null,
-                    source_url: sourceUrl,
-                    event_date: eventTime.split('T')[0],
-                    prompt_name: promptName,
-                    output_directory: null,
-                };
-            } else { // offline
-                const { task_id } = await createVideoAnalysisTask(payload);
-                
-                newEventData = {
-                    task_id,
-                    event_name: eventName,
-                    task_type: 'video',
-                    status: 'pending',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    analysis_started_at: null,
-                    analysis_completed_at: null,
-                    source_url: sourceUrl,
-                    event_date: eventTime.split('T')[0],
-                    prompt_name: promptName,
-                    output_directory: null,
-                };
+            switch (taskType) {
+                case 'live':
+                    await createLiveAnalysisTask({ ...commonPayload, url: sourceUrl });
+                    break;
+                case 'video':
+                    await createVideoAnalysisTask({ ...commonPayload, file_path: sourceUrl });
+                    break;
+                case 'summit':
+                     await createSummitAnalysisTask({ ...commonPayload, images_directory: sourceUrl });
+                    break;
             }
-            onSuccess(newEventData);
+            onSuccess();
             onClose();
         } catch (err: any) {
              let errorMessage = err.message || '发生未知错误，请重试。';
@@ -149,6 +102,20 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
             {label}
         </button>
     );
+    
+    const getUrlLabelAndPlaceholder = () => {
+        switch (taskType) {
+            case 'video':
+                return { label: '视频文件路径', placeholder: '/path/to/your/video.mp4' };
+            case 'summit':
+                return { label: '图片目录路径', placeholder: '/path/to/summit/images/' };
+            case 'live':
+            default:
+                return { label: '直播间 URL', placeholder: 'https://live.bilibili.com/22625027' };
+        }
+    };
+
+    const { label: urlLabel, placeholder: urlPlaceholder } = getUrlLabelAndPlaceholder();
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -163,7 +130,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 <div className="p-4 bg-gray-50 border-b">
                     <div className="flex space-x-2 bg-gray-200 p-1 rounded-lg">
                         <TabButton type="live" label="直播任务" />
-                        <TabButton type="offline" label="离线分析任务" />
+                        <TabButton type="video" label="视频分析" />
+                        <TabButton type="summit" label="峰会分析" />
                     </div>
                 </div>
 
@@ -172,47 +140,35 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                         <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
                         <input
                             type="text" id="event-name" value={eventName} onChange={(e) => setEventName(e.target.value)}
-                            placeholder={taskType === 'live' ? "例如：2024蔚来NIO Day直播" : "例如：2024蔚来NIO Day全程回顾"}
+                            placeholder="例如：2024蔚来NIO Day"
                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={isLoading}
                         />
                     </div>
                      <div>
-                        <label htmlFor="source-url" className="block text-sm font-medium text-gray-700 mb-1">{taskType === 'live' ? '直播间 URL' : '源 URI (服务器文件路径)'} <span className="text-red-500">*</span></label>
+                        <label htmlFor="source-url" className="block text-sm font-medium text-gray-700 mb-1">{urlLabel} <span className="text-red-500">*</span></label>
                         <input
                             type={taskType === 'live' ? 'url' : 'text'} id="source-url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}
-                            placeholder={taskType === 'live' ? "https://live.bilibili.com/22625027" : "/data/videos/video.mp4"}
+                            placeholder={urlPlaceholder}
                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={isLoading}
                         />
-                         {taskType === 'offline' && <p className="text-xs text-gray-500 mt-1">请输入服务器上视频文件的绝对路径。</p>}
                     </div>
                      <div>
-                        <label htmlFor="event-time" className="block text-sm font-medium text-gray-700 mb-1">{taskType === 'live' ? '计划开始时间' : '原始开始时间'} <span className="text-red-500">*</span></label>
+                        <label htmlFor="event-time" className="block text-sm font-medium text-gray-700 mb-1">事件时间 <span className="text-red-500">*</span></label>
                         <input
-                            type="datetime-local" id="event-time" value={eventTime} onChange={(e) => setEventTime(e.target.value)}
+                            type="date" id="event-time" value={eventTime} onChange={(e) => setEventTime(e.target.value)}
                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             disabled={isLoading}
                         />
-                         {taskType === 'offline' && <p className="text-xs text-gray-500 mt-1">用于前端排序和显示，请填写准确。</p>}
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">分析模板 <span className="text-red-500">*</span></label>
                         <select value={promptName} onChange={e => setPromptName(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" disabled={isLoading || prompts.length === 0}>
-                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.display_name}</option>)}
+                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.description}</option>)}
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 <span className="text-red-500">*</span></label>
-                        <div
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors"
-                        >
-                            <span className="text-sm text-gray-500">{coverImageFile ? `已选择: ${coverImageFile.name}` : '点击选择图片文件'}</span>
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
-                        </div>
-                    </div>
-
+                    
                      {error && (
                         <div className="text-sm text-red-700 bg-red-100 p-3 rounded-lg mt-4">
                             <strong>错误:</strong> {error}

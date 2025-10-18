@@ -27,8 +27,6 @@ const getStatusDetails = (status: LivestreamTask['status']) => {
             return { text: '已完成', color: 'bg-green-100 text-green-800' };
         case 'failed':
             return { text: '失败', color: 'bg-red-100 text-red-800' };
-        case 'stopped':
-            return { text: '已停止', color: 'bg-yellow-100 text-yellow-800' };
         case 'pending':
         default:
             return { text: '待处理', color: 'bg-gray-100 text-gray-800' };
@@ -48,8 +46,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
                     </div>
                     <div className="flex-1">
                         <h3 className="font-bold text-gray-800 leading-tight">{task.event_name}</h3>
-                        <p className="text-xs text-gray-500 mt-0.5 truncate" title={task.source_url}>
-                           源: {task.source_url}
+                        <p className="text-xs text-gray-500 mt-0.5 truncate" title={task.url}>
+                           源: {task.url}
                         </p>
                     </div>
                 </div>
@@ -64,7 +62,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task }) => {
 
             <div className="text-xs text-gray-400 border-t pt-3 mt-auto space-y-1">
                 <p>创建于: {new Date(task.created_at).toLocaleString('zh-CN')}</p>
-                {task.analysis_completed_at && <p>完成于: {new Date(task.analysis_completed_at).toLocaleString('zh-CN')}</p>}
+                {task.completion_time && <p>完成于: {new Date(task.completion_time).toLocaleString('zh-CN')}</p>}
             </div>
             
             <div className="mt-4 pt-3 border-t flex items-center justify-between">

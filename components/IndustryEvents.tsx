@@ -47,9 +47,8 @@ export const IndustryEvents: React.FC = () => {
                 const statusOrder: { [key in LivestreamTask['status']]: number } = {
                     'running': 1,
                     'pending': 2,
-                    'stopped': 3,
-                    'completed': 4,
-                    'failed': 5,
+                    'completed': 3,
+                    'failed': 4,
                 };
                 const sortedTasks = [...fetchedTasks].sort((a, b) => {
                     if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -97,7 +96,6 @@ export const IndustryEvents: React.FC = () => {
                             <FilterButton label="运行中" isActive={statusFilter === 'running'} onClick={() => setStatusFilter('running')} />
                             <FilterButton label="待处理" isActive={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')} />
                             <FilterButton label="已完成" isActive={statusFilter === 'completed'} onClick={() => setStatusFilter('completed')} />
-                            <FilterButton label="已停止" isActive={statusFilter === 'stopped'} onClick={() => setStatusFilter('stopped')} />
                             <FilterButton label="失败" isActive={statusFilter === 'failed'} onClick={() => setStatusFilter('failed')} />
                         </div>
                     </div>

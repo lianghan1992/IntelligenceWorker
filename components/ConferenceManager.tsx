@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LivestreamTask } from '../types';
 import {
     getLivestreamTasks,
-    deleteLivestreamTask,
     startLivestreamTask,
     stopLivestreamTask,
     getLivestreamTaskReport,
@@ -24,7 +23,6 @@ const getStatusDetails = (status: LivestreamTask['status']) => {
         case 'running': return { text: '运行中', color: 'bg-blue-100 text-blue-800' };
         case 'completed': return { text: '已完成', color: 'bg-green-100 text-green-800' };
         case 'failed': return { text: '失败', color: 'bg-red-100 text-red-800' };
-        case 'stopped': return { text: '已停止', color: 'bg-yellow-100 text-yellow-800' };
         default: return { text: '待处理', color: 'bg-gray-100 text-gray-800' };
     }
 };
@@ -47,7 +45,6 @@ export const ConferenceManager: React.FC = () => {
     const [filters, setFilters] = useState({ type: 'all', status: 'all' });
     
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [taskToDelete, setTaskToDelete] = useState<LivestreamTask | null>(null);
     const [taskToView, setTaskToView] = useState<LivestreamTask | null>(null);
 
     const loadTasks = useCallback(async () => {
@@ -65,7 +62,7 @@ export const ConferenceManager: React.FC = () => {
             }
 
             const statusOrder: { [key in LivestreamTask['status']]: number } = {
-                'running': 1, 'pending': 2, 'stopped': 3, 'completed': 4, 'failed': 5,
+                'running': 1, 'pending': 2, 'completed': 3, 'failed': 4,
             };
             const sortedTasks = [...fetchedTasks].sort((a, b) => 
                 statusOrder[a.status] - statusOrder[b.status] || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -115,33 +112,12 @@ export const ConferenceManager: React.FC = () => {
         }
     };
 
-    const handleDelete = async (taskId: string) => {
-        setIsMutating(taskId);
-        setError('');
-        try {
-            await deleteLivestreamTask(taskId);
-            await loadTasks();
-        } catch (err: any) {
-            setError(`删除失败: ${err.message}`);
-        } finally {
-            setIsMutating(null);
-            setTaskToDelete(null);
-        }
-    };
-
     const handleViewReport = async (task: LivestreamTask) => {
-        // Prioritize using the report content from the task object if available
-        if (task.detailed_report) {
-            setTaskToView({ ...task, reportContentHtml: task.detailed_report });
-            return;
-        }
-
-        // Fallback to fetching if the task is completed but the report isn't in the object
         if (task.status === 'completed') {
             setIsMutating(task.task_id);
             setError('');
             try {
-                const reportContent = await getLivestreamTaskReport(task.task_id, 'detailed');
+                const reportContent = await getLivestreamTaskReport(task.task_id, 'summary');
                 setTaskToView({ ...task, reportContentHtml: reportContent });
             } catch (err: any) {
                 const errorMessage = `加载报告失败: ${err.message}`;
@@ -185,7 +161,6 @@ export const ConferenceManager: React.FC = () => {
                             <option value="running">运行中</option>
                             <option value="pending">待处理</option>
                             <option value="completed">已完成</option>
-                            <option value="stopped">已停止</option>
                             <option value="failed">失败</option>
                         </select>
                     </div>
@@ -212,7 +187,7 @@ export const ConferenceManager: React.FC = () => {
                                 <tr key={task.task_id} className="border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
                                         <div className="font-semibold text-gray-800">{task.event_name}</div>
-                                        <div className="text-xs text-gray-500 truncate max-w-xs" title={task.source_url}>{task.source_url}</div>
+                                        <div className="text-xs text-gray-500 truncate max-w-xs" title={task.url}>{task.url}</div>
                                     </td>
                                     <td className="px-6 py-4"><TaskTypeDisplay type={task.task_type} /></td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span></td>
@@ -221,7 +196,7 @@ export const ConferenceManager: React.FC = () => {
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
                                             <div className="flex items-center gap-2">
                                                 {task.status === 'completed' && <button onClick={() => handleViewReport(task)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="查看报告"><CheckIcon className="w-4 h-4" /></button>}
-                                                {(task.status === 'pending' || task.status === 'stopped' || task.status === 'failed') && (
+                                                {(task.status === 'pending' || task.status === 'failed') && (
                                                     <button onClick={() => handleStart(task.task_id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="启动任务">
                                                         <PlayIcon className="w-4 h-4" />
                                                     </button>
@@ -231,7 +206,6 @@ export const ConferenceManager: React.FC = () => {
                                                         <StopIcon className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => setTaskToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除"><TrashIcon className="w-4 h-4" /></button>
                                             </div>
                                         )}
                                     </td>
@@ -243,7 +217,6 @@ export const ConferenceManager: React.FC = () => {
             </div>
 
             {isCreateModalOpen && <CreateAnalysisTaskModal onClose={() => setIsCreateModalOpen(false)} onSuccess={loadTasks} />}
-            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.event_name}" 吗？此操作无法撤销。`} onConfirm={() => handleDelete(taskToDelete.task_id)} onCancel={() => setTaskToDelete(null)} />}
             {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
         </div>
     );
