@@ -298,9 +298,9 @@ const ArticleListManager: React.FC<{
 
     useEffect(() => {
         const validPointIds = new Set(
-            // FIX: Use type assertion `(p as Subscription)` to resolve a TypeScript type inference issue
+            // FIX: Use type annotation for `p` to resolve a TypeScript type inference issue
             // where `p` was being inferred as `unknown` within the `flatMap` and `map` chain.
-            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => (p as Subscription).id))
+            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map((p: Subscription) => p.id))
         );
         const newSelectedPointIds = filters.selectedPointIds.filter(id => validPointIds.has(id));
         if (newSelectedPointIds.length !== filters.selectedPointIds.length) {
@@ -849,9 +849,9 @@ const IntelligenceManager: React.FC = () => {
     const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
     const availablePointsForFilter = useMemo(() => {
         if (!sourceFilter) return [];
-        // FIX: Add explicit type assertion for `p` to resolve a TypeScript type inference issue
+        // FIX: Add explicit type annotation for `p` to resolve a TypeScript type inference issue
         // where `p` could be inferred as `unknown` when accessing an indexed property.
-        return [...new Set((pointsBySource[sourceFilter] || []).map((p) => (p as Subscription).point_name))];
+        return [...new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name))];
     }, [pointsBySource, sourceFilter]);
 
     const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];

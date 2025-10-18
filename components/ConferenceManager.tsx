@@ -4,7 +4,7 @@ import {
     getLivestreamTasks,
     startLivestreamTask,
     stopLivestreamTask,
-    getLivestreamTaskReport,
+    getLivestreamTaskDetails,
 } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -21,8 +21,10 @@ const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-g
 const getStatusDetails = (status: LivestreamTask['status']) => {
     switch (status) {
         case 'running': return { text: '运行中', color: 'bg-blue-100 text-blue-800' };
+        case 'processing': return { text: '分析中', color: 'bg-yellow-100 text-yellow-800' };
         case 'completed': return { text: '已完成', color: 'bg-green-100 text-green-800' };
         case 'failed': return { text: '失败', color: 'bg-red-100 text-red-800' };
+        case 'stopped': return { text: '已停止', color: 'bg-gray-200 text-gray-800' };
         default: return { text: '待处理', color: 'bg-gray-100 text-gray-800' };
     }
 };
@@ -62,7 +64,7 @@ export const ConferenceManager: React.FC = () => {
             }
 
             const statusOrder: { [key in LivestreamTask['status']]: number } = {
-                'running': 1, 'pending': 2, 'completed': 3, 'failed': 4,
+                'running': 1, 'processing': 2, 'pending': 3, 'completed': 4, 'stopped': 5, 'failed': 6
             };
             const sortedTasks = [...fetchedTasks].sort((a, b) => 
                 statusOrder[a.status] - statusOrder[b.status] || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -117,8 +119,11 @@ export const ConferenceManager: React.FC = () => {
             setIsMutating(task.task_id);
             setError('');
             try {
-                const reportContent = await getLivestreamTaskReport(task.task_id, 'summary');
-                setTaskToView({ ...task, reportContentHtml: reportContent });
+                const taskDetails = await getLivestreamTaskDetails(task.task_id);
+                const reportContent = taskDetails.summary_report || '未能加载报告内容或报告为空。';
+                // Simple markdown to HTML for now
+                const reportHtml = reportContent.replace(/\n/g, '<br />');
+                setTaskToView({ ...taskDetails, reportContentHtml: reportHtml });
             } catch (err: any) {
                 const errorMessage = `加载报告失败: ${err.message}`;
                 setError(errorMessage);
@@ -159,8 +164,10 @@ export const ConferenceManager: React.FC = () => {
                          <select value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="w-full mt-1 p-2 bg-gray-50 border border-gray-300 rounded-md">
                             <option value="all">所有状态</option>
                             <option value="running">运行中</option>
+                            <option value="processing">分析中</option>
                             <option value="pending">待处理</option>
                             <option value="completed">已完成</option>
+                            <option value="stopped">已停止</option>
                             <option value="failed">失败</option>
                         </select>
                     </div>
@@ -183,11 +190,14 @@ export const ConferenceManager: React.FC = () => {
                         {!isLoading && filteredTasks.map(task => {
                             const status = getStatusDetails(task.status);
                             const isTaskMutating = isMutating === task.task_id;
+                            const displayName = task.event_name || task.room_name || '未命名任务';
                             return (
                                 <tr key={task.task_id} className="border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
-                                        <div className="font-semibold text-gray-800">{task.event_name}</div>
-                                        <div className="text-xs text-gray-500 truncate max-w-xs" title={task.url}>{task.url}</div>
+                                        <div className="font-semibold text-gray-800">{displayName}</div>
+                                        {task.task_type === 'live' && task.room_id && 
+                                            <div className="text-xs text-gray-500">ID: {task.room_id}</div>
+                                        }
                                     </td>
                                     <td className="px-6 py-4"><TaskTypeDisplay type={task.task_type} /></td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span></td>
@@ -196,12 +206,12 @@ export const ConferenceManager: React.FC = () => {
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
                                             <div className="flex items-center gap-2">
                                                 {task.status === 'completed' && <button onClick={() => handleViewReport(task)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="查看报告"><CheckIcon className="w-4 h-4" /></button>}
-                                                {(task.status === 'pending' || task.status === 'failed') && (
+                                                {(task.status === 'pending' || task.status === 'failed' || task.status === 'stopped') && (
                                                     <button onClick={() => handleStart(task.task_id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="启动任务">
                                                         <PlayIcon className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {task.status === 'running' && (
+                                                {(task.status === 'running' || task.status === 'processing') && (
                                                     <button onClick={() => handleStop(task.task_id)} className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-gray-100 rounded-md" title="停止任务">
                                                         <StopIcon className="w-4 h-4" />
                                                     </button>

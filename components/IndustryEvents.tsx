@@ -44,11 +44,14 @@ export const IndustryEvents: React.FC = () => {
                     return;
                 }
                 
+                // FIX: Added missing 'processing' and 'stopped' statuses to satisfy the type.
                 const statusOrder: { [key in LivestreamTask['status']]: number } = {
                     'running': 1,
-                    'pending': 2,
-                    'completed': 3,
-                    'failed': 4,
+                    'processing': 2,
+                    'pending': 3,
+                    'completed': 4,
+                    'stopped': 5,
+                    'failed': 6,
                 };
                 const sortedTasks = [...fetchedTasks].sort((a, b) => {
                     if (statusOrder[a.status] !== statusOrder[b.status]) {

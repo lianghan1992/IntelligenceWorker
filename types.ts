@@ -247,25 +247,35 @@ export interface PredictionEvidence {
 // --- New Types for Livestream Service ---
 export interface LivestreamPrompt {
     name: string;
+    display_name: string;
     description: string;
-    content: string;
 }
 
 export interface LivestreamTask {
   task_id: string;
-  event_name: string;
-  description?: string | null;
   task_type: 'live' | 'video' | 'summit';
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'processing' | 'completed' | 'failed' | 'stopped';
   created_at: string;
+
+  // List view fields
+  room_id?: string;
+  room_name?: string;
+  event_name?: string | null;
+  start_time?: string | null;
   completion_time?: string | null;
-  url?: string;
-  event_date?: string;
-  prompt?: string;
-  output_directory?: string | null;
+  cover_image_data?: string | null;
+
+  // Detail view fields
+  prompt_name?: string;
+  bililive_id?: string;
+  output_directory?: string;
+  discovered_host_name?: string;
+  discovered_info?: string;
+  summary_report?: string | null;
+  detailed_report?: string | null;
   
-  discovered_host_name?: string | null;
-  discovered_room_name?: string | null;
+  // A field that might be on older versions or used for display consistency
+  url?: string;
 
   // UI-synthesized field
   reportContentHtml?: string;

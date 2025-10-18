@@ -17,14 +17,32 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
+const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess }) => {
     const [taskType, setTaskType] = useState<TaskType>('live');
 
+    // Shared state
     const [eventName, setEventName] = useState('');
-    const [sourceUrl, setSourceUrl] = useState('');
-    const [eventTime, setEventTime] = useState('');
+    const [eventDate, setEventDate] = useState('');
+    const [source, setSource] = useState(''); // Holds URL, file_path, or dir_path
     const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
     const [promptName, setPromptName] = useState('');
+
+    // Live-specific state
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    
+    const [coverImage, setCoverImage] = useState<File | null>(null);
+    const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -46,8 +64,24 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return eventName.trim() !== '' && sourceUrl.trim() !== '' && eventTime.trim() !== '' && promptName;
-    }, [eventName, sourceUrl, eventTime, promptName]);
+        if (taskType === 'live') {
+            return source.trim() !== '' && title.trim() !== '' && eventName.trim() !== '' && eventDate.trim() !== '' && promptName.trim() !== '';
+        } else { // video or summit
+            return eventName.trim() !== '' && source.trim() !== '' && eventDate.trim() !== '';
+        }
+    }, [taskType, source, title, eventName, eventDate, promptName]);
+
+     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files[0]) {
+            const file = event.target.files[0];
+            setCoverImage(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCoverImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleSubmit = async () => {
         if (!isFormValid) {
@@ -57,23 +91,37 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         setIsLoading(true);
         setError('');
         try {
-            const formattedEventDate = eventTime ? eventTime.split('T')[0] : '';
-
-            const commonPayload = {
-                event_name: eventName,
-                event_date: formattedEventDate,
-                prompt: promptName,
-            };
+            const cover_image_data = coverImage ? await fileToBase64(coverImage) : undefined;
 
             switch (taskType) {
                 case 'live':
-                    await createLiveAnalysisTask({ ...commonPayload, url: sourceUrl });
+                    await createLiveAnalysisTask({ 
+                        url: source,
+                        prompt: promptName,
+                        title,
+                        description,
+                        event_name: eventName,
+                        event_date: eventDate,
+                        cover_image_data
+                    });
                     break;
                 case 'video':
-                    await createVideoAnalysisTask({ ...commonPayload, file_path: sourceUrl });
+                    await createVideoAnalysisTask({
+                        file_path: source,
+                        event_name: eventName,
+                        event_date: eventDate,
+                        prompt: promptName,
+                        cover_image_data
+                    });
                     break;
                 case 'summit':
-                     await createSummitAnalysisTask({ ...commonPayload, images_directory: sourceUrl });
+                     await createSummitAnalysisTask({
+                        images_directory: source,
+                        event_name: eventName,
+                        event_date: eventDate,
+                        prompt: promptName,
+                        cover_image_data
+                     });
                     break;
             }
             onSuccess();
@@ -103,19 +151,117 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         </button>
     );
     
-    const getUrlLabelAndPlaceholder = () => {
-        switch (taskType) {
-            case 'video':
-                return { label: '视频文件路径', placeholder: '/path/to/your/video.mp4' };
-            case 'summit':
-                return { label: '图片目录路径', placeholder: '/path/to/summit/images/' };
-            case 'live':
-            default:
-                return { label: '直播间 URL', placeholder: 'https://live.bilibili.com/22625027' };
-        }
-    };
+    const renderFormContent = () => {
+        const commonFields = (
+            <>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">分析模板 <span className="text-red-500">*</span></label>
+                    <select value={promptName} onChange={e => setPromptName(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" disabled={isLoading || prompts.length === 0}>
+                       {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.display_name}</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>
+                    <div onClick={() => fileInputRef.current?.click()} className="mt-1 w-full h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-colors overflow-hidden">
+                         {coverImagePreview ? (
+                            <img src={coverImagePreview} alt="封面预览" className="w-full h-full object-cover" />
+                        ) : (
+                            <span className="text-sm text-gray-500">点击上传</span>
+                        )}
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                    </div>
+                </div>
+            </>
+        );
 
-    const { label: urlLabel, placeholder: urlPlaceholder } = getUrlLabelAndPlaceholder();
+        if (taskType === 'live') {
+            return (
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="live-url" className="block text-sm font-medium text-gray-700 mb-1">直播间URL <span className="text-red-500">*</span></label>
+                        <input
+                            type="text" id="live-url" value={source} onChange={(e) => setSource(e.target.value)}
+                            placeholder="支持B站、微博、抖音等主流平台"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="live-title" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
+                        <input
+                            type="text" id="live-title" value={title} onChange={(e) => setTitle(e.target.value)}
+                            placeholder="例如：小米汽车SU7发布会"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                     <div>
+                        <label htmlFor="live-event-name" className="block text-sm font-medium text-gray-700 mb-1">事件名称 <span className="text-red-500">*</span></label>
+                        <input
+                            type="text" id="live-event-name" value={eventName} onChange={(e) => setEventName(e.target.value)}
+                            placeholder="用于报告生成的事件名称"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                     <div>
+                        <label htmlFor="live-event-date" className="block text-sm font-medium text-gray-700 mb-1">事件日期 <span className="text-red-500">*</span></label>
+                        <input
+                            type="date" id="live-event-date" value={eventDate} onChange={(e) => setEventDate(e.target.value)}
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="live-description" className="block text-sm font-medium text-gray-700 mb-1">任务描述 (可选)</label>
+                        <textarea
+                            id="live-description" value={description} onChange={(e) => setDescription(e.target.value)}
+                            rows={2}
+                            placeholder="关于本次直播任务的简短描述"
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            disabled={isLoading}
+                        />
+                    </div>
+                    {commonFields}
+                </div>
+            );
+        }
+        
+        // For 'video' and 'summit'
+        return (
+            <div className="space-y-4">
+                <div>
+                    <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
+                    <input
+                        type="text" id="event-name" value={eventName} onChange={(e) => setEventName(e.target.value)}
+                        placeholder="例如：2024蔚来NIO Day"
+                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={isLoading}
+                    />
+                </div>
+                <div>
+                    <label htmlFor="source-path" className="block text-sm font-medium text-gray-700 mb-1">
+                        {taskType === 'video' ? '视频文件路径' : '图片目录路径'} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                        type="text" id="source-path" value={source} onChange={(e) => setSource(e.target.value)}
+                        placeholder={taskType === 'video' ? '/path/to/your/video.mp4' : '/path/to/summit/images/'}
+                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={isLoading}
+                    />
+                </div>
+                <div>
+                    <label htmlFor="event-date" className="block text-sm font-medium text-gray-700 mb-1">事件时间 <span className="text-red-500">*</span></label>
+                    <input
+                        type="date" id="event-date" value={eventDate} onChange={(e) => setEventDate(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={isLoading}
+                    />
+                </div>
+                {commonFields}
+            </div>
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -135,45 +281,13 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     </div>
                 </div>
 
-                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                    <div>
-                        <label htmlFor="event-name" className="block text-sm font-medium text-gray-700 mb-1">任务标题 <span className="text-red-500">*</span></label>
-                        <input
-                            type="text" id="event-name" value={eventName} onChange={(e) => setEventName(e.target.value)}
-                            placeholder="例如：2024蔚来NIO Day"
-                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            disabled={isLoading}
-                        />
-                    </div>
-                     <div>
-                        <label htmlFor="source-url" className="block text-sm font-medium text-gray-700 mb-1">{urlLabel} <span className="text-red-500">*</span></label>
-                        <input
-                            type={taskType === 'live' ? 'url' : 'text'} id="source-url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}
-                            placeholder={urlPlaceholder}
-                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            disabled={isLoading}
-                        />
-                    </div>
-                     <div>
-                        <label htmlFor="event-time" className="block text-sm font-medium text-gray-700 mb-1">事件时间 <span className="text-red-500">*</span></label>
-                        <input
-                            type="date" id="event-time" value={eventTime} onChange={(e) => setEventTime(e.target.value)}
-                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            disabled={isLoading}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">分析模板 <span className="text-red-500">*</span></label>
-                        <select value={promptName} onChange={e => setPromptName(e.target.value)} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2" disabled={isLoading || prompts.length === 0}>
-                           {prompts.map(p => <option key={p.name} value={p.name} title={p.description}>{p.description}</option>)}
-                        </select>
-                    </div>
-                    
-                     {error && (
-                        <div className="text-sm text-red-700 bg-red-100 p-3 rounded-lg mt-4">
+                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                    {error && (
+                        <div className="text-sm text-red-700 bg-red-100 p-3 rounded-lg mb-4">
                             <strong>错误:</strong> {error}
                         </div>
                     )}
+                    {renderFormContent()}
                 </div>
                 <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3 rounded-b-2xl">
                     <button 
