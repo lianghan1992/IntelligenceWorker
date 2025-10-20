@@ -1,4 +1,4 @@
-import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH, USER_SERVICE_PATH } from './config';
+import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH, USER_SERVICE_PATH, LIVESTREAM_SERVICE_PATH } from './config';
 import { 
     User, 
     AdminUser,
@@ -12,8 +12,11 @@ import {
     SearchResult,
     Prompt,
     UserSourceSubscription,
+    BililiveInfo,
+    BililiveStream,
+    // FIX: Add missing type imports
     LivestreamTask,
-    LivestreamPrompt
+    LivestreamPrompt,
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
@@ -79,7 +82,7 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
     return response.json();
 };
 
-const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
+const BILILIVE_SERVICE_PATH = `${API_BASE_URL}/bililive`;
 
 // --- Auth Service ---
 
@@ -355,84 +358,90 @@ export const getProcessingTasksStats = async (): Promise<{ [key: string]: number
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
-// --- Livestream Analysis Service (Updated) ---
+// --- Bililive Service (New) ---
+
+export const getBililiveInfo = async (): Promise<BililiveInfo> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/info`);
+};
+
+export const addBililiveStream = async (url: string, listen: boolean = true): Promise<BililiveStream[]> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives`, {
+        method: 'POST',
+        body: JSON.stringify({ url, listen }),
+    });
+};
+
+export const getAllBililiveStreams = async (): Promise<BililiveStream[]> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives`);
+};
+
+export const startBililiveStream = async (liveId: string): Promise<BililiveStream> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}/start`, {
+        method: 'POST',
+    });
+};
+
+export const stopBililiveStream = async (liveId: string): Promise<BililiveStream> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}/stop`, {
+        method: 'POST',
+    });
+};
+
+export const deleteBililiveStream = async (liveId: string): Promise<{ message: string }> => {
+    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}`, {
+        method: 'DELETE',
+    });
+};
+
+// --- Livestream Analysis Service (New) ---
+export const getLivestreamTasks = async (): Promise<{ tasks: LivestreamTask[] }> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
+};
 
 export const getLivestreamPrompts = async (): Promise<{ prompts: LivestreamPrompt[] }> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 };
 
-export const getLivestreamTasks = async (): Promise<{ tasks: LivestreamTask[], total: number, limit: number, offset: number }> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks?limit=1000`);
-};
-
-export const getLivestreamTaskDetails = async (taskId: string): Promise<LivestreamTask> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`);
-};
-
-export const createLiveAnalysisTask = async (data: { url: string; prompt: string; title: string; description?: string; event_name: string; event_date: string; cover_image_data?: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createLiveAnalysisTask = async (data: {
+    url: string;
+    prompt: string;
+    title: string;
+    description: string;
+    event_name: string;
+    event_date: string;
+    cover_image_data?: string;
+}): Promise<LivestreamTask> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/live`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const createVideoAnalysisTask = async (data: { file_path: string; event_name?: string; event_date?: string; prompt?: string; cover_image_data?: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createVideoAnalysisTask = async (data: {
+    file_path: string;
+    event_name: string;
+    event_date: string;
+    prompt: string;
+    cover_image_data?: string;
+}): Promise<LivestreamTask> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/video`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const createSummitAnalysisTask = async (data: { images_directory: string; event_name?: string; event_date?: string; prompt?: string; cover_image_data?: string; }): Promise<{ task_id: string; message: string; status: string; }> => {
+export const createSummitAnalysisTask = async (data: {
+    images_directory: string;
+    event_name: string;
+    event_date: string;
+    prompt: string;
+    cover_image_data?: string;
+}): Promise<LivestreamTask> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/summit`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
-
-export const startLivestreamTask = async (taskId: string): Promise<{ message: string; status: string; }> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, {
-        method: 'POST',
-    });
-};
-
-export const stopLivestreamTask = async (taskId: string): Promise<{ message: string; status: string; }> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, {
-        method: 'POST',
-    });
-};
-
-export const getLivestreamTaskReport = async (taskId: string, fileType: 'pdf' | 'json' | 'summary' | 'transcript' = 'summary'): Promise<string> => {
-    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/results/${fileType}`;
-    
-    const headers: Record<string, string> = {};
-    const token = getAuthToken();
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const finalUrl = new URL(url, window.location.origin).href;
-    const response = await fetch(finalUrl, { headers });
-
-    if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('accessToken');
-        window.location.reload();
-        throw new Error('会话已过期或权限不足，请重新登录。');
-    }
-
-    if (!response.ok) {
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            errorData = { detail: `HTTP error! status: ${response.status}` };
-        }
-        const errorMessage = errorData.detail || `Request failed with status ${response.status}`;
-        throw new Error(errorMessage);
-    }
-    return response.text();
-};
-
 
 // --- Prompts ---
 
@@ -448,6 +457,7 @@ export const createPrompt = async (type: string, key: string, data: Prompt): Pro
 };
 
 export const updatePrompt = async (type: string, key: string, data: Prompt): Promise<Prompt> => {
+    // FIX: Correct typo from INTELLGLISH_SERVICE_PATH to INTELLIGENCE_SERVICE_PATH
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${type}/${key}`, {
         method: 'PUT',
         body: JSON.stringify(data),

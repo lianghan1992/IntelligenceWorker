@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { LivestreamTask } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { BililiveStream } from '../types';
 import {
-    getLivestreamTasks,
-    startLivestreamTask,
-    stopLivestreamTask,
-    getLivestreamTaskDetails,
+    getAllBililiveStreams,
+    addBililiveStream,
+    startBililiveStream,
+    stopBililiveStream,
+    deleteBililiveStream,
 } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
-import { EventReportModal } from './EventReportModal';
-import { CreateAnalysisTaskModal } from './CreateAnalysisTaskModal';
-import { PlusIcon, TrashIcon, CheckIcon, VideoCameraIcon, FilmIcon, PhotoIcon, PlayIcon, StopIcon } from './icons';
+import { PlusIcon, TrashIcon, PlayIcon, StopIcon, CloseIcon } from './icons';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-gray-500" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -18,204 +17,184 @@ const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-g
     </svg>
 );
 
-const getStatusDetails = (status: LivestreamTask['status']) => {
-    switch (status) {
-        case 'running': return { text: '运行中', color: 'bg-blue-100 text-blue-800' };
-        case 'processing': return { text: '分析中', color: 'bg-yellow-100 text-yellow-800' };
-        case 'completed': return { text: '已完成', color: 'bg-green-100 text-green-800' };
-        case 'failed': return { text: '失败', color: 'bg-red-100 text-red-800' };
-        case 'stopped': return { text: '已停止', color: 'bg-gray-200 text-gray-800' };
-        default: return { text: '待处理', color: 'bg-gray-100 text-gray-800' };
-    }
-};
-
-const TaskTypeDisplay: React.FC<{ type: LivestreamTask['task_type'] }> = ({ type }) => {
-    switch (type) {
-        case 'live': return <div className="flex items-center gap-2"><VideoCameraIcon className="w-4 h-4 text-red-500" /><span>直播</span></div>;
-        case 'video': return <div className="flex items-center gap-2"><FilmIcon className="w-4 h-4 text-blue-500" /><span>视频</span></div>;
-        case 'summit': return <div className="flex items-center gap-2"><PhotoIcon className="w-4 h-4 text-purple-500" /><span>图片集</span></div>;
-        default: return <span>{type}</span>;
-    }
-};
-
-export const ConferenceManager: React.FC = () => {
-    const [tasks, setTasks] = useState<LivestreamTask[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isMutating, setIsMutating] = useState<string | null>(null); // Track task ID being mutated
+const AddStreamModal: React.FC<{
+    onClose: () => void;
+    onSuccess: () => void;
+}> = ({ onClose, onSuccess }) => {
+    const [url, setUrl] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const [filters, setFilters] = useState({ type: 'all', status: 'all' });
-    
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [taskToView, setTaskToView] = useState<LivestreamTask | null>(null);
-
-    const loadTasks = useCallback(async () => {
+    const handleSubmit = async () => {
+        if (!url.trim()) return;
         setIsLoading(true);
         setError('');
         try {
-            const response = await getLivestreamTasks();
-            const fetchedTasks = response.tasks;
-            
-            // Defensive check: Ensure fetchedTasks is an array before processing
-            if (!Array.isArray(fetchedTasks)) {
-                console.warn("API at /livestream/tasks did not return a `tasks` array. Defaulting to empty array.");
-                setTasks([]);
-                return;
-            }
-
-            const statusOrder: { [key in LivestreamTask['status']]: number } = {
-                'running': 1, 'processing': 2, 'pending': 3, 'completed': 4, 'stopped': 5, 'failed': 6
-            };
-            const sortedTasks = [...fetchedTasks].sort((a, b) => 
-                statusOrder[a.status] - statusOrder[b.status] || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            );
-            setTasks(sortedTasks);
+            await addBililiveStream(url);
+            onSuccess();
+            onClose();
         } catch (err: any) {
-            setError(err.message || '无法加载任务列表');
+            setError(err.message || '添加失败，请检查URL或服务状态。');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">添加Bilibili直播间监控</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
+                        <CloseIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm">{error}</div>}
+                    <div>
+                        <label htmlFor="stream-url" className="block text-sm font-medium text-gray-700 mb-1">直播间 URL</label>
+                        <input
+                            id="stream-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)}
+                            placeholder="https://live.bilibili.com/..."
+                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                        />
+                    </div>
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+                    <button onClick={handleSubmit} disabled={!url.trim() || isLoading} className="py-2 px-6 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center min-w-[80px]">
+                        {isLoading ? <Spinner className="h-5 w-5 text-white" /> : '添加'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export const ConferenceManager: React.FC = () => {
+    const [streams, setStreams] = useState<BililiveStream[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isMutating, setIsMutating] = useState<string | null>(null); // Track stream ID being mutated
+    const [error, setError] = useState('');
+
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [streamToDelete, setStreamToDelete] = useState<BililiveStream | null>(null);
+
+    const loadStreams = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const data = await getAllBililiveStreams();
+            setStreams(data);
+        } catch (err: any) {
+            setError(err.message || '无法加载直播间列表');
         } finally {
             setIsLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        loadTasks();
-    }, [loadTasks]);
+        loadStreams();
+    }, [loadStreams]);
 
-    const filteredTasks = useMemo(() => {
-        return tasks.filter(task => 
-            (filters.type === 'all' || task.task_type === filters.type) &&
-            (filters.status === 'all' || task.status === filters.status)
-        );
-    }, [tasks, filters]);
+    const handleToggleListen = async (stream: BililiveStream) => {
+        setIsMutating(stream.id);
+        setError('');
+        try {
+            const updatedStream = stream.listening
+                ? await stopBililiveStream(stream.id)
+                : await startBililiveStream(stream.id);
+            setStreams(prev => prev.map(s => s.id === stream.id ? updatedStream : s));
+        } catch (err: any) {
+            setError(`操作失败: ${err.message}`);
+        } finally {
+            setIsMutating(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!streamToDelete) return;
+        setIsMutating(streamToDelete.id);
+        setError('');
+        try {
+            await deleteBililiveStream(streamToDelete.id);
+            setStreamToDelete(null);
+            await loadStreams();
+        } catch (err: any) {
+            setError(`删除失败: ${err.message}`);
+        } finally {
+            setIsMutating(null);
+        }
+    };
     
-    const handleStart = async (taskId: string) => {
-        setIsMutating(taskId);
-        setError('');
-        try {
-            await startLivestreamTask(taskId);
-            await loadTasks(); // Refetch
-        } catch (err: any) {
-            setError(`启动任务失败: ${err.message}`);
-        } finally {
-            setIsMutating(null);
+    const StatusBadge: React.FC<{ active: boolean; activeText: string; inactiveText: string; color: 'green' | 'blue' | 'yellow' }> = 
+    ({ active, activeText, inactiveText, color }) => {
+        const colors = {
+            green: 'bg-green-100 text-green-800',
+            blue: 'bg-blue-100 text-blue-800',
+            yellow: 'bg-yellow-100 text-yellow-800',
+        };
+        const dotColors = {
+            green: 'bg-green-500',
+            blue: 'bg-blue-500',
+            yellow: 'bg-yellow-500',
         }
-    };
-
-    const handleStop = async (taskId: string) => {
-        setIsMutating(taskId);
-        setError('');
-        try {
-            await stopLivestreamTask(taskId);
-            await loadTasks(); // Refetch
-        } catch (err: any) {
-            setError(`停止任务失败: ${err.message}`);
-        } finally {
-            setIsMutating(null);
-        }
-    };
-
-    const handleViewReport = async (task: LivestreamTask) => {
-        if (task.status === 'completed') {
-            setIsMutating(task.task_id);
-            setError('');
-            try {
-                const taskDetails = await getLivestreamTaskDetails(task.task_id);
-                const reportContent = taskDetails.summary_report || '未能加载报告内容或报告为空。';
-                // Simple markdown to HTML for now
-                const reportHtml = reportContent.replace(/\n/g, '<br />');
-                setTaskToView({ ...taskDetails, reportContentHtml: reportHtml });
-            } catch (err: any) {
-                const errorMessage = `加载报告失败: ${err.message}`;
-                setError(errorMessage);
-                setTaskToView({ ...task, reportContentHtml: `<p class="text-red-500">${errorMessage}</p>` });
-            } finally {
-                setIsMutating(null);
-            }
-        } else {
-            setError('任务尚未完成，无法查看报告。');
-        }
+        return (
+            <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full ${active ? colors[color] : 'bg-gray-100 text-gray-700'}`}>
+                {active && <span className={`h-1.5 w-1.5 rounded-full ${dotColors[color]}`}></span>}
+                {active ? activeText : inactiveText}
+            </span>
+        );
     };
 
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">发布会管理</h2>
-                <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
+                <h2 className="text-2xl font-bold text-gray-800">直播监控管理</h2>
+                <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
                     <PlusIcon className="w-5 h-5" />
-                    <span>新增分析任务</span>
+                    <span>添加直播间</span>
                 </button>
             </div>
             
             {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
-            <div className="bg-white p-4 rounded-xl border shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs font-medium text-gray-600">任务类型</label>
-                        <select value={filters.type} onChange={e => setFilters(f => ({...f, type: e.target.value}))} className="w-full mt-1 p-2 bg-gray-50 border border-gray-300 rounded-md">
-                            <option value="all">所有类型</option>
-                            <option value="live">直播</option>
-                            <option value="video">视频</option>
-                            <option value="summit">图片集</option>
-                        </select>
-                    </div>
-                     <div>
-                        <label className="text-xs font-medium text-gray-600">任务状态</label>
-                         <select value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="w-full mt-1 p-2 bg-gray-50 border border-gray-300 rounded-md">
-                            <option value="all">所有状态</option>
-                            <option value="running">运行中</option>
-                            <option value="processing">分析中</option>
-                            <option value="pending">待处理</option>
-                            <option value="completed">已完成</option>
-                            <option value="stopped">已停止</option>
-                            <option value="failed">失败</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
             <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
                 <table className="w-full text-sm text-left text-gray-600">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3">任务标题</th>
-                            <th className="px-6 py-3">类型</th>
-                            <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">创建时间</th>
+                            <th className="px-6 py-3">主播/直播间</th>
+                            <th className="px-6 py-3">平台</th>
+                            <th className="px-6 py-3">直播状态</th>
+                            <th className="px-6 py-3">监听状态</th>
+                            <th className="px-6 py-3">录制状态</th>
                             <th className="px-6 py-3">操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading && <tr><td colSpan={5} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
-                        {!isLoading && filteredTasks.map(task => {
-                            const status = getStatusDetails(task.status);
-                            const isTaskMutating = isMutating === task.task_id;
-                            const displayName = task.event_name || task.room_name || '未命名任务';
+                        {isLoading && <tr><td colSpan={6} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
+                        {!isLoading && streams.map(stream => {
+                            const isTaskMutating = isMutating === stream.id;
                             return (
-                                <tr key={task.task_id} className="border-b hover:bg-gray-50">
+                                <tr key={stream.id} className="border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
-                                        <div className="font-semibold text-gray-800">{displayName}</div>
-                                        {task.task_type === 'live' && task.room_id && 
-                                            <div className="text-xs text-gray-500">ID: {task.room_id}</div>
-                                        }
+                                        <div className="font-semibold text-gray-800">{stream.host_name}</div>
+                                        <div className="text-xs text-gray-500 truncate max-w-xs" title={stream.room_name}>{stream.room_name}</div>
+                                        <a href={stream.live_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">访问链接</a>
                                     </td>
-                                    <td className="px-6 py-4"><TaskTypeDisplay type={task.task_type} /></td>
-                                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span></td>
-                                    <td className="px-6 py-4 text-xs">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 font-semibold">{stream.platform_cn_name}</td>
+                                    <td className="px-6 py-4"><StatusBadge active={stream.status} activeText="直播中" inactiveText="离线" color="green" /></td>
+                                    <td className="px-6 py-4"><StatusBadge active={stream.listening} activeText="监听中" inactiveText="已停止" color="blue" /></td>
+                                    <td className="px-6 py-4"><StatusBadge active={stream.recording} activeText="录制中" inactiveText="未录制" color="yellow" /></td>
                                     <td className="px-6 py-4">
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
                                             <div className="flex items-center gap-2">
-                                                {task.status === 'completed' && <button onClick={() => handleViewReport(task)} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="查看报告"><CheckIcon className="w-4 h-4" /></button>}
-                                                {(task.status === 'pending' || task.status === 'failed' || task.status === 'stopped') && (
-                                                    <button onClick={() => handleStart(task.task_id)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title="启动任务">
-                                                        <PlayIcon className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                                {(task.status === 'running' || task.status === 'processing') && (
-                                                    <button onClick={() => handleStop(task.task_id)} className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-gray-100 rounded-md" title="停止任务">
-                                                        <StopIcon className="w-4 h-4" />
-                                                    </button>
-                                                )}
+                                                <button onClick={() => handleToggleListen(stream)} className="p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md" title={stream.listening ? '停止监听' : '开始监听'}>
+                                                    {stream.listening ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+                                                </button>
+                                                <button onClick={() => setStreamToDelete(stream)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除监控">
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
                                             </div>
                                         )}
                                     </td>
@@ -226,8 +205,8 @@ export const ConferenceManager: React.FC = () => {
                 </table>
             </div>
 
-            {isCreateModalOpen && <CreateAnalysisTaskModal onClose={() => setIsCreateModalOpen(false)} onSuccess={loadTasks} />}
-            {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
+            {isAddModalOpen && <AddStreamModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadStreams} />}
+            {streamToDelete && <ConfirmationModal title="确认删除监控" message={`您确定要删除对 "${streamToDelete.host_name}" 的直播间监控吗？`} onConfirm={handleDelete} onCancel={() => setStreamToDelete(null)} />}
         </div>
     );
 };

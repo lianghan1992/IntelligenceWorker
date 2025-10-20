@@ -244,43 +244,49 @@ export interface PredictionEvidence {
     initial_confidence: number;
 }
 
-// --- New Types for Livestream Service ---
+// --- New Types for Bililive Service ---
+export interface BililiveInfo {
+    app_name: string;
+    app_version: string;
+    build_time: string;
+    git_hash: string;
+    pid: number;
+    platform: string;
+    go_version: string;
+}
+
+export interface BililiveStream {
+    id: string;
+    live_url: string;
+    platform_cn_name: string;
+    host_name: string;
+    room_name: string;
+    status: boolean;      // Is the stream online?
+    listening: boolean;   // Are we listening?
+    recording: boolean;   // Are we recording?
+}
+
+// --- New Types for Livestream/Event Analysis ---
+export interface LivestreamTask {
+    task_id: string;
+    task_type: 'live' | 'video' | 'summit';
+    status: 'running' | 'processing' | 'pending' | 'completed' | 'failed' | 'stopped';
+    event_name: string;
+    room_name?: string;
+    room_id?: string;
+    cover_image_data?: string | null;
+    created_at: string;
+    completion_time?: string | null;
+    reportContentHtml?: string | null;
+    event_date?: string;
+    url?: string;
+}
+
 export interface LivestreamPrompt {
     name: string;
-    display_name: string;
     description: string;
+    display_name: string;
 }
-
-export interface LivestreamTask {
-  task_id: string;
-  task_type: 'live' | 'video' | 'summit';
-  status: 'pending' | 'running' | 'processing' | 'completed' | 'failed' | 'stopped';
-  created_at: string;
-
-  // List view fields
-  room_id?: string;
-  room_name?: string;
-  event_name?: string | null;
-  start_time?: string | null;
-  completion_time?: string | null;
-  cover_image_data?: string | null;
-
-  // Detail view fields
-  prompt_name?: string;
-  bililive_id?: string;
-  output_directory?: string;
-  discovered_host_name?: string;
-  discovered_info?: string;
-  summary_report?: string | null;
-  detailed_report?: string | null;
-  
-  // A field that might be on older versions or used for display consistency
-  url?: string;
-
-  // UI-synthesized field
-  reportContentHtml?: string;
-}
-
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';

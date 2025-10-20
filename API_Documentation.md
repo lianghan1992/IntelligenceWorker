@@ -31,19 +31,13 @@
     *   [2.14. 创建新提示词](#214-创建新提示词)
     *   [2.15. 更新提示词](#215-更新提示词)
     *   [2.16. 删除提示词](#216-删除提示词)
-3.  [**直播分析服务 (Livestream Service) (新!)**](#3-直播分析服务-livestream-service-新)
-    *   [3.1. 获取可用提示词列表](#31-获取可用提示词列表)
-    *   [3.2. 创建直播分析任务](#32-创建直播分析任务)
-    *   [3.3. 创建视频分析任务](#33-创建视频分析任务)
-    *   [3.4. 创建峰会图片集分析任务](#34-创建峰会图片集分析任务)
-    *   [3.5. 获取任务列表](#35-获取任务列表)
-    *   [3.6. 获取任务详情](#36-获取任务详情)
-    *   [3.7. 删除任务](#37-删除任务)
-    *   [3.8. 启动任务](#38-启动任务)
-    *   [3.9. 停止任务](#39-停止任务)
-    *   [3.10. 下载结果文件](#310-下载结果文件)
-    *   [3.11. 获取Bililive服务信息](#311-获取bililive服务信息)
-    *   [3.12. 获取Bililive服务状态](#312-获取bililive服务状态)
+3.  [**Bililive直播监控服务 (Bililive Service) (新!)**](#3-bililive直播监控服务-bililive-service-新)
+    *   [3.1. 获取Bililive服务信息](#31-获取bililive服务信息)
+    *   [3.2. 添加直播间监控](#32-添加直播间监控)
+    *   [3.3. 获取所有直播间信息](#33-获取所有直播间信息)
+    *   [3.4. 开始监听直播间](#34-开始监听直播间)
+    *   [3.5. 停止监听直播间](#35-停止监听直播间)
+    *   [3.6. 删除直播间监控](#36-删除直播间监控)
 
 ---
 
@@ -1284,392 +1278,209 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
 
 ---
 
-## 3. 直播分析服务 (Livestream Service) (新!)
+## 3. Bililive直播监控服务 (Bililive Service) (新!)
 
-直播分析服务提供对直播内容、视频文件和峰会图片集的智能分析功能。所有接口都以 `/livestream` 为前缀，需要用户认证。
+Bililive服务提供对bilibili直播间的监控功能，可以添加、管理和监听直播间状态。所有接口都需要用户认证。
 
-### 3.1. 获取可用提示词列表
+### 3.1. 获取Bililive服务信息
 
-获取当前可用的提示词列表，用于创建分析任务时选择合适的提示词。
+获取底层bililive-go服务的基本信息。
 
--   **路径:** `/livestream/prompts`
+-   **路径:** `/bililive/info`
 -   **方法:** `GET`
+-   **认证:** 需要Bearer Token
 
-**请求示例**
+**cURL请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/prompts"
+curl -X GET http://127.0.0.1:7657/bililive/info \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 **返回示例 (200 OK)**
 ```json
 {
-  "prompts": [
-    {
-      "name": "峰会论坛总结.md",
-      "display_name": "峰会论坛总结",
-      "description": "针对行业峰会和论坛的分析总结模板"
-    },
-    {
-      "name": "车企发布会完整总结.md",
-      "display_name": "车企发布会完整总结",
-      "description": "针对汽车行业发布会的完整分析总结模板"
-    }
-  ],
-  "total": 2
+  "app_name": "bililive-go",
+  "app_version": "v0.3.7",
+  "build_time": "2024-01-15T10:30:00Z",
+  "git_hash": "abc123def456",
+  "pid": 12345,
+  "platform": "linux/amd64",
+  "go_version": "go1.21.5"
 }
 ```
 
-### 3.2. 创建直播分析任务
+### 3.2. 添加直播间监控
 
-创建一个新的直播分析任务，用于分析指定的直播流。
+添加一个新的bilibili直播间进行监控。
 
--   **路径:** `/livestream/tasks/live`
+-   **路径:** `/bililive/lives`
 -   **方法:** `POST`
+-   **认证:** 需要Bearer Token
 
 **请求说明**
 
 | 字段 | 类型 | 是否必须 | 说明 |
-|------|------|----------|------|
-| `url` | string | 是 | 直播间URL地址（bilibili、微博等bililive-go支持的渠道） |
-| `event_name` | string | 是 | 直播名称（用于前端展示） |
-| `event_date` | string | 是 | 开始直播时间（YYYY-MM-DD格式） |
-| `prompt_name` | string | 否 | 提示词名称（默认使用default_live） |
-| `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
+| :--- | :--- | :--- | :--- |
+| `url` | string | 是 | bilibili直播间URL (如: https://live.bilibili.com/8178490) |
+| `listen` | boolean | 否 | 是否立即开始监听，默认为true |
 
-**请求示例**
+**请求示例 (JSON)**
+```json
+{
+  "url": "https://live.bilibili.com/8178490",
+  "listen": true
+}
+```
+
+**cURL请求示例**
 ```bash
-curl -X POST "http://localhost:7657/livestream/tasks/live" \
+curl -X POST http://127.0.0.1:7657/bililive/lives \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
   "url": "https://live.bilibili.com/8178490",
-  "event_name": "汽车发布会直播分析",
-  "event_date": "2025-01-20",
-  "prompt_name": "default_live",
-  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+  "listen": true
 }'
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "task_id": "ef891ebd-0096-4ee2-b72c-ee867cfca481",
-  "message": "直播分析任务创建成功",
-  "status": "pending"
-}
-```
-
-### 3.3. 创建视频分析任务
-
-创建一个新的视频分析任务，支持本地路径和远程视频文件URL。
-
--   **路径:** `/livestream/tasks/video`
--   **方法:** `POST`
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-|------|------|----------|------|
-| `url` | string | 是 | 视频文件路径或URL |
-| `event_name` | string | 是 | 视频名称（用于前端展示） |
-| `event_date` | string | 是 | 事件时间（YYYY-MM-DD格式） |
-| `prompt_name` | string | 否 | 提示词名称（默认使用default_video） |
-| `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
-
-**请求示例**
-```bash
-curl -X POST "http://localhost:7657/livestream/tasks/video" \
--H "Content-Type: application/json" \
--d '{
-  "url": "/path/to/your/video.mp4",
-  "event_name": "XX品牌2025秋季新品发布会",
-  "event_date": "2025-01-20",
-  "prompt_name": "default_video",
-  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-}'
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "task_id": "task_789012",
-  "message": "视频分析任务创建成功",
-  "status": "pending"
-}
-```
-
-### 3.4. 创建峰会图片集分析任务
-
-创建一个新的峰会图片集分析任务，用于分析压缩包中的图片集合。
-
--   **路径:** `/livestream/tasks/summit`
--   **方法:** `POST`
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-|------|------|----------|------|
-| `url` | string | 是 | 任意URL（用于前端展示链接） |
-| `event_name` | string | 是 | 峰会名称（用于前端展示） |
-| `event_date` | string | 是 | 开始时间（YYYY-MM-DD格式） |
-| `prompt_name` | string | 否 | 提示词名称（默认使用default_summit） |
-| `cover_image_data` | string | 是 | 封面图片的base64编码数据 |
-| `archive_data` | string | 是 | 图片集压缩文件的base64编码数据（支持zip或rar） |
-
-**请求示例**
-```bash
-curl -X POST "http://localhost:7657/livestream/tasks/summit" \
--H "Content-Type: application/json" \
--d '{
-  "url": "https://example.com/summit-info",
-  "event_name": "2025汽车行业峰会",
-  "event_date": "2025-01-15",
-  "prompt_name": "default_summit",
-  "cover_image_data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-  "archive_data": "UEsDBBQAAAAIABpbUE..."
-}'
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "task_id": "task_345678",
-  "message": "峰会图片集分析任务创建成功",
-  "status": "pending"
-}
-```
-
-### 3.5. 获取任务列表
-
-获取当前用户的所有分析任务列表。
-
--   **路径:** `/livestream/tasks`
--   **方法:** `GET`
-
-**请求示例**
-```bash
-curl -X GET "http://localhost:7657/livestream/tasks"
 ```
 
 **返回示例 (200 OK)**
 ```json
 [
   {
-    "task_id": "task_123456",
-    "event_name": "汽车发布会直播分析",
-    "task_type": "live",
-    "status": "completed",
-    "created_at": "2024-01-15T10:30:00Z",
-    "updated_at": "2024-01-15T11:45:00Z",
-    "source_url": "https://live.bilibili.com/8178490",
-    "event_date": "2025-10-15",
-    "prompt_name": "default_live"
-  },
-  {
-    "task_id": "task_789012",
-    "event_name": "汽车测评视频分析",
-    "task_type": "video",
-    "status": "processing",
-    "created_at": "2024-01-15T14:20:00Z",
-    "updated_at": "2024-01-15T14:25:00Z",
-    "source_url": "/path/to/video.mp4",
-    "event_date": "2025-10-20",
-    "prompt_name": "default_video"
-  },
-  {
-    "task_id": "task_345678",
-    "event_name": "2025汽车行业峰会",
-    "task_type": "summit",
-    "status": "pending",
-    "created_at": "2024-01-15T16:10:00Z",
-    "updated_at": "2024-01-15T16:10:00Z",
-    "source_url": "https://example.com/summit-info",
-    "event_date": "2025-11-15",
-    "prompt_name": "default_summit"
+    "id": "854f9aee6081d2e707a8b5bb8ac18782",
+    "live_url": "https://live.bilibili.com/8178490",
+    "platform_cn_name": "哔哩哔哩",
+    "host_name": "央视网",
+    "room_name": "央视新闻频道正在直播",
+    "status": true,
+    "listening": true,
+    "recording": true
   }
 ]
 ```
 
-### 3.6. 获取任务详情
+### 3.3. 获取所有直播间信息
 
-获取指定任务的详细信息。
+获取当前监控的所有直播间信息。
 
--   **路径:** `/livestream/tasks/{task_id}`
+-   **路径:** `/bililive/lives`
 -   **方法:** `GET`
+-   **认证:** 需要Bearer Token
 
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `task_id` | string | 任务ID |
-
-**请求示例**
+**cURL请求示例**
 ```bash
-curl -X GET "http://localhost:7657/livestream/tasks/task_123456"
+curl -X GET http://127.0.0.1:7657/bililive/lives \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 **返回示例 (200 OK)**
 ```json
-{
-  "task_id": "task_123456",
-  "event_name": "汽车发布会直播分析",
-  "task_type": "live",
-  "status": "completed",
-  "created_at": "2024-01-15T10:30:00Z",
-  "updated_at": "2024-01-15T11:45:00Z",
-  "source_url": "https://live.bilibili.com/8178490",
-  "event_date": "2025-10-15",
-  "prompt_name": "default_live",
-  "bililive_task_id": "bililive_456789",
-  "archive_file_path": null,
-  "results": {
-    "summary_available": true,
-    "detailed_report_available": true,
-    "pdf_available": true
+[
+  {
+    "id": "854f9aee6081d2e707a8b5bb8ac18782",
+    "live_url": "https://live.bilibili.com/8178490",
+    "platform_cn_name": "哔哩哔哩",
+    "host_name": "央视网",
+    "room_name": "央视新闻频道正在直播",
+    "status": true,
+    "listening": true,
+    "recording": true
   }
+]
+```
+
+### 3.4. 开始监听直播间
+
+开始监听指定的直播间。
+
+-   **路径:** `/bililive/lives/{live_id}/start`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `live_id` | string | 直播间的唯一标识符 |
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/bililive/lives/854f9aee6081d2e707a8b5bb8ac18782/start \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "id": "854f9aee6081d2e707a8b5bb8ac18782",
+  "live_url": "https://live.bilibili.com/8178490",
+  "platform_cn_name": "哔哩哔哩",
+  "host_name": "央视网",
+  "room_name": "央视新闻频道正在直播",
+  "status": true,
+  "listening": true,
+  "recording": true
 }
 ```
 
-### 3.7. 删除任务
+### 3.5. 停止监听直播间
 
-删除指定的分析任务及其相关文件。
+停止监听指定的直播间。
 
--   **路径:** `/livestream/tasks/{task_id}`
+-   **路径:** `/bililive/lives/{live_id}/stop`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `live_id` | string | 直播间的唯一标识符 |
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/bililive/lives/854f9aee6081d2e707a8b5bb8ac18782/stop \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "id": "854f9aee6081d2e707a8b5bb8ac18782",
+  "live_url": "https://live.bilibili.com/8178490",
+  "platform_cn_name": "哔哩哔哩",
+  "host_name": "央视网",
+  "room_name": "央视新闻频道正在直播",
+  "status": true,
+  "listening": false,
+  "recording": true
+}
+```
+
+### 3.6. 删除直播间监控
+
+删除指定的直播间监控。
+
+-   **路径:** `/bililive/lives/{live_id}`
 -   **方法:** `DELETE`
+-   **认证:** 需要Bearer Token
 
 **路径参数**
 
 | 参数 | 类型 | 说明 |
-|------|------|------|
-| `task_id` | string | 任务ID |
+| :--- | :--- | :--- |
+| `live_id` | string | 直播间的唯一标识符 |
 
-**请求示例**
+**cURL请求示例**
 ```bash
-curl -X DELETE "http://localhost:7657/livestream/tasks/task_123456"
+curl -X DELETE http://127.0.0.1:7657/bililive/lives/854f9aee6081d2e707a8b5bb8ac18782 \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 **返回示例 (200 OK)**
 ```json
 {
-  "message": "任务删除成功"
-}
-```
-
-### 3.8. 启动任务
-
-启动或重新启动指定的分析任务。
-
--   **路径:** `/livestream/tasks/{task_id}/start`
--   **方法:** `POST`
-
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `task_id` | string | 任务ID |
-
-**请求示例**
-```bash
-curl -X POST "http://localhost:7657/livestream/tasks/task_123456/start"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "直播任务已重新启动",
-  "status": "processing"
-}
-```
-
-### 3.9. 停止任务
-
-停止正在运行的分析任务。
-
--   **路径:** `/livestream/tasks/{task_id}/stop`
--   **方法:** `POST`
-
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `task_id` | string | 任务ID |
-
-**请求示例**
-```bash
-curl -X POST "http://localhost:7657/livestream/tasks/task_123456/stop"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "任务已停止",
-  "status": "stopped"
-}
-```
-
-### 3.10. 下载结果文件
-
-下载指定任务的分析结果文件。
-
--   **路径:** `/livestream/tasks/{task_id}/download/{file_type}`
--   **方法:** `GET`
-
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `task_id` | string | 任务ID |
-| `file_type` | string | 文件类型（summary/detailed/pdf/log） |
-
-**请求示例**
-```bash
-curl -X GET "http://localhost:7657/livestream/tasks/task_123456/download/summary" \
--o summary.md
-```
-
-**返回示例 (200 OK)**
-- 成功时返回文件内容（文件下载）
-- 失败时返回JSON错误信息
-
-### 3.11. 获取Bililive服务信息
-
-获取Bililive服务的基本信息。
-
--   **路径:** `/livestream/services/bililive/info`
--   **方法:** `GET`
-
-**请求示例**
-```bash
-curl -X GET "http://localhost:7657/livestream/services/bililive/info"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "service_name": "bililive-go",
-  "version": "1.0.0",
-  "status": "running",
-  "port": 8080
-}
-```
-
-### 3.12. 获取Bililive服务状态
-
-获取Bililive服务的当前运行状态。
-
--   **路径:** `/livestream/services/bililive/status`
--   **方法:** `GET`
-
-**请求示例**
-```bash
-curl -X GET "http://localhost:7657/livestream/services/bililive/status"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "status": "running",
-  "uptime": "2 days, 3 hours",
-  "active_tasks": 2
+  "message": "Live stream monitoring deleted successfully"
 }
 ```
 
