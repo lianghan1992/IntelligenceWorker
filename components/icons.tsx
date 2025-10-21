@@ -18,6 +18,11 @@ export const ChevronDownIcon = createIcon(
     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
 );
 
+// FIX: Add missing ChevronLeftIcon.
+export const ChevronLeftIcon = createIcon(
+    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+);
+
 export const ChevronRightIcon = createIcon(
     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
 );
@@ -171,4 +176,8 @@ export const SentimentSadIcon = createIcon(
     <>
         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 100-2 1 1 0 000 2zm7-1a1 1 0 11-2 0 1 1 0 012 0zM12.707 13.707a1 1 0 01-1.414 0L10 12.293l-1.293 1.414a1 1 0 01-1.414-1.414l2-2a1 1 0 011.414 0l2 2a1 1 0 010 1.414z" clipRule="evenodd" />
     </>
+);
+
+export const TimelineIcon = createIcon(
+    <path fillRule="evenodd" d="M9.5 1.5a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2a.5.5 0 01.5-.5zm0 5a.5.5 0 01.5.5v5a.5.5 0 01-1 0v-5a.5.5 0 01.5-.5zm0 8a.5.5 0 01.5.5v2a.5.5 0 01-1 0v-2a.5.5 0 01.5-.5zM5 4a2 2 0 100 4 2 2 0 000-4zm10 8a2 2 0 100 4 2 2 0 000-4z" clipRule="evenodd" />
 );
