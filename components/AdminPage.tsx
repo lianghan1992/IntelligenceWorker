@@ -249,7 +249,11 @@ const ArticleListManager: React.FC<{
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
 
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
-                pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
+                // FIX: Replaced flatMap with reduce to ensure proper type inference and avoid 'unknown[]' errors.
+                pointIdsToQuery = activeFilters.selectedSourceNames.reduce<string[]>((acc, name) => {
+                    const points = pointsBySourceForFilter[name] || [];
+                    return acc.concat(points.map(p => p.id));
+                }, []);
             }
             
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
@@ -297,10 +301,12 @@ const ArticleListManager: React.FC<{
     }, [page]);
 
     useEffect(() => {
+        // FIX: Replaced a problematic .flatMap().map() chain with .reduce().map() to ensure
+        // correct type inference by TypeScript and prevent 'unknown[]' type errors.
         const validPointIds = new Set(
-            // FIX: Use type annotation for `p` to resolve a TypeScript type inference issue
-            // where `p` was being inferred as `unknown` within the `flatMap` and `map` chain.
-            filters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map((p: Subscription) => p.id))
+            filters.selectedSourceNames
+                .reduce<Subscription[]>((acc, name) => acc.concat(pointsBySourceForFilter[name] || []), [])
+                .map(p => p.id)
         );
         const newSelectedPointIds = filters.selectedPointIds.filter(id => validPointIds.has(id));
         if (newSelectedPointIds.length !== filters.selectedPointIds.length) {
@@ -564,7 +570,7 @@ const ArticleListManager: React.FC<{
                 </div>
             </div>
 
-            {selectedArticle && <InfoDetailModal item={selectedArticle} onClose={() => setSelectedArticle(null)} />}
+            {selectedArticle && <InfoDetailModal item={selectedArticle} allItems={articles} onClose={() => setSelectedArticle(null)} />}
         </div>
     );
 };
@@ -682,92 +688,157 @@ const PointListManager: React.FC<{
                         {paginatedPoints.map(point => (
                              <tr key={point.id} className="border-b hover:bg-gray-50">
                                 <td className="p-4"><input type="checkbox" className="accent-blue-600" onChange={() => handleSelectPoint(point.id)} checked={selectedPointIds.has(point.id)} /></td>
-                                <td className="px-4 py-3 font-semibold text-gray-800">{point.point_name}</td>
-                                <td className="px-4 py-3">{point.source_name}</td>
-                                <td className="px-4 py-3 max-w-xs truncate"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{point.point_url}</a></td>
-                                <td className="px-4 py-3">{formatCron(point.cron_schedule)}</td>
-                                <td className="px-4 py-3">
-                                    {point.is_active ? 
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>启用
-                                        </span> : 
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-gray-400"></span>禁用
-                                        </span>
-                                    }
+                                <td className="px-4 py-4 font-semibold text-gray-800">{point.point_name}</td>
+                                <td className="px-4 py-4">{point.source_name}</td>
+                                <td className="px-4 py-4 max-w-xs truncate" title={point.point_url}>{point.point_url}</td>
+                                <td className="px-4 py-4">{formatCron(point.cron_schedule)}</td>
+                                <td className="px-4 py-4">
+                                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${point.is_active ? 'bg-green-500' : 'bg-gray-500'}`}></span>
+                                        {point.is_active ? '启用' : '禁用'}
+                                    </span>
                                 </td>
-                                <td className="px-4 py-3">
-                                    <button onClick={() => onEdit(point)} className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-md"><PencilIcon className="w-4 h-4" /></button>
+                                <td className="px-4 py-4">
+                                    <button onClick={() => onEdit(point)} className="font-semibold text-blue-600 hover:underline">编辑</button>
                                 </td>
+                            </tr>
+                        ))}
+                         {paginatedPoints.length === 0 && (
+                            <tr><td colSpan={7} className="text-center py-8 text-gray-500">没有找到匹配的情报点</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
+                 <span className="text-sm text-gray-600">共 {filteredPoints.length} 条记录</span>
+                 <div className="flex items-center gap-2">
+                    <button onClick={() => setPage(1)} disabled={page === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">首页</button>
+                    <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">上一页</button>
+                    <span className="text-sm font-semibold">第 {page} / {totalPages > 0 ? totalPages : 1} 页</span>
+                    <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">下一页</button>
+                     <button onClick={() => setPage(totalPages)} disabled={page >= totalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">尾页</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
+const TaskListManager: React.FC = () => {
+    const [tasks, setTasks] = useState<ApiProcessingTask[]>([]);
+    const [stats, setStats] = useState<{ [key: string]: number }>({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [filters, setFilters] = useState({ status: '', source: '', point: '' });
+    const TASKS_PER_PAGE = 20;
+
+    const loadTasks = useCallback(async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const params: any = { page, limit: TASKS_PER_PAGE };
+            if (filters.status) params.status = filters.status;
+            if (filters.source) params.source_name = filters.source;
+            if (filters.point) params.point_name = filters.point;
+
+            const [taskData, statData] = await Promise.all([
+                getProcessingTasks(params),
+                getProcessingTasksStats()
+            ]);
+            
+            setTasks(taskData.items);
+            const calculatedTotalPages = Math.ceil(taskData.total / TASKS_PER_PAGE);
+            setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
+            setStats(statData);
+        } catch (err: any) {
+            setError(err.message || '无法加载任务');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [page, filters]);
+    
+    useEffect(() => { loadTasks(); }, [loadTasks]);
+
+    return (
+        <div className="space-y-6">
+            <h3 className="text-xl font-bold text-gray-800">任务队列</h3>
+             {error && <p className="text-sm text-red-600 mb-2 p-2 bg-red-50 rounded-md">{error}</p>}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {['completed', 'processing', 'failed', 'pending_jina'].map(statusKey => (
+                     <div key={statusKey} className="bg-white p-4 rounded-xl border">
+                        <p className="text-sm text-gray-500">{statusKey}</p>
+                        <p className="text-2xl font-bold">{stats[statusKey]?.toLocaleString() || 0}</p>
+                    </div>
+                ))}
+            </div>
+             <div className="overflow-x-auto border rounded-lg bg-white">
+                 <table className="w-full text-sm text-left text-gray-600">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50/50">
+                        <tr>
+                            <th className="px-4 py-3">URL</th>
+                            <th className="px-4 py-3">情报点</th>
+                            <th className="px-4 py-3">状态</th>
+                            <th className="px-4 py-3">创建时间</th>
+                            <th className="px-4 py-3">更新时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {isLoading && <tr><td colSpan={5} className="text-center py-8"><Spinner /></td></tr>}
+                        {!isLoading && tasks.map((task) => (
+                            <tr key={task.id} className="bg-white border-b hover:bg-gray-50/50">
+                                <td className="px-4 py-3 max-w-sm truncate" title={task.url}>{task.url}</td>
+                                <td className="px-4 py-3">{task.source_name} / {task.point_name}</td>
+                                <td className="px-4 py-3">{getStatusChip(task.status)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">{formatToBeijingTime(task.created_at)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap">{formatToBeijingTime(task.updated_at)}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-
-             <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-                <span className="text-sm text-gray-600">共 {filteredPoints.length} 条记录</span>
-                {totalPages > 1 && (
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => setPage(p => p - 1)} disabled={page === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">上一页</button>
-                        <span className="text-sm font-semibold">第 {page} / {totalPages} 页</span>
-                        <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">下一页</button>
-                    </div>
-                )}
-            </div>
         </div>
-    )
-}
+    );
+};
 
-
+// --- Refactored IntelligenceManager ---
 const IntelligenceManager: React.FC = () => {
-    const [activeSubTab, setActiveSubTab] = useState<'points' | 'tasks' | 'articles'>('articles');
-    const [sources, setSources] = useState<SystemSource[]>([]);
+    const [allSources, setAllSources] = useState<SystemSource[]>([]);
     const [pointsBySource, setPointsBySource] = useState<Record<string, Subscription[]>>({});
-    const [tasks, setTasks] = useState<ApiProcessingTask[]>([]);
-    const [taskStats, setTaskStats] = useState<{[key: string]: number} | null>(null);
-    
-    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [isMutationLoading, setIsMutationLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState('');
 
-    const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
-    const [pointToEdit, setPointToEdit] = useState<Subscription | null>(null);
-    
-    const [pointsToDelete, setPointsToDelete] = useState<string[]>([]);
-    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-
-    // Task list specific states
-    const [taskPage, setTaskPage] = useState(1);
-    const [taskTotalPages, setTaskTotalPages] = useState(1);
-    const [taskTotal, setTaskTotal] = useState(0);
-    const TASKS_PER_PAGE = 20;
-    const [statusFilter, setStatusFilter] = useState('');
-    const [sourceFilter, setSourceFilter] = useState('');
-    const [pointFilter, setPointFilter] = useState('');
+    const [modalState, setModalState] = useState<{ mode: 'add' | 'edit'; point?: Subscription } | null>(null);
+    const [pointsToDelete, setPointsToDelete] = useState<string[] | null>(null);
 
     const loadInitialData = useCallback(async () => {
-        setIsLoadingData(true);
-        setError(null);
+        setIsLoading(true);
+        setError('');
         try {
-            const allSources = await getSources();
-            setSources(allSources);
-    
+            const sources = await getSources();
+            setAllSources(sources);
+
+            const pointsPromises = sources.map(source =>
+                getPointsBySourceName(source.name).catch(err => {
+                    console.error(`Failed to fetch points for ${source.name}:`, err);
+                    return [];
+                })
+            );
+            const pointsArrays = await Promise.all(pointsPromises);
+
             const pointsMap: Record<string, Subscription[]> = {};
-            for (const source of allSources) {
-                try {
-                    const points = await getPointsBySourceName(source.name);
-                    pointsMap[source.name] = points;
-                } catch (err) {
-                    console.error(`Failed to load points for source "${source.name}":`, err);
-                    pointsMap[source.name] = [];
-                }
-            }
+            sources.forEach((source, index) => {
+                pointsMap[source.name] = pointsArrays[index];
+            });
             setPointsBySource(pointsMap);
+
         } catch (err: any) {
-            setError(err.message || "无法加载核心数据");
+            setError(err.message || '无法加载数据');
         } finally {
-            setIsLoadingData(false);
+            setIsLoading(false);
         }
     }, []);
 
@@ -775,231 +846,77 @@ const IntelligenceManager: React.FC = () => {
         loadInitialData();
     }, [loadInitialData]);
 
-    const fetchTasksAndStats = useCallback(async () => {
-        try {
-            const params: any = { page: taskPage, limit: TASKS_PER_PAGE };
-            if (statusFilter) params.status = statusFilter;
-            if (sourceFilter) params.source_name = sourceFilter;
-            if (pointFilter) params.point_name = pointFilter;
-            
-            const [statsData, tasksData] = await Promise.all([
-                getProcessingTasksStats(),
-                getProcessingTasks(params)
-            ]);
-            
-            setTaskStats(statsData);
-            setTasks(tasksData.items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-            const calculatedTaskTotalPages = Math.ceil(tasksData.total / TASKS_PER_PAGE);
-            setTaskTotalPages(calculatedTaskTotalPages > 0 ? calculatedTaskTotalPages : 1);
-            setTaskTotal(tasksData.total);
-        } catch (err: any) {
-            setError(prev => prev ? `${prev}\n无法加载任务数据: ${err.message}` : `无法加载任务数据: ${err.message}`);
-        }
-    }, [taskPage, statusFilter, sourceFilter, pointFilter]);
-    
-    useEffect(() => {
-        if (activeSubTab === 'tasks' && !isLoadingData) {
-            fetchTasksAndStats();
-        }
-    }, [activeSubTab, isLoadingData, fetchTasksAndStats]);
-
-    const handleSavePoint = async (pointData: Partial<Subscription>) => {
+    const handleSavePoint = async (data: Partial<Subscription>) => {
         setIsMutationLoading(true);
+        setError('');
         try {
-            if (modalMode === 'add') {
-                await addPoint(pointData);
-            } else if (modalMode === 'edit' && pointToEdit) {
-                await updatePoint(pointToEdit.id, pointData);
+            if (modalState?.mode === 'add') {
+                await addPoint(data);
+            } else if (modalState?.mode === 'edit' && modalState.point?.id) {
+                await updatePoint(modalState.point.id, data);
             }
+            setModalState(null);
             await loadInitialData();
-            setModalMode(null);
-            setPointToEdit(null);
         } catch (err: any) {
-            setError('保存失败: ' + err.message);
+            setError(err.message || '保存失败');
         } finally {
             setIsMutationLoading(false);
         }
-    };
-    
-    const handleDeleteRequest = (ids: string[]) => {
-        setPointsToDelete(ids);
-        setIsDeleteConfirmOpen(true);
     };
 
     const handleDeleteConfirm = async () => {
+        if (!pointsToDelete) return;
         setIsMutationLoading(true);
+        setError('');
         try {
             await deletePoints(pointsToDelete);
+            setPointsToDelete(null);
             await loadInitialData();
-            setPointsToDelete([]);
-            setIsDeleteConfirmOpen(false);
         } catch (err: any) {
-            setError('删除失败: ' + err.message);
+            setError(err.message || '删除失败');
         } finally {
             setIsMutationLoading(false);
         }
     };
 
-    const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setTaskPage(1);
-        setter(e.target.value);
-    };
+    const allPoints = useMemo(() => Object.values(pointsBySource).flat(), [pointsBySource]);
 
-    const allPointsFlat = useMemo(() => Object.values(pointsBySource).flat(), [pointsBySource]);
-    const uniqueSourcesForFilter = useMemo(() => sources.map(s => s.name), [sources]);
-    const availablePointsForFilter = useMemo(() => {
-        if (!sourceFilter) return [];
-        // FIX: Add explicit type annotation for `p` to resolve a TypeScript type inference issue
-        // where `p` could be inferred as `unknown` when accessing an indexed property.
-        return [...new Set((pointsBySource[sourceFilter] || []).map((p: Subscription) => p.point_name))];
-    }, [pointsBySource, sourceFilter]);
-
-    const taskStatusOptions = ['pending_jina', 'completed', 'failed', 'processing'];
-    const allStatKeys = ['total', 'completed', 'pending_jina', 'processing', 'failed'];
-    const statusColors: { [key: string]: string } = {
-        completed: 'border-green-300 bg-green-50', failed: 'border-red-300 bg-red-50',
-        processing: 'border-blue-300 bg-blue-50', pending_jina: 'border-yellow-300 bg-yellow-50',
-        total: 'border-gray-300 bg-gray-100',
-    };
-
-    const TabButton: React.FC<{ tabKey: 'points' | 'tasks' | 'articles'; label: string }> = ({ tabKey, label }) => (
-        <button
-            onClick={() => setActiveSubTab(tabKey)}
-            className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
-                activeSubTab === tabKey
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-        >
-            {label}
-        </button>
-    );
+    if (isLoading) {
+        return <div className="p-8 text-center"><Spinner className="h-8 w-8 text-gray-500 mx-auto" /></div>;
+    }
     
+    if (error && !isLoading) {
+        return <div className="p-8 text-center text-red-500">{error}</div>;
+    }
+
     return (
-        <div className="space-y-6">
-            <div className="flex space-x-2 border-b border-gray-200 pb-2">
-                <TabButton tabKey="points" label="情报点管理" />
-                <TabButton tabKey="tasks" label="采集任务队列" />
-                <TabButton tabKey="articles" label="已采集文章" />
-            </div>
-
-            {error && <div className="p-4 bg-red-100 text-red-700 rounded-md whitespace-pre-wrap">{error}</div>}
-
-            {isLoadingData && <div className="text-center p-8"><Spinner /> 正在加载情报管理模块...</div>}
-
-            {!isLoadingData && activeSubTab === 'points' && (
-                <div className="animate-in fade-in-0 duration-300">
-                    <PointListManager
-                        allPoints={allPointsFlat}
-                        allSources={sources}
-                        onAdd={() => setModalMode('add')}
-                        onEdit={(point) => { setPointToEdit(point); setModalMode('edit'); }}
-                        onDelete={handleDeleteRequest}
-                        isMutationLoading={isMutationLoading}
-                    />
-                </div>
-            )}
+        <div className="space-y-10">
+            <PointListManager
+                allPoints={allPoints}
+                allSources={allSources}
+                onAdd={() => setModalState({ mode: 'add' })}
+                onEdit={(point) => setModalState({ mode: 'edit', point })}
+                onDelete={(ids) => setPointsToDelete(ids)}
+                isMutationLoading={isMutationLoading}
+            />
+            <TaskListManager />
+            <ArticleListManager allSources={allSources} pointsBySource={pointsBySource} />
             
-            {!isLoadingData && activeSubTab === 'tasks' && (
-                <div className="animate-in fade-in-0 duration-300">
-                     <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">任务队列实时状态</h3>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
-                            {allStatKeys.map(key =>(
-                                <div key={key} className={`p-4 rounded-lg border ${statusColors[key] || 'bg-gray-50'}`}>
-                                    <p className="text-sm text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
-                                    <p className="text-2xl font-bold text-gray-800">{(taskStats && taskStats[key]) ?? 0}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="flex flex-col md:flex-row gap-4 mb-4 p-4 bg-gray-50 rounded-lg border">
-                            <div className="flex-1">
-                                <label className="text-xs font-medium text-gray-600">状态</label>
-                                <select value={statusFilter} onChange={handleFilterChange(setStatusFilter)} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">所有状态</option>
-                                    {taskStatusOptions.map(status => <option key={status} value={status}>{status}</option>)}
-                                </select>
-                            </div>
-                             <div className="flex-1">
-                                <label className="text-xs font-medium text-gray-600">情报源</label>
-                                <select value={sourceFilter} onChange={handleFilterChange(setSourceFilter)} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">所有情报源</option>
-                                    {uniqueSourcesForFilter.map(source => <option key={source} value={source}>{source}</option>)}
-                                </select>
-                            </div>
-                             <div className="flex-1">
-                                <label className="text-xs font-medium text-gray-600">情报点</label>
-                                <select value={pointFilter} onChange={handleFilterChange(setPointFilter)} disabled={!sourceFilter} className="w-full mt-1 p-2 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-200">
-                                    <option value="">所有情报点</option>
-                                    {availablePointsForFilter.map(point => <option key={point} value={point}>{point}</option>)}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="overflow-x-auto border rounded-lg">
-                            <table className="w-full text-sm text-left text-gray-600">
-                                <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                                     <tr>
-                                        <th className="px-4 py-3">情报源/点</th>
-                                        <th className="px-4 py-3">URL</th>
-                                        <th className="px-4 py-3">状态</th>
-                                        <th className="px-4 py-3">创建时间</th>
-                                        <th className="px-4 py-3">最后更新</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                   {tasks.length === 0 ? (
-                                        <tr><td colSpan={5} className="text-center py-8 text-gray-500">无匹配的任务</td></tr>
-                                    ) : tasks.map(task => (
-                                        <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 font-medium"><p>{task.source_name}</p><p className="text-xs text-gray-500">{task.point_name}</p></td>
-                                            <td className="px-4 py-3 font-mono text-xs max-w-xs truncate" title={task.url}>{task.url}</td>
-                                            <td className="px-4 py-3">{getStatusChip(task.status)}</td>
-                                            <td className="px-4 py-3 text-xs whitespace-nowrap">{formatToBeijingTime(task.created_at)}</td>
-                                            <td className="px-4 py-3 text-xs whitespace-nowrap">{formatToBeijingTime(task.updated_at)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                         <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-                            <span className="text-sm text-gray-600">共 {taskTotal} 条记录</span>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setTaskPage(1)} disabled={taskPage === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">首页</button>
-                                <button onClick={() => setTaskPage(p => p - 1)} disabled={taskPage === 1} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
-                                <span className="text-sm font-semibold">第 {taskPage} / {taskTotalPages} 页</span>
-                                <button onClick={() => setTaskPage(p => p + 1)} disabled={taskPage >= taskTotalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
-                                <button onClick={() => setTaskPage(taskTotalPages)} disabled={taskPage >= taskTotalPages} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">尾页</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {!isLoadingData && activeSubTab === 'articles' && (
-                <div className="animate-in fade-in-0 duration-300">
-                    <ArticleListManager allSources={sources} pointsBySource={pointsBySource} />
-                </div>
-            )}
-            
-            {modalMode && (
+            {modalState?.mode && (
                 <AddSubscriptionModal
-                    mode={modalMode}
-                    subscriptionToEdit={pointToEdit}
-                    onClose={() => { setModalMode(null); setPointToEdit(null); }}
+                    mode={modalState.mode}
+                    subscriptionToEdit={modalState.point}
+                    onClose={() => setModalState(null)}
                     onSave={handleSavePoint}
                     isLoading={isMutationLoading}
                 />
             )}
-            {isDeleteConfirmOpen && (
+            {pointsToDelete && (
                 <ConfirmationModal
-                    title="确认删除"
-                    message={`您确定要删除选中的 ${pointsToDelete.length} 个情报点吗？此操作无法撤销。`}
+                    title={`确认删除 ${pointsToDelete.length} 个情报点`}
+                    message="您确定要删除选中的情报点吗？此操作无法撤销。"
                     onConfirm={handleDeleteConfirm}
-                    onCancel={() => setIsDeleteConfirmOpen(false)}
+                    onCancel={() => setPointsToDelete(null)}
                     isLoading={isMutationLoading}
                 />
             )}
@@ -1007,77 +924,52 @@ const IntelligenceManager: React.FC = () => {
     );
 };
 
-const PlaceholderManager: React.FC<{ title: string }> = ({ title }) => (
-    <div className="flex items-center justify-center h-full bg-white rounded-xl border border-dashed">
-        <p className="text-gray-500">{title} 模块正在开发中...</p>
-    </div>
-);
 
+// --- Main AdminPage Component ---
 export const AdminPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<AdminView>('intelligence');
+    const [activeView, setActiveView] = useState<AdminView>('intelligence');
     
-    const navItems: { key: AdminView; label: string; icon: React.FC<any> }[] = [
-        { key: 'intelligence', label: '情报管理', icon: LightBulbIcon },
-        { key: 'users', label: '用户管理', icon: UsersIcon },
-        { key: 'dives', label: '深度洞察', icon: DiveIcon },
-        { key: 'events', label: '发布会管理', icon: VideoCameraIcon },
+    const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
+        { view: 'intelligence', label: '情报管理', icon: LightBulbIcon },
+        { view: 'users', label: '用户管理', icon: UsersIcon },
+        { view: 'dives', label: '内容管理', icon: DiveIcon },
+        { view: 'events', label: '事件分析', icon: VideoCameraIcon },
     ];
-
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'intelligence':
-                return <IntelligenceManager />;
-            case 'users':
-                return <UserManager />;
-            case 'dives':
-                return <PlaceholderManager title="深度洞察管理" />;
-            case 'events':
-                return <ConferenceManager />;
-            default:
-                return null;
+    
+    const renderActiveView = () => {
+        switch (activeView) {
+            case 'intelligence': return <IntelligenceManager />;
+            case 'users': return <UserManager />;
+            case 'dives': return <div>内容管理 (开发中)</div>;
+            case 'events': return <ConferenceManager />;
+            default: return <IntelligenceManager />;
         }
     };
 
     return (
-        <div className="flex flex-col md:flex-row h-full bg-gray-100">
-            <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col p-4">
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">管理中心</h2>
-                <nav className="flex flex-col space-y-1">
-                    {navItems.map(item => (
-                        <button
-                            key={item.key}
-                            onClick={() => setActiveTab(item.key)}
-                            className={`flex items-center space-x-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                                activeTab === item.key
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                            <item.icon className="w-5 h-5" />
-                            <span>{item.label}</span>
-                        </button>
-                    ))}
-                </nav>
-            </aside>
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="md:hidden p-4 border-b bg-white">
-                    <label htmlFor="admin-nav" className="sr-only">选择管理模块</label>
-                    <select
-                        id="admin-nav"
-                        value={activeTab}
-                        onChange={(e) => setActiveTab(e.target.value as AdminView)}
-                        className="w-full p-2.5 text-sm font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
+        <div className="p-4 sm:p-6 md:p-8 bg-gray-50/50 min-h-full">
+            <div className="max-w-screen-xl mx-auto">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">后台管理</h1>
+                    <div className="mt-4 sm:mt-0 bg-white border rounded-lg p-1 flex space-x-1 shadow-sm">
                         {navItems.map(item => (
-                            <option key={item.key} value={item.key}>
-                                {item.label}
-                            </option>
+                            <button 
+                                key={item.view}
+                                onClick={() => setActiveView(item.view)}
+                                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                                    activeView === item.view ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                <item.icon className="w-5 h-5"/>
+                                <span>{item.label}</span>
+                            </button>
                         ))}
-                    </select>
+                    </div>
                 </div>
-                 <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
-                    {renderContent()}
-                </main>
+                
+                <div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 shadow-sm">
+                    {renderActiveView()}
+                </div>
             </div>
         </div>
     );
