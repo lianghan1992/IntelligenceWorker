@@ -267,25 +267,22 @@ export interface BililiveStream {
 }
 
 // --- New Types for Livestream/Event Analysis ---
+// UPDATE: The LivestreamTask type is updated to match the new API schema.
 export interface LivestreamTask {
-    task_id: string;
-    task_type: 'live' | 'video' | 'summit';
-    status: 'running' | 'processing' | 'pending' | 'completed' | 'failed' | 'stopped';
-    event_name: string;
-    room_name?: string;
-    room_id?: string;
-    cover_image_data?: string | null;
-    created_at: string;
-    completion_time?: string | null;
-    reportContentHtml?: string | null;
-    event_date?: string;
-    url?: string;
-}
-
-export interface LivestreamPrompt {
-    name: string;
-    description: string;
-    display_name: string;
+  id: string;
+  url: string;
+  host_name: string | null;
+  event_date: string | null;
+  livestream_name: string;
+  start_time: string;
+  livestream_image: string | null; // base64 data
+  needs_analysis: boolean;
+  timestamp: string;
+  prompt_file: string | null;
+  status: string; // e.g., '即将开始', '直播中', 'AI总结', '已完成'
+  summary_report: string | null; // markdown format
+  created_at: string;
+  updated_at: string;
 }
 
 // Navigation views

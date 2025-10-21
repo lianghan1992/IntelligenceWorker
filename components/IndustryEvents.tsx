@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../types';
 import { getLivestreamTasks } from '../api';
 import { TaskCard } from './TaskCard';
+import { AddEventModal } from './AddEventModal';
+import { PlusIcon } from './icons';
+import { EventReportModal } from './EventReportModal';
 
-type TaskTypeFilter = 'all' | LivestreamTask['task_type'];
-type StatusFilter = 'all' | LivestreamTask['status'];
+type StatusFilter = 'all' | 'upcoming' | 'live' | 'analyzing' | 'completed' | 'failed';
 
 const FilterButton: React.FC<{
     label: string;
@@ -14,7 +16,7 @@ const FilterButton: React.FC<{
     <button
         onClick={onClick}
         className={`px-3 py-1.5 text-sm font-semibold rounded-full transition-colors ${
-            isActive ? 'bg-blue-600 text-white shadow-sm' : 'bg-white hover:bg-gray-100'
+            isActive ? 'bg-blue-600 text-white shadow-sm' : 'bg-white hover:bg-gray-100 border'
         }`}
     >
         {label}
@@ -25,105 +27,130 @@ export const IndustryEvents: React.FC = () => {
     const [tasks, setTasks] = useState<LivestreamTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
-    const [taskTypeFilter, setTaskTypeFilter] = useState<TaskTypeFilter>('all');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
 
-    useEffect(() => {
-        const loadTasks = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                // The new API returns tasks sorted by creation date, we'll sort them by status priority client-side
-                const response = await getLivestreamTasks();
-                const fetchedTasks = response.tasks;
+    const loadTasks = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const fetchedTasks = await getLivestreamTasks();
 
-                if (!Array.isArray(fetchedTasks)) {
-                    console.warn("IndustryEvents: API at /livestream/tasks did not return a `tasks` array. Defaulting to empty array.");
-                    setTasks([]);
-                    return;
-                }
-                
-                // FIX: Added missing 'processing' and 'stopped' statuses to satisfy the type.
-                const statusOrder: { [key in LivestreamTask['status']]: number } = {
-                    'running': 1,
-                    'processing': 2,
-                    'pending': 3,
-                    'completed': 4,
-                    'stopped': 5,
-                    'failed': 6,
-                };
-                const sortedTasks = [...fetchedTasks].sort((a, b) => {
-                    if (statusOrder[a.status] !== statusOrder[b.status]) {
-                        return statusOrder[a.status] - statusOrder[b.status];
-                    }
-                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                });
-                setTasks(sortedTasks);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : '发生未知错误');
-            } finally {
-                setIsLoading(false);
+            if (!Array.isArray(fetchedTasks)) {
+                console.warn("IndustryEvents: API at /livestream/tasks/livestream did not return an array. Defaulting to empty array.");
+                setTasks([]);
+                return;
             }
-        };
-
-        loadTasks();
+            
+            const statusOrder: { [key: string]: number } = {
+                '直播中': 1,
+                'AI总结': 2,
+                'processing': 2,
+                '即将开始': 3,
+                'pending': 3,
+                '已完成': 4,
+                'completed': 4,
+                'failed': 5,
+            };
+            const sortedTasks = [...fetchedTasks].sort((a, b) => {
+                const orderA = statusOrder[a.status] || 99;
+                const orderB = statusOrder[b.status] || 99;
+                if (orderA !== orderB) {
+                    return orderA - orderB;
+                }
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            });
+            setTasks(sortedTasks);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '发生未知错误');
+        } finally {
+            setIsLoading(false);
+        }
     }, []);
 
+    useEffect(() => {
+        loadTasks();
+    }, [loadTasks]);
+
     const filteredTasks = useMemo(() => {
+        if (statusFilter === 'all') return tasks;
         return tasks.filter(task => {
-            const matchesType = taskTypeFilter === 'all' || task.task_type === taskTypeFilter;
-            const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
-            return matchesType && matchesStatus;
+            const status = task.status.toLowerCase();
+            switch (statusFilter) {
+                case 'upcoming': return status === '即将开始' || status === 'pending';
+                case 'live': return status === '直播中';
+                case 'analyzing': return status === 'ai总结' || status === 'processing';
+                case 'completed': return status === '已完成' || status === 'completed';
+                case 'failed': return status === 'failed';
+                default: return true;
+            }
         });
-    }, [tasks, taskTypeFilter, statusFilter]);
+    }, [tasks, statusFilter]);
+    
+    const handleTaskCardClick = (task: LivestreamTask) => {
+        if (task.status === '已完成' || task.status === 'completed') {
+            setSelectedEvent(task);
+        }
+    };
+
 
     return (
-        <div className="p-6 bg-gray-50/50 min-h-full flex flex-col">
-            <div className="mb-6 bg-white p-4 rounded-xl border shadow-sm">
-                 <h1 className="text-2xl font-bold text-gray-800 mb-4">智能分析任务中心</h1>
-                <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                         <span className="text-sm font-semibold text-gray-600 w-16">任务类型:</span>
-                        <div className="flex gap-2">
-                             <FilterButton label="全部" isActive={taskTypeFilter === 'all'} onClick={() => setTaskTypeFilter('all')} />
-                             <FilterButton label="直播" isActive={taskTypeFilter === 'live'} onClick={() => setTaskTypeFilter('live')} />
-                             <FilterButton label="视频" isActive={taskTypeFilter === 'video'} onClick={() => setTaskTypeFilter('video')} />
-                             <FilterButton label="图片集" isActive={taskTypeFilter === 'summit'} onClick={() => setTaskTypeFilter('summit')} />
-                        </div>
+        <>
+            <div className="p-6 bg-gray-50/50 min-h-full flex flex-col">
+                <div className="mb-6 bg-white p-4 rounded-xl border shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                        <h1 className="text-2xl font-bold text-gray-800">行业事件智能分析</h1>
+                        <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                            <PlusIcon className="w-4 h-4" />
+                            <span>创建分析任务</span>
+                        </button>
                     </div>
-                     <div className="flex items-center gap-3">
-                         <span className="text-sm font-semibold text-gray-600 w-16">任务状态:</span>
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-gray-600 w-16">任务状态:</span>
                         <div className="flex gap-2 flex-wrap">
                             <FilterButton label="全部" isActive={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-                            <FilterButton label="运行中" isActive={statusFilter === 'running'} onClick={() => setStatusFilter('running')} />
-                            <FilterButton label="待处理" isActive={statusFilter === 'pending'} onClick={() => setStatusFilter('pending')} />
+                            <FilterButton label="即将开始" isActive={statusFilter === 'upcoming'} onClick={() => setStatusFilter('upcoming')} />
+                            <FilterButton label="直播中" isActive={statusFilter === 'live'} onClick={() => setStatusFilter('live')} />
+                            <FilterButton label="分析中" isActive={statusFilter === 'analyzing'} onClick={() => setStatusFilter('analyzing')} />
                             <FilterButton label="已完成" isActive={statusFilter === 'completed'} onClick={() => setStatusFilter('completed')} />
                             <FilterButton label="失败" isActive={statusFilter === 'failed'} onClick={() => setStatusFilter('failed')} />
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {isLoading && <div className="text-center py-10">加载中...</div>}
-            {error && <div className="text-center py-10 text-red-500">加载失败: {error}</div>}
-            
-            {!isLoading && !error && filteredTasks.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredTasks.map((task) => (
-                        <TaskCard key={task.task_id} task={task} />
-                    ))}
-                </div>
-            )}
-            
-            {!isLoading && !error && filteredTasks.length === 0 && (
-                <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed">
-                    <div className="text-gray-500">
-                        <p className="font-semibold text-lg">无匹配的分析任务</p>
-                        <p className="mt-1">请调整筛选条件或稍后重试。</p>
+                {isLoading && <div className="text-center py-10">加载中...</div>}
+                {error && <div className="text-center py-10 text-red-500">加载失败: {error}</div>}
+                
+                {!isLoading && !error && filteredTasks.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {filteredTasks.map((task) => (
+                            <TaskCard key={task.id} task={task} onClick={() => handleTaskCardClick(task)} />
+                        ))}
                     </div>
-                </div>
+                )}
+                
+                {!isLoading && !error && filteredTasks.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed">
+                        <div className="text-gray-500">
+                            <p className="font-semibold text-lg">无匹配的分析任务</p>
+                            <p className="mt-1">请调整筛选条件或创建一个新任务。</p>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {isAddModalOpen && (
+                <AddEventModal 
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSuccess={loadTasks}
+                />
             )}
-        </div>
+            {selectedEvent && (
+                <EventReportModal
+                    event={selectedEvent}
+                    onClose={() => setSelectedEvent(null)}
+                />
+            )}
+        </>
     );
 };

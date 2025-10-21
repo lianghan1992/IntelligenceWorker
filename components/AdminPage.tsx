@@ -14,7 +14,7 @@ import { AddSubscriptionModal } from './AddSubscriptionModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { InfoDetailModal } from './InfoDetailModal';
 import { UserManager } from './UserManager'; // Import the new component
-import { ConferenceManager } from './ConferenceManager';
+import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { PlusIcon, TrashIcon, LightBulbIcon, UsersIcon, DiveIcon, VideoCameraIcon, ChevronDownIcon, CloseIcon, PencilIcon, SearchIcon } from './icons';
 
 const Spinner: React.FC<{className?: string}> = ({className = "h-5 w-5 text-gray-500"}) => (
@@ -941,7 +941,7 @@ export const AdminPage: React.FC = () => {
             case 'intelligence': return <IntelligenceManager />;
             case 'users': return <UserManager />;
             case 'dives': return <div>内容管理 (开发中)</div>;
-            case 'events': return <ConferenceManager />;
+            case 'events': return <LivestreamTaskManager />;
             default: return <IntelligenceManager />;
         }
     };

@@ -38,6 +38,19 @@
     *   [3.4. 开始监听直播间](#34-开始监听直播间)
     *   [3.5. 停止监听直播间](#35-停止监听直播间)
     *   [3.6. 删除直播间监控](#36-删除直播间监控)
+4.  [**直播分析服务 (Livestream Service) (新!)**](#4-直播分析服务-livestream-service-新)
+    *   [4.1. 创建直播任务](#41-创建直播任务)
+    *   [4.2. 创建带图片的直播任务](#42-创建带图片的直播任务)
+    *   [4.3. 获取所有直播任务](#43-获取所有直播任务)
+    *   [4.4. 获取单个直播任务](#44-获取单个直播任务)
+    *   [4.5. 更新直播任务状态](#45-更新直播任务状态)
+    *   [4.6. 删除直播任务](#46-删除直播任务)
+    *   [4.7. 获取任务统计](#47-获取任务统计)
+    *   [4.8. 获取服务信息](#48-获取服务信息)
+    *   [4.9. 获取可用视频文件列表](#49-获取可用视频文件列表)
+    *   [4.10. 开始视频分析](#410-开始视频分析)
+    *   [4.11. 获取任务状态](#411-获取任务状态)
+    *   [4.12. 获取分析结果](#412-获取分析结果)
 
 ---
 
@@ -1481,6 +1494,460 @@ curl -X DELETE http://127.0.0.1:7657/bililive/lives/854f9aee6081d2e707a8b5bb8ac1
 ```json
 {
   "message": "Live stream monitoring deleted successfully"
+}
+```
+
+---
+
+## 4. 直播分析服务 (Livestream Service)
+
+所有接口均以 `/livestream` 为前缀，需要Bearer Token认证。
+
+### 4.1. 创建直播任务
+
+创建一个新的直播分析任务。
+
+-   **路径:** `/livestream/tasks/create`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+| `Content-Type` | string | 是 | `application/json` |
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `url` | string | 是 | 直播URL |
+| `livestream_name` | string | 是 | 直播名称 |
+| `start_time` | string | 是 | 直播开始时间 (ISO格式，如: 2025-01-20T10:00:00Z) |
+| `host_name` | string | 否 | 主播名称 |
+| `event_date` | string | 否 | 事件日期 |
+| `needs_analysis` | boolean | 否 | 是否需要分析，默认为true |
+| `prompt_file` | string | 否 | 提示词文件路径 |
+
+**请求示例 (JSON)**
+```json
+{
+  "url": "https://live.bilibili.com/8178490",
+  "livestream_name": "比亚迪新车发布会",
+  "start_time": "2025-01-20T10:00:00Z",
+  "host_name": "比亚迪汽车",
+  "event_date": "2025-01-20",
+  "needs_analysis": true
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/tasks/create \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "url": "https://live.bilibili.com/8178490",
+  "livestream_name": "比亚迪新车发布会",
+  "start_time": "2025-01-20T10:00:00Z",
+  "host_name": "比亚迪汽车",
+  "event_date": "2025-01-20",
+  "needs_analysis": true
+}'
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "pending",
+  "message": "Livestream task created successfully",
+  "url": "https://live.bilibili.com/8178490",
+  "livestream_name": "比亚迪新车发布会",
+  "start_time": "2025-01-20T10:00:00Z"
+}
+```
+
+### 4.2. 创建带图片的直播任务
+
+创建一个新的直播分析任务，支持上传直播图片。
+
+-   **路径:** `/livestream/tasks/create-with-image`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+| `Content-Type` | string | 是 | `multipart/form-data` |
+
+**请求说明 (Form Data)**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `url` | string | 是 | 直播URL |
+| `livestream_name` | string | 是 | 直播名称 |
+| `start_time` | string | 是 | 直播开始时间 (ISO格式) |
+| `host_name` | string | 否 | 主播名称 |
+| `event_date` | string | 否 | 事件日期 |
+| `needs_analysis` | boolean | 否 | 是否需要分析，默认为true |
+| `prompt_file` | string | 否 | 提示词文件路径 |
+| `image` | file | 否 | 直播图片文件 |
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/tasks/create-with-image \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-F "url=https://live.bilibili.com/8178490" \
+-F "livestream_name=比亚迪新车发布会" \
+-F "start_time=2025-01-20T10:00:00Z" \
+-F "host_name=比亚迪汽车" \
+-F "event_date=2025-01-20" \
+-F "needs_analysis=true" \
+-F "image=@/path/to/livestream_cover.jpg"
+```
+
+### 4.3. 获取所有直播任务
+
+获取所有直播任务的列表。
+
+-   **路径:** `/livestream/tasks/livestream`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/livestream \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "url": "https://live.bilibili.com/8178490",
+    "host_name": "比亚迪汽车",
+    "event_date": "2025-01-20",
+    "livestream_name": "比亚迪新车发布会",
+    "start_time": "2025-01-20T10:00:00Z",
+    "livestream_image": "base64_encoded_image_data",
+    "needs_analysis": true,
+    "timestamp": "1642694400.0",
+    "prompt_file": null,
+    "status": "即将开始",
+    "summary_report": null,
+    "created_at": "2025-01-20T08:00:00Z",
+    "updated_at": "2025-01-20T08:00:00Z"
+  }
+]
+```
+
+### 4.4. 获取单个直播任务
+
+获取指定ID的直播任务详情。
+
+-   **路径:** `/livestream/tasks/livestream/{task_id}`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `task_id` | string | 任务ID |
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/livestream/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "url": "https://live.bilibili.com/8178490",
+  "host_name": "比亚迪汽车",
+  "event_date": "2025-01-20",
+  "livestream_name": "比亚迪新车发布会",
+  "start_time": "2025-01-20T10:00:00Z",
+  "livestream_image": "base64_encoded_image_data",
+  "needs_analysis": true,
+  "timestamp": "1642694400.0",
+  "prompt_file": null,
+  "status": "直播中",
+  "summary_report": "# 比亚迪新车发布会总结\n\n## 主要内容\n...",
+  "created_at": "2025-01-20T08:00:00Z",
+  "updated_at": "2025-01-20T10:30:00Z"
+}
+```
+
+### 4.5. 更新直播任务状态
+
+更新指定直播任务的状态和总结报告。
+
+-   **路径:** `/livestream/tasks/livestream/{task_id}/status`
+-   **方法:** `PUT`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `task_id` | string | 任务ID |
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+| `Content-Type` | string | 是 | `multipart/form-data` |
+
+**请求说明 (Form Data)**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `status` | string | 是 | 任务状态 (即将开始/直播中/AI总结/已完成/pending/processing/completed/failed) |
+| `summary_report` | string | 否 | 总结报告 (Markdown格式) |
+
+**cURL请求示例**
+```bash
+curl -X PUT http://127.0.0.1:7657/livestream/tasks/livestream/a1b2c3d4-e5f6-7890-abcd-ef1234567890/status \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-F "status=已完成" \
+-F "summary_report=# 比亚迪新车发布会总结\n\n## 主要内容\n..."
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "已完成",
+  "message": "Task status updated successfully"
+}
+```
+
+### 4.6. 删除直播任务
+
+删除指定的直播任务。
+
+-   **路径:** `/livestream/tasks/livestream/{task_id}`
+-   **方法:** `DELETE`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `task_id` | string | 任务ID |
+
+**cURL请求示例**
+```bash
+curl -X DELETE http://127.0.0.1:7657/livestream/tasks/livestream/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "deleted",
+  "message": "Task deleted successfully"
+}
+```
+
+### 4.7. 获取任务统计
+
+获取直播任务的统计信息。
+
+-   **路径:** `/livestream/tasks/statistics`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/statistics \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "total_tasks": 25,
+  "pending_tasks": 3,
+  "processing_tasks": 2,
+  "completed_tasks": 18,
+  "failed_tasks": 2,
+  "status_counts": {
+    "即将开始": 1,
+    "直播中": 2,
+    "AI总结": 1,
+    "已完成": 18,
+    "pending": 2,
+    "failed": 1
+  }
+}
+```
+
+### 4.8. 获取服务信息
+
+获取直播分析服务的基本信息和状态。
+
+-   **路径:** `/livestream/info`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/info \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "service_name": "Livestream Analysis Service",
+  "version": "1.0.0",
+  "status": "running",
+  "database_connected": true,
+  "auto_analysis_enabled": true,
+  "total_tasks": 25,
+  "pending_tasks": 3
+}
+```
+
+### 4.9. 获取可用视频文件列表
+
+获取系统中可用于分析的视频文件列表。
+
+-   **路径:** `/livestream/videos`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/videos \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "filename": "[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4",
+    "path": "/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform/services/bililive/bililive-go/livestreams/哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4",
+    "size": 1048576000,
+    "modified_time": "2025-10-21T06:30:00Z",
+    "relative_path": "哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4"
+  }
+]
+```
+
+### 4.10. 开始视频分析
+
+对指定的视频文件开始分析任务。
+
+-   **路径:** `/livestream/analyze`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `video_path` | string | 是 | 视频文件的完整路径 |
+
+**请求示例 (JSON)**
+```json
+{
+  "video_path": "/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform/services/bililive/bililive-go/livestreams/哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4"
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/analyze \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{
+  "video_path": "/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform/services/bililive/bililive-go/livestreams/哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4"
+}'
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "status": "started",
+  "task_id": "analysis_1729497240_abc123",
+  "video_path": "/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform/services/bililive/bililive-go/livestreams/哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4"
+}
+```
+
+### 4.11. 获取任务状态
+
+获取指定分析任务的当前状态。
+
+-   **路径:** `/livestream/tasks/{task_id}`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/analysis_1729497240_abc123 \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "analysis_1729497240_abc123",
+  "status": "running",
+  "video_path": "/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform/services/bililive/bililive-go/livestreams/哔哩哔哩/[2025-10-21 06-16-29][央视网快看][总台央视新闻频道正在播出].mp4",
+  "created_at": "2025-10-21T07:34:00Z",
+  "started_at": "2025-10-21T07:34:00Z"
+}
+```
+
+### 4.12. 获取分析结果
+
+获取指定任务的分析结果。
+
+-   **路径:** `/livestream/tasks/{task_id}/results`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `task_id` | string | 任务ID |
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/analysis_1729497240_abc123/results \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "task_id": "analysis_1729497240_abc123",
+  "status": "completed",
+  "results": {
+    "summary": "视频分析总结内容...",
+    "key_points": ["要点1", "要点2", "要点3"],
+    "analysis_time": "2025-10-21T07:45:00Z"
+  }
 }
 ```
 
