@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
-import { TagIcon, DocumentTextIcon, FilmIcon } from '../icons';
+import { DocumentTextIcon, FilmIcon } from '../icons';
 
 interface TaskCardProps {
     task: LivestreamTask;
@@ -13,7 +13,6 @@ const getStatusDetails = (status: string) => {
     if (statusLower === 'recording') {
         return { text: '直播中', className: 'bg-red-500 text-white', type: 'live' };
     }
-    // Update: Both listening and pending are 'upcoming' and should show the same text.
     if (statusLower === 'listening' || statusLower === 'pending') {
         return { text: '即将开始', className: 'bg-blue-500 text-white', type: 'upcoming' };
     }
@@ -26,26 +25,45 @@ const getStatusDetails = (status: string) => {
     if (statusLower === 'failed') {
         return { text: '失败', className: 'bg-red-500 text-white', type: 'finished' };
     }
-    // Fallback for any other status
     return { text: '已结束', className: 'bg-gray-500 text-white', type: 'finished' };
 };
 
 const getSafeImageUrl = (base64String: string | null): string | null => {
     if (!base64String) return null;
-    if (base64String.startsWith('data:image')) {
-        return base64String;
-    }
+    if (base64String.startsWith('data:image')) return base64String;
     return `data:image/jpeg;base64,${base64String}`;
 };
+
+const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
+    let bigText = timeLeft;
+    let smallText = '后开始';
+
+    if (timeLeft.includes('天')) {
+        const parts = timeLeft.split(' ');
+        bigText = parts[0].replace('天', '');
+        smallText = `天 ${parts[1] || ''}后开始`;
+    } else if (timeLeft.includes('秒')) {
+        bigText = timeLeft.replace('秒', '');
+        smallText = '秒后开始';
+    }
+
+    return (
+        <div className="absolute inset-0 flex items-center justify-center z-10 p-4">
+            <div className="w-36 h-36 md:w-40 md:h-40 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-white shadow-2xl text-center">
+                <div className="text-4xl md:text-5xl font-bold tracking-tighter leading-none">{bigText}</div>
+                <div className="text-sm opacity-80 mt-1">{smallText}</div>
+            </div>
+        </div>
+    );
+};
+
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const hasReport = isFinished && !!task.summary_report;
     const imageUrl = getSafeImageUrl(task.livestream_image);
-    const [timeLeft, setTimeLeft] = useState({
-        days: '0', hours: '00', minutes: '00', seconds: '00', text: ''
-    });
+    const [timeLeft, setTimeLeft] = useState('');
 
     useEffect(() => {
         if (statusDetails.type !== 'upcoming') return;
@@ -55,47 +73,37 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             const startTime = new Date(task.start_time).getTime();
             const distance = startTime - now;
 
-            if (distance < 0) {
-                 return { days: '0', hours: '00', minutes: '00', seconds: '00', text: "即将开始" };
-            }
+            if (distance < 0) return "即将开始";
 
             const days = Math.floor(distance / (1000 * 60 * 60 * 24));
             const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-            let text = '';
-            if (days > 0) text = `${days}天 ${String(hours).padStart(2, '0')}时`;
-            else if (hours > 0) text = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            else text = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            
-            return {
-                days: String(days),
-                hours: String(hours).padStart(2, '0'),
-                minutes: String(minutes).padStart(2, '0'),
-                seconds: String(seconds).padStart(2, '0'),
-                text: text
-            };
+            if (days > 0) return `${days}天 ${String(hours).padStart(2, '0')}时`;
+            if (hours > 0) return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            if (minutes > 0) return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            return `${seconds}秒`;
         };
         
-        setTimeLeft(calculateTimeLeft());
         const timer = setInterval(() => {
             const newTimeLeft = calculateTimeLeft();
-            if (newTimeLeft.text === "即将开始") clearInterval(timer);
+            if (newTimeLeft === "即将开始" && timeLeft !== "即将开始") {
+                // To avoid flicker, we can stop the timer and let the component re-render on next data fetch.
+                 clearInterval(timer);
+            }
             setTimeLeft(newTimeLeft);
         }, 1000);
 
+        // Initial call
+        setTimeLeft(calculateTimeLeft());
+
         return () => clearInterval(timer);
-    }, [task.start_time, statusDetails.type]);
+    }, [task.start_time, statusDetails.type, timeLeft]);
 
 
     const formattedDate = new Date(task.start_time).toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
     }).replace(/\//g, '.');
 
     const handleReplayClick = (e: React.MouseEvent) => {
@@ -108,7 +116,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             onClick={hasReport ? onViewReport : undefined}
             className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 ${hasReport ? 'cursor-pointer' : 'cursor-default'}`}
         >
-            {/* Background Image and Gradient */}
             {imageUrl ? (
                 <img src={imageUrl} alt={task.livestream_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             ) : (
@@ -116,33 +123,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
             
-            {/* Status Badge */}
-            <span className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full ${statusDetails.className}`}>
+            <span className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full z-20 ${statusDetails.className}`}>
                  {statusDetails.text}
             </span>
 
-            {/* Countdown Overlay (only for upcoming tasks) */}
-            {statusDetails.type === 'upcoming' && timeLeft.text && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-40 h-40 bg-black/30 backdrop-blur-md rounded-full flex flex-col items-center justify-center text-white text-center shadow-2xl">
-                        <span className="text-4xl font-bold tracking-tighter drop-shadow-lg">
-                            {timeLeft.text.includes(':') ? timeLeft.text.split(':')[0] : timeLeft.days}
-                        </span>
-                        <span className="text-sm -mt-1 opacity-80">
-                            {timeLeft.text.includes(':') ? '小时' : '天'}
-                        </span>
-                        <span className="text-xs font-mono opacity-60 mt-1">
-                            {timeLeft.text.includes(':') 
-                                ? `${timeLeft.minutes}:${timeLeft.seconds}`
-                                : `${timeLeft.hours}:${timeLeft.minutes}`
-                            }
-                        </span>
-                    </div>
-                </div>
+            {statusDetails.type === 'upcoming' && timeLeft && timeLeft !== "即将开始" && (
+                <CountdownDisplay timeLeft={timeLeft} />
             )}
 
-            {/* Main Content Area */}
-            <div className="absolute inset-0 flex flex-col justify-end p-4 text-white">
+            <div className="absolute inset-0 flex flex-col justify-end p-4 text-white z-10">
                 {task.entity && (
                     <span className="inline-block self-start bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full mb-2">
                         {task.entity}
