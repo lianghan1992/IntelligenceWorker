@@ -64,7 +64,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
 
 // --- User & Auth Service ---
 
-export const login = (email: string, password: string): Promise<{ token: string; user: User }> =>
+export const login = (email: string, password: string): Promise<{ message: string; accessToken: string; user: User }> =>
     apiFetch(`${USER_SERVICE_PATH}/login`, {
         method: 'POST',
         body: JSON.stringify({ email, password }),
