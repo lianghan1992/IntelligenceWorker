@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks } from '../../api';
-import { TaskCard } from '../TaskCard';
-import { AddEventModal } from '../AddEventModal';
-import { AddHistoryEventModal } from '../AddHistoryEventModal';
-import { PlusIcon } from '../icons';
-import { EventReportModal } from '../EventReportModal';
+import { TaskCard } from './TaskCard';
+import { EventReportModal } from './EventReportModal';
 
 const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; }> = ({ title, tasks, onCardClick }) => {
     if (tasks.length === 0) {
@@ -27,21 +24,19 @@ export const IndustryEvents: React.FC = () => {
     const [tasks, setTasks] = useState<LivestreamTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
 
     const loadTasks = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const fetchedTasks = await getLivestreamTasks();
-            if (!Array.isArray(fetchedTasks)) {
-                console.warn("IndustryEvents: API call did not return an array. Defaulting to empty.");
+            const response = await getLivestreamTasks({ limit: 1000, sort_by: 'created_at', order: 'desc' });
+            if (response && Array.isArray(response.items)) {
+                setTasks(response.items);
+            } else {
+                console.warn("IndustryEvents: API call did not return a valid paginated response. Defaulting to empty.");
                 setTasks([]);
-                return;
             }
-            setTasks(fetchedTasks);
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
@@ -95,7 +90,6 @@ export const IndustryEvents: React.FC = () => {
                 <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed mt-6">
                     <div className="text-gray-500">
                         <p className="font-semibold text-lg">暂无任何发布会任务</p>
-                        <p className="mt-1">点击右上角按钮创建一个新任务吧。</p>
                     </div>
                 </div>
             );
@@ -116,33 +110,11 @@ export const IndustryEvents: React.FC = () => {
                 <div className="mb-6">
                     <div className="flex justify-between items-center">
                         <h1 className="text-3xl font-bold text-gray-800">发布会智能分析</h1>
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
-                                <PlusIcon className="w-4 h-4" />
-                                <span>创建历史任务</span>
-                            </button>
-                            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                                <PlusIcon className="w-4 h-4" />
-                                <span>创建分析任务</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
 
                 {renderContent()}
             </div>
-            {isAddModalOpen && (
-                <AddEventModal 
-                    onClose={() => setIsAddModalOpen(false)}
-                    onSuccess={loadTasks}
-                />
-            )}
-             {isHistoryModalOpen && (
-                <AddHistoryEventModal 
-                    onClose={() => setIsHistoryModalOpen(false)}
-                    onSuccess={loadTasks}
-                />
-            )}
             {selectedEvent && (
                 <EventReportModal
                     event={selectedEvent}
