@@ -6,6 +6,7 @@ import { InfoFeed } from './components/InfoFeed';
 import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents/index';
 import { ReportGenerator } from './components/ReportGenerator';
+// FIX: Corrected import path for AdminPage
 import { AdminPage } from './components/Admin';
 import { AuthModal } from './components/AuthModal';
 import { PricingModal } from './components/PricingModal';

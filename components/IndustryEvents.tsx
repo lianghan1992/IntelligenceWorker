@@ -3,9 +3,9 @@ import { LivestreamTask } from '../types';
 import { getLivestreamTasks } from '../api';
 import { TaskCard } from './TaskCard';
 // FIX: Corrected import path for AddEventModal.
-import { AddEventModal } from './Admin/AddEventModal';
+import { AddEventModal } from '../Admin/AddEventModal';
 // FIX: Corrected import path for AddHistoryEventModal.
-import { AddHistoryEventModal } from './Admin/AddHistoryEventModal';
+import { AddHistoryEventModal } from '../Admin/AddHistoryEventModal';
 import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
 
@@ -38,12 +38,12 @@ export const IndustryEvents: React.FC = () => {
         setError(null);
         try {
             const fetchedTasks = await getLivestreamTasks();
-            if (!Array.isArray(fetchedTasks)) {
+            if (!Array.isArray((fetchedTasks as any).items)) {
                 console.warn("IndustryEvents: API call did not return an array. Defaulting to empty.");
                 setTasks([]);
                 return;
             }
-            setTasks(fetchedTasks);
+            setTasks((fetchedTasks as any).items);
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {

@@ -1,460 +1,236 @@
-import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH, USER_SERVICE_PATH, LIVESTREAM_SERVICE_PATH } from './config';
+// src/api.ts
+
+import {
+    USER_SERVICE_PATH,
+    INTELLIGENCE_SERVICE_PATH,
+    LIVESTREAM_SERVICE_PATH
+} from './config';
 import { 
     User, 
-    AdminUser,
-    InfoItem, 
     Subscription, 
+    InfoItem, 
     SystemSource, 
     ApiPoi,
     PlanDetails,
-    ApiProcessingTask,
-    AllPrompts,
-    SearchResult,
-    Prompt,
-    UserSourceSubscription,
-    BililiveInfo,
-    BililiveStream,
-    // FIX: Add missing type imports
     LivestreamTask,
     LivestreamPrompt,
+    AdminUser,
+    ApiProcessingTask
 } from './types';
 
-const getAuthToken = () => localStorage.getItem('accessToken');
+// --- Helper Functions ---
 
-interface PaginatedResponse<T> {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+// A generic API fetch function to handle headers, errors, and token automatically
+async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+    const headers = new Headers(options.headers || {});
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+    if (!(options.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+        // Unauthorized, likely expired token
+        localStorage.removeItem('accessToken');
+        window.location.reload(); // Force a reload to go back to the login page
+        // Throw an error to stop the current execution flow
+        throw new Error('Session expired. Please log in again.');
+    }
+    
+    if (!response.ok) {
+        // Try to parse error message from backend, otherwise use status text
+        let errorMessage = `HTTP error! status: ${response.status} ${response.statusText}`;
+        try {
+            const errorBody = await response.json();
+            errorMessage = errorBody.message || errorBody.detail || errorMessage;
+        } catch (e) {
+            // Not a JSON response, stick with the original error
+        }
+        throw new Error(errorMessage);
+    }
+    
+    if (response.status === 204) { // No Content
+        return null as T;
+    }
+
+    return response.json() as Promise<T>;
 }
 
 
-const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const isFormData = options.body instanceof FormData;
+// --- User & Auth Service ---
 
-    const headers: Record<string, string> = {
-        // Let the browser set the Content-Type for FormData, which includes the boundary.
-        ...(!isFormData && { 'Content-Type': 'application/json' }),
-        ...options.headers as Record<string, string>,
-    };
-
-    const token = getAuthToken();
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    // 修复：确保所有相对路径的API调用都使用当前页面的协议和主机，
-    // 这可以从根本上解决 "Mixed Content" 错误。
-    const finalUrl = new URL(url, window.location.origin).href;
-    
-    // For FormData, we can't stringify the body.
-    // FIX: The original implementation double-stringified an already stringified body.
-    // The caller is now responsible for stringifying the JSON body.
-    const finalOptions = {
-        ...options,
-        headers,
-        body: options.body,
-    };
-
-    // If body is not present, don't include it (e.g., for GET requests).
-    if (!options.body) {
-        delete (finalOptions as any).body;
-    }
-
-    const response = await fetch(finalUrl, finalOptions);
-
-    // Centralized handling for authentication errors (401 Unauthorized, 403 Forbidden)
-    if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('accessToken');
-        window.location.reload();
-        // Throw an error to stop the current execution flow.
-        // The page reload will handle redirecting to the login page.
-        throw new Error('会话已过期或权限不足，请重新登录。');
-    }
-
-    if (!response.ok) {
-        let errorData;
-        try {
-            errorData = await response.json();
-        } catch (e) {
-            errorData = { detail: `HTTP error! status: ${response.status}`, message: `HTTP error! status: ${response.status}` };
-        }
-        console.error("API Error:", errorData);
-        
-        let errorMessage;
-        if (errorData.detail) {
-            if (Array.isArray(errorData.detail)) {
-                // Format FastAPI validation errors
-                errorMessage = errorData.detail.map((err: any) => {
-                    // err.loc is typically ["body", "field_name"]
-                    const field = err.loc && err.loc.length > 1 ? err.loc[1] : 'N/A';
-                    return `字段 '${field}': ${err.msg}`;
-                }).join('\n');
-            } else {
-                errorMessage = errorData.detail;
-            }
-        } else {
-             errorMessage = errorData.message || `Request failed with status ${response.status}`;
-        }
-        
-        throw new Error(errorMessage);
-    }
-
-    if (response.status === 204) {
-        return null;
-    }
-
-    return response.json();
-};
-
-const BILILIVE_SERVICE_PATH = `${API_BASE_URL}/bililive`;
-
-// --- Auth Service ---
-
-export const login = async (email: string, password: string): Promise<{ token: string; user: User }> => {
-    const response = await apiFetch(`${USER_SERVICE_PATH}/login`, {
+export const login = (email: string, password: string): Promise<{ token: string; user: User }> =>
+    apiFetch(`${USER_SERVICE_PATH}/login`, {
         method: 'POST',
         body: JSON.stringify({ email, password }),
     });
-    
-    const userFromApi = response.user;
-    
-    // The backend API now consistently returns 'id'.
-    if (!userFromApi.id) {
-        throw new Error("Login response is missing a user ID.");
-    }
-    
-    const finalUser: User = {
-        id: userFromApi.id,
-        username: userFromApi.username,
-        email: userFromApi.email,
-    };
 
-    return { 
-        token: response.accessToken, 
-        user: finalUser
-    };
-};
-
-export const register = async (username: string, email: string, password: string): Promise<User> => {
-    const response = await apiFetch(`${USER_SERVICE_PATH}/register`, {
+export const register = (username: string, email: string, password: string): Promise<User> =>
+    apiFetch(`${USER_SERVICE_PATH}/register`, {
         method: 'POST',
         body: JSON.stringify({ username, email, password }),
     });
-    // The register endpoint returns 'id', which matches our internal User type.
-    if (!response.id) {
-        throw new Error("Register response is missing a user ID.");
-    }
-    return { 
-        id: response.id,
-        username: response.username,
-        email: response.email,
-    };
-};
 
-export const getMe = async (): Promise<User> => {
-    const userFromApi = await apiFetch(`${USER_SERVICE_PATH}/me`);
+export const getMe = (): Promise<User> => apiFetch(`${USER_SERVICE_PATH}/me`);
 
-    // The backend API now consistently returns 'id'.
-    if (!userFromApi.id) {
-        throw new Error("/me endpoint response is missing a user ID.");
-    }
+export const getUsers = (): Promise<AdminUser[]> => apiFetch(`${USER_SERVICE_PATH}/`);
 
-    const finalUser: User = {
-        id: userFromApi.id,
-        username: userFromApi.username,
-        email: userFromApi.email,
-    };
-    
-    return finalUser;
-};
+export const getPlans = (): Promise<PlanDetails> => apiFetch(`${USER_SERVICE_PATH}/plans`);
 
-
-// --- User Management (Admin) ---
-
-export const getUsers = async (params: { page: number; limit: number; search_term?: string; plan_name?: string; status?: string }): Promise<PaginatedResponse<AdminUser>> => {
-    const query = new URLSearchParams(params as any).toString();
-    return apiFetch(`${USER_SERVICE_PATH}?${query}`);
-};
-
-export const registerUser = async (username: string, email: string, password: string, plan_name: string): Promise<AdminUser> => {
-    return apiFetch(`${USER_SERVICE_PATH}/register`, {
+// POIs (Points of Interest)
+export const getUserPois = (): Promise<ApiPoi[]> => apiFetch(`${USER_SERVICE_PATH}/me/pois`);
+export const addUserPoi = (poi: { content: string; keywords: string }): Promise<ApiPoi> =>
+    apiFetch(`${USER_SERVICE_PATH}/me/pois`, {
         method: 'POST',
-        body: JSON.stringify({ username, email, password, plan_name }),
+        body: JSON.stringify(poi),
     });
-};
+export const deleteUserPoi = (poiId: string): Promise<void> =>
+    apiFetch(`${USER_SERVICE_PATH}/me/pois/${poiId}`, { method: 'DELETE' });
 
-export const updateUser = async (userId: string, data: Partial<AdminUser>): Promise<AdminUser> => {
-    return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
+// User Source Subscriptions
+export const getUserSubscribedSources = (): Promise<{id: string, source_name: string}[]> => apiFetch(`${USER_SERVICE_PATH}/me/sources`);
+export const addUserSourceSubscription = (sourceId: string): Promise<void> =>
+    apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, { method: 'POST' });
+export const deleteUserSourceSubscription = (sourceId: string): Promise<void> =>
+    apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, { method: 'DELETE' });
 
-export const deleteUser = async (userId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/${userId}`, {
-        method: 'DELETE',
-    });
-};
-
-
-// --- Plans ---
-export const getPlans = async (): Promise<PlanDetails> => {
-    return apiFetch(`${USER_SERVICE_PATH}/plans`);
-};
-
-// --- POIs (Focus Points) ---
-export const getUserPois = async (): Promise<ApiPoi[]> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/pois`);
-};
-
-export const addUserPoi = async (data: { content: string; keywords: string }): Promise<ApiPoi> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/pois`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deleteUserPoi = async (poiId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/pois/${poiId}`, {
-        method: 'DELETE',
-    });
-};
-
-// --- User Source Subscriptions ---
-export const getUserSubscribedSources = async (): Promise<UserSourceSubscription[]> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/sources`);
-};
-
-export const addUserSourceSubscription = async (sourceId: string): Promise<void> => {
-    // FIX: Changed endpoint to include sourceId in the path and removed body, as per API docs.
-    return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
-        method: 'POST',
-    });
-};
-
-export const deleteUserSourceSubscription = async (sourceId: string): Promise<void> => {
-    return apiFetch(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
-        method: 'DELETE',
-    });
-};
 
 // --- Intelligence Service ---
 
-export const getSources = async (): Promise<SystemSource[]> => {
-    const sources = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
-    // Per API doc, response items have: id, source_name, points_count
-    // SystemSource type requires: id, name, points_count
-    return sources.map((s: any) => ({
-        id: s.id, // Use id from API
-        name: s.source_name, // Map source_name to name
-        points_count: s.points_count, // Use points_count from API
-        // UI-synthesized fields
-        description: '',
-        iconUrl: '',
-        category: '',
-        infoCount: 0,
-        subscriberCount: 0,
-    }));
-};
+export const getSubscriptions = (): Promise<Subscription[]> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/subscriptions`);
 
-export const getSubscriptions = async (): Promise<Subscription[]> => {
-    try {
-        // This is a workaround because the API doesn't provide a single endpoint
-        // to get all intelligence points for a user.
-        // 1. Get the list of source names the user is subscribed to.
-        const userSources = await getUserSubscribedSources();
-        if (!userSources || userSources.length === 0) {
-            return [];
-        }
-        
-        // 2. For each source, fetch its associated intelligence points in parallel.
-        const pointPromises = userSources.map(source => 
-            getPointsBySourceName(source.source_name).catch(err => {
-                console.error(`Failed to fetch points for source: ${source.source_name}`, err);
-                return []; // Return empty array on failure to not break the entire process
-            })
-        );
-        
-        const results = await Promise.all(pointPromises);
-        
-        // 3. Flatten the array of arrays into a single list of subscriptions.
-        return results.flat();
-    } catch (error) {
-        console.error("Could not fetch subscriptions due to an error fetching user's sources:", error);
-        return [];
-    }
-};
+export const getSources = (): Promise<SystemSource[]> => apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
 
-export const getPointsBySourceName = async (sourceName: string): Promise<Subscription[]> => {
-    const query = new URLSearchParams({ source_name: sourceName.trim() }).toString();
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?${query}`);
-};
+export const getPointsBySourceName = (sourceName: string): Promise<Subscription[]> => apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/source/${encodeURIComponent(sourceName)}`);
 
-export const addPoint = async (data: Partial<Subscription>): Promise<Subscription> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-};
-
-export const updatePoint = async (id: string, data: Partial<Subscription>): Promise<Subscription> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deletePoints = async (ids: string[]): Promise<void> => {
-    // FIX: Changed the request body key from 'ids' to 'point_ids' to match API docs.
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
-        method: 'DELETE',
-        body: JSON.stringify({ point_ids: ids }),
-    });
-};
-
-// --- Articles / InfoItems ---
-
-export const searchArticles = async (query_text: string, point_ids: string[], limit: number): Promise<SearchResult[]> => {
-    // 最终修复：此函数也应该使用支持POST的正确端点。
-    // 注意：简单搜索可以调用 `/search/articles`，但为了统一和稳健，我们统一使用更强大的 `articles_filtered`
-    const results = await apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
-        method: 'POST',
-        body: JSON.stringify({ query_text, point_ids, limit, page: 1 }),
-    });
-    return results.items;
-};
-
-export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
-    // 最终修复：确保此函数也调用正确的端点
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
-        method: 'POST',
-        body: JSON.stringify(params),
-    });
+interface PaginatedResponse<T> {
+    items: T[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
 }
 
-// Helper for App.tsx
-export const getInitialArticles = async (): Promise<InfoItem[]> => {
-    const subscriptions = await getSubscriptions();
-    if (subscriptions.length === 0) return [];
-    const pointIds = subscriptions.map(sub => sub.id);
-    const data = await searchArticlesFiltered({ query_text: '*', page: 1, limit: 100, point_ids: pointIds });
-    return data.items;
+export const searchArticlesFiltered = (params: {
+    query_text: string,
+    point_ids?: string[],
+    page?: number,
+    limit?: number
+}): Promise<PaginatedResponse<InfoItem>> => {
+    const queryParams = new URLSearchParams({
+        query_text: params.query_text,
+        page: (params.page || 1).toString(),
+        limit: (params.limit || 50).toString(),
+    });
+    if (params.point_ids) {
+        params.point_ids.forEach(id => queryParams.append('point_ids', id));
+    }
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search?${queryParams.toString()}`);
 };
 
+
+// This function seems to be for a simpler, non-paginated search for counts.
+export const searchArticles = async (query: string, pointIds: string[], limit: number): Promise<InfoItem[]> => {
+    const result = await searchArticlesFiltered({ query_text: query, point_ids: pointIds, limit, page: 1 });
+    return result.items;
+};
+
+
+// This function is for manually triggering processing of a URL.
 export const processUrlToInfoItem = async (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-    setFeedback("正在提交URL...");
-    // This is a complex operation; we'll mock the stages
+    setFeedback("正在提交URL进行分析...");
+    const response = await apiFetch<{ task_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/process/url`, {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+    });
+
+    const taskId = response.task_id;
+    setFeedback("任务已创建，正在等待处理结果...");
+    
+    // Polling for the result
     return new Promise((resolve, reject) => {
-        setTimeout(() => setFeedback("AI正在读取页面内容..."), 1000);
-        setTimeout(() => setFeedback("AI正在分析和总结..."), 3000);
-        setTimeout(() => {
-            const mockItem: InfoItem = {
-                id: `temp-${Date.now()}`,
-                point_id: 'custom',
-                source_name: new URL(url).hostname.replace('www.', ''),
-                point_name: '自定义添加',
-                title: 'AI生成的标题：新一代汽车芯片发布',
-                original_url: url,
-                publish_date: new Date().toISOString(),
-                content: '这是由AI根据您提供的URL生成的摘要内容。它将包含页面的关键信息、要点和结论，为您提供快速的情报概览。',
-                created_at: new Date().toISOString(),
-            };
-            resolve(mockItem);
-        }, 5000);
+        const interval = setInterval(async () => {
+            try {
+                const taskResult = await apiFetch<ApiProcessingTask>(`${INTELLIGENCE_SERVICE_PATH}/tasks/${taskId}`);
+                if (taskResult.status === 'completed') {
+                    clearInterval(interval);
+                    setFeedback("处理完成！");
+                    // Assuming the payload is the InfoItem ID
+                    const infoItemId = JSON.parse(taskResult.payload!).info_item_id;
+                    const infoItem = await apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/articles/${infoItemId}`);
+                    resolve(infoItem);
+                } else if (taskResult.status === 'failed') {
+                    clearInterval(interval);
+                    reject(new Error(JSON.parse(taskResult.payload!).error || "处理失败"));
+                }
+                // else still processing, just wait for next poll
+            } catch (err) {
+                clearInterval(interval);
+                reject(err);
+            }
+        }, 3000);
     });
 };
 
-// --- Tasks ---
 
-export const getProcessingTasks = async (params: { page: number; limit: number; status?: string; source_name?: string; point_name?: string; }): Promise<PaginatedResponse<ApiProcessingTask>> => {
-    const query = new URLSearchParams(params as any).toString();
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query}`);
+// --- Livestream Analysis Service ---
+
+export const getLivestreamTasks = (params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    search_term?: string;
+    sort_by?: string;
+    order?: string;
+} = {}): Promise<PaginatedResponse<LivestreamTask>> => {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.set('page', params.page.toString());
+    if (params.limit) queryParams.set('limit', params.limit.toString());
+    if (params.status) queryParams.set('status', params.status);
+    if (params.search_term) queryParams.set('search_term', params.search_term);
+    if (params.sort_by) queryParams.set('sort_by', params.sort_by);
+    if (params.order) queryParams.set('order', params.order);
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks?${queryParams.toString()}`);
 };
 
-export const getProcessingTasksStats = async (): Promise<{ [key: string]: number }> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
-};
+export const getLivestreamTasksStats = (): Promise<any> => apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
 
-// --- Bililive Service (New) ---
-
-export const getBililiveInfo = async (): Promise<BililiveInfo> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/info`);
-};
-
-export const addBililiveStream = async (url: string, listen: boolean = true): Promise<BililiveStream[]> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives`, {
-        method: 'POST',
-        body: JSON.stringify({ url, listen }),
-    });
-};
-
-export const getAllBililiveStreams = async (): Promise<BililiveStream[]> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives`);
-};
-
-export const startBililiveStream = async (liveId: string): Promise<BililiveStream> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}/start`, {
-        method: 'POST',
-    });
-};
-
-export const stopBililiveStream = async (liveId: string): Promise<BililiveStream> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}/stop`, {
-        method: 'POST',
-    });
-};
-
-export const deleteBililiveStream = async (liveId: string): Promise<{ message: string }> => {
-    return apiFetch(`${BILILIVE_SERVICE_PATH}/lives/${liveId}`, {
-        method: 'DELETE',
-    });
-};
-
-// --- Livestream Analysis Service (Updated for new API) ---
-
-export const getLivestreamTasks = async (params: { page?: number; limit?: number; status?: string; search_term?: string; sort_by?: string; order?: string } = {}): Promise<PaginatedResponse<LivestreamTask>> => {
-    const query = new URLSearchParams(params as any).toString();
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks?${query}`);
-};
-
-export const createLivestreamTask = async (data: {
+export const createLivestreamTask = (data: {
     url: string;
     livestream_name: string;
-    entity?: string;
+    entity: string;
     start_time: string;
-    prompt_file?: string;
+    prompt_file: string;
     image?: File;
 }): Promise<LivestreamTask> => {
     const formData = new FormData();
     formData.append('url', data.url);
     formData.append('livestream_name', data.livestream_name);
-    if (data.entity) {
-        formData.append('entity', data.entity);
-    }
+    formData.append('entity', data.entity);
     formData.append('start_time', data.start_time);
-    if (data.prompt_file) {
-        formData.append('prompt_file', data.prompt_file);
-    }
+    formData.append('prompt_file', data.prompt_file);
     if (data.image) {
         formData.append('image', data.image);
     }
-
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
         method: 'POST',
         body: formData,
     });
 };
 
-export const createHistoryLivestreamTask = async (data: {
+export const createHistoryLivestreamTask = (data: {
     url: string;
     livestream_name: string;
+    entity: string;
+    host_name: string;
     start_time: string;
     summary_report: string;
-    host_name?: string;
-    entity?: string;
-    livestream_image?: string;
+    livestream_image?: string; // base64 string
 }): Promise<LivestreamTask> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/history`, {
         method: 'POST',
@@ -462,64 +238,20 @@ export const createHistoryLivestreamTask = async (data: {
     });
 };
 
+export const deleteLivestreamTask = (taskId: string): Promise<void> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
 
-export const deleteLivestreamTask = async (taskId: string): Promise<any> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, {
-        method: 'DELETE',
-    });
-};
+export const startListenTask = (taskId: string): Promise<void> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, { method: 'POST' });
 
-export const startListenTask = async (taskId: string): Promise<any> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, {
-        method: 'POST',
-    });
-};
+export const stopListenTask = (taskId: string): Promise<void> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
 
-export const stopListenTask = async (taskId: string): Promise<any> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, {
-        method: 'POST',
-    });
-};
+export const getLivestreamPrompts = (): Promise<LivestreamPrompt[]> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 
-export const getLivestreamPrompts = async (): Promise<LivestreamPrompt[]> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
-};
-
-export const updateLivestreamPrompt = async (promptName: string, content: string): Promise<LivestreamPrompt> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts/${encodeURIComponent(promptName)}`, {
-        method: 'POST',
+export const updateLivestreamPrompt = (name: string, content: string): Promise<LivestreamPrompt> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts/${name}`, {
+        method: 'PUT',
         body: JSON.stringify({ content }),
     });
-};
-
-export const getLivestreamTasksStats = async (): Promise<any> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
-};
-
-
-// --- Prompts ---
-
-export const getPrompts = async (): Promise<AllPrompts> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
-};
-
-export const createPrompt = async (type: string, key: string, data: Prompt): Promise<Prompt> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`, {
-        method: 'POST',
-        body: JSON.stringify({ type, key, ...data }),
-    });
-};
-
-export const updatePrompt = async (type: string, key: string, data: Prompt): Promise<Prompt> => {
-    // FIX: Correct typo from INTELLGLISH_SERVICE_PATH to INTELLIGENCE_SERVICE_PATH
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${type}/${key}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-};
-
-export const deletePrompt = async (type: string, key: string): Promise<void> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts/${type}/${key}`, {
-        method: 'DELETE',
-    });
-};

@@ -173,7 +173,7 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
                 imageUrl: generateImageUrl(name)
             };
         });
-    }, []);
+    }, [predictions]);
 
     const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
     const [selectedVehicleName, setSelectedVehicleName] = useState(vehicles[0]?.name || '');

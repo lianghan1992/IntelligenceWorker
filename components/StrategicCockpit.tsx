@@ -161,7 +161,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         } else {
             setSelectedBriefing(null);
         }
-    }, [filteredBriefings]);
+    }, [filteredBriefings, selectedBriefing]);
 
 
     const sourceArticles = useMemo(() => {

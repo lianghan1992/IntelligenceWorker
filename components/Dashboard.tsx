@@ -12,7 +12,6 @@ import {
   addUserSourceSubscription,
   deleteUserSourceSubscription,
   getPointsBySourceName,
-  // FIX: `getArticles` is not exported from `api.ts`. `searchArticlesFiltered` should be used instead.
   searchArticlesFiltered,
 } from '../api';
 // FIX: Corrected import path for ConfirmationModal.
@@ -414,7 +413,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 setInfoItems([]);
                 return; 
             }
-            // FIX: The function `getArticles` does not exist. Use `searchArticlesFiltered` instead,
+            // The function `getArticles` does not exist. Use `searchArticlesFiltered` instead,
             // passing a single parameters object and `query_text: '*'` to get all articles for the given points.
             const data = await searchArticlesFiltered({ point_ids: pointIds, page: 1, limit: 50, query_text: '*' });
             setInfoItems(data.items);
