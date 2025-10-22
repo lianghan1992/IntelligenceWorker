@@ -167,7 +167,7 @@ export interface LivestreamPrompt {
 export interface Prompt {
     name: string;
     description: string;
-    template: string;
+    prompt: string;
 }
 
 export interface AllPrompts {
@@ -175,14 +175,15 @@ export interface AllPrompts {
     content_summary_prompts: { [key: string]: Prompt };
 }
 
-export interface CrawlerTask {
+export interface IntelligenceTask {
   id: string;
   point_id: string;
-  point_name: string;
   source_name: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  start_time: string;
-  end_time: string | null;
-  logs: string | null;
-  new_articles_count: number;
+  point_name: string;
+  task_type: string;
+  url: string;
+  status: string;
+  payload: string | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -7,7 +7,7 @@ import {
 import { 
     User, Subscription, InfoItem, PlanDetails, ApiPoi, SystemSource, 
     LivestreamTask, PaginatedResponse, LivestreamPrompt, AllPrompts,
-    SearchResult, CrawlerTask
+    SearchResult, IntelligenceTask
 } from './types';
 
 // --- Generic API Fetch Helper ---
@@ -17,7 +17,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
-    if (!(options.body instanceof FormData)) {
+    if (!(options.body instanceof FormData) && options.method !== 'GET' && options.method !== 'DELETE') {
         headers.set('Content-Type', 'application/json');
     }
 
@@ -34,12 +34,16 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
         throw new Error(errorData.message || '请求失败');
     }
     
-    // Handle cases where response might be empty
+    // Handle cases where response might be empty (e.g., 204 No Content)
+    if (response.status === 204) {
+        return {} as T;
+    }
+
     const contentType = response.headers.get("content-type");
     if (contentType && contentType.indexOf("application/json") !== -1) {
         return response.json();
     }
-    // Assuming empty response is OK for some requests (e.g. DELETE)
+    
     return {} as T;
 }
 
@@ -62,16 +66,28 @@ export const getMe = (): Promise<User> => apiFetch<User>(`${USER_SERVICE_PATH}/m
 export const getPlans = (): Promise<PlanDetails> => apiFetch<PlanDetails>(`${USER_SERVICE_PATH}/plans`);
 
 // --- Intelligence Points & Sources API ---
-export const getSubscriptions = (): Promise<Subscription[]> => apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/subscriptions`);
+export const getSubscriptions = async (): Promise<Subscription[]> => {
+    const subscribedSources = await getUserSubscribedSources();
+    if (subscribedSources.length === 0) {
+        return [];
+    }
+    const pointsPromises = subscribedSources.map(source => 
+        getPointsBySourceName(source.source_name)
+    );
+    const pointsBySource = await Promise.all(pointsPromises);
+    return pointsBySource.flat();
+};
+
 export const getSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+
 export const deleteSource = (sourceName: string): Promise<void> => 
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, { method: 'DELETE' });
 
 export const getPointsBySourceName = (sourceName: string): Promise<Subscription[]> =>
-    apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/points/by_source/${encodeURIComponent(sourceName)}`);
+    apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(sourceName)}`);
     
-export const createIntelligencePoint = (data: Partial<Subscription>): Promise<Subscription> => 
-    apiFetch<Subscription>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+export const createIntelligencePoint = (data: Partial<Subscription>): Promise<{ message: string, point_id: string }> => 
+    apiFetch<{ message: string, point_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -83,39 +99,42 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
     });
 
 // --- User POIs (Focus Points) ---
-export const getUserPois = (): Promise<ApiPoi[]> => apiFetch<ApiPoi[]>(`${USER_SERVICE_PATH}/pois`);
+export const getUserPois = (): Promise<ApiPoi[]> => apiFetch<ApiPoi[]>(`${USER_SERVICE_PATH}/me/pois`);
+
 export const addUserPoi = (data: { content: string; keywords: string }): Promise<ApiPoi> =>
-    apiFetch<ApiPoi>(`${USER_SERVICE_PATH}/pois`, {
+    apiFetch<ApiPoi>(`${USER_SERVICE_PATH}/me/pois`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
-export const deleteUserPoi = (poiId: string): Promise<void> => apiFetch<void>(`${USER_SERVICE_PATH}/pois/${poiId}`, { method: 'DELETE' });
+
+export const deleteUserPoi = (poiId: string): Promise<void> => apiFetch<void>(`${USER_SERVICE_PATH}/me/pois/${poiId}`, { method: 'DELETE' });
 
 // --- User Source Subscriptions ---
-export const getUserSubscribedSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${USER_SERVICE_PATH}/sources`);
+export const getUserSubscribedSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${USER_SERVICE_PATH}/me/sources`);
+
 export const addUserSourceSubscription = (sourceId: string): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/sources`, {
+    apiFetch<void>(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, {
         method: 'POST',
-        body: JSON.stringify({ source_id: sourceId }),
     });
+
 export const deleteUserSourceSubscription = (sourceId: string): Promise<void> => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/sources/${sourceId}`, { method: 'DELETE' });
+    apiFetch<void>(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, { method: 'DELETE' });
+
 
 // --- Articles / InfoItems API ---
-export const searchArticles = (query: string, pointIds: string[], limit: number): Promise<InfoItem[]> =>
-    apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/search`, {
+export const searchArticles = (query: string, pointIds: string[], top_k: number): Promise<InfoItem[]> =>
+    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/articles?top_k=${top_k}`, {
         method: 'POST',
-        body: JSON.stringify({ query_text: query, point_ids: pointIds, limit }),
-    }).then((res) => res.items);
+        body: JSON.stringify({ query_text: query, point_ids: pointIds }),
+    });
 
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<SearchResult>> =>
-    apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/search`, {
+    apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
         body: JSON.stringify(params),
     });
 
 export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-    // This is a complex operation, mocking the feedback mechanism
     setFeedback('正在抓取URL内容...');
     return new Promise(resolve => setTimeout(() => {
         setFeedback('分析内容并提取关键信息...');
@@ -153,21 +172,21 @@ export const createHistoryLivestreamTask = (data: { url: string; livestream_name
 };
 
 export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
-export const startListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, { method: 'POST' });
-export const stopListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
+export const startListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, { method: 'POST' });
+export const stopListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, { method: 'POST' });
 
 // --- Prompts API ---
 export const getLivestreamPrompts = (): Promise<LivestreamPrompt[]> => apiFetch<LivestreamPrompt[]>(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 export const updateLivestreamPrompt = (name: string, content: string): Promise<void> =>
     apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/prompts/${name}`, {
-        method: 'PUT',
+        method: 'POST', // API Doc uses POST for update
         body: JSON.stringify({ content }),
     });
 
 export const getAllPrompts = (): Promise<AllPrompts> => apiFetch<AllPrompts>(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
 
-// --- Crawler Tasks API ---
-export const getCrawlerTasks = (params: any): Promise<PaginatedResponse<CrawlerTask>> => {
+// --- Intelligence Tasks (formerly Crawler Tasks) API ---
+export const getIntelligenceTasks = (params: any): Promise<PaginatedResponse<IntelligenceTask>> => {
     const query = new URLSearchParams(params).toString();
-    return apiFetch<PaginatedResponse<CrawlerTask>>(`${INTELLIGENCE_SERVICE_PATH}/crawler_tasks?${query}`);
+    return apiFetch<PaginatedResponse<IntelligenceTask>>(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query}`);
 };
