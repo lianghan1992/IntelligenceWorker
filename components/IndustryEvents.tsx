@@ -104,7 +104,7 @@ export const IndustryEvents: React.FC = () => {
         upcoming.sort(sortByDate);
         finished.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-        return { liveTasks, upcomingTasks, finishedTasks };
+        return { liveTasks: live, upcomingTasks: upcoming, finishedTasks: finished };
     }, [tasks]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
