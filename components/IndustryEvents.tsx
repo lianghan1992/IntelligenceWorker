@@ -54,26 +54,26 @@ export const IndustryEvents: React.FC = () => {
     }, [loadTasks]);
 
     const { liveTasks, upcomingTasks, finishedTasks } = useMemo(() => {
-        const live: LivestreamTask[] = [];
-        const upcoming: LivestreamTask[] = [];
-        const finished: LivestreamTask[] = [];
+        const liveTasks: LivestreamTask[] = [];
+        const upcomingTasks: LivestreamTask[] = [];
+        const finishedTasks: LivestreamTask[] = [];
 
         tasks.forEach(task => {
             const status = task.status.toLowerCase();
             
             if (status === 'recording') {
-                live.push(task);
+                liveTasks.push(task);
             } else if (status === 'listening' || status === 'pending') {
-                upcoming.push(task);
+                upcomingTasks.push(task);
             } else { // completed, failed, processing
-                finished.push(task);
+                finishedTasks.push(task);
             }
         });
         
         const sortByDate = (a: LivestreamTask, b: LivestreamTask) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-        live.sort(sortByDate);
-        upcoming.sort(sortByDate);
-        finished.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+        liveTasks.sort(sortByDate);
+        upcomingTasks.sort(sortByDate);
+        finishedTasks.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
         return { liveTasks, upcomingTasks, finishedTasks };
     }, [tasks]);
