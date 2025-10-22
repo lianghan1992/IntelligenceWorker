@@ -1,48 +1,73 @@
-
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-// FIX: Import SearchResult to correctly type articles that have a similarity_score.
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { InfoItem, SystemSource, SearchResult } from '../../types';
 import { searchArticlesFiltered, getSources } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
 import { IntelligenceArticleModal } from './IntelligenceArticleModal';
 
-const debounce = (func: (...args: any[]) => void, delay: number) => {
-    // FIX: Use ReturnType<typeof setTimeout> which is correct for browser environments, instead of NodeJS.Timeout.
-    let timeout: ReturnType<typeof setTimeout>;
-    return (...args: any[]) => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), delay);
-    };
-};
-
 export const IntelligenceDataManager: React.FC = () => {
-    // FIX: Use SearchResult[] to accommodate the similarity_score property from the API.
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
+    
+    // This state holds the immediate values from user input
     const [filters, setFilters] = useState({
         query_text: '',
         source_names: [] as string[],
         publish_date_start: '',
         publish_date_end: '',
+        similarity_threshold: 0.5,
     });
+
+    // These states hold the debounced values for search-related inputs that trigger API calls
+    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [debouncedThreshold, setDebouncedThreshold] = useState(0.5);
+
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
     const [sources, setSources] = useState<SystemSource[]>([]);
     
-    const debouncedSearch = useRef(debounce(() => {
-        setPagination(prev => ({...prev, page: 1}));
-        // The actual fetch is triggered by the useEffect below
-    }, 500)).current;
+    // Debounce search query text
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedQuery(filters.query_text);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [filters.query_text]);
+
+    // Debounce similarity threshold slider
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedThreshold(filters.similarity_threshold);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [filters.similarity_threshold]);
+
+    // Consolidate final search parameters for the API call
+    const searchParams = useMemo(() => ({
+        query_text: debouncedQuery,
+        similarity_threshold: debouncedThreshold,
+        source_names: filters.source_names,
+        publish_date_start: filters.publish_date_start,
+        publish_date_end: filters.publish_date_end,
+    }), [debouncedQuery, debouncedThreshold, filters.source_names, filters.publish_date_start, filters.publish_date_end]);
+
+    // Reset pagination whenever the actual search parameters change (excluding initial load)
+    const isInitialMount = React.useRef(true);
+    useEffect(() => {
+        if (!isInitialMount.current) {
+            setPagination(p => ({ ...p, page: 1 }));
+        } else {
+            isInitialMount.current = false;
+        }
+    }, [searchParams]);
 
     const loadArticles = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
             const params = {
-                ...filters,
-                query_text: filters.query_text.trim() === '' ? '*' : filters.query_text,
+                ...searchParams,
+                query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
                 page: pagination.page,
                 limit: pagination.limit,
             };
@@ -54,7 +79,7 @@ export const IntelligenceDataManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [filters, pagination.page, pagination.limit]);
+    }, [searchParams, pagination.page, pagination.limit]);
 
     useEffect(() => {
         loadArticles();
@@ -66,17 +91,15 @@ export const IntelligenceDataManager: React.FC = () => {
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFilters(prev => ({...prev, [name]: value}));
-        if(name !== 'query_text') {
-            setPagination(prev => ({...prev, page: 1}));
-        } else {
-            debouncedSearch();
-        }
+        const target = e.target as HTMLInputElement;
+        setFilters(prev => ({
+            ...prev,
+            [name]: target.type === 'range' ? parseFloat(value) : value,
+        }));
     };
     
     const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setFilters(prev => ({ ...prev, source_names: [e.target.value] }));
-        setPagination(prev => ({...prev, page: 1}));
+        setFilters(prev => ({ ...prev, source_names: e.target.value ? [e.target.value] : [] }));
     };
 
     const handleExportCsv = () => {
@@ -108,6 +131,7 @@ export const IntelligenceDataManager: React.FC = () => {
     };
 
     const totalPages = Math.ceil(pagination.total / pagination.limit);
+    const isSearchActive = filters.query_text.trim() !== '';
 
     return (
         <>
@@ -117,6 +141,26 @@ export const IntelligenceDataManager: React.FC = () => {
                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
+
+                <div className="flex items-center gap-4">
+                    <label htmlFor="similarity_threshold" className={`text-sm font-medium whitespace-nowrap ${!isSearchActive ? 'text-gray-400' : 'text-gray-700'}`}>相似度阈值:</label>
+                    <input 
+                        type="range"
+                        id="similarity_threshold"
+                        name="similarity_threshold"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={filters.similarity_threshold}
+                        onChange={handleFilterChange}
+                        disabled={!isSearchActive}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <span className={`font-semibold text-sm w-12 text-center ${!isSearchActive ? 'text-gray-400' : 'text-blue-600'}`}>
+                        {filters.similarity_threshold.toFixed(2)}
+                    </span>
+                </div>
+                
                 <div className="flex items-center gap-4">
                     <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">所有情报源</option>
@@ -158,7 +202,7 @@ export const IntelligenceDataManager: React.FC = () => {
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 <div className="flex items-center gap-2">
                     <button onClick={() => setPagination(p=>({...p, page: p.page-1}))} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
-                    <span>第 {pagination.page} / {totalPages} 页</span>
+                    <span>第 {pagination.page} / {totalPages || 1} 页</span>
                     <button onClick={() => setPagination(p=>({...p, page: p.page+1}))} disabled={pagination.page >= totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
                 </div>
             </div>
