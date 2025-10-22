@@ -247,16 +247,16 @@ const ArticleListManager: React.FC<{
         try {
             // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
             const allPointIds = Array.from(new Set(
-                allSources.reduce<string[]>((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [])
+                allSources.reduce((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [] as string[])
             ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
 
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
                 // FIX: Replaced flatMap with reduce to ensure proper type inference and avoid 'unknown[]' errors.
-                pointIdsToQuery = activeFilters.selectedSourceNames.reduce<string[]>((acc, name) => {
+                pointIdsToQuery = activeFilters.selectedSourceNames.reduce((acc, name) => {
                     const points = pointsBySourceForFilter[name] || [];
                     return acc.concat(points.map(p => p.id));
-                }, []);
+                }, [] as string[]);
             }
             
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
@@ -308,7 +308,7 @@ const ArticleListManager: React.FC<{
         // correct type inference by TypeScript and prevent 'unknown[]' type errors.
         const validPointIds = new Set(
             filters.selectedSourceNames
-                .reduce<Subscription[]>((acc, name) => acc.concat(pointsBySourceForFilter[name] || []), [])
+                .reduce((acc, name) => acc.concat(pointsBySourceForFilter[name] || []), [] as Subscription[])
                 .map(p => p.id)
         );
         const newSelectedPointIds = filters.selectedPointIds.filter(id => validPointIds.has(id));
@@ -322,7 +322,8 @@ const ArticleListManager: React.FC<{
     
     const availablePointsForFilter = useMemo(() => {
         if (filters.selectedSourceNames.length === 0) return [];
-        return filters.selectedSourceNames.flatMap(name => pointsBySourceForFilter[name] || []);
+        // FIX: Replaced flatMap with reduce to avoid type inference issues.
+        return filters.selectedSourceNames.reduce((acc, name) => acc.concat(pointsBySourceForFilter[name] || []), [] as Subscription[]);
     }, [filters.selectedSourceNames, pointsBySourceForFilter]);
 
     const escapeCsvField = (field: any): string => {
@@ -340,12 +341,12 @@ const ArticleListManager: React.FC<{
             // Build base parameters
             // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
             const allPointIds = Array.from(new Set(
-                allSources.reduce<string[]>((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [])
+                allSources.reduce((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [] as string[])
             ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
                 // FIX: Replaced flatMap with reduce to ensure proper type inference and avoid 'unknown[]' errors.
-                pointIdsToQuery = activeFilters.selectedSourceNames.reduce<string[]>((acc, name) => acc.concat((pointsBySourceForFilter[name] || []).map(p => p.id)), []);
+                pointIdsToQuery = activeFilters.selectedSourceNames.reduce((acc, name) => acc.concat((pointsBySourceForFilter[name] || []).map(p => p.id)), [] as string[]);
             }
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
                 pointIdsToQuery = allPointIds;

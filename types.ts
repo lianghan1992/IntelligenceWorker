@@ -281,6 +281,12 @@ export interface LivestreamTask {
   updated_at: string;
 }
 
+// New type for livestream prompts
+export interface LivestreamPrompt {
+  name: string;
+  content: string;
+}
+
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';

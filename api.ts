@@ -16,6 +16,7 @@ import {
     BililiveStream,
     // FIX: Add missing type imports
     LivestreamTask,
+    LivestreamPrompt,
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
@@ -454,6 +455,17 @@ export const startListenTask = async (taskId: string): Promise<any> => {
 export const stopListenTask = async (taskId: string): Promise<any> => {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, {
         method: 'POST',
+    });
+};
+
+export const getLivestreamPrompts = async (): Promise<LivestreamPrompt[]> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
+};
+
+export const updateLivestreamPrompt = async (promptName: string, content: string): Promise<LivestreamPrompt> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts/${encodeURIComponent(promptName)}`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
     });
 };
 
