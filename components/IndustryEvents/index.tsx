@@ -4,7 +4,6 @@ import { getLivestreamTasks } from '../../api';
 import { TaskCard } from './TaskCard';
 import { AddEventModal } from './AddEventModal';
 import { AddHistoryEventModal } from './AddHistoryEventModal';
-import { PlusIcon } from '../icons';
 import { EventReportModal } from './EventReportModal';
 
 const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; }> = ({ title, tasks, onCardClick }) => {
@@ -13,8 +12,8 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
     }
     return (
         <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">{title}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">{title}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
                 {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
@@ -97,14 +96,14 @@ export const IndustryEvents: React.FC = () => {
                 <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed mt-6">
                     <div className="text-gray-500">
                         <p className="font-semibold text-lg">暂无任何发布会任务</p>
-                        <p className="mt-1">点击右上角按钮创建一个新任务吧。</p>
+                        <p className="mt-1">管理员可在后台创建新任务。</p>
                     </div>
                 </div>
             );
         }
 
         return (
-            <div className="space-y-12">
+            <div className="space-y-10">
                 <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} />
                 <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} />
                 <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} />
@@ -115,22 +114,6 @@ export const IndustryEvents: React.FC = () => {
     return (
         <>
             <div className="p-6 bg-gray-50/50 min-h-full flex flex-col">
-                <div className="mb-6">
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-3xl font-bold text-gray-800">发布会智能分析</h1>
-                        <div className="flex items-center gap-2">
-                             <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
-                                <PlusIcon className="w-4 h-4" />
-                                <span>创建历史任务</span>
-                            </button>
-                            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                                <PlusIcon className="w-4 h-4" />
-                                <span>创建分析任务</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 {renderContent()}
             </div>
             {isAddModalOpen && (
