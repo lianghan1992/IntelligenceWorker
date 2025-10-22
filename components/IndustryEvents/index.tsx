@@ -4,13 +4,17 @@ import { getLivestreamTasks } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
 
-const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; }> = ({ title, tasks, onCardClick }) => {
+const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; color: string; }> = ({ title, tasks, onCardClick, color }) => {
     if (tasks.length === 0) {
         return null;
     }
     return (
         <section>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">{title}</h2>
+            <div className="flex items-center gap-3 mb-4 relative">
+                <div className={`w-1 h-7 rounded-full`} style={{ backgroundColor: color }}></div>
+                <div className={`absolute left-0 w-24 h-1 bottom-0`} style={{ background: `radial-gradient(ellipse at center, ${color}33 0%, transparent 70%)`}}></div>
+                <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
@@ -87,7 +91,7 @@ export const IndustryEvents: React.FC = () => {
 
         if (noTasks) {
              return (
-                <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed mt-6">
+                <div className="flex-1 flex items-center justify-center text-center bg-white/50 backdrop-blur-sm rounded-xl border-2 border-dashed mt-6">
                     <div className="text-gray-500">
                         <p className="font-semibold text-lg">暂无任何发布会任务</p>
                     </div>
@@ -97,22 +101,16 @@ export const IndustryEvents: React.FC = () => {
 
         return (
             <div className="space-y-12">
-                <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} />
-                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} />
-                <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} />
+                <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} color="#ef4444" />
+                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} color="#3b82f6" />
+                <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} color="#8b5cf6" />
             </div>
         )
     }
 
     return (
         <>
-            <div className="p-6 bg-gray-50/50 min-h-full flex flex-col">
-                <div className="mb-6">
-                    <div className="flex justify-between items-center">
-                        <h1 className="text-3xl font-bold text-gray-800">发布会智能分析</h1>
-                    </div>
-                </div>
-
+            <div className="p-6 min-h-full flex flex-col relative overflow-hidden colorful-bg-animation">
                 {renderContent()}
             </div>
             {selectedEvent && (
@@ -121,6 +119,28 @@ export const IndustryEvents: React.FC = () => {
                     onClose={() => setSelectedEvent(null)}
                 />
             )}
+             <style>{`
+                .colorful-bg-animation::before {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(236, 72, 153, 0.08), rgba(245, 158, 11, 0.08), rgba(16, 185, 129, 0.08));
+                    background-size: 400% 400%;
+                    animation: gradient-animation 25s ease infinite;
+                    z-index: -1;
+                    opacity: 0.6;
+                    filter: blur(80px);
+                }
+
+                @keyframes gradient-animation {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
+                }
+            `}</style>
         </>
     );
 };

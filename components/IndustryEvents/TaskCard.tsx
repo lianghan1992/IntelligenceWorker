@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { TagIcon, DocumentTextIcon, FilmIcon } from '../icons';
 
@@ -13,10 +13,8 @@ const getStatusDetails = (status: string) => {
     if (statusLower === 'recording') {
         return { text: '直播中', className: 'bg-red-500 text-white', type: 'live' };
     }
-    if (statusLower === 'listening') {
-        return { text: '监听中', className: 'bg-cyan-500 text-white', type: 'upcoming' };
-    }
-    if (statusLower === 'pending') {
+    // Update: Both listening and pending are 'upcoming' and should show the same text.
+    if (statusLower === 'listening' || statusLower === 'pending') {
         return { text: '即将开始', className: 'bg-blue-500 text-white', type: 'upcoming' };
     }
     if (statusLower === 'completed') {
@@ -45,6 +43,41 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const isFinished = statusDetails.type === 'finished';
     const hasReport = isFinished && !!task.summary_report;
     const imageUrl = getSafeImageUrl(task.livestream_image);
+    const [timeLeft, setTimeLeft] = useState('');
+
+    useEffect(() => {
+        if (statusDetails.type !== 'upcoming') return;
+
+        const calculateTimeLeft = () => {
+            const now = new Date().getTime();
+            const startTime = new Date(task.start_time).getTime();
+            const distance = startTime - now;
+
+            if (distance < 0) {
+                return "即将开始";
+            }
+
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+            if (days > 0) return `${days}天 ${String(hours).padStart(2, '0')}时`;
+            if (hours > 0) return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            if (minutes > 0) return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            return `${seconds}秒`;
+        };
+        
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            const newTimeLeft = calculateTimeLeft();
+            if (newTimeLeft === "即将开始") clearInterval(timer);
+            setTimeLeft(newTimeLeft);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [task.start_time, statusDetails.type]);
+
 
     const formattedDate = new Date(task.start_time).toLocaleString('zh-CN', {
         year: 'numeric',
@@ -88,7 +121,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
                 <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.livestream_name}</h3>
                 <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{task.host_name} &nbsp;&nbsp;|&nbsp;&nbsp; {formattedDate}</p>
 
-                {isFinished && (
+                {statusDetails.type === 'upcoming' && timeLeft ? (
+                    <div className="mt-4 text-center bg-black/20 backdrop-blur-sm rounded-lg py-2">
+                        <p className="text-xl font-bold text-white drop-shadow-lg">{timeLeft}</p>
+                        <p className="text-xs text-white/80 -mt-1">后开始</p>
+                    </div>
+                ) : isFinished ? (
                     <div className="mt-4 flex gap-3">
                         <button 
                             onClick={hasReport ? onViewReport : undefined}
@@ -106,7 +144,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
                             <span>查看回放</span>
                         </button>
                     </div>
-                )}
+                ) : null }
             </div>
         </div>
     );
