@@ -3,6 +3,7 @@ import { LivestreamTask } from '../types';
 import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { AddEventModal } from './AddEventModal';
+import { AddHistoryEventModal } from './AddHistoryEventModal';
 import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
 
@@ -32,6 +33,7 @@ export const LivestreamTaskManager: React.FC = () => {
     const [error, setError] = useState('');
 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<LivestreamTask | null>(null);
     const [taskToView, setTaskToView] = useState<LivestreamTask | null>(null);
 
@@ -89,10 +91,16 @@ export const LivestreamTaskManager: React.FC = () => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-gray-800">直播分析任务管理</h2>
-                <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
-                    <PlusIcon className="w-5 h-5" />
-                    <span>创建新任务</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100">
+                        <PlusIcon className="w-5 h-5" />
+                        <span>创建历史任务</span>
+                    </button>
+                    <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
+                        <PlusIcon className="w-5 h-5" />
+                        <span>创建新任务</span>
+                    </button>
+                </div>
             </div>
             
             {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
@@ -103,6 +111,7 @@ export const LivestreamTaskManager: React.FC = () => {
                         <tr>
                             <th className="px-6 py-3">封面</th>
                             <th className="px-6 py-3">直播名称</th>
+                            <th className="px-6 py-3">实体</th>
                             <th className="px-6 py-3">开始时间</th>
                             <th className="px-6 py-3">状态</th>
                             <th className="px-6 py-3">提示词</th>
@@ -110,10 +119,10 @@ export const LivestreamTaskManager: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading && <tr><td colSpan={6} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
+                        {isLoading && <tr><td colSpan={7} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
                         {!isLoading && tasks.map(task => {
                             const isTaskMutating = isMutating === task.id;
-                            const canViewReport = task.status.toLowerCase() === 'completed';
+                            const canViewReport = task.status.toLowerCase() === 'completed' && task.summary_report;
                             const status = task.status.toLowerCase();
                             const canStart = status === 'pending';
                             const canStop = status === 'listening' || status === 'recording';
@@ -134,6 +143,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                         <div className="text-xs text-gray-500">{task.host_name || '未知主播'}</div>
                                         <a href={task.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">访问链接</a>
                                     </td>
+                                    <td className="px-6 py-4 font-semibold text-gray-700">{task.entity || '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
                                     <td className="px-6 py-4">{getStatusBadge(task.status)}</td>
                                     <td className="px-6 py-4 text-xs max-w-xs">
@@ -161,13 +171,14 @@ export const LivestreamTaskManager: React.FC = () => {
                             );
                         })}
                          {!isLoading && tasks.length === 0 && (
-                            <tr><td colSpan={6} className="text-center py-16 text-gray-500">暂无分析任务</td></tr>
+                            <tr><td colSpan={7} className="text-center py-16 text-gray-500">暂无分析任务</td></tr>
                         )}
                     </tbody>
                 </table>
             </div>
 
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
+            {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={loadTasks} />}
             {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.livestream_name}" 吗？`} onConfirm={handleDelete} onCancel={() => setTaskToDelete(null)} />}
             {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
         </div>

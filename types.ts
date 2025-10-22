@@ -272,6 +272,7 @@ export interface LivestreamTask {
   id: string;
   url: string;
   livestream_name: string;
+  entity: string | null;
   start_time: string;
   status: string; // e.g., 'pending', 'listening', 'recording', 'processing', 'completed', 'failed'
   bililive_live_id: string | null;

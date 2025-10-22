@@ -418,6 +418,7 @@ export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
 export const createLivestreamTask = async (data: {
     url: string;
     livestream_name: string;
+    entity?: string;
     start_time: string;
     prompt_file?: string;
     image?: File;
@@ -425,6 +426,9 @@ export const createLivestreamTask = async (data: {
     const formData = new FormData();
     formData.append('url', data.url);
     formData.append('livestream_name', data.livestream_name);
+    if (data.entity) {
+        formData.append('entity', data.entity);
+    }
     formData.append('start_time', data.start_time);
     if (data.prompt_file) {
         formData.append('prompt_file', data.prompt_file);
@@ -436,6 +440,21 @@ export const createLivestreamTask = async (data: {
     return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
         method: 'POST',
         body: formData,
+    });
+};
+
+export const createHistoryLivestreamTask = async (data: {
+    url: string;
+    livestream_name: string;
+    start_time: string;
+    summary_report: string;
+    host_name?: string;
+    entity?: string;
+    livestream_image?: string;
+}): Promise<LivestreamTask> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/history`, {
+        method: 'POST',
+        body: JSON.stringify(data),
     });
 };
 

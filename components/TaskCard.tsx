@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask } from '../types';
+import { FilmIcon, DocumentTextIcon } from './icons';
 
 interface TaskCardProps {
     task: LivestreamTask;
-    onClick: () => void;
+    onViewReport: () => void;
 }
 
 const getStatusDetails = (status: LivestreamTask['status']) => {
@@ -82,16 +83,28 @@ const CountdownDisplay: React.FC<{ targetDate: string, name: string }> = ({ targ
     );
 };
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const isUpcoming = task.status.toLowerCase() === 'pending' && new Date(task.start_time) > new Date();
     const statusDetails = getStatusDetails(task.status);
-    const canViewReport = task.status.toLowerCase() === 'completed';
+    const isFinished = statusDetails.text === '已结束';
     const displayName = task.livestream_name || '未命名任务';
+
+    const handleReplayClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        window.open(task.url, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleReportClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (task.summary_report) {
+            onViewReport();
+        }
+    };
+
 
     return (
         <div 
-            onClick={canViewReport ? onClick : undefined}
-            className={`relative aspect-[4/3] w-full bg-gray-900 rounded-2xl overflow-hidden shadow-lg group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl ${canViewReport ? 'cursor-pointer' : 'cursor-default'}`}
+            className="relative aspect-[16/9] w-full bg-gray-900 rounded-2xl overflow-hidden shadow-lg group transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl"
         >
             {task.livestream_image ? (
                 <img src={task.livestream_image} alt={displayName} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
@@ -120,6 +133,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                     </div>
 
                     <div className="absolute bottom-0 left-0 right-0 p-4 text-white z-10">
+                         {task.entity && (
+                            <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2 py-0.5 rounded-full mb-2">
+                                {task.entity}
+                            </span>
+                        )}
                         <h3 className="font-bold text-lg leading-tight line-clamp-2" title={displayName}>
                             {displayName}
                         </h3>
@@ -129,6 +147,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
                                 {new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             </p>
                         </div>
+                        {isFinished && (
+                             <div className="mt-3 flex items-center gap-2">
+                                <button
+                                    onClick={handleReportClick}
+                                    disabled={!task.summary_report}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold rounded-lg hover:bg-white/20 transition-colors disabled:bg-gray-500/20 disabled:cursor-not-allowed"
+                                >
+                                    <DocumentTextIcon className="w-4 h-4" />
+                                    <span>查看报告</span>
+                                </button>
+                                <button
+                                    onClick={handleReplayClick}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm text-white text-xs font-semibold rounded-lg hover:bg-white/20 transition-colors"
+                                >
+                                    <FilmIcon className="w-4 h-4" />
+                                    <span>查看回放</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </>
             )}

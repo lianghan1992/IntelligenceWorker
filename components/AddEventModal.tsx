@@ -21,6 +21,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [formData, setFormData] = useState({
         url: '',
         livestream_name: '',
+        entity: '',
         start_time: '',
         prompt_file: '',
     });
@@ -38,6 +39,9 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
             try {
                 const fetchedPrompts = await getLivestreamPrompts();
                 setPrompts(fetchedPrompts);
+                if (fetchedPrompts.length > 0) {
+                    setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0].name}));
+                }
             } catch (err) {
                 console.error("Failed to fetch livestream prompts:", err);
                 setError("无法加载提示词列表。");
@@ -136,6 +140,10 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">直播名称 <span className="text-red-500">*</span></label>
                                 <input name="livestream_name" type="text" value={formData.livestream_name} onChange={handleChange} placeholder="例如：小米汽车SU7发布会" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">关联实体 (可选)</label>
+                                <input name="entity" type="text" value={formData.entity} onChange={handleChange} placeholder="例如：小米汽车" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>

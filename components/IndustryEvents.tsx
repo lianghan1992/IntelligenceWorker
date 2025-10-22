@@ -3,6 +3,7 @@ import { LivestreamTask } from '../types';
 import { getLivestreamTasks } from '../api';
 import { TaskCard } from './TaskCard';
 import { AddEventModal } from './AddEventModal';
+import { AddHistoryEventModal } from './AddHistoryEventModal';
 import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
 
@@ -15,7 +16,7 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
             <h2 className="text-2xl font-bold text-gray-800 mb-4">{title}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onClick={() => onCardClick(task)} />
+                    <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
             </div>
         </section>
@@ -27,6 +28,7 @@ export const IndustryEvents: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
 
     const loadTasks = useCallback(async () => {
@@ -78,7 +80,7 @@ export const IndustryEvents: React.FC = () => {
     }, [tasks]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
-        if (task.status.toLowerCase() === 'completed') {
+        if (task.status.toLowerCase() === 'completed' && task.summary_report) {
             setSelectedEvent(task);
         }
     };
@@ -117,10 +119,16 @@ export const IndustryEvents: React.FC = () => {
                 <div className="mb-6">
                     <div className="flex justify-between items-center">
                         <h1 className="text-3xl font-bold text-gray-800">发布会智能分析</h1>
-                        <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                            <PlusIcon className="w-4 h-4" />
-                            <span>创建分析任务</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                             <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                                <PlusIcon className="w-4 h-4" />
+                                <span>创建历史任务</span>
+                            </button>
+                            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                                <PlusIcon className="w-4 h-4" />
+                                <span>创建分析任务</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -129,6 +137,12 @@ export const IndustryEvents: React.FC = () => {
             {isAddModalOpen && (
                 <AddEventModal 
                     onClose={() => setIsAddModalOpen(false)}
+                    onSuccess={loadTasks}
+                />
+            )}
+             {isHistoryModalOpen && (
+                <AddHistoryEventModal 
+                    onClose={() => setIsHistoryModalOpen(false)}
                     onSuccess={loadTasks}
                 />
             )}
