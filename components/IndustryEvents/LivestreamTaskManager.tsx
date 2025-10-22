@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LivestreamTask } from '../types';
-import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
+import { LivestreamTask } from '../../types';
+import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../../api';
 import { ConfirmationModal } from './ConfirmationModal';
-import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from './icons';
-import { AddEventModal } from './IndustryEvents/AddEventModal';
-import { AddHistoryEventModal } from './IndustryEvents/AddHistoryEventModal';
+import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from '../icons';
+import { AddEventModal } from './AddEventModal';
+import { AddHistoryEventModal } from './AddHistoryEventModal';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

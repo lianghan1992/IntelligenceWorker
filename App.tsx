@@ -3,7 +3,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { InfoFeed } from './components/InfoFeed';
 import { DeepDives } from './components/DeepDives';
-import { IndustryEvents } from './components/IndustryEvents';
+import { IndustryEvents } from './components/IndustryEvents/index';
 import { ReportGenerator } from './components/ReportGenerator';
 import { AdminPage } from './components/AdminPage';
 import { AuthModal } from './components/AuthModal';
