@@ -96,7 +96,7 @@ export const LivestreamTaskManager: React.FC = () => {
                     page: tasksResponse.page,
                     limit: tasksResponse.limit,
                     total: tasksResponse.total,
-                    totalPages: tasksResponse.totalPages,
+                    totalPages: tasksResponse.totalPages ?? 1,
                 });
             } else {
                 setTasks([]);
