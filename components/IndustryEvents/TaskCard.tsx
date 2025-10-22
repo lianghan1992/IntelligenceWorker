@@ -37,8 +37,8 @@ const getSafeImageUrl = (base64String: string | null): string | null => {
 const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
     return (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-4 text-white text-center font-bold" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.7)' }}>
-            <div className="text-6xl lg:text-7xl tracking-tighter leading-none">{timeLeft}</div>
-            <div className="text-base lg:text-lg opacity-80 tracking-wide mt-1">后开始</div>
+            <div className="text-4xl lg:text-5xl tracking-tighter leading-none">{timeLeft}</div>
+            <div className="text-sm lg:text-base opacity-80 tracking-wide mt-1">后开始</div>
         </div>
     );
 };
