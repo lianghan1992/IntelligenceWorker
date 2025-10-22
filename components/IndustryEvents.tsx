@@ -1,104 +1,154 @@
-import React, { useState, useEffect } from 'react';
-import { LivestreamTask, PaginatedResponse } from '../types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { LivestreamTask } from '../types';
 import { getLivestreamTasks } from '../api';
 import { TaskCard } from './TaskCard';
+import { AddEventModal } from './AddEventModal';
+import { AddHistoryEventModal } from './AddHistoryEventModal';
+import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
-import { SearchIcon } from './icons';
+
+const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; }> = ({ title, tasks, onCardClick }) => {
+    if (tasks.length === 0) {
+        return null;
+    }
+    return (
+        <section>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">{title}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {tasks.map((task) => (
+                    <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
+                ))}
+            </div>
+        </section>
+    );
+};
 
 export const IndustryEvents: React.FC = () => {
     const [tasks, setTasks] = useState<LivestreamTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
+
+    const loadTasks = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const fetchedTasks = await getLivestreamTasks();
+            if (!Array.isArray(fetchedTasks)) {
+                console.warn("IndustryEvents: API call did not return an array. Defaulting to empty.");
+                setTasks([]);
+                return;
+            }
+            setTasks(fetchedTasks);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '发生未知错误');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchTasks = async () => {
-            setIsLoading(true);
-            setError('');
-            try {
-                const params: any = { page: 1, limit: 100, sort_by: 'start_time', order: 'desc' };
-                if (searchTerm) {
-                    params.search_term = searchTerm;
-                }
-                const response: PaginatedResponse<LivestreamTask> = await getLivestreamTasks(params);
-                setTasks(response.items);
-            } catch (err: any) {
-                setError(err.message || '无法加载事件列表');
-            } finally {
-                setIsLoading(false);
+        loadTasks();
+    }, [loadTasks]);
+
+    const { liveTasks, upcomingTasks, finishedTasks } = useMemo(() => {
+        const live: LivestreamTask[] = [];
+        const upcoming: LivestreamTask[] = [];
+        const finished: LivestreamTask[] = [];
+
+        tasks.forEach(task => {
+            const status = task.status.toLowerCase();
+            
+            if (status === 'recording') {
+                live.push(task);
+            } else if (status === 'listening' || status === 'pending') {
+                upcoming.push(task);
+            } else { // completed, failed, processing
+                finished.push(task);
             }
-        };
-        fetchTasks();
-    }, [searchTerm]);
+        });
+        
+        const sortByDate = (a: LivestreamTask, b: LivestreamTask) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+        live.sort(sortByDate);
+        upcoming.sort(sortByDate);
+        finished.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-    const filteredTasks = tasks.filter(task => {
-        if (filter === 'upcoming') {
-            return new Date(task.start_time) > new Date() && task.status !== 'completed';
+        return { liveTasks, upcomingTasks, finishedTasks };
+    }, [tasks]);
+    
+    const handleTaskCardClick = (task: LivestreamTask) => {
+        if (task.status.toLowerCase() === 'completed' && task.summary_report) {
+            setSelectedEvent(task);
         }
-        if (filter === 'past') {
-            return new Date(task.start_time) <= new Date() || task.status === 'completed';
-        }
-        return true;
-    });
-
-    const handleViewReport = (task: LivestreamTask) => {
-        setSelectedEvent(task);
     };
 
-    return (
-        <div className="p-6 bg-gray-50/50 min-h-full">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800">行业发布会</h1>
-                        <p className="mt-1 text-gray-500">追踪重要的行业事件，获取AI生成的深度解读报告。</p>
-                    </div>
-                    <div className="relative w-full md:w-72">
-                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            placeholder="搜索发布会名称..."
-                            className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+    const renderContent = () => {
+        if (isLoading) return <div className="text-center py-20 text-gray-500">加载中...</div>;
+        if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
+        
+        const noTasks = tasks.length === 0;
+
+        if (noTasks) {
+             return (
+                <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed mt-6">
+                    <div className="text-gray-500">
+                        <p className="font-semibold text-lg">暂无任何发布会任务</p>
+                        <p className="mt-1">点击右上角按钮创建一个新任务吧。</p>
                     </div>
                 </div>
+            );
+        }
 
-                <div className="border-b border-gray-200 mb-6">
-                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                        <button onClick={() => setFilter('all')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filter === 'all' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                            全部事件
-                        </button>
-                        <button onClick={() => setFilter('upcoming')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filter === 'upcoming' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                            即将开始
-                        </button>
-                        <button onClick={() => setFilter('past')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filter === 'past' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-                            往期回顾
-                        </button>
-                    </nav>
-                </div>
-
-                {isLoading ? (
-                    <div className="text-center py-20">正在加载...</div>
-                ) : error ? (
-                    <div className="text-center py-20 text-red-500">{error}</div>
-                ) : filteredTasks.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredTasks.map(task => (
-                            <TaskCard key={task.id} task={task} onViewReport={handleViewReport} />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-20 bg-white rounded-xl border border-dashed">
-                        <p className="text-gray-500">暂无相关事件。</p>
-                    </div>
-                )}
+        return (
+            <div className="space-y-12">
+                <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} />
+                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} />
+                <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} />
             </div>
+        )
+    }
 
-            {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
-        </div>
+    return (
+        <>
+            <div className="p-6 bg-gray-50/50 min-h-full flex flex-col">
+                <div className="mb-6">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-3xl font-bold text-gray-800">发布会智能分析</h1>
+                        <div className="flex items-center gap-2">
+                             <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                                <PlusIcon className="w-4 h-4" />
+                                <span>创建历史任务</span>
+                            </button>
+                            <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                                <PlusIcon className="w-4 h-4" />
+                                <span>创建分析任务</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {renderContent()}
+            </div>
+            {isAddModalOpen && (
+                <AddEventModal 
+                    onClose={() => setIsAddModalOpen(false)}
+                    onSuccess={loadTasks}
+                />
+            )}
+             {isHistoryModalOpen && (
+                <AddHistoryEventModal 
+                    onClose={() => setIsHistoryModalOpen(false)}
+                    onSuccess={loadTasks}
+                />
+            )}
+            {selectedEvent && (
+                <EventReportModal
+                    event={selectedEvent}
+                    onClose={() => setSelectedEvent(null)}
+                />
+            )}
+        </>
     );
 };

@@ -290,25 +290,6 @@ export interface LivestreamPrompt {
   content: string;
 }
 
-// New generic type for paginated API responses
-export interface PaginatedResponse<T> {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-}
-
-// New type for livestream task stats
-export interface LivestreamTaskStats {
-    total: number;
-    pending: number;
-    listening: number;
-    recording: number;
-    processing: number;
-    completed: number;
-    failed: number;
-}
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';

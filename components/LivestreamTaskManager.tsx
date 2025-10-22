@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LivestreamTask, PaginatedResponse } from '../types';
-import { getLivestreamTasks, getLivestreamTasksStats, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
+import { LivestreamTask } from '../types';
+import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
+import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from './icons';
 import { AddEventModal } from './AddEventModal';
 import { AddHistoryEventModal } from './AddHistoryEventModal';
-import { PlusIcon, SearchIcon, TrashIcon, PlayIcon, StopIcon } from './icons';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -13,165 +13,137 @@ const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5" }) =>
     </svg>
 );
 
-const useDebounce = (value: string, delay: number) => {
-    const [debouncedValue, setDebouncedValue] = useState(value);
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [value, delay]);
-    return debouncedValue;
+const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+        case 'recording': return 'bg-red-100 text-red-800';
+        case 'listening': return 'bg-cyan-100 text-cyan-800';
+        case 'pending': return 'bg-blue-100 text-blue-800';
+        case 'completed': return 'bg-green-100 text-green-800';
+        case 'processing': return 'bg-indigo-100 text-indigo-800';
+        case 'failed': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
 };
-
 
 export const LivestreamTaskManager: React.FC = () => {
     const [tasks, setTasks] = useState<LivestreamTask[]>([]);
-    const [stats, setStats] = useState<any>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
     
-    const [filters, setFilters] = useState({ searchTerm: '', status: '' });
-    const debouncedSearchTerm = useDebounce(filters.searchTerm, 500);
-
-    const [modal, setModal] = useState<'add' | 'addHistory' | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<LivestreamTask | null>(null);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const fetchData = useCallback(async () => {
+    const fetchTasks = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
-            const [tasksData, statsData] = await Promise.all([
-                getLivestreamTasks({
-                    page: pagination.page,
-                    limit: pagination.limit,
-                    search_term: debouncedSearchTerm,
-                    status: filters.status,
-                    sort_by: 'created_at',
-                    order: 'desc'
-                }),
-                getLivestreamTasksStats()
-            ]);
-            setTasks(tasksData.items);
-            setPagination(prev => ({ ...prev, total: tasksData.total, totalPages: tasksData.totalPages > 0 ? tasksData.totalPages : 1 }));
-            setStats(statsData);
+            const data = await getLivestreamTasks();
+            setTasks(data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         } catch (err: any) {
             setError(err.message || '无法获取任务列表');
         } finally {
             setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit, debouncedSearchTerm, filters.status]);
+    }, []);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setPagination(p => ({ ...p, page: 1 }));
-        setFilters(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handlePageChange = (newPage: number) => {
-        if (newPage >= 1 && newPage <= pagination.totalPages) {
-            setPagination(p => ({ ...p, page: newPage }));
-        }
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!taskToDelete) return;
+        fetchTasks();
+    }, [fetchTasks]);
+    
+    const handleAction = async (taskId: string, action: 'start' | 'stop' | 'delete') => {
+        setActionLoading(taskId);
+        setError('');
         try {
-            await deleteLivestreamTask(taskToDelete.id);
-            setTaskToDelete(null);
-            fetchData();
+            switch(action) {
+                case 'start':
+                    await startListenTask(taskId);
+                    break;
+                case 'stop':
+                    await stopListenTask(taskId);
+                    break;
+                case 'delete':
+                    await deleteLivestreamTask(taskId);
+                    setTaskToDelete(null);
+                    break;
+            }
+            await fetchTasks(); // Refresh list after action
         } catch (err: any) {
-            setError(err.message || '删除任务失败');
+             setError(`操作失败: ${err.message}`);
+        } finally {
+            setActionLoading(null);
         }
     };
-
-    const toggleListen = async (task: LivestreamTask) => {
-        const isListening = task.status === 'listening';
-        const action = isListening ? stopListenTask : startListenTask;
-        try {
-            await action(task.id);
-            fetchData();
-        } catch(err: any) {
-            setError(`操作失败: ${err.message}`);
+    
+    const handleDeleteConfirm = () => {
+        if (taskToDelete) {
+            handleAction(taskToDelete.id, 'delete');
         }
     };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">发布会事件管理</h2>
-            {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
-
-            <div className="bg-white p-4 rounded-xl border shadow-sm">
-                <div className="flex flex-col md:flex-row justify-between gap-4">
-                    <div className="relative flex-grow">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" name="searchTerm" value={filters.searchTerm} onChange={handleFilterChange} placeholder="搜索事件名称..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <select name="status" value={filters.status} onChange={handleFilterChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2">
-                             <option value="">所有状态</option>
-                             {['pending', 'listening', 'recording', 'processing', 'completed', 'failed'].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                         <button onClick={() => setModal('addHistory')} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50">
-                            <PlusIcon className="w-5 h-5" /><span>录入历史事件</span>
-                        </button>
-                        <button onClick={() => setModal('add')} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
-                            <PlusIcon className="w-5 h-5" /><span>创建新事件</span>
-                        </button>
-                    </div>
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-800">发布会任务管理</h2>
+                <div className="flex gap-2">
+                    <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                        <PlusIcon className="w-4 h-4" /> <span>创建历史任务</span>
+                    </button>
+                    <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                        <PlusIcon className="w-4 h-4" /> <span>创建新任务</span>
+                    </button>
                 </div>
             </div>
+            
+            {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
             <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
                 <table className="w-full text-sm text-left text-gray-600">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3">事件名称</th>
-                            <th className="px-6 py-3">主办方</th>
+                            <th className="px-6 py-3">任务名称</th>
+                            <th className="px-6 py-3">主播/实体</th>
                             <th className="px-6 py-3">开始时间</th>
                             <th className="px-6 py-3">状态</th>
+                            <th className="px-6 py-3">bililive ID</th>
                             <th className="px-6 py-3">操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading && <tr><td colSpan={5} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
+                        {isLoading && <tr><td colSpan={6} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
                         {!isLoading && tasks.map(task => (
                             <tr key={task.id} className="border-b hover:bg-gray-50">
-                                <td className="px-6 py-4 font-semibold text-gray-800">{task.livestream_name}</td>
+                                <td className="px-6 py-4">
+                                    <div className="font-semibold text-gray-800">{task.livestream_name}</div>
+                                    <a href={task.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate">{task.url}</a>
+                                </td>
                                 <td className="px-6 py-4">{task.host_name || task.entity || 'N/A'}</td>
                                 <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
-                                <td className="px-6 py-4">{task.status}</td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
+                                        {task.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 font-mono text-xs">{task.bililive_live_id || 'N/A'}</td>
                                 <td className="px-6 py-4 flex items-center gap-2">
-                                    <button onClick={() => toggleListen(task)} title={task.status === 'listening' ? "停止监听" : "开始监听"} className="p-2 text-gray-500 hover:bg-gray-100 rounded-md">
-                                        {task.status === 'listening' ? <StopIcon className="w-4 h-4 text-red-500"/> : <PlayIcon className="w-4 h-4 text-green-500"/>}
-                                    </button>
-                                    <button onClick={() => setTaskToDelete(task)} title="删除" className="p-2 text-gray-500 hover:bg-gray-100 rounded-md"><TrashIcon className="w-4 h-4 text-red-500" /></button>
+                                     {actionLoading === task.id ? <Spinner className="w-4 h-4 text-gray-500" /> : (
+                                         <>
+                                            {task.status.toLowerCase() === 'pending' && <button onClick={() => handleAction(task.id, 'start')} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="开始监听"><PlayIcon className="w-4 h-4" /></button>}
+                                            {task.status.toLowerCase() === 'listening' && <button onClick={() => handleAction(task.id, 'stop')} className="p-2 text-gray-500 hover:text-yellow-600 hover:bg-gray-100 rounded-md" title="停止监听"><StopIcon className="w-4 h-4" /></button>}
+                                            <button onClick={() => setTaskToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除任务"><TrashIcon className="w-4 h-4" /></button>
+                                         </>
+                                     )}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                 <span className="text-sm text-gray-600">共 {pagination.total} 条记录</span>
-                 <div className="flex items-center gap-2">
-                    <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1 || isLoading} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">上一页</button>
-                    <span className="text-sm font-semibold">第 {pagination.page} / {pagination.totalPages} 页</span>
-                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages || isLoading} className="px-3 py-1.5 text-sm font-semibold bg-white border rounded-md disabled:opacity-50">下一页</button>
-                </div>
-            </div>
-
-            {modal === 'add' && <AddEventModal onClose={() => setModal(null)} onSuccess={fetchData} />}
-            {modal === 'addHistory' && <AddHistoryEventModal onClose={() => setModal(null)} onSuccess={fetchData} />}
-            {taskToDelete && <ConfirmationModal title="确认删除事件" message={`您确定要删除 "${taskToDelete.livestream_name}" 吗？此操作无法撤销。`} onConfirm={handleDeleteConfirm} onCancel={() => setTaskToDelete(null)} />}
+            
+            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={fetchTasks} />}
+            {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={fetchTasks} />}
+            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.livestream_name}" 吗？此操作无法撤销。`} onConfirm={handleDeleteConfirm} onCancel={() => setTaskToDelete(null)} />}
         </div>
     );
 };
