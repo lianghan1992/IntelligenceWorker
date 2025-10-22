@@ -35,13 +35,42 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const fetchedTasks = await getLivestreamTasks();
-            if (!Array.isArray(fetchedTasks)) {
-                console.warn("IndustryEvents: API call did not return an array. Defaulting to empty.");
-                setTasks([]);
-                return;
-            }
-            setTasks(fetchedTasks);
+            const recordingPromise = getLivestreamTasks({ status: 'recording', limit: 100, sort_by: 'start_time', order: 'asc' });
+            const listeningPromise = getLivestreamTasks({ status: 'listening', limit: 100, sort_by: 'start_time', order: 'asc' });
+            const pendingPromise = getLivestreamTasks({ status: 'pending', limit: 100, sort_by: 'start_time', order: 'asc' });
+            const completedPromise = getLivestreamTasks({ status: 'completed', limit: 100, sort_by: 'start_time', order: 'desc' });
+            const failedPromise = getLivestreamTasks({ status: 'failed', limit: 100, sort_by: 'start_time', order: 'desc' });
+            const processingPromise = getLivestreamTasks({ status: 'processing', limit: 100, sort_by: 'start_time', order: 'desc' });
+
+            const [
+                recordingRes, 
+                listeningRes, 
+                pendingRes, 
+                completedRes, 
+                failedRes, 
+                processingRes
+            ] = await Promise.all([
+                recordingPromise, 
+                listeningPromise, 
+                pendingPromise, 
+                completedPromise, 
+                failedPromise, 
+                processingPromise
+            ]);
+
+            const allTasks = [
+                ...recordingRes.items,
+                ...listeningRes.items,
+                ...pendingRes.items,
+                ...completedRes.items,
+                ...failedRes.items,
+                ...processingRes.items,
+            ];
+
+            const uniqueTasks = Array.from(new Map(allTasks.map(task => [task.id, task])).values());
+            
+            setTasks(uniqueTasks);
+
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {

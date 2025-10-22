@@ -17,6 +17,9 @@ import {
     // FIX: Add missing type imports
     LivestreamTask,
     LivestreamPrompt,
+    // New imports
+    PaginatedResponse,
+    LivestreamTaskStats,
 } from './types';
 
 const getAuthToken = () => localStorage.getItem('accessToken');
@@ -163,13 +166,6 @@ export const getMe = async (): Promise<User> => {
 
 
 // --- User Management (Admin) ---
-interface PaginatedResponse<T> {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-}
 
 export const getUsers = async (params: { page: number; limit: number; search_term?: string; plan_name?: string; status?: string }): Promise<PaginatedResponse<AdminUser>> => {
     const query = new URLSearchParams(params as any).toString();
@@ -411,8 +407,23 @@ export const deleteBililiveStream = async (liveId: string): Promise<{ message: s
 };
 
 // --- Livestream Analysis Service (Updated for new API) ---
-export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
+
+export const getLivestreamTasks = async (params: { 
+    page?: number; 
+    limit?: number; 
+    status?: string; 
+    search_term?: string; 
+    sort_by?: string; 
+    order?: string; 
+} = {}): Promise<PaginatedResponse<LivestreamTask>> => {
+    const query = new URLSearchParams(
+        Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined && value !== '')) as Record<string, string>
+    ).toString();
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks?${query}`);
+};
+
+export const getLivestreamTasksStats = async (): Promise<LivestreamTaskStats> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
 };
 
 export const createLivestreamTask = async (data: {
