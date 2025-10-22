@@ -94,17 +94,17 @@ export interface Slide {
     status: 'queued' | 'generating' | 'done';
 }
 
-// Represents a system-recognized source of information from GET /intelligence/sources
+// Corrected: Renamed 'name' to 'source_name' to match the API response.
 export interface SystemSource {
-    id: string; // Mapped from source_id
-    name: string; // Mapped from source_name
+    id: string;
+    source_name: string; 
     points_count: number;
     // UI-synthesized fields
     description: string;
     iconUrl: string;
     category: string;
     infoCount: number;
-    subscriberCount: number; // This can't be fulfilled by the new API directly
+    subscriberCount: number;
 }
 
 // API representation of a user's subscribed source from GET /users/{id}/sources
@@ -197,8 +197,6 @@ export interface ApiProcessingTask {
 }
 
 // Result from semantic search
-// FIX: Made similarity_score optional as it only exists in search results,
-// not in regular article listings, allowing the type to be used for both.
 export interface SearchResult extends InfoItem {
   similarity_score?: number;
 }
@@ -267,7 +265,6 @@ export interface BililiveStream {
 }
 
 // --- New Types for Livestream/Event Analysis ---
-// UPDATE: The LivestreamTask type is updated to match the new API schema.
 export interface LivestreamTask {
   id: string;
   url: string;

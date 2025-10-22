@@ -14,7 +14,6 @@ import {
   getPointsBySourceName,
   searchArticlesFiltered,
 } from '../api';
-// FIX: Corrected import path for ConfirmationModal.
 import { ConfirmationModal } from './Admin/ConfirmationModal';
 
 
@@ -266,7 +265,7 @@ const MyFocusPoints: React.FC<{ subscriptions: Subscription[] }> = ({ subscripti
 // --- REFACTORED SOURCE SUBSCRIPTIONS ---
 const SourceLogo: React.FC<{ sourceName: string }> = ({ sourceName }) => {
     const [imgError, setImgError] = useState(false);
-    const iconUrl = `https://logo.clearbit.com/${sourceName.replace(/ /g, '').toLowerCase()}.com`;
+    const iconUrl = sourceName ? `https://logo.clearbit.com/${sourceName.replace(/ /g, '').toLowerCase()}.com` : '';
 
     useEffect(() => {
         setImgError(false);
@@ -296,8 +295,8 @@ const SourceCard: React.FC<{
     onToggleSubscription: (sourceId: string, isSubscribed: boolean) => void;
 }> = ({ source, isSubscribed, onToggleSubscription }) => (
     <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col items-center text-center">
-        <SourceLogo sourceName={source.name} />
-        <h3 className="font-semibold text-slate-800 mt-2 truncate w-full text-sm">{source.name}</h3>
+        <SourceLogo sourceName={source.source_name} />
+        <h3 className="font-semibold text-slate-800 mt-2 truncate w-full text-sm">{source.source_name}</h3>
         <p className="text-xs text-slate-500 mt-0.5">
             {source.points_count} 个情报点
         </p>
@@ -332,11 +331,11 @@ const SourceSubscriptions: React.FC = () => {
             const enrichedSources = await Promise.all(
                 baseSources.map(async (source) => {
                     try {
-                        const points = await getPointsBySourceName(source.name);
+                        const points = await getPointsBySourceName(source.source_name);
                         return { ...source, points_count: points.length };
                     } catch (err) {
-                        console.error(`Failed to get point count for ${source.name}`, err);
-                        return source;
+                        console.error(`Failed to get point count for ${source.source_name}`, err);
+                        return { ...source, points_count: source.points_count || 0 }; // Use existing count or default to 0
                     }
                 })
             );
@@ -413,8 +412,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions }) => 
                 setInfoItems([]);
                 return; 
             }
-            // The function `getArticles` does not exist. Use `searchArticlesFiltered` instead,
-            // passing a single parameters object and `query_text: '*'` to get all articles for the given points.
             const data = await searchArticlesFiltered({ point_ids: pointIds, page: 1, limit: 50, query_text: '*' });
             setInfoItems(data.items);
         } catch (error) {

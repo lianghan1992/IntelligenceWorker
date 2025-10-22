@@ -15,7 +15,8 @@ import {
     LivestreamTask,
     LivestreamPrompt,
     AdminUser,
-    ApiProcessingTask
+    ApiProcessingTask,
+    AllPrompts,
 } from './types';
 
 // --- Helper Functions ---
@@ -27,7 +28,7 @@ async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
-    if (!(options.body instanceof FormData)) {
+    if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
         headers.set('Content-Type', 'application/json');
     }
 
@@ -100,41 +101,56 @@ export const deleteUserSourceSubscription = (sourceId: string): Promise<void> =>
 
 
 // --- Intelligence Service ---
-
-export const getSubscriptions = (): Promise<Subscription[]> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/subscriptions`);
-
 export const getSources = (): Promise<SystemSource[]> => apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`);
 
-export const getPointsBySourceName = (sourceName: string): Promise<Subscription[]> => apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/source/${encodeURIComponent(sourceName)}`);
+// Corrected: The endpoint is /points with a query parameter
+export const getPointsBySourceName = (sourceName: string): Promise<Subscription[]> => 
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(sourceName)}`);
+
+// Corrected: This function now correctly fetches all points for all user-subscribed sources.
+export const getSubscriptions = async (): Promise<Subscription[]> => {
+    const subscribedSources = await getUserSubscribedSources();
+    if (!subscribedSources || subscribedSources.length === 0) {
+        return [];
+    }
+    const pointsPromises = subscribedSources.map(source => 
+        getPointsBySourceName(source.source_name).catch(err => {
+            console.error(`Failed to fetch points for source: ${source.source_name}`, err);
+            return []; // Return empty array on failure for a single source to not fail the whole operation
+        })
+    );
+    const pointsBySource = await Promise.all(pointsPromises);
+    return pointsBySource.flat();
+};
+
 
 interface PaginatedResponse<T> {
     items: T[];
     page: number;
     limit: number;
     total: number;
-    totalPages: number;
+    totalPages?: number; // Make this optional as not all paginated responses might have it
 }
 
+// Corrected: This now uses POST to /search/articles_filtered as per the documentation.
 export const searchArticlesFiltered = (params: {
-    query_text: string,
-    point_ids?: string[],
-    page?: number,
-    limit?: number
+    query_text: string;
+    similarity_threshold?: number;
+    point_ids?: string[];
+    source_names?: string[];
+    publish_date_start?: string;
+    publish_date_end?: string;
+    page?: number;
+    limit?: number;
 }): Promise<PaginatedResponse<InfoItem>> => {
-    const queryParams = new URLSearchParams({
-        query_text: params.query_text,
-        page: (params.page || 1).toString(),
-        limit: (params.limit || 50).toString(),
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
+        method: 'POST',
+        body: JSON.stringify(params),
     });
-    if (params.point_ids) {
-        params.point_ids.forEach(id => queryParams.append('point_ids', id));
-    }
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/search?${queryParams.toString()}`);
 };
 
 
-// This function seems to be for a simpler, non-paginated search for counts.
+// This function is for a simpler semantic search for counts/top-k, let's keep it using the more powerful filtered search for now.
 export const searchArticles = async (query: string, pointIds: string[], limit: number): Promise<InfoItem[]> => {
     const result = await searchArticlesFiltered({ query_text: query, point_ids: pointIds, limit, page: 1 });
     return result.items;
@@ -160,7 +176,6 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
                 if (taskResult.status === 'completed') {
                     clearInterval(interval);
                     setFeedback("处理完成！");
-                    // Assuming the payload is the InfoItem ID
                     const infoItemId = JSON.parse(taskResult.payload!).info_item_id;
                     const infoItem = await apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/articles/${infoItemId}`);
                     resolve(infoItem);
@@ -168,7 +183,6 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
                     clearInterval(interval);
                     reject(new Error(JSON.parse(taskResult.payload!).error || "处理失败"));
                 }
-                // else still processing, just wait for next poll
             } catch (err) {
                 clearInterval(interval);
                 reject(err);
@@ -176,6 +190,29 @@ export const processUrlToInfoItem = async (url: string, setFeedback: (msg: strin
         }, 3000);
     });
 };
+
+// Intelligence Points Management
+export const createIntelligencePoint = (data: Omit<Subscription, 'id' | 'source_id' | 'is_active' | 'last_triggered_at' | 'created_at' | 'updated_at' | 'keywords' | 'newItemsCount'>) =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const deleteIntelligencePoints = (point_ids: string[]) =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+        method: 'DELETE',
+        body: JSON.stringify({ point_ids }),
+    });
+    
+export const deleteSource = (sourceName: string): Promise<{ message: string }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, {
+        method: 'DELETE',
+    });
+};
+
+
+// Intelligence Prompts
+export const getAllPrompts = (): Promise<AllPrompts> => apiFetch(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
 
 
 // --- Livestream Analysis Service ---
@@ -241,17 +278,17 @@ export const createHistoryLivestreamTask = (data: {
 export const deleteLivestreamTask = (taskId: string): Promise<void> =>
     apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
 
-export const startListenTask = (taskId: string): Promise<void> =>
-    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, { method: 'POST' });
+export const startListenTask = (taskId: string): Promise<{ message: string }> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, { method: 'POST' });
 
-export const stopListenTask = (taskId: string): Promise<void> =>
-    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
+export const stopListenTask = (taskId: string): Promise<{ message: string }> =>
+    apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, { method: 'POST' });
 
 export const getLivestreamPrompts = (): Promise<LivestreamPrompt[]> =>
     apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 
 export const updateLivestreamPrompt = (name: string, content: string): Promise<LivestreamPrompt> =>
     apiFetch(`${LIVESTREAM_SERVICE_PATH}/prompts/${name}`, {
-        method: 'PUT',
+        method: 'POST', // The doc says POST for update, not PUT
         body: JSON.stringify({ content }),
     });
