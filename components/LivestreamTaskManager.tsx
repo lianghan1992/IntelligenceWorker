@@ -2,10 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LivestreamTask } from '../types';
 import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
-import { AddEventModal } from './AddEventModal';
-import { AddHistoryEventModal } from './AddHistoryEventModal';
-import { PlusIcon } from './icons';
-import { EventReportModal } from './EventReportModal';
+import { PlayIcon, StopIcon, TrashIcon } from './icons';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-gray-500" }) => (
     <svg className={`animate-spin ${className}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -14,38 +11,43 @@ const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-g
     </svg>
 );
 
-const getStatusBadge = (status: string) => {
-    const s = status.toLowerCase();
-    if (s === 'recording') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 animate-pulse">录制中</span>;
-    if (s === 'listening') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-cyan-100 text-cyan-800 animate-pulse">监听中</span>;
-    if (s === 'processing') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 animate-pulse">分析中</span>;
-    if (s === 'completed') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">已完成</span>;
-    if (s === 'failed') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
-    if (s === 'pending') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">等待监听</span>;
-    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
+const formatTime = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).replace(/\//g, '-');
 };
 
+const getStatusChip = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower === 'completed') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">已完成</span>;
+    if (statusLower === 'processing') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800 animate-pulse">分析中</span>;
+    if (statusLower === 'recording') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">录制中</span>;
+    if (statusLower === 'listening') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">监听中</span>;
+    if (statusLower === 'failed') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">失败</span>;
+    if (statusLower === 'pending') return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">待处理</span>;
+    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{status}</span>;
+};
 
 export const LivestreamTaskManager: React.FC = () => {
     const [tasks, setTasks] = useState<LivestreamTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isMutating, setIsMutating] = useState<string | null>(null);
     const [error, setError] = useState('');
-
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [taskToDelete, setTaskToDelete] = useState<LivestreamTask | null>(null);
-    const [taskToView, setTaskToView] = useState<LivestreamTask | null>(null);
+    const [isActionLoading, setIsActionLoading] = useState<string | null>(null); // Store task ID being acted upon
 
     const loadTasks = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
-            const data = await getLivestreamTasks();
-             const sorted = data.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            const fetchedTasks = await getLivestreamTasks();
+             if (!Array.isArray(fetchedTasks)) {
+                console.warn("LivestreamTaskManager: API call did not return an array. Defaulting to empty.");
+                setTasks([]);
+                return;
+            }
+            const sorted = fetchedTasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setTasks(sorted);
         } catch (err: any) {
-            setError(err.message || '无法加载任务列表');
+            setError(err.message || '无法获取任务列表');
         } finally {
             setIsLoading(false);
         }
@@ -55,132 +57,87 @@ export const LivestreamTaskManager: React.FC = () => {
         loadTasks();
     }, [loadTasks]);
 
-    const handleDelete = async () => {
+    const handleDeleteConfirm = async () => {
         if (!taskToDelete) return;
-        setIsMutating(taskToDelete.id);
-        setError('');
+        setIsActionLoading(taskToDelete.id);
         try {
             await deleteLivestreamTask(taskToDelete.id);
             setTaskToDelete(null);
-            await loadTasks(); // Refresh list
+            loadTasks();
         } catch (err: any) {
-            setError(`删除失败: ${err.message}`);
+            setError(err.message || '删除任务失败');
         } finally {
-            setIsMutating(null);
+            setIsActionLoading(null);
+        }
+    };
+    
+    const handleToggleListen = async (task: LivestreamTask) => {
+        setIsActionLoading(task.id);
+        try {
+            if (task.status.toLowerCase() === 'listening') {
+                await stopListenTask(task.id);
+            } else {
+                await startListenTask(task.id);
+            }
+            loadTasks(); // Refresh list to show new status
+        } catch (err: any) {
+            setError(err.message || '操作失败');
+        } finally {
+            setIsActionLoading(null);
         }
     };
 
-    const handleListenControl = async (taskId: string, action: 'start' | 'stop') => {
-        setIsMutating(taskId);
-        setError('');
-        try {
-            if (action === 'start') {
-                await startListenTask(taskId);
-            } else {
-                await stopListenTask(taskId);
-            }
-            await loadTasks();
-        } catch(err: any) {
-            setError(`操作失败: ${err.message}`);
-        } finally {
-            setIsMutating(null);
-        }
-    }
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">直播分析任务管理</h2>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100">
-                        <PlusIcon className="w-5 h-5" />
-                        <span>创建历史任务</span>
-                    </button>
-                    <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700">
-                        <PlusIcon className="w-5 h-5" />
-                        <span>创建新任务</span>
-                    </button>
-                </div>
-            </div>
-            
+            <h2 className="text-2xl font-bold text-gray-800">事件分析任务管理</h2>
+
             {error && <div className="p-3 bg-red-100 text-red-700 rounded-md">{error}</div>}
 
             <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
                 <table className="w-full text-sm text-left text-gray-600">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3">封面</th>
-                            <th className="px-6 py-3">直播名称</th>
-                            <th className="px-6 py-3">实体</th>
-                            <th className="px-6 py-3">开始时间</th>
+                            <th className="px-6 py-3">事件名称</th>
+                            <th className="px-6 py-3">关联实体</th>
                             <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">提示词</th>
+                            <th className="px-6 py-3">开始时间</th>
+                            <th className="px-6 py-3">URL</th>
                             <th className="px-6 py-3">操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading && <tr><td colSpan={7} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
-                        {!isLoading && tasks.map(task => {
-                            const isTaskMutating = isMutating === task.id;
-                            const canViewReport = task.status.toLowerCase() === 'completed' && task.summary_report;
-                            const status = task.status.toLowerCase();
-                            const canStart = status === 'pending';
-                            const canStop = status === 'listening' || status === 'recording';
-
-                            return (
-                                <tr key={task.id} className="border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4">
-                                        <div className="w-24 h-14 bg-gray-200 rounded-md overflow-hidden">
-                                            {task.livestream_image ? (
-                                                <img src={task.livestream_image} alt={task.livestream_name} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-semibold">无封面</div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="font-semibold text-gray-800">{task.livestream_name}</div>
-                                        <div className="text-xs text-gray-500">{task.host_name || '未知主播'}</div>
-                                        <a href={task.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">访问链接</a>
-                                    </td>
-                                    <td className="px-6 py-4 font-semibold text-gray-700">{task.entity || '-'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
-                                    <td className="px-6 py-4">{getStatusBadge(task.status)}</td>
-                                    <td className="px-6 py-4 text-xs max-w-xs">
-                                        <p className="truncate" title={task.prompt_content || '无'}>
-                                            {task.prompt_content || '无'}
-                                        </p>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
-                                            <div className="flex items-center gap-3">
-                                                 {canViewReport && (
-                                                    <button onClick={() => setTaskToView(task)} className="font-semibold text-blue-600 hover:underline text-sm">查看报告</button>
-                                                )}
-                                                {canStart && (
-                                                    <button onClick={() => handleListenControl(task.id, 'start')} className="font-semibold text-green-600 hover:underline text-sm">开始监听</button>
-                                                )}
-                                                {canStop && (
-                                                    <button onClick={() => handleListenControl(task.id, 'stop')} className="font-semibold text-orange-600 hover:underline text-sm">停止监听</button>
-                                                )}
-                                                <button onClick={() => setTaskToDelete(task)} className="font-semibold text-red-600 hover:underline text-sm">删除</button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            );
-                        })}
+                        {isLoading && <tr><td colSpan={6} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
+                        {!isLoading && tasks.map(task => (
+                            <tr key={task.id} className="border-b hover:bg-gray-50">
+                                <td className="px-6 py-4 font-semibold text-gray-800">{task.livestream_name}</td>
+                                <td className="px-6 py-4">{task.entity || '-'}</td>
+                                <td className="px-6 py-4">{getStatusChip(task.status)}</td>
+                                <td className="px-6 py-4">{formatTime(task.start_time)}</td>
+                                <td className="px-6 py-4 max-w-xs truncate"><a href={task.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{task.url}</a></td>
+                                <td className="px-6 py-4 flex items-center gap-2">
+                                    {(task.status.toLowerCase() === 'pending' || task.status.toLowerCase() === 'listening') && (
+                                        <button
+                                            onClick={() => handleToggleListen(task)}
+                                            disabled={isActionLoading === task.id}
+                                            className="p-2 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-50"
+                                            title={task.status.toLowerCase() === 'listening' ? '停止监听' : '开始监听'}
+                                        >
+                                            {isActionLoading === task.id ? <Spinner className="w-4 h-4 text-gray-500" /> : task.status.toLowerCase() === 'listening' ? <StopIcon className="w-4 h-4 text-red-600" /> : <PlayIcon className="w-4 h-4 text-green-600" />}
+                                        </button>
+                                    )}
+                                    <button onClick={() => setTaskToDelete(task)} disabled={isActionLoading === task.id} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md disabled:opacity-50"><TrashIcon className="w-4 h-4" /></button>
+                                </td>
+                            </tr>
+                        ))}
                          {!isLoading && tasks.length === 0 && (
-                            <tr><td colSpan={7} className="text-center py-16 text-gray-500">暂无分析任务</td></tr>
-                        )}
+                            <tr><td colSpan={6} className="text-center py-10">暂无事件分析任务</td></tr>
+                         )}
                     </tbody>
                 </table>
             </div>
-
-            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
-            {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={loadTasks} />}
-            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除任务 "${taskToDelete.livestream_name}" 吗？`} onConfirm={handleDelete} onCancel={() => setTaskToDelete(null)} />}
-            {taskToView && <EventReportModal event={taskToView} onClose={() => setTaskToView(null)} />}
+            
+            {taskToDelete && <ConfirmationModal title="确认删除任务" message={`您确定要删除事件 "${taskToDelete.livestream_name}" 吗？此操作无法撤销。`} onConfirm={handleDeleteConfirm} onCancel={() => setTaskToDelete(null)} isLoading={!!isActionLoading} />}
         </div>
     );
 };
