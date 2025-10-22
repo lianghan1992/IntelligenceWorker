@@ -9,7 +9,8 @@ interface TaskCardProps {
 
 const getStatusDetails = (status: LivestreamTask['status']) => {
     const s = status.toLowerCase();
-    if (s === 'recording' || s === 'listening') return { text: '直播中', color: 'bg-red-500', pulse: true };
+    if (s === 'recording') return { text: '直播中', color: 'bg-red-500', pulse: true };
+    if (s === 'listening') return { text: '监听中', color: 'bg-cyan-500', pulse: true };
     if (s === 'processing') return { text: '分析中', color: 'bg-yellow-500', pulse: true };
     if (s === 'completed') return { text: '已结束', color: 'bg-green-500', pulse: false };
     if (s === 'failed') return { text: '失败', color: 'bg-gray-600', pulse: false };

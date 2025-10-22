@@ -61,9 +61,12 @@ export const IndustryEvents: React.FC = () => {
 
         tasks.forEach(task => {
             const status = task.status.toLowerCase();
-            if (status === 'listening' || status === 'recording') {
+            const startTime = new Date(task.start_time).getTime();
+            const now = new Date().getTime();
+
+            if (status === 'recording') {
                 live.push(task);
-            } else if (status === 'pending' && new Date(task.start_time) > new Date()) {
+            } else if (status === 'listening' || (status === 'pending' && startTime > now)) {
                 upcoming.push(task);
             } else { // completed, failed, processing, or pending but past start time
                 finished.push(task);
@@ -106,8 +109,8 @@ export const IndustryEvents: React.FC = () => {
 
         return (
             <div className="space-y-12">
-                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} />
                 <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} />
+                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} />
                 <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} />
             </div>
         )
