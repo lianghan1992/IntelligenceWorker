@@ -1,12 +1,13 @@
-
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from '../icons';
-import { createIntelligencePoint, getAllPrompts } from '../../api';
-import { AllPrompts, Prompt } from '../../types';
+import { createIntelligencePoint, getAllPrompts, deleteIntelligencePoints } from '../../api';
+import { AllPrompts, Prompt, Subscription, SystemSource } from '../../types';
 
 interface IntelligencePointModalProps {
     onClose: () => void;
     onSuccess: () => void;
+    pointToEdit: Subscription | null;
+    sources: SystemSource[];
 }
 
 const Spinner: React.FC = () => (
@@ -20,13 +21,23 @@ const promptToArray = (promptCollection: { [key: string]: Prompt }): { key: stri
     return Object.entries(promptCollection).map(([key, value]) => ({ key, name: value.name }));
 };
 
+const cronOptions = [
+    { label: '每30分钟', value: '*/30 * * * *' },
+    { label: '每小时', value: '0 * * * *' },
+    { label: '每3小时', value: '0 */3 * * *' },
+    { label: '每6小时', value: '0 */6 * * *' },
+    { label: '每8小时', value: '0 */8 * * *' },
+    { label: '每12小时', value: '0 */12 * * *' },
+    { label: '每24小时', value: '0 0 * * *' },
+    { label: '每1周', value: '0 0 * * 0' },
+];
 
-export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ onClose, onSuccess }) => {
+export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ onClose, onSuccess, pointToEdit, sources }) => {
     const [formData, setFormData] = useState({
         source_name: '',
         point_name: '',
         point_url: '',
-        cron_schedule: '0 */4 * * *', // Default to every 4 hours
+        cron_schedule: '0 */6 * * *', // Default
         url_prompt_key: 'default_list_parser',
         summary_prompt_key: 'default_summary'
     });
@@ -34,6 +45,19 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     
+    useEffect(() => {
+        if (pointToEdit) {
+            setFormData({
+                source_name: pointToEdit.source_name,
+                point_name: pointToEdit.point_name,
+                point_url: pointToEdit.point_url,
+                cron_schedule: pointToEdit.cron_schedule,
+                url_prompt_key: pointToEdit.url_prompt_key,
+                summary_prompt_key: pointToEdit.summary_prompt_key,
+            });
+        }
+    }, [pointToEdit]);
+
     const isFormValid = formData.source_name.trim() && formData.point_name.trim() && formData.point_url.trim() && formData.cron_schedule.trim();
 
     useEffect(() => {
@@ -58,11 +82,17 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         setIsLoading(true);
         setError('');
         try {
-            await createIntelligencePoint(formData);
+            if (pointToEdit) {
+                // "Edit" is implemented as Create + Delete since there's no update API
+                await createIntelligencePoint(formData);
+                await deleteIntelligencePoints([pointToEdit.id]);
+            } else {
+                await createIntelligencePoint(formData);
+            }
             onSuccess();
             onClose();
         } catch (err: any) {
-            setError(err.message || '创建失败，请重试');
+            setError(err.message || '操作失败，请重试');
         } finally {
             setIsLoading(false);
         }
@@ -70,12 +100,13 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     
     const urlExtractionPrompts = prompts ? promptToArray(prompts.url_extraction_prompts) : [];
     const contentSummaryPrompts = prompts ? promptToArray(prompts.content_summary_prompts) : [];
+    const mode = pointToEdit ? '修改' : '添加';
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
                 <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-gray-900">添加情报点</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">{mode}情报点</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
                         <CloseIcon className="w-6 h-6" />
                     </button>
@@ -89,7 +120,10 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                     )}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">情报源名称 <span className="text-red-500">*</span></label>
-                        <input name="source_name" type="text" value={formData.source_name} onChange={handleChange} placeholder="例如：盖世汽车 (若已存在则关联)" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                        <input name="source_name" type="text" value={formData.source_name} onChange={handleChange} list="sources-list" placeholder="输入新名称或选择已有名称" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                        <datalist id="sources-list">
+                            {sources.map(s => <option key={s.id} value={s.source_name} />)}
+                        </datalist>
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">情报点名称 <span className="text-red-500">*</span></label>
@@ -100,9 +134,10 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                         <input name="point_url" type="url" value={formData.point_url} onChange={handleChange} placeholder="https://auto.gasgoo.com/news/C-101" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CRON 计划 <span className="text-red-500">*</span></label>
-                        <input name="cron_schedule" type="text" value={formData.cron_schedule} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" disabled={isLoading} />
-                        <p className="text-xs text-gray-500 mt-1">默认为每4小时执行一次。格式: 分 时 日 月 周。</p>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">采集频率 <span className="text-red-500">*</span></label>
+                        <select name="cron_schedule" value={formData.cron_schedule} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading}>
+                           {cronOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">URL提取提示词</label>
@@ -124,7 +159,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                         disabled={!isFormValid || isLoading}
                         className="py-2 px-4 w-28 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center"
                     >
-                        {isLoading ? <Spinner /> : '创建'}
+                        {isLoading ? <Spinner /> : '保存'}
                     </button>
                 </div>
             </div>

@@ -35,10 +35,7 @@ export const AdminPage: React.FC = () => {
     return (
         <div className="flex h-full bg-gray-50/50">
             <aside className="w-56 bg-white border-r flex-shrink-0">
-                <div className="p-4">
-                    <h2 className="text-lg font-semibold text-gray-800">后台管理</h2>
-                </div>
-                <nav className="p-2">
+                <nav className="p-2 mt-4">
                     {navItems.map(item => (
                         <button
                             key={item.view}

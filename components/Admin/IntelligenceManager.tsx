@@ -197,7 +197,8 @@ export const IntelligenceManager: React.FC = () => {
                 </div>
             </div>
 
-            {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={handleRefreshAll} />}
+            {/* FIX: Pass missing `pointToEdit` and `sources` props to fix compilation error. */}
+            {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={handleRefreshAll} pointToEdit={null} sources={sources} />}
             {actionTarget && (
                 <ConfirmationModal
                     title={`确认删除`}
