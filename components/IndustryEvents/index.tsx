@@ -13,7 +13,7 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
     return (
         <section>
             <h2 className="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">{title}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
