@@ -1,4 +1,3 @@
-// src/api.ts
 import { 
     USER_SERVICE_PATH, 
     INTELLIGENCE_SERVICE_PATH, 
@@ -145,11 +144,20 @@ export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => 
     }, 1500));
 };
 
+const createApiQuery = (params: any): string => {
+    // Filter out null, undefined, or empty string values from the parameters
+    const filteredParams = Object.fromEntries(
+        Object.entries(params).filter(([_, v]) => v !== null && v !== undefined && v !== '')
+    );
+    return new URLSearchParams(filteredParams as Record<string, string>).toString();
+}
+
 // --- Livestream / Events API ---
 export const getLivestreamTasks = (params: any): Promise<PaginatedResponse<LivestreamTask>> => {
-    const query = new URLSearchParams(params).toString();
+    const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks?${query}`);
 };
+
 export const getLivestreamTasksStats = (): Promise<any> => apiFetch<any>(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
 
 export const createLivestreamTask = (data: { url: string; livestream_name: string; entity: string; start_time: string; prompt_file: string; image?: File }): Promise<LivestreamTask> => {
@@ -187,6 +195,6 @@ export const getAllPrompts = (): Promise<AllPrompts> => apiFetch<AllPrompts>(`${
 
 // --- Intelligence Tasks (formerly Crawler Tasks) API ---
 export const getIntelligenceTasks = (params: any): Promise<PaginatedResponse<IntelligenceTask>> => {
-    const query = new URLSearchParams(params).toString();
+    const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<IntelligenceTask>>(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query}`);
 };
