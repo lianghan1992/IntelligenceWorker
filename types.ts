@@ -271,19 +271,16 @@ export interface BililiveStream {
 export interface LivestreamTask {
   id: string;
   url: string;
-  host_name: string | null;
-  event_date: string | null;
   livestream_name: string;
   start_time: string;
-  livestream_image: string | null; // base64 data
-  needs_analysis: boolean;
-  timestamp: string;
+  bililive_live_id: string | null;
   prompt_file: string | null;
-  status: string; // e.g., '即将开始', '直播中', 'AI总结', '已完成'
+  status: string; // e.g., 'pending', 'listening', 'recording', 'processing', 'completed', 'failed'
   summary_report: string | null; // markdown format
   created_at: string;
   updated_at: string;
 }
+
 
 // Navigation views
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'dives' | 'events' | 'ai' | 'admin' | 'forecast';

@@ -409,66 +409,51 @@ export const deleteBililiveStream = async (liveId: string): Promise<{ message: s
     });
 };
 
-// --- Livestream Analysis Service (Updated) ---
+// --- Livestream Analysis Service (Updated for new API) ---
 export const getLivestreamTasks = async (): Promise<LivestreamTask[]> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/livestream`);
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`);
 };
 
 export const createLivestreamTask = async (data: {
     url: string;
     livestream_name: string;
     start_time: string;
-    host_name?: string;
-    event_date?: string;
-    needs_analysis?: boolean;
     prompt_file?: string;
     image?: File;
 }): Promise<LivestreamTask> => {
-    if (data.image) {
-        const formData = new FormData();
-        formData.append('url', data.url);
-        formData.append('livestream_name', data.livestream_name);
-        formData.append('start_time', data.start_time);
-        if (data.host_name) formData.append('host_name', data.host_name);
-        if (data.event_date) formData.append('event_date', data.event_date);
-        if (data.needs_analysis !== undefined) formData.append('needs_analysis', String(data.needs_analysis));
-        if (data.prompt_file) formData.append('prompt_file', data.prompt_file);
-        formData.append('image', data.image);
-
-        return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/create-with-image`, {
-            method: 'POST',
-            body: formData,
-        });
-    } else {
-        const { image, ...jsonData } = data;
-        return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/create`, {
-            method: 'POST',
-// FIX: The body of a fetch request must be a string or a buffer, not an object.
-// Stringify the JSON data before sending.
-            body: JSON.stringify(jsonData),
-        });
+    const formData = new FormData();
+    formData.append('url', data.url);
+    formData.append('livestream_name', data.livestream_name);
+    formData.append('start_time', data.start_time);
+    if (data.prompt_file) {
+        formData.append('prompt_file', data.prompt_file);
     }
+    if (data.image) {
+        formData.append('image', data.image);
+    }
+
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
+        method: 'POST',
+        body: formData,
+    });
 };
 
+
 export const deleteLivestreamTask = async (taskId: string): Promise<any> => {
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/livestream/${taskId}`, {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, {
         method: 'DELETE',
     });
 };
 
-export const updateLivestreamTaskStatus = async (
-    taskId: string,
-    status: string,
-    summary_report?: string
-): Promise<any> => {
-    const formData = new FormData();
-    formData.append('status', status);
-    if (summary_report) {
-        formData.append('summary_report', summary_report);
-    }
-    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/livestream/${taskId}/status`, {
-        method: 'PUT',
-        body: formData,
+export const startListenTask = async (taskId: string): Promise<any> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, {
+        method: 'POST',
+    });
+};
+
+export const stopListenTask = async (taskId: string): Promise<any> => {
+    return apiFetch(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, {
+        method: 'POST',
     });
 };
 

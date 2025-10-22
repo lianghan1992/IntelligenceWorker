@@ -38,20 +38,18 @@ export const IndustryEvents: React.FC = () => {
             const fetchedTasks = await getLivestreamTasks();
 
             if (!Array.isArray(fetchedTasks)) {
-                console.warn("IndustryEvents: API at /livestream/tasks/livestream did not return an array. Defaulting to empty array.");
+                console.warn("IndustryEvents: API at /livestream/tasks did not return an array. Defaulting to empty array.");
                 setTasks([]);
                 return;
             }
             
             const statusOrder: { [key: string]: number } = {
-                '直播中': 1,
-                'AI总结': 2,
-                'processing': 2,
-                '即将开始': 3,
-                'pending': 3,
-                '已完成': 4,
-                'completed': 4,
-                'failed': 5,
+                'recording': 1,
+                'listening': 2,
+                'processing': 3,
+                'pending': 4,
+                'completed': 5,
+                'failed': 6,
             };
             const sortedTasks = [...fetchedTasks].sort((a, b) => {
                 const orderA = statusOrder[a.status] || 99;
@@ -78,10 +76,10 @@ export const IndustryEvents: React.FC = () => {
         return tasks.filter(task => {
             const status = task.status.toLowerCase();
             switch (statusFilter) {
-                case 'upcoming': return status === '即将开始' || status === 'pending';
-                case 'live': return status === '直播中';
-                case 'analyzing': return status === 'ai总结' || status === 'processing';
-                case 'completed': return status === '已完成' || status === 'completed';
+                case 'upcoming': return status === 'pending';
+                case 'live': return status === 'listening' || status === 'recording';
+                case 'analyzing': return status === 'processing';
+                case 'completed': return status === 'completed';
                 case 'failed': return status === 'failed';
                 default: return true;
             }
@@ -89,7 +87,7 @@ export const IndustryEvents: React.FC = () => {
     }, [tasks, statusFilter]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
-        if (task.status === '已完成' || task.status === 'completed') {
+        if (task.status === 'completed') {
             setSelectedEvent(task);
         }
     };

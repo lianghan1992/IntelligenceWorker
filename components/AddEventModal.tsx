@@ -8,7 +8,7 @@ interface AddEventModalProps {
 }
 
 const Spinner: React.FC = () => (
-    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -19,9 +19,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         url: '',
         livestream_name: '',
         start_time: '',
-        host_name: '',
-        event_date: '',
-        needs_analysis: true,
         prompt_file: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -35,14 +32,8 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, [formData]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value, type } = e.target;
-        
-        if (type === 'checkbox') {
-            const checked = (e.target as HTMLInputElement).checked;
-            setFormData(prev => ({ ...prev, [name]: checked }));
-        } else {
-            setFormData(prev => ({ ...prev, [name]: value }));
-        }
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
     
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,16 +102,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                             <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>
                             <input name="start_time" type="datetime-local" value={formData.start_time} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">主播名称 (可选)</label>
-                                <input name="host_name" type="text" value={formData.host_name} onChange={handleChange} placeholder="例如：比亚迪汽车" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" disabled={isLoading} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">事件日期 (可选)</label>
-                                <input name="event_date" type="date" value={formData.event_date} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" disabled={isLoading} />
-                            </div>
-                        </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">提示词文件路径 (可选)</label>
                             <input name="prompt_file" type="text" value={formData.prompt_file} onChange={handleChange} placeholder="服务器上的文件路径, e.g., prompts/car_launch.txt" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" disabled={isLoading} />
@@ -138,10 +119,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                 )}
                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                             </div>
-                        </div>
-                         <div className="flex items-center gap-2">
-                             <input name="needs_analysis" type="checkbox" checked={formData.needs_analysis} onChange={handleChange} id="needs_analysis_checkbox" className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                             <label htmlFor="needs_analysis_checkbox" className="text-sm text-gray-700">需要AI分析</label>
                         </div>
                     </div>
                 </div>

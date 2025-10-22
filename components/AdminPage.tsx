@@ -245,7 +245,10 @@ const ArticleListManager: React.FC<{
         setError('');
         
         try {
-            const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
+            // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
+            const allPointIds = Array.from(new Set(
+                allSources.reduce<string[]>((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [])
+            ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
 
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
@@ -335,10 +338,14 @@ const ArticleListManager: React.FC<{
         setError('');
         try {
             // Build base parameters
-            const allPointIds = Array.from(new Set(allSources.flatMap(s => (pointsBySourceForFilter[s.name] || []).map(p => p.id))));
+            // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
+            const allPointIds = Array.from(new Set(
+                allSources.reduce<string[]>((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [])
+            ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length > 0) {
-                pointIdsToQuery = activeFilters.selectedSourceNames.flatMap(name => (pointsBySourceForFilter[name] || []).map(p => p.id));
+                // FIX: Replaced flatMap with reduce to ensure proper type inference and avoid 'unknown[]' errors.
+                pointIdsToQuery = activeFilters.selectedSourceNames.reduce<string[]>((acc, name) => acc.concat((pointsBySourceForFilter[name] || []).map(p => p.id)), []);
             }
             if (pointIdsToQuery.length === 0 && activeFilters.selectedSourceNames.length === 0) {
                 pointIdsToQuery = allPointIds;
