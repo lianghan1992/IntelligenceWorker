@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
+import { IntelligenceManager } from './IntelligenceManager';
 
 // Placeholders for other admin components
-const IntelligenceManagerPlaceholder: React.FC = () => <div className="p-6">Intelligence Sources & Points Management Coming Soon...</div>;
 const UserManagerPlaceholder: React.FC = () => <div className="p-6">User Management Coming Soon...</div>;
 const DivesManagerPlaceholder: React.FC = () => <div className="p-6">Deep Dives Management Coming Soon...</div>;
 
@@ -15,14 +15,14 @@ const navItems: { view: AdminView; label: string }[] = [
 ];
 
 export const AdminPage: React.FC = () => {
-    const [view, setView] = useState<AdminView>('events');
+    const [view, setView] = useState<AdminView>('intelligence');
 
     const renderView = () => {
         switch (view) {
             case 'events':
                 return <LivestreamTaskManager />;
             case 'intelligence':
-                return <IntelligenceManagerPlaceholder />;
+                return <IntelligenceManager />;
             case 'users':
                 return <UserManagerPlaceholder />;
             case 'dives':
@@ -54,7 +54,7 @@ export const AdminPage: React.FC = () => {
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 overflow-y-auto p-6">
+            <main className="flex-1 overflow-y-auto">
                 {renderView()}
             </main>
         </div>
