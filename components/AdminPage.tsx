@@ -247,6 +247,7 @@ const ArticleListManager: React.FC<{
         try {
             // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
             const allPointIds = Array.from(new Set(
+                // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
                 allSources.reduce((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [] as string[])
             ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;
@@ -341,6 +342,7 @@ const ArticleListManager: React.FC<{
             // Build base parameters
             // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
             const allPointIds = Array.from(new Set(
+                // FIX: Replaced flatMap with a safer reduce to avoid TypeScript type inference issues.
                 allSources.reduce((acc, s) => acc.concat((pointsBySourceForFilter[s.name] || []).map(p => p.id)), [] as string[])
             ));
             let pointIdsToQuery: string[] = activeFilters.selectedPointIds;

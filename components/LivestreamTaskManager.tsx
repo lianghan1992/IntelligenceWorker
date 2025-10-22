@@ -3,7 +3,7 @@ import { LivestreamTask } from '../types';
 import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../api';
 import { ConfirmationModal } from './ConfirmationModal';
 import { AddEventModal } from './AddEventModal';
-import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from './icons';
+import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
 
 const Spinner: React.FC<{ className?: string }> = ({ className = "h-5 w-5 text-gray-500" }) => (
@@ -101,15 +101,16 @@ export const LivestreamTaskManager: React.FC = () => {
                 <table className="w-full text-sm text-left text-gray-600">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
+                            <th className="px-6 py-3">封面</th>
                             <th className="px-6 py-3">直播名称</th>
                             <th className="px-6 py-3">开始时间</th>
                             <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">创建时间</th>
+                            <th className="px-6 py-3">提示词</th>
                             <th className="px-6 py-3">操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading && <tr><td colSpan={5} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
+                        {isLoading && <tr><td colSpan={6} className="text-center py-10"><Spinner className="h-8 w-8 text-gray-400 mx-auto" /></td></tr>}
                         {!isLoading && tasks.map(task => {
                             const isTaskMutating = isMutating === task.id;
                             const canViewReport = task.status.toLowerCase() === 'completed';
@@ -120,31 +121,39 @@ export const LivestreamTaskManager: React.FC = () => {
                             return (
                                 <tr key={task.id} className="border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
+                                        <div className="w-24 h-14 bg-gray-200 rounded-md overflow-hidden">
+                                            {task.livestream_image ? (
+                                                <img src={task.livestream_image} alt={task.livestream_name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-semibold">无封面</div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
                                         <div className="font-semibold text-gray-800">{task.livestream_name}</div>
+                                        <div className="text-xs text-gray-500">{task.host_name || '未知主播'}</div>
                                         <a href={task.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">访问链接</a>
                                     </td>
-                                    <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
                                     <td className="px-6 py-4">{getStatusBadge(task.status)}</td>
-                                    <td className="px-6 py-4">{new Date(task.created_at).toLocaleDateString('zh-CN')}</td>
+                                    <td className="px-6 py-4 text-xs max-w-xs">
+                                        <p className="truncate" title={task.prompt_content || '无'}>
+                                            {task.prompt_content || '无'}
+                                        </p>
+                                    </td>
                                     <td className="px-6 py-4">
                                         {isTaskMutating ? <Spinner className="h-5 w-5 text-blue-500" /> : (
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-3">
                                                  {canViewReport && (
                                                     <button onClick={() => setTaskToView(task)} className="font-semibold text-blue-600 hover:underline text-sm">查看报告</button>
                                                 )}
                                                 {canStart && (
-                                                    <button onClick={() => handleListenControl(task.id, 'start')} className="p-2 text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-md" title="开始监听">
-                                                        <PlayIcon className="w-4 h-4" />
-                                                    </button>
+                                                    <button onClick={() => handleListenControl(task.id, 'start')} className="font-semibold text-green-600 hover:underline text-sm">开始监听</button>
                                                 )}
                                                 {canStop && (
-                                                    <button onClick={() => handleListenControl(task.id, 'stop')} className="p-2 text-gray-500 hover:text-orange-600 hover:bg-gray-100 rounded-md" title="停止监听">
-                                                        <StopIcon className="w-4 h-4" />
-                                                    </button>
+                                                    <button onClick={() => handleListenControl(task.id, 'stop')} className="font-semibold text-orange-600 hover:underline text-sm">停止监听</button>
                                                 )}
-                                                <button onClick={() => setTaskToDelete(task)} className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 rounded-md" title="删除任务">
-                                                    <TrashIcon className="w-4 h-4" />
-                                                </button>
+                                                <button onClick={() => setTaskToDelete(task)} className="font-semibold text-red-600 hover:underline text-sm">删除</button>
                                             </div>
                                         )}
                                     </td>

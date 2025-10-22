@@ -273,9 +273,11 @@ export interface LivestreamTask {
   url: string;
   livestream_name: string;
   start_time: string;
-  bililive_live_id: string | null;
-  prompt_file: string | null;
   status: string; // e.g., 'pending', 'listening', 'recording', 'processing', 'completed', 'failed'
+  bililive_live_id: string | null;
+  host_name: string | null;
+  prompt_content: string | null;
+  livestream_image: string | null; // This is a base64 data URL
   summary_report: string | null; // markdown format
   created_at: string;
   updated_at: string;

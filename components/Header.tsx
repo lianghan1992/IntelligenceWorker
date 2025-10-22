@@ -28,7 +28,7 @@ const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSV
     { view: 'feed', label: '情报信息流', icon: FeedIcon },
     { view: 'forecast', label: '技术预测', icon: BrainIcon },
     { view: 'dives', label: '深度洞察', icon: DiveIcon },
-    { view: 'events', label: '行业事件', icon: VideoCameraIcon },
+    { view: 'events', label: '发布会', icon: VideoCameraIcon },
     { view: 'ai', label: 'AI报告生成', icon: SparklesIcon },
 ];
 
