@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
@@ -5,7 +6,7 @@ import { InfoFeed } from './components/InfoFeed';
 import { DeepDives } from './components/DeepDives';
 import { IndustryEvents } from './components/IndustryEvents/index';
 import { ReportGenerator } from './components/ReportGenerator';
-import { AdminPage } from './components/AdminPage';
+import { AdminPage } from './components/Admin';
 import { AuthModal } from './components/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage';

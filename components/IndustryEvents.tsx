@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../types';
 import { getLivestreamTasks } from '../api';
 import { TaskCard } from './TaskCard';
-import { AddEventModal } from './AddEventModal';
-import { AddHistoryEventModal } from './AddHistoryEventModal';
+// FIX: Corrected import path for AddEventModal.
+import { AddEventModal } from './Admin/AddEventModal';
+// FIX: Corrected import path for AddHistoryEventModal.
+import { AddHistoryEventModal } from './Admin/AddHistoryEventModal';
 import { PlusIcon } from './icons';
 import { EventReportModal } from './EventReportModal';
 
