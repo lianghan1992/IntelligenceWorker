@@ -35,24 +35,10 @@ const getSafeImageUrl = (base64String: string | null): string | null => {
 };
 
 const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
-    let bigText = timeLeft;
-    let smallText = '后开始';
-
-    if (timeLeft.includes('天')) {
-        const parts = timeLeft.split(' ');
-        bigText = parts[0].replace('天', '');
-        smallText = `天 ${parts[1] || ''}后开始`;
-    } else if (timeLeft.includes('秒')) {
-        bigText = timeLeft.replace('秒', '');
-        smallText = '秒后开始';
-    }
-
     return (
-        <div className="absolute inset-0 flex items-center justify-center z-10 p-4">
-            <div className="w-36 h-36 md:w-40 md:h-40 rounded-full bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-white shadow-2xl text-center">
-                <div className="text-4xl md:text-5xl font-bold tracking-tighter leading-none">{bigText}</div>
-                <div className="text-sm opacity-80 mt-1">{smallText}</div>
-            </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-4 text-white text-center font-bold" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.7)' }}>
+            <div className="text-6xl lg:text-7xl tracking-tighter leading-none">{timeLeft}</div>
+            <div className="text-base lg:text-lg opacity-80 tracking-wide mt-1">后开始</div>
         </div>
     );
 };
