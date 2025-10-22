@@ -42,7 +42,8 @@ const mockBriefings: InsightBriefing[] = [
         id: 'brief-5',
         title: '自动驾驶卡车商业化落地新机遇：干线物流场景',
         summary: '随着“干线物流”场景法规的逐步明确，以及L4级技术在限定区域的成熟，自动驾驶卡车在港口、矿山等封闭场景的商业化落地正在加速。',
-        category: 'opportunity',
+        // FIX: The category 'opportunity' is not valid for 'StrategicLookKey'. Changed to 'industry' as it relates to industry trends.
+        category: 'industry',
         sourceArticleIds: ['art-7'],
         generatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
     }

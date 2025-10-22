@@ -245,7 +245,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                            {['pending', 'listening'].includes(task.status.toLowerCase()) && (
+                                            {['pending', 'listening', 'recording'].includes(task.status.toLowerCase()) && (
                                                 <button onClick={() => handleAction(task, task.status.toLowerCase() === 'pending' ? 'start' : 'stop')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-md" title={task.status.toLowerCase() === 'pending' ? '开始监听' : '停止监听'}>
                                                     {task.status.toLowerCase() === 'pending' ? <PlayIcon className="w-4 h-4 text-green-600" /> : <StopIcon className="w-4 h-4 text-yellow-600" />}
                                                 </button>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CloseIcon } from '../icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { CloseIcon, ChevronUpDownIcon } from '../icons';
 import { createIntelligencePoint, getAllPrompts, deleteIntelligencePoints } from '../../api';
 import { AllPrompts, Prompt, Subscription, SystemSource } from '../../types';
 
@@ -44,6 +44,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     const [prompts, setPrompts] = useState<AllPrompts | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [isCronDropdownOpen, setIsCronDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
     
     useEffect(() => {
         if (pointToEdit) {
@@ -57,6 +59,16 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
             });
         }
     }, [pointToEdit]);
+    
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsCronDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const isFormValid = formData.source_name.trim() && formData.point_name.trim() && formData.point_url.trim() && formData.cron_schedule.trim();
 
@@ -76,6 +88,11 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
+
+    const handleCronSelect = (value: string) => {
+        setFormData(prev => ({ ...prev, cron_schedule: value }));
+        setIsCronDropdownOpen(false);
+    }
 
     const handleSubmit = async () => {
         if (!isFormValid) return;
@@ -101,6 +118,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     const urlExtractionPrompts = prompts ? promptToArray(prompts.url_extraction_prompts) : [];
     const contentSummaryPrompts = prompts ? promptToArray(prompts.content_summary_prompts) : [];
     const mode = pointToEdit ? '修改' : '添加';
+    const currentCronLabel = cronOptions.find(opt => opt.value === formData.cron_schedule)?.label || formData.cron_schedule;
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -133,11 +151,26 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                         <label className="block text-sm font-medium text-gray-700 mb-1">情报点URL <span className="text-red-500">*</span></label>
                         <input name="point_url" type="url" value={formData.point_url} onChange={handleChange} placeholder="https://auto.gasgoo.com/news/C-101" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                     </div>
-                    <div>
+                    {/* Custom Dropdown for Cron */}
+                    <div ref={dropdownRef}>
                         <label className="block text-sm font-medium text-gray-700 mb-1">采集频率 <span className="text-red-500">*</span></label>
-                        <select name="cron_schedule" value={formData.cron_schedule} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading}>
-                           {cronOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                        </select>
+                        <div className="relative">
+                            <button type="button" onClick={() => setIsCronDropdownOpen(!isCronDropdownOpen)} disabled={isLoading} className="relative w-full cursor-default rounded-lg bg-gray-50 border border-gray-300 py-2 pl-3 pr-10 text-left focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                                <span className="block truncate">{currentCronLabel}</span>
+                                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                    <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                                </span>
+                            </button>
+                            {isCronDropdownOpen && (
+                                <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                                    {cronOptions.map((opt) => (
+                                        <li key={opt.value} onClick={() => handleCronSelect(opt.value)} className="text-gray-900 relative cursor-default select-none py-2 px-4 hover:bg-blue-100 hover:text-blue-900">
+                                            {opt.label}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">URL提取提示词</label>

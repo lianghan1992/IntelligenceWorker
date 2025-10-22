@@ -1,84 +1,80 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { ApiProcessingTask } from '../../types';
-import { getSources } from '../../api'; // You might need a way to get all tasks, let's assume an API exists
-// Assuming an API function `getIntelligenceTasks` exists. It's not in the provided `api.ts`, so I'll create a placeholder.
-// In a real scenario, this would be in `api.ts`.
-import { apiFetch } from '../../api';
-import { ChartIcon, CheckIcon, CloseIcon, SparklesIcon } from '../icons';
-
-const getIntelligenceTasks = (params: any): Promise<any> => {
-    const query = new URLSearchParams(params).toString();
-    return apiFetch(`/api/intelligence/tasks?${query}`);
-}
-const getIntelligenceTasksStats = (): Promise<any> => {
-    return apiFetch(`/api/intelligence/tasks/stats`);
-}
-
-// --- Internal Components ---
-const StatCard: React.FC<{ title: string; value: number | string; icon: React.ReactNode }> = ({ title, value, icon }) => (
-    <div className="bg-white p-4 rounded-lg border border-gray-200 flex items-center gap-4 shadow-sm">
-        <div className="bg-blue-100 text-blue-600 p-3 rounded-full flex-shrink-0">{icon}</div>
-        <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-2xl font-bold text-gray-800">{value}</p>
-        </div>
-    </div>
-);
+import { CrawlerTask } from '../../types';
+import { getCrawlerTasks } from '../../api';
+import { RefreshIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from '../icons';
 
 const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
+    if (statusLower === 'running') return { text: '采集中', className: 'bg-blue-100 text-blue-800 animate-pulse' };
     if (statusLower === 'completed') return { text: '已完成', className: 'bg-green-100 text-green-800' };
-    if (statusLower === 'processing') return { text: '处理中', className: 'bg-indigo-100 text-indigo-800 animate-pulse' };
     if (statusLower === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
+    if (statusLower === 'pending') return { text: '排队中', className: 'bg-yellow-100 text-yellow-800' };
     return { text: status, className: 'bg-gray-100 text-gray-800' };
 };
 
+const SortableHeader: React.FC<{
+    column: string;
+    label: string;
+    sortConfig: { sort_by: string; order: string };
+    onSort: (column: string) => void;
+    className?: string;
+}> = ({ column, label, sortConfig, onSort, className = "px-6 py-3" }) => (
+    <th scope="col" className={className}>
+        <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onSort(column)}>
+            {label}
+            {sortConfig.sort_by === column ? (
+                sortConfig.order === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+            ) : (
+                <ChevronUpDownIcon className="w-3 h-3 text-gray-400" />
+            )}
+        </div>
+    </th>
+);
+
 export const IntelligenceTaskManager: React.FC = () => {
-    const [tasks, setTasks] = useState<ApiProcessingTask[]>([]);
-    const [stats, setStats] = useState<any>({});
+    const [tasks, setTasks] = useState<CrawlerTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
-    const [filters, setFilters] = useState({ status: '', source_name: '' });
+    const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
 
-    const loadData = useCallback(async () => {
-        setIsLoading(true);
+    const loadTasks = useCallback(async (showLoading = true) => {
+        if (showLoading) setIsLoading(true);
         setError(null);
         try {
             const params = {
                 page: pagination.page,
                 limit: pagination.limit,
-                status: filters.status || undefined,
-                source_name: filters.source_name || undefined,
+                sort_by: sort.sort_by,
+                order: sort.order,
             };
-            const [tasksResponse, statsResponse] = await Promise.all([
-                getIntelligenceTasks(params),
-                getIntelligenceTasksStats()
-            ]);
-            
-            setTasks(tasksResponse.items || []);
-            setPagination({
-                page: tasksResponse.page,
-                limit: tasksResponse.limit,
-                total: tasksResponse.total,
-                totalPages: Math.ceil(tasksResponse.total / tasksResponse.limit),
-            });
-            setStats(statsResponse || {});
+            const response = await getCrawlerTasks(params);
+            if (response && Array.isArray(response.items)) {
+                setTasks(response.items);
+                setPagination({
+                    page: response.page,
+                    limit: response.limit,
+                    total: response.total,
+                    totalPages: response.totalPages ?? 1,
+                });
+            } else {
+                setTasks([]);
+                setPagination({ page: 1, limit: 15, total: 0, totalPages: 1 });
+            }
         } catch (err) {
-            setError(err instanceof Error ? err.message : '发生未知错误');
+            setError(err instanceof Error ? err.message : '获取采集任务失败');
         } finally {
-            setIsLoading(false);
+            if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit, filters]);
+    }, [pagination.page, pagination.limit, sort]);
 
     useEffect(() => {
-        loadData();
-    }, [loadData]);
+        loadTasks();
+    }, [loadTasks]);
 
-    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
-        setPagination(prev => ({ ...prev, page: 1 }));
+    const handleSort = (column: string) => {
+        const isAsc = sort.sort_by === column && sort.order === 'asc';
+        setSort({ sort_by: column, order: isAsc ? 'desc' : 'asc' });
     };
 
     const handlePageChange = (newPage: number) => {
@@ -89,51 +85,42 @@ export const IntelligenceTaskManager: React.FC = () => {
     
     return (
         <div className="h-full flex flex-col">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <StatCard title="任务总数" value={stats.total || 0} icon={<ChartIcon className="w-6 h-6"/>} />
-                <StatCard title="处理中" value={stats.processing || 0} icon={<SparklesIcon className="w-6 h-6"/>} />
-                <StatCard title="已完成" value={stats.completed || 0} icon={<CheckIcon className="w-6 h-6"/>} />
-                <StatCard title="失败" value={stats.failed || 0} icon={<CloseIcon className="w-6 h-6"/>} />
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                <h2 className="text-xl font-bold text-gray-800">采集任务监控</h2>
+                 <button onClick={() => loadTasks()} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
             </div>
-
-             <div className="mb-4 p-4 bg-white rounded-lg border flex items-center gap-4">
-                <input type="text" name="source_name" value={filters.source_name} onChange={handleFilterChange} placeholder="按情报源名称筛选..." className="w-full bg-white border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                <select name="status" value={filters.status} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">所有状态</option>
-                    <option value="processing">处理中</option>
-                    <option value="completed">已完成</option>
-                    <option value="failed">失败</option>
-                </select>
-            </div>
+            {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
             
-            <div className="bg-white rounded-lg border overflow-x-auto flex-1">
+            <div className="bg-white rounded-lg border overflow-y-auto flex-1">
                 <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
-                            <th scope="col" className="px-6 py-3">情报源/点</th>
-                            <th scope="col" className="px-6 py-3">URL</th>
-                            <th scope="col" className="px-6 py-3">状态</th>
-                            <th scope="col" className="px-6 py-3">创建时间</th>
-                            <th scope="col" className="px-6 py-3">更新时间</th>
+                            <SortableHeader column="source_name" label="情报源" sortConfig={sort} onSort={handleSort} />
+                            <th scope="col" className="px-6 py-3">情报点</th>
+                            <SortableHeader column="start_time" label="开始时间" sortConfig={sort} onSort={handleSort} />
+                            <SortableHeader column="status" label="状态" sortConfig={sort} onSort={handleSort} />
+                            <th scope="col" className="px-6 py-3">新增文章数</th>
+                            <th scope="col" className="px-6 py-3">日志</th>
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>
-                        ) : error ? (
-                            <tr><td colSpan={5} className="text-center py-10 text-red-500">{error}</td></tr>
+                            <tr><td colSpan={6} className="text-center py-10">加载中...</td></tr>
                         ) : tasks.length === 0 ? (
-                            <tr><td colSpan={5} className="text-center py-10">未找到任何任务。</td></tr>
+                            <tr><td colSpan={6} className="text-center py-10">未找到任何任务。</td></tr>
                         ) : (
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{task.source_name}<br/><span className="text-xs text-gray-500 font-normal">{task.point_name}</span></td>
-                                    <td className="px-6 py-4"><a href={task.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-xs">{task.url}</a></td>
+                                    <td className="px-6 py-4 font-medium text-gray-900">{task.source_name}</td>
+                                    <td className="px-6 py-4">{task.point_name}</td>
+                                    <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN')}</td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
-                                    <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
-                                    <td className="px-6 py-4">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 font-medium text-center">{task.new_articles_count}</td>
+                                    <td className="px-6 py-4 text-xs text-gray-500 max-w-sm truncate" title={task.logs || ''}>{task.logs || '-'}</td>
                                 </tr>
                                 );
                             })
