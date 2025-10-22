@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { CloseIcon, PlusIcon, PencilIcon } from '../../icons';
+import { CloseIcon, PlusIcon, PencilIcon } from '../icons';
 import { createLivestreamTask, getLivestreamPrompts } from '../../api';
 import { LivestreamPrompt } from '../../types';
 import { PromptEditModal } from './PromptEditModal';

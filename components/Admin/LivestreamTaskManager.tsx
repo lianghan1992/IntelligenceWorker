@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks, deleteLivestreamTask, startListenTask, stopListenTask } from '../../api';
 import { ConfirmationModal } from './ConfirmationModal';
-import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from '../../icons';
+import { PlusIcon, TrashIcon, PlayIcon, StopIcon } from '../icons';
 import { AddEventModal } from './AddEventModal';
 import { AddHistoryEventModal } from './AddHistoryEventModal';
 

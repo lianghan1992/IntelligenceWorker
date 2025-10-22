@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { CloseIcon, PlusIcon } from '../../icons';
+import { CloseIcon, PlusIcon } from '../icons';
 import { createHistoryLivestreamTask } from '../../api';
 
 interface AddHistoryEventModalProps {

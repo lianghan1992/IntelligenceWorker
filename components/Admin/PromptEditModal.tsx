@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { CloseIcon } from '../../icons';
+import { CloseIcon } from '../icons';
 import { LivestreamPrompt } from '../../types';
 import { updateLivestreamPrompt } from '../../api';
 

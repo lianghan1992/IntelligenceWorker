@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CloseIcon } from '../../icons';
+import { CloseIcon } from '../icons';
 
 interface ConfirmationModalProps {
   title: string;
