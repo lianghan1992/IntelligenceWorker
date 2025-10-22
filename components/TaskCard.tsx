@@ -1,86 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { LivestreamTask } from '../types';
-import { TagIcon } from './icons';
+import { TagIcon, DocumentTextIcon, FilmIcon } from './icons';
 
 interface TaskCardProps {
     task: LivestreamTask;
     onViewReport: () => void;
 }
 
-const Countdown: React.FC<{ targetDate: string }> = ({ targetDate }) => {
-    const calculateTimeLeft = () => {
-        const difference = +new Date(targetDate) - +new Date();
-        let timeLeft = { days: 0, hours: 0, minutes: 0, seconds: 0 };
-
-        if (difference > 0) {
-            timeLeft = {
-                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-                hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-                minutes: Math.floor((difference / 1000 / 60) % 60),
-                seconds: Math.floor((difference / 1000) % 60),
-            };
-        }
-        return timeLeft;
-    };
-
-    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setTimeLeft(calculateTimeLeft());
-        }, 1000);
-        return () => clearTimeout(timer);
-    });
-
-    const timerComponents = Object.entries(timeLeft).map(([interval, value]) => {
-        if (value <= 0 && interval !== 'seconds') return null;
-        if (timeLeft.days === 0 && interval === 'days') return null;
-        
-        const label = { days: '天', hours: '时', minutes: '分', seconds: '秒' }[interval];
-        
-        return (
-            <div key={interval} className="flex flex-col items-center">
-                <span className="text-3xl font-bold">{String(value).padStart(2, '0')}</span>
-                <span className="text-xs opacity-75">{label}</span>
-            </div>
-        );
-    }).filter(Boolean);
-    
-    if (!timerComponents.length) return <div className="text-xl font-semibold">即将开始...</div>;
-
-    return (
-        <div className="flex items-center gap-3 text-white drop-shadow-lg">
-            {timerComponents.reduce((acc, curr, index) => {
-                return index === 0 ? [curr] : [...acc, <span key={`sep-${index}`} className="text-2xl font-bold -mt-2">:</span>, curr];
-            }, [] as React.ReactNode[])}
-        </div>
-    );
-};
-
-const getStatusDetails = (status: string, startTime: string) => {
+const getStatusDetails = (status: string) => {
     const statusLower = status.toLowerCase();
-    const now = new Date().getTime();
-    const start = new Date(startTime).getTime();
 
     if (statusLower === 'recording') {
-        return { text: 'LIVE', className: 'bg-red-600 text-white animate-pulse', type: 'live' };
+        return { text: '直播中', className: 'bg-red-500 text-white', type: 'live' };
     }
     if (statusLower === 'listening') {
-        return { text: '监听中', className: 'bg-cyan-100 text-cyan-800 animate-in fade-in-0', type: 'upcoming' };
+        return { text: '监听中', className: 'bg-cyan-500 text-white', type: 'upcoming' };
     }
-    if (statusLower === 'pending' && start > now) {
-        return { text: '即将开始', className: 'bg-blue-100 text-blue-800', type: 'upcoming' };
+    if (statusLower === 'pending') {
+        return { text: '即将开始', className: 'bg-blue-500 text-white', type: 'upcoming' };
     }
     if (statusLower === 'completed') {
-        return { text: '已完成', className: 'bg-green-100 text-green-800', type: 'finished' };
+        return { text: '已结束', className: 'bg-green-500 text-white', type: 'finished' };
     }
     if (statusLower === 'processing') {
-        return { text: 'AI分析中', className: 'bg-indigo-100 text-indigo-800', type: 'finished' };
+        return { text: 'AI总结中', className: 'bg-indigo-500 text-white', type: 'finished' };
     }
     if (statusLower === 'failed') {
-        return { text: '失败', className: 'bg-red-100 text-red-800', type: 'finished' };
+        return { text: '失败', className: 'bg-red-500 text-white', type: 'finished' };
     }
-    return { text: '已结束', className: 'bg-gray-100 text-gray-800', type: 'finished' };
+    // Fallback for any other status
+    return { text: '已结束', className: 'bg-gray-500 text-white', type: 'finished' };
 };
 
 const getSafeImageUrl = (base64String: string | null): string | null => {
@@ -92,18 +41,19 @@ const getSafeImageUrl = (base64String: string | null): string | null => {
 };
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
-    const statusDetails = getStatusDetails(task.status, task.start_time);
+    const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
-    const hasReport = isFinished && task.summary_report;
-    
+    const hasReport = isFinished && !!task.summary_report;
     const imageUrl = getSafeImageUrl(task.livestream_image);
 
     const formattedDate = new Date(task.start_time).toLocaleString('zh-CN', {
-        month: 'long',
-        day: 'numeric',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-    });
+        hour12: false
+    }).replace(/\//g, '.');
 
     const handleReplayClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -113,60 +63,47 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     return (
         <div
             onClick={hasReport ? onViewReport : undefined}
-            className={`bg-white rounded-xl border border-gray-200 overflow-hidden group flex flex-col shadow-sm transition-all duration-300 ${hasReport ? 'hover:shadow-lg hover:border-blue-400' : ''}`}
+            className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 ${hasReport ? 'cursor-pointer' : 'cursor-default'}`}
         >
-            <div className="aspect-w-16 aspect-h-9 bg-black relative text-white" style={{ position: 'relative', paddingTop: '56.25%' }}>
-                <div className="absolute inset-0">
-                    {imageUrl ? (
-                        <img src={imageUrl} alt={task.livestream_name} className="w-full h-full object-cover" />
-                    ) : (
-                        <div className="w-full h-full bg-black"></div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
-                    
-                    {statusDetails.type === 'upcoming' && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-sm">
-                            <Countdown targetDate={task.start_time} />
-                        </div>
-                    )}
-                    
-                    <span className={`absolute top-3 right-3 px-2.5 py-1 text-xs font-bold rounded-full flex items-center gap-1.5 ${statusDetails.className}`}>
-                        {statusDetails.type === 'live' && <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span></span>}
-                        {statusDetails.text}
-                    </span>
-
-                    <div className="absolute bottom-0 left-0 right-0 p-3">
-                        {task.entity && (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-semibold bg-white/20 backdrop-blur-sm rounded-full mb-1.5">
-                                <TagIcon className="w-3 h-3" />
-                                {task.entity}
-                            </span>
-                        )}
-                        <h3 className={`text-md font-bold drop-shadow-sm ${hasReport ? 'group-hover:text-blue-300' : ''} transition-colors`}>{task.livestream_name}</h3>
-                    </div>
-                </div>
-            </div>
+            {/* Background Image and Gradient */}
+            {imageUrl ? (
+                <img src={imageUrl} alt={task.livestream_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            ) : (
+                <div className="absolute inset-0 w-full h-full bg-gray-800"></div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
             
-            <div className="p-3 flex-grow flex flex-col">
-                <div className="flex justify-between text-xs text-gray-500">
-                    <span>{task.host_name || ''}</span>
-                    <span>{formattedDate}</span>
-                </div>
+            {/* Status Badge */}
+            <span className={`absolute top-3 right-3 px-3 py-1 text-xs font-bold rounded-full ${statusDetails.className}`}>
+                 {statusDetails.text}
+            </span>
+
+            {/* Main Content Area */}
+            <div className="absolute inset-0 flex flex-col justify-end p-4 text-white">
+                {task.entity && (
+                    <span className="inline-block self-start bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2.5 py-1 rounded-full mb-2">
+                        {task.entity}
+                    </span>
+                )}
+                <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.livestream_name}</h3>
+                <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{task.host_name} &nbsp;&nbsp;|&nbsp;&nbsp; {formattedDate}</p>
 
                 {isFinished && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex-grow flex items-end gap-2">
-                        <button
-                            onClick={handleReplayClick}
-                            className="flex-1 py-1.5 text-xs font-semibold rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
-                        >
-                            查看回放
-                        </button>
-                        <button
+                    <div className="mt-4 flex gap-3">
+                        <button 
                             onClick={hasReport ? onViewReport : undefined}
                             disabled={!hasReport}
-                            className="flex-1 py-1.5 text-xs font-semibold rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors"
+                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                            {hasReport ? '查看报告' : '报告生成中'}
+                            <DocumentTextIcon className="w-4 h-4" />
+                            <span>{hasReport ? '查看报告' : '报告生成中'}</span>
+                        </button>
+                        <button 
+                            onClick={handleReplayClick} 
+                            className="flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold bg-white/10 backdrop-blur-md rounded-lg hover:bg-white/20 transition-colors"
+                        >
+                            <FilmIcon className="w-4 h-4" />
+                            <span>查看回放</span>
                         </button>
                     </div>
                 )}

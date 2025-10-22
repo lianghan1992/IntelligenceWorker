@@ -41,8 +41,7 @@ export const IndustryEvents: React.FC = () => {
                 setTasks([]);
                 return;
             }
-            const sorted = fetchedTasks.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-            setTasks(sorted);
+            setTasks(fetchedTasks);
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
@@ -61,14 +60,12 @@ export const IndustryEvents: React.FC = () => {
 
         tasks.forEach(task => {
             const status = task.status.toLowerCase();
-            const startTime = new Date(task.start_time).getTime();
-            const now = new Date().getTime();
-
+            
             if (status === 'recording') {
                 live.push(task);
-            } else if (status === 'listening' || (status === 'pending' && startTime > now)) {
+            } else if (status === 'listening' || status === 'pending') {
                 upcoming.push(task);
-            } else { // completed, failed, processing, or pending but past start time
+            } else { // completed, failed, processing
                 finished.push(task);
             }
         });
@@ -78,8 +75,7 @@ export const IndustryEvents: React.FC = () => {
         upcoming.sort(sortByDate);
         finished.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-
-        return { liveTasks: live, upcomingTasks: upcoming, finishedTasks: finished };
+        return { liveTasks, upcomingTasks, finishedTasks };
     }, [tasks]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
@@ -92,11 +88,9 @@ export const IndustryEvents: React.FC = () => {
         if (isLoading) return <div className="text-center py-20 text-gray-500">加载中...</div>;
         if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
         
-        const noLive = liveTasks.length === 0;
-        const noUpcoming = upcomingTasks.length === 0;
-        const noFinished = finishedTasks.length === 0;
+        const noTasks = tasks.length === 0;
 
-        if (noLive && noUpcoming && noFinished) {
+        if (noTasks) {
              return (
                 <div className="flex-1 flex items-center justify-center text-center bg-white rounded-xl border-2 border-dashed mt-6">
                     <div className="text-gray-500">
