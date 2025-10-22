@@ -9,23 +9,64 @@ interface EventReportModalProps {
 
 const markdownToHtml = (markdown: string | null): string => {
     if (!markdown) return '<p>该事件的报告正在生成中或不可用。</p>';
+
+    let inList = false;
+    let listType = ''; // 'ul' or 'ol'
     
-    // A simple markdown parser
-    return markdown
-        .split('\n')
-        .map(line => {
-            line = line.trim();
-            if (line.startsWith('# ')) return `<h1>${line.substring(2)}</h1>`;
-            if (line.startsWith('## ')) return `<h2>${line.substring(3)}</h2>`;
-            if (line.startsWith('### ')) return `<h3>${line.substring(4)}</h3>`;
-            if (line.startsWith('* ') || line.startsWith('- ')) return `<li>${line.substring(2)}</li>`;
-            if (line === '') return '';
-            return `<p>${line}</p>`;
-        })
-        .join('')
-        // Wrap consecutive li elements in a ul
-        .replace(/<\/li><li>/g, '</li><li>')
-        .replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>');
+    const lines = markdown.split('\n');
+    let html = '';
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+
+        // Process inline markdown first, for any line
+        line = line
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/__(.*?)__/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/_(.*?)_/g, '<em>$1</em>')
+            .replace(/!\[(.*?)\]\((.*?)\)/g, '<img alt="$1" src="$2" class="rounded-lg shadow-md my-4" />')
+            .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+        // Now process block-level markdown
+        if (line.match(/^### /)) {
+            if (inList) { html += `</${listType}>`; inList = false; }
+            html += `<h3>${line.substring(4)}</h3>`;
+        } else if (line.match(/^## /)) {
+            if (inList) { html += `</${listType}>`; inList = false; }
+            html += `<h2>${line.substring(3)}</h2>`;
+        } else if (line.match(/^# /)) {
+            if (inList) { html += `</${listType}>`; inList = false; }
+            html += `<h1>${line.substring(2)}</h1>`;
+        } else if (line.match(/^(\*|-|\+) /)) {
+            if (!inList || listType !== 'ul') {
+                if (inList) html += `</${listType}>`;
+                html += '<ul>';
+                inList = true;
+                listType = 'ul';
+            }
+            html += `<li>${line.substring(2)}</li>`;
+        } else if (line.match(/^\d+\. /)) {
+            if (!inList || listType !== 'ol') {
+                if (inList) html += `</${listType}>`;
+                html += '<ol>';
+                inList = true;
+                listType = 'ol';
+            }
+            html += `<li>${line.replace(/^\d+\. /, '')}</li>`;
+        } else if (line.trim() === '') {
+             if (inList) { html += `</${listType}>`; inList = false; }
+        } else {
+            if (inList) { html += `</${listType}>`; inList = false; }
+            html += `<p>${line}</p>`;
+        }
+    }
+
+    if (inList) {
+        html += `</${listType}>`;
+    }
+
+    return html;
 };
 
 export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClose }) => {
@@ -54,7 +95,8 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
                                    prose-h2:font-bold prose-h2:mt-8 prose-h2:mb-4
                                    prose-p:leading-relaxed
                                    prose-strong:font-semibold prose-strong:text-slate-900
-                                   prose-ul:space-y-1 prose-ol:space-y-1"
+                                   prose-ul:list-disc prose-ul:pl-6 prose-ul:space-y-1 
+                                   prose-ol:list-decimal prose-ol:pl-6 prose-ol:space-y-1"
                         dangerouslySetInnerHTML={{ __html: reportHtml }}
                     />
                 </div>
