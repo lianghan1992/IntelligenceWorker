@@ -17,12 +17,14 @@ import {
     AdminUser,
     ApiProcessingTask,
     AllPrompts,
+    SearchResult,
 } from './types';
 
 // --- Helper Functions ---
 
 // A generic API fetch function to handle headers, errors, and token automatically
-async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
+// FIX: Export apiFetch to make it available to other modules.
+export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
     const token = localStorage.getItem('accessToken');
     if (token) {
@@ -142,7 +144,8 @@ export const searchArticlesFiltered = (params: {
     publish_date_end?: string;
     page?: number;
     limit?: number;
-}): Promise<PaginatedResponse<InfoItem>> => {
+// FIX: The search results include a similarity_score, so the return type should be SearchResult.
+}): Promise<PaginatedResponse<SearchResult>> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
         body: JSON.stringify(params),

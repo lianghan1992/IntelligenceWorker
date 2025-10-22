@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
-import { IntelligenceManager } from './IntelligenceManager';
+import { IntelligenceDashboard } from './IntelligenceDashboard'; // 新增
 
 // Placeholders for other admin components
 const UserManagerPlaceholder: React.FC = () => <div className="p-6">User Management Coming Soon...</div>;
@@ -9,7 +9,7 @@ const DivesManagerPlaceholder: React.FC = () => <div className="p-6">Deep Dives 
 
 const navItems: { view: AdminView; label: string }[] = [
     { view: 'events', label: '发布会任务' },
-    { view: 'intelligence', label: '情报点管理' },
+    { view: 'intelligence', label: '情报中枢' },
     { view: 'users', label: '用户管理' },
     { view: 'dives', label: '深度洞察' },
 ];
@@ -22,7 +22,7 @@ export const AdminPage: React.FC = () => {
             case 'events':
                 return <LivestreamTaskManager />;
             case 'intelligence':
-                return <IntelligenceManager />;
+                return <IntelligenceDashboard />; // 替换
             case 'users':
                 return <UserManagerPlaceholder />;
             case 'dives':
