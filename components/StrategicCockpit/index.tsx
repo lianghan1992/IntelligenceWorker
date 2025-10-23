@@ -47,10 +47,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         setError(null);
 
         try {
+            const limit = 15;
             const params: any = {
                 query_text: query,
                 page,
-                limit: 15,
+                limit: limit,
                 similarity_threshold: 0.35,
             };
             if (subscribedSourceNames.length > 0) {
@@ -58,8 +59,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             }
             const response = await searchArticlesFiltered(params);
             
+            const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
+
             setArticles(response.items || []);
-            setPagination({ page: response.page, totalPages: response.totalPages ?? 1, total: response.total });
+            setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
             // Auto-select the first article on new page load
             if (response.items && response.items.length > 0) {
