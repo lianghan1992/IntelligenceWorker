@@ -6,7 +6,7 @@ import {
 import { 
     User, Subscription, InfoItem, PlanDetails, ApiPoi, SystemSource, 
     LivestreamTask, PaginatedResponse, LivestreamPrompt, AllPrompts,
-    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate
+    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate, UserProfileDetails
 } from './types';
 
 // --- Generic API Fetch Helper ---
@@ -80,6 +80,9 @@ export const deleteUser = (userId: string): Promise<void> =>
     apiFetch<void>(`${USER_SERVICE_PATH}/${userId}`, {
         method: 'DELETE',
     });
+
+export const getUserProfileDetails = (userId: string): Promise<UserProfileDetails> =>
+    apiFetch<UserProfileDetails>(`${USER_SERVICE_PATH}/${userId}/profile/details`);
 
 
 // --- Plans API ---

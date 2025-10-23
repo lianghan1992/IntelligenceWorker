@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { UserListItem, UserForAdminUpdate } from '../../types';
-import { getUsers, updateUser, deleteUser } from '../../api';
+import { UserListItem, UserForAdminUpdate, UserProfileDetails } from '../../types';
+import { getUsers, updateUser, deleteUser, getUserProfileDetails } from '../../api';
 import { CloseIcon, PencilIcon, TrashIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -12,22 +12,75 @@ const Spinner: React.FC = () => (
 );
 
 // --- UserDetailsModal ---
-const UserDetailsModal: React.FC<{ user: UserListItem; type: 'sources' | 'pois'; onClose: () => void }> = ({ user, type, onClose }) => (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
-            <div className="p-6 border-b flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">{user.username} 的{type === 'sources' ? '情报源' : '关注点'}</h3>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><CloseIcon className="w-6 h-6" /></button>
-            </div>
-            <div className="p-6">
-                <div className="p-4 bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-lg">
-                    <p className="font-semibold">功能待开发</p>
-                    <p className="text-sm mt-1">查看指定用户订阅详情的API接口尚未提供，此功能将在后端支持后开放。</p>
+const UserDetailsModal: React.FC<{ user: UserListItem; type: 'sources' | 'pois'; onClose: () => void }> = ({ user, type, onClose }) => {
+    const [details, setDetails] = useState<UserProfileDetails | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        const fetchDetails = async () => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const data = await getUserProfileDetails(user.id);
+                setDetails(data);
+            } catch (err: any) {
+                setError(err.message || '加载详情失败');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [user.id]);
+
+    const renderContent = () => {
+        if (isLoading) return <div className="text-center p-8">加载中...</div>;
+        if (error) return <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg">{error}</div>;
+        if (!details) return <div className="text-center p-8">没有找到数据。</div>;
+
+        if (type === 'sources') {
+            const sources = details.intelligence_sources.items;
+            return sources.length > 0 ? (
+                <ul className="space-y-2">
+                    {sources.map(source => (
+                        <li key={source.id} className="p-2 bg-gray-50 rounded-md">{source.name}</li>
+                    ))}
+                </ul>
+            ) : <p>该用户没有订阅任何情报源。</p>;
+        }
+
+        if (type === 'pois') {
+            const pois = details.points_of_interest.items;
+            return pois.length > 0 ? (
+                 <ul className="space-y-3">
+                    {pois.map(poi => (
+                        <li key={poi.id} className="p-3 bg-gray-50 rounded-md">
+                            <p className="font-semibold text-gray-800">{poi.content}</p>
+                            <p className="text-xs text-gray-600 mt-1">关键词: {poi.keywords}</p>
+                        </li>
+                    ))}
+                </ul>
+            ) : <p>该用户没有设置任何关注点。</p>;
+        }
+        
+        return null;
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
+                <div className="p-6 border-b flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">{user.username} 的{type === 'sources' ? '情报源' : '关注点'}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><CloseIcon className="w-6 h-6" /></button>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                    {renderContent()}
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 // --- EditUserModal ---
 const EditUserModal: React.FC<{ user: UserListItem; onClose: () => void; onSave: () => void; }> = ({ user, onClose, onSave }) => {

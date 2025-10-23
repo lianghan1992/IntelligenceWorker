@@ -9,7 +9,7 @@
 export const API_BASE_URL = '/api';
 
 // Full path for the user authentication & subscription service
-export const USER_SERVICE_PATH = `${API_BASE_URL}/users`;
+export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
 
 // Full path for the main intelligence data service
 export const INTELLIGENCE_SERVICE_PATH = `${API_BASE_URL}/intelligence`;

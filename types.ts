@@ -29,6 +29,31 @@ export interface UserForAdminUpdate {
     status?: 'active' | 'disabled';
 }
 
+export interface UserProfileSource {
+  id: string;
+  name: string;
+}
+
+export interface UserProfilePOI {
+  id: string;
+  content: string;
+  keywords: string;
+}
+
+export interface UserProfileDetails {
+  user_id: string;
+  username: string;
+  intelligence_sources: {
+    count: number;
+    items: UserProfileSource[];
+  };
+  points_of_interest: {
+    count: number;
+    items: UserProfilePOI[];
+  };
+}
+
+
 export interface Subscription {
   id: string;
   source_name: string;
