@@ -178,12 +178,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, infoI
                 <div className="max-w-7xl mx-auto space-y-10">
                     <DailyBriefing user={user} />
                     <DashboardWidgets stats={stats} />
+                    <TodaysEvents onNavigate={onNavigate} />
                     <FocusPointsSection 
                         infoItems={infoItems} 
                         onNavigate={onNavigate} 
                         onManageClick={() => setIsFocusPointModalOpen(true)}
                     />
-                    <TodaysEvents onNavigate={onNavigate} />
                     <SubscriptionManager />
                 </div>
             </div>
