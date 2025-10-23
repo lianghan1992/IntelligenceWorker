@@ -1,7 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Subscription, StrategicLookKey, InsightBriefing, InfoItem } from '../../types';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Subscription, StrategicLookKey, InsightBriefing, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
+import { FocusPoints } from './FocusPoints';
+import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
+import { getUserPois } from '../../api';
 
 // --- Mock Data ---
 const mockBriefings: InsightBriefing[] = [
@@ -101,6 +104,32 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     const [selectedLook, setSelectedLook] = useState<StrategicLookKey>('industry');
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>('tech');
     const [selectedBriefing, setSelectedBriefing] = useState<InsightBriefing | null>(null);
+    const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
+    
+    const [pois, setPois] = useState<ApiPoi[]>([]);
+    const [isLoadingPois, setIsLoadingPois] = useState(true);
+
+    const fetchPois = useCallback(async () => {
+        setIsLoadingPois(true);
+        try {
+            const userPois = await getUserPois();
+            setPois(userPois);
+        } catch (err) {
+            console.error("Failed to fetch POIs in Cockpit:", err);
+        } finally {
+            setIsLoadingPois(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchPois();
+    }, [fetchPois]);
+
+    const handleModalClose = () => {
+        setIsFocusPointModalOpen(false);
+        fetchPois(); // Refetch on close
+    };
+
 
     const filteredBriefings = useMemo(() => {
         // NOTE: Sub-look filtering logic will be added here later.
@@ -127,23 +156,22 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     return (
         <div className="h-full bg-slate-50 flex flex-col">
-            {/* Header */}
-            <header className="p-6 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex-shrink-0">
-                <h1 className="text-2xl font-bold text-slate-800">AI情报洞察</h1>
-                <p className="text-slate-500 mt-1">从引导式战略视角探索情报，发现决策依据。</p>
-            </header>
-
             {/* Main Content Area */}
             <div className="flex-1 flex gap-6 p-6 overflow-hidden">
                 
-                {/* Left Panel: Strategic Compass */}
-                <aside className="w-64 flex-shrink-0 h-full overflow-y-auto scrollbar-hide">
+                {/* Left Panel: Strategic Compass & Focus Points */}
+                <aside className="w-64 flex-shrink-0 h-full overflow-y-auto scrollbar-hide space-y-4">
                     <StrategicCompass
                         categories={lookCategories}
                         selectedLook={selectedLook}
                         setSelectedLook={setSelectedLook}
                         selectedSubLook={selectedSubLook}
                         setSelectedSubLook={setSelectedSubLook}
+                    />
+                    <FocusPoints 
+                        onManageClick={() => setIsFocusPointModalOpen(true)}
+                        pois={pois}
+                        isLoading={isLoadingPois}
                     />
                 </aside>
 
@@ -187,6 +215,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     </aside>
                 </div>
             </div>
+            {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
         </div>
     );
