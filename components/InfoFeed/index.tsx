@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useRef, createRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { InfoItem, Subscription } from '../../types';
 import { SearchIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon, BrainIcon } from '../icons';
 import { InfoDetailModal } from './InfoDetailModal';
+import { searchArticlesFiltered } from '../../api';
+
 
 interface InfoFeedProps {
-    items: InfoItem[];
     subscriptions: Subscription[];
 }
 
@@ -79,10 +80,38 @@ const ThematicChannel: React.FC<{
 };
 
 // --- Main Component ---
-export const InfoFeed: React.FC<InfoFeedProps> = ({ items, subscriptions }) => {
+export const InfoFeed: React.FC<InfoFeedProps> = ({ subscriptions }) => {
+    const [items, setItems] = useState<InfoItem[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [modalItem, setModalItem] = useState<InfoItem | null>(null);
+
+    useEffect(() => {
+        const fetchItems = async () => {
+            if (subscriptions.length === 0) {
+                setItems([]);
+                setIsLoading(false);
+                return;
+            }
+            setIsLoading(true);
+            try {
+                const pointIds = subscriptions.map(s => s.id);
+                const articlesData = await searchArticlesFiltered({
+                    query_text: '*',
+                    point_ids: pointIds,
+                    page: 1,
+                    limit: 100, // Fetch more items for the feed
+                });
+                setItems(articlesData.items);
+            } catch (error) {
+                console.error("Failed to fetch info items for feed:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchItems();
+    }, [subscriptions]);
 
     const enhancedItems = useMemo<InfoItem[]>(() => {
         return items.map(item => ({
@@ -166,37 +195,12 @@ export const InfoFeed: React.FC<InfoFeedProps> = ({ items, subscriptions }) => {
 
     const filteredLatestItems = useMemo(() => filterItems(latestItems), [latestItems, searchTerm, selectedTags]);
 
-    return (
-        <div className="flex flex-col h-full bg-gray-50/70 font-sans">
-            <div className="p-4 border-b bg-white/80 backdrop-blur-sm sticky top-0 z-20">
-                <div className="flex items-center gap-4">
-                    <div className="relative flex-grow">
-                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                            placeholder="搜索情报..."
-                            className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <SparklesIcon className="w-5 h-5 text-blue-500" />
-                        <span className="text-sm font-semibold text-gray-600">智能筛选:</span>
-                        {smartTags.map(tag => (
-                            <button
-                                key={tag.label}
-                                onClick={() => handleTagClick(tag.label)}
-                                className={`px-3 py-1.5 text-sm font-semibold rounded-full transition-colors ${
-                                    selectedTags.includes(tag.label)
-                                        ? 'bg-blue-600 text-white shadow-sm'
-                                        : 'bg-white hover:bg-gray-100 border'
-                                }`}
-                            >{tag.label}</button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            <main className="flex-1 overflow-y-auto p-6 space-y-10">
+    const renderMainContent = () => {
+        if (isLoading) {
+            return <div className="text-center py-20 text-gray-500">正在加载信息流...</div>;
+        }
+        return (
+            <>
                 <div className="bg-gradient-to-r from-blue-50 to-white p-6 rounded-2xl border-2 border-blue-200 shadow-sm relative">
                     <div className="absolute top-4 right-4 text-blue-700 bg-blue-100 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-2">
                         <BrainIcon className="w-4 h-4" /> AI 每日摘要
@@ -239,6 +243,42 @@ export const InfoFeed: React.FC<InfoFeedProps> = ({ items, subscriptions }) => {
                         </div>
                      )}
                 </div>
+            </>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-gray-50/70 font-sans">
+            <div className="p-4 border-b bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+                <div className="flex items-center gap-4">
+                    <div className="relative flex-grow">
+                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                            placeholder="搜索情报..."
+                            className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <SparklesIcon className="w-5 h-5 text-blue-500" />
+                        <span className="text-sm font-semibold text-gray-600">智能筛选:</span>
+                        {smartTags.map(tag => (
+                            <button
+                                key={tag.label}
+                                onClick={() => handleTagClick(tag.label)}
+                                className={`px-3 py-1.5 text-sm font-semibold rounded-full transition-colors ${
+                                    selectedTags.includes(tag.label)
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'bg-white hover:bg-gray-100 border'
+                                }`}
+                            >{tag.label}</button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <main className="flex-1 overflow-y-auto p-6 space-y-10">
+                {renderMainContent()}
             </main>
 
             {modalItem && <InfoDetailModal item={modalItem} allItems={enhancedItems} onClose={() => setModalItem(null)} />}

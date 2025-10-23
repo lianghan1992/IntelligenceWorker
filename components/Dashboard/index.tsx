@@ -7,6 +7,8 @@ import { SubscriptionManager } from './SubscriptionManager';
 import { FocusPointManagerModal } from './FocusPointManagerModal';
 import { TodaysEvents } from './TodaysEvents';
 import { getUserPois, searchArticlesFiltered } from '../../api';
+import { LazyLoadModule, TodaysEventsSkeleton, FocusPointsSkeleton, SubscriptionManagerSkeleton } from './LazyLoadModule';
+
 
 // --- Helper Functions ---
 const getGreeting = (): string => {
@@ -155,7 +157,6 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
 interface DashboardProps {
     user: User;
     subscriptions: Subscription[];
-    infoItems: InfoItem[];
     onNavigate: (view: View) => void;
 }
 
@@ -168,12 +169,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
                 <div className="max-w-7xl mx-auto space-y-10">
                     <DailyBriefing user={user} />
                     <DashboardWidgets subscriptions={subscriptions} />
-                    <TodaysEvents onNavigate={onNavigate} />
-                    <FocusPointsSection 
-                        onNavigate={onNavigate} 
-                        onManageClick={() => setIsFocusPointModalOpen(true)}
-                    />
-                    <SubscriptionManager />
+                    
+                    <LazyLoadModule placeholder={<TodaysEventsSkeleton />}>
+                        <TodaysEvents onNavigate={onNavigate} />
+                    </LazyLoadModule>
+
+                    <LazyLoadModule placeholder={<FocusPointsSkeleton />}>
+                        <FocusPointsSection 
+                            onNavigate={onNavigate} 
+                            onManageClick={() => setIsFocusPointModalOpen(true)}
+                        />
+                    </LazyLoadModule>
+                    
+                    <LazyLoadModule placeholder={<SubscriptionManagerSkeleton />}>
+                        <SubscriptionManager />
+                    </LazyLoadModule>
                 </div>
             </div>
             {isFocusPointModalOpen && (

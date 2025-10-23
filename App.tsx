@@ -11,8 +11,8 @@ import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
 import { StrategicCockpit } from './components/StrategicCockpit/index';
 import { NewTechForecast } from './components/NewTechForecast/index';
-import { User, View, Subscription, InfoItem, DeepDive } from './types';
-import { getSubscriptions, searchArticlesFiltered, getMe } from './api';
+import { User, View, Subscription, DeepDive } from './types';
+import { getSubscriptions, getMe } from './api';
 import { mockDeepDives } from './mockData';
 
 const App: React.FC = () => {
@@ -23,7 +23,6 @@ const App: React.FC = () => {
   const [showPricingModal, setShowPricingModal] = useState(false);
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [infoItems, setInfoItems] = useState<InfoItem[]>([]);
   const [deepDives, setDeepDives] = useState<DeepDive[]>(mockDeepDives);
 
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
@@ -38,21 +37,7 @@ const App: React.FC = () => {
     try {
         const subs = await getSubscriptions();
         setSubscriptions(subs);
-        if (subs.length > 0) {
-            const pointIds = subs.map(s => s.id);
-            const articlesData = await searchArticlesFiltered({
-                query_text: '*',
-                point_ids: pointIds,
-                page: 1,
-                limit: 50,
-            });
-            setInfoItems(articlesData.items);
-        } else {
-            setInfoItems([]);
-        }
     } catch (error) {
-      // The global apiFetch handler will now deal with 401s by reloading the page.
-      // We just need to log other potential errors here.
       console.error("Failed to load initial data", error);
     } finally {
       setIsLoading(false);
@@ -88,11 +73,6 @@ const App: React.FC = () => {
       setView(newView);
   };
   
-  const handleAddCustomInfoItem = (newItem: InfoItem) => {
-    setInfoItems(prev => [newItem, ...prev]);
-    // Optionally close any open modals, though AddSourceModal handles its own closing
-  };
-
   if (isLoading && !user) {
     return <div className="flex items-center justify-center h-screen bg-gray-100 text-gray-600">正在初始化应用...</div>;
   }
@@ -112,13 +92,12 @@ const App: React.FC = () => {
     }
     switch (view) {
       case 'dashboard':
-        return <Dashboard user={user} subscriptions={subscriptions} infoItems={infoItems} onNavigate={handleNavigate} />;
+        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
       case 'feed':
-        return <InfoFeed items={infoItems} subscriptions={subscriptions} />;
+        return <InfoFeed subscriptions={subscriptions} />;
       case 'forecast':
-        // 将 user prop 传递给 NewTechForecast 组件
         return <NewTechForecast user={user} />;
       case 'dives':
         return <DeepDives dives={deepDives} />;
@@ -129,7 +108,7 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <Dashboard user={user} subscriptions={subscriptions} infoItems={infoItems} onNavigate={handleNavigate} />;
+        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
     }
   };
 
