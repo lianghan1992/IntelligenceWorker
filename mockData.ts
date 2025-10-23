@@ -1,4 +1,4 @@
-import { DeepDive, RecommendedSubscription, TechDimensionCategory, VehicleTechSpec } from './types';
+import { DeepDive, RecommendedSubscription, TechDimensionCategory, VehicleTechSpec, NewTechForecast } from './types';
 
 // --- Recommended Subscriptions ---
 // 根据用户请求清空示例数据
@@ -52,6 +52,13 @@ export const techDimensions: TechDimensionCategory[] = [
             { key: 'platform', label: '高压平台' },
             { key: 'battery', label: '电池技术' },
             { key: 'motor', label: '电机技术' },
+        ],
+    },
+     {
+        key: 'body_structure',
+        label: '智能车身',
+        subDimensions: [
+            { key: 'body_casting', label: '一体化压铸' },
         ],
     },
 ];
@@ -180,6 +187,9 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '麒麟电池', supplier: '宁德时代' }, 
                 motor: { value: '超级电机V8s', supplier: '小米自研' }
             },
+            body_structure: {
+                body_casting: { value: '9100t 一体化压铸', supplier: '海天金属' }
+            }
         },
     },
      {
@@ -214,4 +224,84 @@ export const mockSuppliers = [
 ];
 export const mockPlatforms = [
     '华为途灵平台', '理想增程2.0平台', '小米摩德纳平台', 'Tesla 第三代平台'
+];
+
+export const mockTechForecasts: NewTechForecast[] = [
+    {
+        id: 'fc1',
+        brand: '小米',
+        model: 'SU7',
+        techDimensionKey: 'power',
+        techName: '自研CTB一体化电池技术',
+        status: 'confirmed',
+        confidence: 0.95,
+        sourceArticle: '小米汽车技术发布会官方纪要',
+        sourceUrl: '#',
+    },
+    {
+        id: 'fc2',
+        brand: '问界',
+        model: 'M9',
+        techDimensionKey: 'chassis',
+        techName: '华为途灵智能底盘',
+        status: 'confirmed',
+        confidence: 1.0,
+        sourceArticle: '问界M9正式发布，搭载华为多项黑科技',
+        sourceUrl: '#',
+    },
+    {
+        id: 'fc3',
+        brand: '理想',
+        model: 'MEGA',
+        techDimensionKey: 'power',
+        techName: '5C麒麟电池',
+        status: 'confirmed',
+        confidence: 1.0,
+        sourceArticle: '理想MEGA发布会，号称充电12分钟续航500公里',
+        sourceUrl: '#',
+    },
+    {
+        id: 'fc4',
+        brand: '蔚来',
+        model: 'ET9',
+        techDimensionKey: 'chassis',
+        techName: '天行智能底盘系统',
+        status: 'confirmed',
+        confidence: 0.9,
+        sourceArticle: 'NIO Day 2023：蔚来发布行政旗舰轿车ET9',
+        sourceUrl: '#',
+    },
+     {
+        id: 'fc5',
+        brand: '特斯拉',
+        model: 'Cybertruck',
+        techDimensionKey: 'body_structure',
+        techName: '不锈钢外骨骼车身',
+        status: 'confirmed',
+        confidence: 1.0,
+        sourceArticle: '特斯拉Cybertruck中国大陆巡展开启',
+        sourceUrl: '#',
+    },
+     {
+        id: 'fc6',
+        brand: '小米',
+        model: 'SU7',
+        techDimensionKey: 'smart_driving',
+        techName: '城市NOA将全量推送',
+        status: 'rumored',
+        confidence: 0.75,
+        sourceArticle: '内部消息人士称小米智驾团队正在全力攻克城市NOA',
+        sourceUrl: '#',
+    },
+     {
+        id: 'fc7',
+        brand: '苹果',
+        model: 'Apple Car (已取消)',
+        techDimensionKey: 'smart_driving',
+        techName: 'L5级全自动驾驶',
+        status: 'rumored',
+        confidence: 0.2,
+        sourceArticle: '传苹果汽车项目泰坦计划已取消',
+        sourceUrl: '#',
+    },
 ];

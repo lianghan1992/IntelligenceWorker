@@ -120,6 +120,8 @@ export interface RecommendedSubscription {
 }
 
 // --- Tech Dashboard Types ---
+export type ComparisonMode = 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain' | 'forecast';
+
 export interface SpecDetail {
     value: string;
     supplier?: string;
@@ -150,6 +152,18 @@ export interface VehicleTechSpec {
             [subDimensionKey: string]: string | SpecDetail | null;
         };
     };
+}
+
+export interface NewTechForecast {
+    id: string;
+    brand: string;
+    model: string;
+    techDimensionKey: string; // e.g., 'smart_driving'
+    techName: string;
+    status: 'rumored' | 'confirmed';
+    confidence: number; // 0 to 1
+    sourceArticle: string;
+    sourceUrl: string;
 }
 
 
