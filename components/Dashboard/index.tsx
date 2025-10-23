@@ -25,7 +25,7 @@ const DailyBriefing: React.FC<{ user: User }> = ({ user }) => (
         <div className="relative z-10 flex">
             <div className="flex-grow">
                 <h2 className="text-2xl font-bold text-gray-800">👋 {user.username}，{getGreeting()}！</h2>
-                <p className="text-gray-600 mt-2 leading-relaxed max-w-4xl">
+                <p className="text-gray-600 mt-2 leading-relaxed">
                     这是您的AI每日晨报：自您上次登录以来，平台共为您监控到 <strong className="text-blue-600">1,254</strong> 条新情报。其中，您的核心竞品 <strong className="font-semibold text-gray-800">“比亚迪”</strong> 发布了DM5.0技术，被判定为 <span className="font-semibold text-red-600">高影响力事件</span>。同时，您关注的 <strong className="font-semibold text-gray-800">“固态电池”</strong> 技术有 <strong className="text-blue-600">2</strong> 条新进展。今日建议重点关注欧盟关税政策的最新动向。
                 </p>
             </div>
