@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard/index';
-import { InfoFeed } from './components/InfoFeed/index';
 import { DeepDives } from './components/DeepDives/index';
 import { IndustryEvents } from './components/IndustryEvents/index';
 import { ReportGenerator } from './components/ReportGenerator/index';
@@ -95,8 +94,6 @@ const App: React.FC = () => {
         return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
-      case 'feed':
-        return <InfoFeed subscriptions={subscriptions} />;
       case 'forecast':
         return <NewTechForecast user={user} />;
       case 'dives':

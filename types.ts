@@ -1,6 +1,6 @@
 // src/types.ts
 
-export type View = 'dashboard' | 'cockpit' | 'feed' | 'forecast' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'dashboard' | 'cockpit' | 'forecast' | 'dives' | 'events' | 'ai' | 'admin';
 export type AdminView = 'users' | 'events' | 'intelligence';
 
 export interface User {

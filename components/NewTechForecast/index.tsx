@@ -161,7 +161,7 @@ export const NewTechForecast: React.FC<NewTechForecastProps> = ({ user }) => {
     
     const initialVehicles = useMemo(() => {
         const uniqueNames = Array.from(new Set(predictions.map(p => p.vehicle_model)));
-        // FIX: Add type annotation for `name` to resolve type inference errors on lines 166 and 172.
+        // FIX: Add type annotation for `name` parameter to resolve implicit 'any' type error.
         return uniqueNames.map((name: string, index) => {
             // 智能提取车企名称
             const manufacturer = name.includes('SU9') ? '小米' : '理想';

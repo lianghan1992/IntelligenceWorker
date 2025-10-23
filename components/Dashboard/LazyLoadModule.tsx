@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
-// FIX: Removed unused 'FireIcon' import which was causing an error.
 import { RssIcon, VideoCameraIcon } from '../icons';
 
 // --- Reusable Intersection Observer Hook ---
