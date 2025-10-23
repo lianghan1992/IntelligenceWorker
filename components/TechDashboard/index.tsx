@@ -1,17 +1,16 @@
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts } from '../../mockData';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon } from '../icons';
-
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon } from '../icons';
 
 // --- Helper Functions ---
 const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
-    if (!spec) return <span className="text-gray-400">N/A</span>;
+    if (!spec) return <span className="text-gray-400">--</span>;
     if (typeof spec === 'string') return spec;
     return (
-        <div>
-            <span>{spec.value}</span>
-            {spec.supplier && <span className="block text-xs text-gray-500">{spec.supplier}</span>}
+        <div className="text-right">
+            <span className="font-semibold text-gray-800">{spec.value}</span>
+            {spec.supplier && <span className="block text-xs text-gray-500 mt-0.5">{spec.supplier}</span>}
         </div>
     );
 };
@@ -20,12 +19,6 @@ const getSpecValue = (spec: string | SpecDetail | null): string => {
     if (!spec) return 'N/A';
     if (typeof spec === 'string') return spec;
     return spec.value;
-};
-
-const getDifferences = (comparisonData: VehicleTechSpec[], catKey: string, subKey: string): boolean => {
-    if (comparisonData.length <= 1) return false;
-    const firstValue = getSpecValue(comparisonData[0]?.specs[catKey]?.[subKey]);
-    return comparisonData.slice(1).some(vehicle => getSpecValue(vehicle.specs[catKey]?.[subKey]) !== firstValue);
 };
 
 // --- Sub-Components ---
@@ -37,11 +30,11 @@ const ModeTab: React.FC<{
 }> = ({ label, icon: Icon, isActive, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex-1 flex flex-col items-center gap-1.5 py-2 px-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
-            isActive ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:bg-gray-100'
+        className={`relative flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none ${
+            isActive ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'
         }`}
     >
-        <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+        <Icon className="w-5 h-5" />
         <span>{label}</span>
     </button>
 );
@@ -53,7 +46,7 @@ const ForecastCell: React.FC<{ forecast: NewTechForecast; onSourceClick: () => v
         : { text: '传闻中', color: 'bg-yellow-100 text-yellow-800' };
 
     return (
-        <div className="p-2 space-y-2">
+        <div className="p-2 space-y-2 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
             <p className="font-semibold text-gray-800 text-sm">{forecast.techName}</p>
             <div>
                 <div className="flex justify-between items-center mb-0.5">
@@ -91,6 +84,50 @@ const SourceModal: React.FC<{ forecast: NewTechForecast; onClose: () => void }> 
     </div>
 );
 
+const ComparisonColumn: React.FC<{ vehicle: VehicleTechSpec, diffs: Set<string> }> = ({ vehicle, diffs }) => {
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(techDimensions.map(c => c.key)));
+    const toggleCategory = (key: string) => {
+        setExpandedCategories(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
+            return newSet;
+        });
+    };
+
+    return (
+        <div className="flex-shrink-0 w-80 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-gray-200 bg-gray-50/50">
+                <h3 className="font-bold text-lg text-gray-900">{vehicle.name}</h3>
+                <p className="text-sm text-gray-500">{vehicle.platform}</p>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+                {techDimensions.map(cat => (
+                    <div key={cat.key} className="border-b border-gray-200 last:border-b-0">
+                        <button onClick={() => toggleCategory(cat.key)} className="w-full flex justify-between items-center p-3 font-semibold text-gray-700 hover:bg-gray-100/70">
+                            <span>{cat.label}</span>
+                            <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${expandedCategories.has(cat.key) ? 'rotate-180' : ''}`} />
+                        </button>
+                        {expandedCategories.has(cat.key) && (
+                            <div className="px-3 pb-3 space-y-2">
+                                {cat.subDimensions.map(sub => {
+                                    const isDifferent = diffs.has(`${cat.key}.${sub.key}`);
+                                    return (
+                                        <div key={sub.key} className="relative flex justify-between items-start text-sm p-2 rounded-md hover:bg-gray-50">
+                                            {isDifferent && <div className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 rounded-r-full"></div>}
+                                            <span className="text-gray-600">{sub.label}</span>
+                                            {getSpecDisplay(vehicle.specs[cat.key]?.[sub.key])}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 // --- Main Component ---
 export const TechDashboard: React.FC = () => {
@@ -98,10 +135,9 @@ export const TechDashboard: React.FC = () => {
     const [selections, setSelections] = useState<Record<string, any>>({
         item0: 'xiaomi-su7-max',
         item1: 'tesla-model3-2024',
-        item2: 'li-l7-2024',
     });
     const [comparisonData, setComparisonData] = useState<VehicleTechSpec[]>([]);
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(techDimensions.map(c => c.key)));
+    const [differences, setDifferences] = useState<Set<string>>(new Set());
     
     // State for Forecast mode
     const [forecastFilters, setForecastFilters] = useState<Record<string, boolean>>({});
@@ -113,25 +149,33 @@ export const TechDashboard: React.FC = () => {
     const uniqueModels = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.model))), []);
     const forecastBrands = useMemo(() => Array.from(new Set(mockTechForecasts.map(f => f.brand))), []);
 
+    const modes: { key: ComparisonMode, label: string, icon: React.FC<any> }[] = [
+        { key: 'forecast', label: '新技术预测', icon: BrainIcon },
+        { key: 'competitor', label: '竞品对位', icon: EyeIcon },
+        { key: 'brand', label: '产品梯队', icon: TrendingUpIcon },
+        { key: 'evolution', label: '车型演进', icon: LightBulbIcon },
+        { key: 'tech', label: '技术专题', icon: GearIcon },
+        { key: 'supply_chain', label: '供应链/平台', icon: UsersIcon },
+    ];
+
     // --- Data Processing Logic ---
     useEffect(() => {
         let data: VehicleTechSpec[] = [];
-        // This effect handles data for the original 5 modes
         if (mode !== 'forecast') {
-            switch (mode) {
+             switch (mode) {
                 case 'competitor':
                     data = Object.values(selections)
                         .map(id => mockVehicleSpecs.find(v => v.id === id))
                         .filter(Boolean) as VehicleTechSpec[];
                     break;
                 case 'brand':
-                    data = mockVehicleSpecs.filter(v => v.brand === selections.brand);
+                    data = (selections.models || []).map((id:string) => mockVehicleSpecs.find(v => v.id === id)).filter(Boolean);
                     break;
                 case 'evolution':
                     data = mockVehicleSpecs.filter(v => v.model === selections.model).sort((a, b) => a.year - b.year);
                     break;
                 case 'tech':
-                    if (selections.tech) {
+                     if (selections.tech) {
                         const [catKey, subKey] = selections.tech.split('.');
                         data = mockVehicleSpecs.filter(v => v.specs[catKey]?.[subKey]);
                     }
@@ -149,6 +193,23 @@ export const TechDashboard: React.FC = () => {
                     break;
             }
             setComparisonData(data);
+
+            // Calculate differences
+            const diffSet = new Set<string>();
+            if (data.length > 1) {
+                techDimensions.forEach(cat => {
+                    cat.subDimensions.forEach(sub => {
+                        const firstValue = getSpecValue(data[0].specs[cat.key]?.[sub.key]);
+                        for (let i = 1; i < data.length; i++) {
+                            if (getSpecValue(data[i].specs[cat.key]?.[sub.key]) !== firstValue) {
+                                diffSet.add(`${cat.key}.${sub.key}`);
+                                break;
+                            }
+                        }
+                    });
+                });
+            }
+            setDifferences(diffSet);
         }
     }, [selections, mode]);
 
@@ -166,31 +227,22 @@ export const TechDashboard: React.FC = () => {
     
     // --- UI State Management ---
     useEffect(() => {
-        // Initialize forecast filters
         const initialFilters: Record<string, boolean> = {};
         forecastBrands.forEach(brand => initialFilters[brand] = true);
         setForecastFilters(initialFilters);
         setExpandedBrands(new Set(forecastBrands));
-    }, []); // Run once on mount
+    }, []);
 
     const handleModeChange = (newMode: ComparisonMode) => {
         setMode(newMode);
         switch (newMode) {
-            case 'competitor': setSelections({ item0: 'xiaomi-su7-max', item1: 'tesla-model3-2024', item2: 'li-l7-2024' }); break;
-            case 'brand': setSelections({ brand: uniqueBrands[0] || '' }); break;
+            case 'competitor': setSelections({ item0: 'xiaomi-su7-max', item1: 'tesla-model3-2024' }); break;
+            case 'brand': setSelections({ brand: '理想', models: ['li-l7-2024', 'li-l9-2024'] }); break;
             case 'evolution': setSelections({ model: 'M7' }); break;
             case 'tech': setSelections({ tech: 'power.platform' }); break;
-            case 'supply_chain': setSelections({ type: 'supplier', value: mockSuppliers[0] || '' }); break;
+            case 'supply_chain': setSelections({ type: 'supplier', value: 'NVIDIA' }); break;
             case 'forecast': setSelections({}); break;
         }
-    };
-    
-    const toggleCategory = (key: string) => {
-        setExpandedCategories(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
-            return newSet;
-        });
     };
     
     const toggleBrandExpansion = (brand: string) => {
@@ -212,8 +264,59 @@ export const TechDashboard: React.FC = () => {
 
     // --- Render Functions ---
     const renderControls = () => {
-        // ... (existing control rendering logic)
+        const handleSelectChange = (key: string, value: any) => {
+            setSelections(prev => ({...prev, [key]: value}));
+        };
+
         switch (mode) {
+            case 'competitor':
+                return (
+                    <div className="flex items-center gap-2">
+                        {Object.keys(selections).map((key, i) => (
+                             <select key={key} value={selections[key] || ''} onChange={e => handleSelectChange(key, e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                {mockVehicleSpecs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                             </select>
+                        ))}
+                         <button onClick={() => handleSelectChange(`item${Object.keys(selections).length}`, mockVehicleSpecs[0].id)} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300"><PlusIcon className="w-5 h-5 text-gray-600" /></button>
+                    </div>
+                );
+            case 'brand':
+                const modelsOfBrand = mockVehicleSpecs.filter(v => v.brand === selections.brand);
+                return (
+                    <div className="flex gap-4">
+                        <select value={selections.brand} onChange={e => setSelections({ brand: e.target.value, models: []})} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                         <select multiple value={selections.models} onChange={e => handleSelectChange('models', Array.from(e.target.selectedOptions, option => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            {modelsOfBrand.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        </select>
+                    </div>
+                );
+            case 'evolution':
+                return <select value={selections.model} onChange={e => handleSelectChange('model', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>;
+            case 'tech':
+                return <select value={selections.tech} onChange={e => handleSelectChange('tech', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {techDimensions.map(cat => (
+                        <optgroup key={cat.key} label={cat.label}>
+                            {cat.subDimensions.map(sub => <option key={`${cat.key}.${sub.key}`} value={`${cat.key}.${sub.key}`}>{sub.label}</option>)}
+                        </optgroup>
+                    ))}
+                    </select>;
+            case 'supply_chain':
+                return (
+                    <div className="flex gap-4">
+                        <select value={selections.type} onChange={e => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="supplier">供应商</option>
+                            <option value="platform">整车平台</option>
+                        </select>
+                        <select value={selections.value} onChange={e => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- 请选择 --</option>
+                            {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                    </div>
+                );
             case 'forecast':
                  return (
                     <div className="flex items-center gap-4">
@@ -228,186 +331,89 @@ export const TechDashboard: React.FC = () => {
                         </div>
                     </div>
                 );
-            default:
-                 const handleSelectChange = (key: string, value: string) => {
-                    setSelections(prev => ({...prev, [key]: value}));
-                };
-                
-                switch (mode) {
-                    case 'competitor':
-                        return (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {[0, 1, 2].map(i => (
-                                    <select key={i} value={selections[`item${i}`] || ''} onChange={e => handleSelectChange(`item${i}`, e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                        {mockVehicleSpecs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                                    </select>
-                                ))}
-                            </div>
-                        );
-                    case 'brand':
-                         return <select value={selections.brand} onChange={e => handleSelectChange('brand', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                             {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                         </select>;
-                    case 'evolution':
-                        return <select value={selections.model} onChange={e => handleSelectChange('model', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>;
-                    case 'tech':
-                        return <select value={selections.tech} onChange={e => handleSelectChange('tech', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            {techDimensions.map(cat => (
-                                <optgroup key={cat.key} label={cat.label}>
-                                    {cat.subDimensions.map(sub => <option key={`${cat.key}.${sub.key}`} value={`${cat.key}.${sub.key}`}>{sub.label}</option>)}
-                                </optgroup>
-                            ))}
-                         </select>;
-                    case 'supply_chain':
-                        return (
-                            <div className="flex gap-4">
-                                <select value={selections.type} onChange={e => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="supplier">供应商</option>
-                                    <option value="platform">整车平台</option>
-                                </select>
-                                <select value={selections.value} onChange={e => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">-- 请选择 --</option>
-                                    {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
-                                </select>
-                            </div>
-                        );
-                }
         }
     };
     
-    const renderTable = () => {
+    const renderContent = () => {
         if (mode === 'forecast') {
             return (
-                 <table className="w-full min-w-[1000px] border-collapse text-sm">
-                    <thead className="sticky top-0 z-10">
-                        <tr className="border-b bg-gray-50">
-                            <th className="w-48 p-3 text-left font-semibold text-gray-600">车企/车型</th>
-                            {techDimensions.map(dim => <th key={dim.key} className="p-3 text-left font-semibold text-gray-600">{dim.label}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {Object.entries(groupedForecasts).map(([brand, models]) => (
-                            <React.Fragment key={brand}>
-                                <tr className="border-b bg-gray-50/70 hover:bg-gray-100 cursor-pointer" onClick={() => toggleBrandExpansion(brand)}>
-                                    <td className="p-3 font-semibold text-gray-800 flex items-center gap-2">
-                                         <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedBrands.has(brand) ? 'rotate-0' : '-rotate-90'}`} />
-                                         {brand}
-                                    </td>
-                                    <td colSpan={techDimensions.length}></td>
-                                </tr>
-                                {expandedBrands.has(brand) && Object.entries(models).map(([model, forecasts]) => (
-                                    <tr key={model} className="border-b">
-                                        <td className="p-3 pl-10 font-medium text-gray-700">{model}</td>
-                                        {techDimensions.map(dim => {
-                                            const forecast = forecasts.find(f => f.techDimensionKey === dim.key);
-                                            return (
-                                                <td key={dim.key} className="p-1 align-top">
-                                                    {forecast ? <ForecastCell forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : <div className="p-2 text-center text-gray-300">-</div>}
-                                                </td>
-                                            );
-                                        })}
+                <div className="overflow-auto">
+                    <table className="w-full min-w-[1200px] border-collapse text-sm">
+                        <thead className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm">
+                            <tr className="border-b">
+                                <th className="w-56 p-3 text-left font-semibold text-gray-600">车企/车型</th>
+                                {techDimensions.map(dim => <th key={dim.key} className="p-3 text-left font-semibold text-gray-600 min-w-[150px]">{dim.label}</th>)}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(groupedForecasts).map(([brand, models]) => (
+                                <React.Fragment key={brand}>
+                                    <tr className="border-b bg-gray-50 hover:bg-gray-100 cursor-pointer" onClick={() => toggleBrandExpansion(brand)}>
+                                        <td className="p-3 font-semibold text-gray-800 flex items-center gap-2 sticky left-0 bg-gray-50 z-[5]">
+                                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedBrands.has(brand) ? 'rotate-180' : ''}`} />
+                                            {brand}
+                                        </td>
+                                        <td colSpan={techDimensions.length} className="bg-gray-50"></td>
                                     </tr>
-                                ))}
-                            </React.Fragment>
-                        ))}
-                    </tbody>
-                 </table>
-            )
+                                    {expandedBrands.has(brand) && Object.entries(models).map(([model, forecasts]) => (
+                                        <tr key={model} className="border-b bg-white">
+                                            <td className="p-3 pl-10 font-medium text-gray-700 sticky left-0 bg-white z-[5]">{model}</td>
+                                            {techDimensions.map(dim => {
+                                                const forecast = forecasts.find(f => f.techDimensionKey === dim.key);
+                                                return (
+                                                    <td key={dim.key} className="p-2 align-top">
+                                                        {forecast ? <ForecastCell forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : null}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    ))}
+                                </React.Fragment>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
         }
         
         if (comparisonData.length === 0) {
-            return <div className="p-10 text-center text-gray-500">请选择有效的对比项。</div>
-        }
-        
-        if (mode === 'tech' && selections.tech) {
-            const [catKey, subKey] = selections.tech.split('.');
-            const firstCarWithDetails = comparisonData.find(c => typeof c.specs[catKey]?.[subKey] === 'object' && (c.specs[catKey]?.[subKey] as SpecDetail)?.details);
-            const detailKeys = firstCarWithDetails ? Object.keys(((firstCarWithDetails.specs[catKey]?.[subKey] as SpecDetail)?.details) || {}) : [];
-            const subDimLabel = techDimensions.find(c => c.key === catKey)?.subDimensions.find(s => s.key === subKey)?.label;
-
-            return (
-                 <table className="w-full min-w-[800px] border-collapse text-sm">
-                    <thead>
-                        <tr className="border-b bg-gray-50 sticky top-0">
-                            <th className="w-1/4 p-3 text-left font-semibold text-gray-600">{subDimLabel} - 详细参数</th>
-                             {comparisonData.map(v => <th key={v.id} className="w-1/4 p-3 text-left font-semibold text-gray-800">{v.name}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                         <tr className="border-b bg-gray-50/70">
-                            <td className="p-3 pl-4 font-semibold text-gray-800">核心型号</td>
-                            {comparisonData.map(v => <td key={v.id} className="p-3 font-medium text-gray-900">{getSpecDisplay(v.specs[catKey]?.[subKey])}</td>)}
-                         </tr>
-                        {detailKeys.map(dKey => (
-                             <tr key={dKey} className="border-b hover:bg-gray-50">
-                                <td className="p-3 pl-8 text-gray-600">{dKey}</td>
-                                {comparisonData.map(v => {
-                                    const spec = v.specs[catKey]?.[subKey] as SpecDetail | null;
-                                    return <td key={v.id} className="p-3 font-medium text-gray-900">{spec?.details?.[dKey] || 'N/A'}</td>
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            )
+            return <div className="p-10 text-center text-gray-500">请在上方选择有效的对比项。</div>
         }
 
         return (
-            <table className="w-full min-w-[1000px] border-collapse text-sm">
-                <thead className="sticky top-0 z-10">
-                    <tr className="border-b bg-gray-50">
-                        <th className="w-1/4 p-3 text-left font-semibold text-gray-600">技术维度</th>
-                        {comparisonData.map(v => <th key={v.id} className="w-1/4 p-3 text-left font-semibold text-gray-800">{v.name}</th>)}
-                    </tr>
-                </thead>
-                <tbody>
-                    {techDimensions.map(cat => (
-                        <React.Fragment key={cat.key}>
-                            <tr className="border-b bg-gray-50/70 sticky top-10 cursor-pointer" onClick={() => toggleCategory(cat.key)}>
-                                <td colSpan={comparisonData.length + 1} className="p-2 pl-3 font-semibold text-gray-800 flex items-center gap-2">
-                                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedCategories.has(cat.key) ? 'rotate-0' : '-rotate-90'}`} />
-                                    {cat.label}
-                                </td>
-                            </tr>
-                            {expandedCategories.has(cat.key) && cat.subDimensions.map(sub => {
-                                const isDifferent = getDifferences(comparisonData, cat.key, sub.key);
-                                return (
-                                    <tr key={sub.key} className="border-b hover:bg-gray-50">
-                                        <td className="p-3 pl-8 text-gray-600">{sub.label}</td>
-                                        {comparisonData.map(v => (
-                                            <td key={v.id} className={`p-3 font-medium align-top ${isDifferent ? 'bg-amber-50/60' : ''}`}>
-                                                {getSpecDisplay(v.specs[cat.key]?.[sub.key])}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
-                        </React.Fragment>
+            <div className="flex-1 overflow-x-auto p-4">
+                <div className="flex gap-4">
+                    {comparisonData.map(vehicle => (
+                        <ComparisonColumn key={vehicle.id} vehicle={vehicle} diffs={differences} />
                     ))}
-                </tbody>
-            </table>
+                </div>
+            </div>
         );
     };
 
+    const activeModeIndex = modes.findIndex(m => m.key === mode);
+
     return (
         <>
-            <div className="h-full flex flex-col bg-gray-100 p-6">
-                <header className="flex-shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
-                    <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl mb-4">
-                        <ModeTab label="新技术预测" icon={BrainIcon} isActive={mode === 'forecast'} onClick={() => handleModeChange('forecast')} />
-                        <ModeTab label="竞品对位" icon={EyeIcon} isActive={mode === 'competitor'} onClick={() => handleModeChange('competitor')} />
-                        <ModeTab label="产品梯队" icon={TrendingUpIcon} isActive={mode === 'brand'} onClick={() => handleModeChange('brand')} />
-                        <ModeTab label="车型演进" icon={LightBulbIcon} isActive={mode === 'evolution'} onClick={() => handleModeChange('evolution')} />
-                        <ModeTab label="技术专题" icon={GearIcon} isActive={mode === 'tech'} onClick={() => handleModeChange('tech')} />
-                        <ModeTab label="供应链/平台" icon={UsersIcon} isActive={mode === 'supply_chain'} onClick={() => handleModeChange('supply_chain')} />
+            <div className="h-full flex flex-col bg-gray-50 p-4 sm:p-6 gap-4 sm:gap-6">
+                <header className="flex-shrink-0 bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-4">
+                    <div className="relative flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
+                        {modes.map((m) => (
+                            <ModeTab key={m.key} {...m} isActive={mode === m.key} onClick={() => handleModeChange(m.key)} />
+                        ))}
+                         <div
+                            className="absolute top-1 bottom-1 bg-white rounded-lg shadow-md transition-all duration-300 ease-in-out"
+                            style={{
+                                width: `calc(100% / ${modes.length})`,
+                                left: `calc(100% / ${modes.length} * ${activeModeIndex})`,
+                            }}
+                        />
                     </div>
-                    <div>{renderControls()}</div>
+                    <div className="min-h-[44px] flex items-center">{renderControls()}</div>
                 </header>
 
-                <main className="flex-1 overflow-auto bg-white rounded-xl border border-gray-200 shadow-sm relative">
-                    {renderTable()}
+                <main className="flex-1 flex flex-col overflow-hidden">
+                    {renderContent()}
                 </main>
             </div>
             {isSourceModalOpen && selectedForecastForSource && (
