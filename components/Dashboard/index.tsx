@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Subscription, User, InfoItem, View, ApiPoi } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { FeedIcon, GearIcon } from '../icons';
@@ -159,32 +159,15 @@ interface DashboardProps {
     onNavigate: (view: View) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, infoItems, onNavigate }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNavigate }) => {
     const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
-
-    const stats = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const articlesToday = infoItems.filter(item => new Date(item.created_at) >= today);
-        const pointsWithUpdates = new Set(articlesToday.map(item => item.point_id)).size;
-        const totalPoints = subscriptions.length;
-        const totalSources = new Set(subscriptions.map(sub => sub.source_name)).size;
-
-        return {
-            articlesToday: articlesToday.length,
-            pointsWithUpdates,
-            totalPoints,
-            totalSources,
-        };
-    }, [infoItems, subscriptions]);
 
     return (
         <>
             <div className="p-6 bg-gray-50/50 overflow-y-auto h-full">
                 <div className="max-w-7xl mx-auto space-y-10">
                     <DailyBriefing user={user} />
-                    <DashboardWidgets stats={stats} />
+                    <DashboardWidgets subscriptions={subscriptions} />
                     <TodaysEvents onNavigate={onNavigate} />
                     <FocusPointsSection 
                         onNavigate={onNavigate} 
