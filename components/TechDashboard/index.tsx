@@ -1,194 +1,264 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { VehicleTechSpec } from '../../types';
-import { techDimensions, mockVehicleSpecs } from '../../mockData';
-import { ChevronDownIcon } from '../icons';
+import React, { useState, useMemo, useEffect, ReactNode } from 'react';
+import { VehicleTechSpec, SpecDetail } from '../../types';
+import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms } from '../../mockData';
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon } from '../icons';
 
-type ComparisonMode = 'evolution' | 'brand' | 'competitor';
+type ComparisonMode = 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain';
 
 // --- Helper Functions ---
-const getSpec = (spec: VehicleTechSpec | undefined, catKey: string, subKey: string) => {
-    return spec?.specs[catKey]?.[subKey] || 'N/A';
+const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
+    if (!spec) return <span className="text-gray-400">N/A</span>;
+    if (typeof spec === 'string') return spec;
+    return (
+        <div>
+            <span>{spec.value}</span>
+            {spec.supplier && <span className="block text-xs text-gray-500">{spec.supplier}</span>}
+        </div>
+    );
 };
 
-const getDifferences = (comparisonData: VehicleTechSpec[], catKey: string, subKey: string) => {
+const getSpecValue = (spec: string | SpecDetail | null): string => {
+    if (!spec) return 'N/A';
+    if (typeof spec === 'string') return spec;
+    return spec.value;
+};
+
+const getDifferences = (comparisonData: VehicleTechSpec[], catKey: string, subKey: string): boolean => {
     if (comparisonData.length <= 1) return false;
-    const firstValue = getSpec(comparisonData[0], catKey, subKey);
-    for (let i = 1; i < comparisonData.length; i++) {
-        if (getSpec(comparisonData[i], catKey, subKey) !== firstValue) {
-            return true; // Found a difference
-        }
-    }
-    return false; // All values are the same
+    const firstValue = getSpecValue(comparisonData[0]?.specs[catKey]?.[subKey]);
+    return comparisonData.slice(1).some(vehicle => getSpecValue(vehicle.specs[catKey]?.[subKey]) !== firstValue);
 };
 
 // --- Sub-Components ---
-
-// A more robust multi-select component for future use if needed, for now using simple selects.
-const VehicleSelector: React.FC<{
+const ModeTab: React.FC<{
     label: string;
-    options: { value: string; label: string }[];
-    value: string;
-    onChange: (value: string) => void;
-}> = ({ label, options, value, onChange }) => (
-    <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-            {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-    </div>
+    icon: React.FC<any>;
+    isActive: boolean;
+    onClick: () => void;
+}> = ({ label, icon: Icon, isActive, onClick }) => (
+    <button
+        onClick={onClick}
+        className={`flex-1 flex flex-col items-center gap-1.5 py-2 px-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
+            isActive ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:bg-gray-100'
+        }`}
+    >
+        <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+        <span>{label}</span>
+    </button>
 );
 
 // --- Main Component ---
 export const TechDashboard: React.FC = () => {
-    const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('competitor');
-    
-    // State to manage user selections in the control panel
-    const [selections, setSelections] = useState<string[]>(['xiaomi-su7-max', 'wenjie-m7-2024', 'li-l7-2024']);
-    
-    // State that holds the final data to be rendered in the table
+    const [mode, setMode] = useState<ComparisonMode>('competitor');
+    const [selections, setSelections] = useState<Record<string, string>>({
+        item0: 'xiaomi-su7-max',
+        item1: 'tesla-model3-2024',
+        item2: 'li-l7-2024',
+    });
     const [comparisonData, setComparisonData] = useState<VehicleTechSpec[]>([]);
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(techDimensions.map(c => c.key)));
 
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-        new Set(techDimensions.map(c => c.key))
-    );
+    const uniqueBrands = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.brand))), []);
+    const uniqueModels = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.model))), []);
 
+    // --- Data Processing Logic ---
+    useEffect(() => {
+        let data: VehicleTechSpec[] = [];
+        switch (mode) {
+            case 'competitor':
+                data = Object.values(selections)
+                    .map(id => mockVehicleSpecs.find(v => v.id === id))
+                    .filter(Boolean) as VehicleTechSpec[];
+                break;
+            case 'brand':
+                data = mockVehicleSpecs.filter(v => v.brand === selections.brand);
+                break;
+            case 'evolution':
+                data = mockVehicleSpecs.filter(v => v.model === selections.model).sort((a, b) => a.year - b.year);
+                break;
+            case 'tech':
+                if (selections.tech) {
+                    const [catKey, subKey] = selections.tech.split('.');
+                    data = mockVehicleSpecs.filter(v => v.specs[catKey]?.[subKey]);
+                }
+                break;
+            case 'supply_chain':
+                if (selections.type === 'supplier' && selections.value) {
+                    data = mockVehicleSpecs.filter(v => 
+                        Object.values(v.specs).some(cat => 
+                            Object.values(cat).some(spec => typeof spec === 'object' && spec?.supplier === selections.value)
+                        )
+                    );
+                } else if (selections.type === 'platform' && selections.value) {
+                    data = mockVehicleSpecs.filter(v => v.platform === selections.value);
+                }
+                break;
+        }
+        setComparisonData(data);
+    }, [selections, mode]);
+    
+    // --- UI State Management ---
+    const handleModeChange = (newMode: ComparisonMode) => {
+        setMode(newMode);
+        // Reset selections for the new mode
+        switch (newMode) {
+            case 'competitor': setSelections({ item0: 'xiaomi-su7-max', item1: 'tesla-model3-2024', item2: 'li-l7-2024' }); break;
+            case 'brand': setSelections({ brand: uniqueBrands[0] || '' }); break;
+            case 'evolution': setSelections({ model: 'M7' }); break;
+            case 'tech': setSelections({ tech: 'power.platform' }); break;
+            case 'supply_chain': setSelections({ type: 'supplier', value: mockSuppliers[0] || '' }); break;
+        }
+    };
+    
     const toggleCategory = (key: string) => {
         setExpandedCategories(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
+            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
             return newSet;
         });
     };
 
-    const uniqueBrands = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.brand))), []);
-    const modelsByBrand = useMemo(() => {
-        return mockVehicleSpecs.reduce((acc, v) => {
-            if (!acc[v.brand]) acc[v.brand] = [];
-            acc[v.brand].push({ value: v.id, label: v.name });
-            return acc;
-        }, {} as Record<string, { value: string; label: string }[]>);
-    }, []);
-
-    const handleGenerateComparison = () => {
-        const data = selections.map(id => mockVehicleSpecs.find(v => v.id === id)).filter(Boolean) as VehicleTechSpec[];
-        setComparisonData(data);
-    };
-
-    // Trigger initial comparison on load
-    useEffect(() => {
-        handleGenerateComparison();
-    }, []);
-
-    const renderSelectors = () => {
-        switch (comparisonMode) {
-            case 'evolution':
-                // For simplicity, we'll use a single brand for evolution demo
-                const brandForEvolution = '问界';
-                const models = modelsByBrand[brandForEvolution] || [];
-                return (
-                     <VehicleSelector label="选择车型" options={models} value={selections[0] || ''} onChange={(val) => setSelections([val, ...models.map(m => m.value).filter(m => m !== val)])} />
-                );
-            case 'brand':
-                 const brand = uniqueBrands[0]; // Default to first brand
-                 const brandModels = modelsByBrand[brand] || [];
-                return (
-                    <div className="flex gap-4">
-                        <p className="font-semibold p-2">{brand}</p>
-                         {/* This should be a multi-select component in a real app */}
-                        <p className="text-gray-500 p-2"> (选择 {brand} 旗下车型进行对比)</p>
-                    </div>
-                );
+    // --- Render Functions ---
+    const renderControls = () => {
+        const handleSelectChange = (key: string, value: string) => {
+            setSelections(prev => ({...prev, [key]: value}));
+        };
+        
+        switch (mode) {
             case 'competitor':
                 return (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {[0, 1, 2].map(i => (
-                             <VehicleSelector
-                                key={i}
-                                label={`竞品 ${i + 1}`}
-                                options={mockVehicleSpecs.map(v => ({ value: v.id, label: v.name }))}
-                                value={selections[i] || ''}
-                                onChange={(val) => {
-                                    const newSelections = [...selections];
-                                    newSelections[i] = val;
-                                    setSelections(newSelections);
-                                }}
-                            />
+                            <select key={i} value={selections[`item${i}`] || ''} onChange={e => handleSelectChange(`item${i}`, e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                {mockVehicleSpecs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
                         ))}
+                    </div>
+                );
+            case 'brand':
+                 return <select value={selections.brand} onChange={e => handleSelectChange('brand', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                     {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                 </select>;
+            case 'evolution':
+                return <select value={selections.model} onChange={e => handleSelectChange('model', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>;
+            case 'tech':
+                return <select value={selections.tech} onChange={e => handleSelectChange('tech', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {techDimensions.map(cat => (
+                        <optgroup key={cat.key} label={cat.label}>
+                            {cat.subDimensions.map(sub => <option key={`${cat.key}.${sub.key}`} value={`${cat.key}.${sub.key}`}>{sub.label}</option>)}
+                        </optgroup>
+                    ))}
+                 </select>;
+            case 'supply_chain':
+                return (
+                    <div className="flex gap-4">
+                        <select value={selections.type} onChange={e => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="supplier">供应商</option>
+                            <option value="platform">整车平台</option>
+                        </select>
+                        <select value={selections.value} onChange={e => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">-- 请选择 --</option>
+                            {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
+                        </select>
                     </div>
                 );
         }
     };
     
+    const renderTable = () => {
+        if (comparisonData.length === 0) {
+            return <div className="p-10 text-center text-gray-500">请选择有效的对比项。</div>
+        }
+        
+        // Special table for Tech mode
+        if (mode === 'tech' && selections.tech) {
+            const [catKey, subKey] = selections.tech.split('.');
+            const firstCarWithDetails = comparisonData.find(c => typeof c.specs[catKey]?.[subKey] === 'object' && (c.specs[catKey]?.[subKey] as SpecDetail)?.details);
+            const detailKeys = firstCarWithDetails ? Object.keys(((firstCarWithDetails.specs[catKey]?.[subKey] as SpecDetail)?.details) || {}) : [];
+            const subDimLabel = techDimensions.find(c => c.key === catKey)?.subDimensions.find(s => s.key === subKey)?.label;
+
+            return (
+                 <table className="w-full min-w-[800px] border-collapse text-sm">
+                    <thead>
+                        <tr className="border-b bg-gray-50 sticky top-0">
+                            <th className="w-1/4 p-3 text-left font-semibold text-gray-600">{subDimLabel} - 详细参数</th>
+                             {comparisonData.map(v => <th key={v.id} className="w-1/4 p-3 text-left font-semibold text-gray-800">{v.name}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody>
+                         <tr className="border-b bg-gray-50/70">
+                            <td className="p-3 pl-4 font-semibold text-gray-800">核心型号</td>
+                            {comparisonData.map(v => <td key={v.id} className="p-3 font-medium text-gray-900">{getSpecDisplay(v.specs[catKey]?.[subKey])}</td>)}
+                         </tr>
+                        {detailKeys.map(dKey => (
+                             <tr key={dKey} className="border-b hover:bg-gray-50">
+                                <td className="p-3 pl-8 text-gray-600">{dKey}</td>
+                                {comparisonData.map(v => {
+                                    const spec = v.specs[catKey]?.[subKey] as SpecDetail | null;
+                                    return <td key={v.id} className="p-3 font-medium text-gray-900">{spec?.details?.[dKey] || 'N/A'}</td>
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )
+        }
+
+        // Standard table for other modes
+        return (
+            <table className="w-full min-w-[1000px] border-collapse text-sm">
+                <thead className="sticky top-0 z-10">
+                    <tr className="border-b bg-gray-50">
+                        <th className="w-1/4 p-3 text-left font-semibold text-gray-600">技术维度</th>
+                        {comparisonData.map(v => <th key={v.id} className="w-1/4 p-3 text-left font-semibold text-gray-800">{v.name}</th>)}
+                    </tr>
+                </thead>
+                <tbody>
+                    {techDimensions.map(cat => (
+                        <React.Fragment key={cat.key}>
+                            <tr className="border-b bg-gray-50/70 sticky top-10 cursor-pointer" onClick={() => toggleCategory(cat.key)}>
+                                <td colSpan={comparisonData.length + 1} className="p-2 pl-3 font-semibold text-gray-800 flex items-center gap-2">
+                                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedCategories.has(cat.key) ? 'rotate-0' : '-rotate-90'}`} />
+                                    {cat.label}
+                                </td>
+                            </tr>
+                            {expandedCategories.has(cat.key) && cat.subDimensions.map(sub => {
+                                const isDifferent = getDifferences(comparisonData, cat.key, sub.key);
+                                return (
+                                    <tr key={sub.key} className="border-b hover:bg-gray-50">
+                                        <td className="p-3 pl-8 text-gray-600">{sub.label}</td>
+                                        {comparisonData.map(v => (
+                                            <td key={v.id} className={`p-3 font-medium align-top ${isDifferent ? 'bg-amber-50/60' : ''}`}>
+                                                {getSpecDisplay(v.specs[cat.key]?.[sub.key])}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            })}
+                        </React.Fragment>
+                    ))}
+                </tbody>
+            </table>
+        );
+    };
 
     return (
         <div className="h-full flex flex-col bg-gray-100 p-6">
             <header className="flex-shrink-0 bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6">
-                <div className="flex justify-between items-center mb-4">
-                     <h1 className="text-xl font-bold text-gray-900">车型技术看板</h1>
-                     <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-lg">
-                        {(['competitor', 'brand', 'evolution'] as ComparisonMode[]).map(mode => (
-                             <button
-                                key={mode}
-                                onClick={() => setComparisonMode(mode)}
-                                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${comparisonMode === mode ? 'bg-white text-blue-600 shadow' : 'text-gray-600 hover:bg-gray-200'}`}
-                            >
-                                {{ competitor: '跨品牌竞品', brand: '同品牌对比', evolution: '单车演进' }[mode]}
-                            </button>
-                        ))}
-                     </div>
+                <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl mb-4">
+                    <ModeTab label="竞品对位" icon={EyeIcon} isActive={mode === 'competitor'} onClick={() => handleModeChange('competitor')} />
+                    <ModeTab label="产品梯队" icon={TrendingUpIcon} isActive={mode === 'brand'} onClick={() => handleModeChange('brand')} />
+                    <ModeTab label="车型演进" icon={LightBulbIcon} isActive={mode === 'evolution'} onClick={() => handleModeChange('evolution')} />
+                    <ModeTab label="技术专题" icon={GearIcon} isActive={mode === 'tech'} onClick={() => handleModeChange('tech')} />
+                    <ModeTab label="供应链/平台" icon={UsersIcon} isActive={mode === 'supply_chain'} onClick={() => handleModeChange('supply_chain')} />
                 </div>
-                <div className="flex items-end gap-4">
-                    <div className="flex-grow">{renderSelectors()}</div>
-                    <button onClick={handleGenerateComparison} className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg shadow hover:bg-blue-700 transition h-10">
-                        生成对比
-                    </button>
-                </div>
+                <div>{renderControls()}</div>
             </header>
 
-            <main className="flex-1 overflow-auto bg-white rounded-xl border border-gray-200 shadow-sm">
-                <table className="w-full min-w-[1000px] border-collapse text-sm">
-                    <thead>
-                        <tr className="border-b bg-gray-50 sticky top-0">
-                            <th className="w-1/4 p-3 text-left font-semibold text-gray-600">技术维度</th>
-                            {comparisonData.map(vehicle => (
-                                <th key={vehicle.id} className="w-1/4 p-3 text-left font-semibold text-gray-800">{vehicle.name}</th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {techDimensions.map(category => (
-                            <React.Fragment key={category.key}>
-                                <tr className="border-b bg-gray-50/70 cursor-pointer" onClick={() => toggleCategory(category.key)}>
-                                    <td colSpan={comparisonData.length + 1} className="p-2 pl-3 font-semibold text-gray-800 flex items-center gap-2">
-                                        <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedCategories.has(category.key) ? 'rotate-0' : '-rotate-90'}`} />
-                                        {category.label}
-                                    </td>
-                                </tr>
-                                {expandedCategories.has(category.key) && category.subDimensions.map(subDim => {
-                                    const isDifferent = getDifferences(comparisonData, category.key, subDim.key);
-                                    return (
-                                        <tr key={subDim.key} className="border-b hover:bg-gray-50">
-                                            <td className="p-3 pl-8 text-gray-600">{subDim.label}</td>
-                                            {comparisonData.map(vehicle => (
-                                                <td key={vehicle.id} className={`p-3 font-medium ${isDifferent ? 'bg-yellow-50/70 text-yellow-900' : 'text-gray-900'}`}>
-                                                    {getSpec(vehicle, category.key, subDim.key)}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    );
-                                })}
-                            </React.Fragment>
-                        ))}
-                    </tbody>
-                </table>
+            <main className="flex-1 overflow-auto bg-white rounded-xl border border-gray-200 shadow-sm relative">
+                {renderTable()}
             </main>
         </div>
     );

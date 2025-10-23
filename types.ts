@@ -120,6 +120,12 @@ export interface RecommendedSubscription {
 }
 
 // --- Tech Dashboard Types ---
+export interface SpecDetail {
+    value: string;
+    supplier?: string;
+    details?: Record<string, string | number>; // For tech-centric view
+}
+
 export interface TechDimension {
     key: string;
     label: string;
@@ -136,10 +142,12 @@ export interface VehicleTechSpec {
     id: string; // e.g., 'li-l7-2024'
     name: string; // e.g., '理想 L7 2024款'
     brand: string; // e.g., '理想'
+    model: string; // e.g., 'L7'
     year: number; // e.g., 2024
+    platform?: string; // e.g., '理想增程2.0平台'
     specs: {
         [categoryKey: string]: {
-            [subDimensionKey: string]: string | null;
+            [subDimensionKey: string]: string | SpecDetail | null;
         };
     };
 }
