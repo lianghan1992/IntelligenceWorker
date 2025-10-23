@@ -20,21 +20,122 @@ const getGreeting = (): string => {
 };
 
 // --- 1. AI Daily Briefing ---
-const DailyBriefing: React.FC<{ user: User }> = ({ user }) => (
-    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
-        <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-blue-500/10 rounded-full filter blur-3xl opacity-50"></div>
-        <div className="absolute -bottom-1/2 -left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50"></div>
-        
-        <div className="relative z-10 flex">
-            <div className="flex-grow">
-                <h2 className="text-2xl font-bold text-gray-800">👋 {user.username}，{getGreeting()}！</h2>
-                <p className="text-gray-600 mt-2 leading-relaxed">
-                    这是您的AI每日晨报：自您上次登录以来，平台共为您监控到 <strong className="text-blue-600">1,254</strong> 条新情报。其中，您的核心竞品 <strong className="font-semibold text-gray-800">“比亚迪”</strong> 发布了DM5.0技术，被判定为 <span className="font-semibold text-red-600">高影响力事件</span>。同时，您关注的 <strong className="font-semibold text-gray-800">“固态电池”</strong> 技术有 <strong className="text-blue-600">2</strong> 条新进展。今日建议重点关注欧盟关税政策的最新动向。
-                </p>
+interface DailyBriefingProps {
+    user: User;
+    subscriptions: Subscription[];
+    onManageFocusPoints: () => void;
+}
+
+const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onManageFocusPoints }) => {
+    const [briefingText, setBriefingText] = useState<React.ReactNode>('');
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const generateBriefing = async () => {
+            setIsLoading(true);
+            try {
+                // 1. Get total articles today
+                const pointIds = subscriptions.map(sub => sub.id);
+                const today = new Date().toISOString().split('T')[0];
+                let totalArticlesToday = 0;
+                if (pointIds.length > 0) {
+                    const articlesData = await searchArticlesFiltered({
+                        query_text: '*',
+                        point_ids: pointIds,
+                        publish_date_start: today,
+                        limit: 1,
+                    });
+                    totalArticlesToday = articlesData.total;
+                }
+                
+                // 2. Get user's focus points (POIs)
+                const pois = await getUserPois();
+
+                if (pois.length === 0) {
+                    // Fallback text if no focus points are set
+                    setBriefingText(
+                        <p className="text-gray-600 mt-2 leading-relaxed">
+                            这是您的AI每日晨报：平台今日已为您监控到 <strong className="text-blue-600">{totalArticlesToday}</strong> 条新情报。您还没有设置关注点，
+                            <button onClick={onManageFocusPoints} className="font-semibold text-blue-600 hover:underline ml-1">立即设置</button>
+                            来获取个性化洞察吧。
+                        </p>
+                    );
+                    return;
+                }
+
+                // 3. Get update count for each POI
+                const poiUpdatePromises = pois.map(poi => 
+                    searchArticlesFiltered({
+                        query_text: poi.content,
+                        publish_date_start: today,
+                        limit: 1
+                    }).then(result => ({
+                        content: poi.content,
+                        count: result.total
+                    }))
+                );
+
+                const poiUpdates = await Promise.all(poiUpdatePromises);
+                
+                // 4. Find top updated POIs
+                const sortedPois = poiUpdates.filter(p => p.count > 0).sort((a, b) => b.count - a.count);
+
+                let topPoi: { content: string, count: number } | null = sortedPois.length > 0 ? sortedPois[0] : null;
+                let secondPoi: { content: string, count: number } | null = sortedPois.length > 1 ? sortedPois[1] : null;
+                
+                // 5. Construct the final text
+                let mainMessage = '';
+                if (topPoi) {
+                    mainMessage = `其中，您关注的 <strong class="font-semibold text-gray-800">“${topPoi.content}”</strong> 动态最为频繁，有 <strong class="text-blue-600">${topPoi.count}</strong> 条相关内容。`;
+                    if (secondPoi) {
+                        mainMessage += ` 同时，<strong class="font-semibold text-gray-800">“${secondPoi.content}”</strong> 也有新进展。`;
+                    }
+                } else {
+                    mainMessage = '您关注的领域今日暂无重要更新。';
+                }
+
+                const finalBriefing = `这是您的AI每日晨报：平台今日已为您监控到 <strong class="text-blue-600">${totalArticlesToday}</strong> 条新情报。${mainMessage} 今日建议重点关注以上领域，您可以在下方的“我的关注点”模块中查看详情。`;
+
+                setBriefingText(<p className="text-gray-600 mt-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: finalBriefing }}></p>);
+
+            } catch (error) {
+                console.error("Failed to generate daily briefing:", error);
+                setBriefingText(
+                    <p className="text-gray-600 mt-2 leading-relaxed">
+                        AI每日晨报加载失败，请稍后刷新重试。
+                    </p>
+                );
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        generateBriefing();
+    }, [subscriptions, onManageFocusPoints]);
+
+    const renderLoadingState = () => (
+        <div className="space-y-2 mt-2">
+            <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+        </div>
+    );
+
+    return (
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
+            <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-blue-500/10 rounded-full filter blur-3xl opacity-50"></div>
+            <div className="absolute -bottom-1/2 -left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50"></div>
+            
+            <div className="relative z-10 flex">
+                <div className="flex-grow">
+                    <h2 className="text-2xl font-bold text-gray-800">👋 {user.username}，{getGreeting()}！</h2>
+                    {isLoading ? renderLoadingState() : briefingText}
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 // --- 2. Focus Points Section ---
 const IntelligenceItem: React.FC<{ item: InfoItem }> = ({ item }) => {
@@ -167,7 +268,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
         <>
             <div className="p-6 bg-gray-50/50 overflow-y-auto h-full">
                 <div className="max-w-7xl mx-auto space-y-10">
-                    <DailyBriefing user={user} />
+                    <DailyBriefing 
+                        user={user} 
+                        subscriptions={subscriptions} 
+                        onManageFocusPoints={() => setIsFocusPointModalOpen(true)}
+                    />
                     <DashboardWidgets subscriptions={subscriptions} />
                     
                     <LazyLoadModule placeholder={<TodaysEventsSkeleton />}>
