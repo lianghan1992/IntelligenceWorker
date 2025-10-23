@@ -1,427 +1,175 @@
-import React, { useState, useMemo, useEffect, ReactNode } from 'react';
-import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
-import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts } from '../../mockData';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon } from '../icons';
 
-// --- Helper Functions ---
-const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
-    if (!spec) return <span className="text-gray-400">--</span>;
-    if (typeof spec === 'string') return spec;
-    return (
-        <div className="text-right">
-            <span className="font-semibold text-gray-800">{spec.value}</span>
-            {spec.supplier && <span className="block text-xs text-gray-500 mt-0.5">{spec.supplier}</span>}
-        </div>
-    );
-};
+import React, { useState, useMemo } from 'react';
+import {
+    ComparisonMode,
+    TechDimensionCategory,
+    VehicleTechSpec,
+    NewTechForecast,
+    SpecDetail
+} from '../../types';
+import {
+    techDimensions,
+    mockVehicleSpecs,
+    mockTechForecasts,
+} from '../../mockData';
+import { ChartIcon, BrainIcon, TagIcon, UsersIcon, TrendingUpIcon } from '../icons';
 
-const getSpecValue = (spec: string | SpecDetail | null): string => {
-    if (!spec) return 'N/A';
-    if (typeof spec === 'string') return spec;
-    return spec.value;
-};
+const modeOptions: { key: ComparisonMode; label: string; icon: React.FC<any> }[] = [
+    { key: 'competitor', label: '竞品对比', icon: UsersIcon },
+    { key: 'brand', label: '品牌分析', icon: TagIcon },
+    { key: 'evolution', label: '车型演进', icon: TrendingUpIcon },
+    { key: 'tech', label: '技术拆解', icon: ChartIcon },
+    { key: 'forecast', label: '技术预测', icon: BrainIcon },
+];
 
-// --- Sub-Components ---
-const ModeTab: React.FC<{
-    label: string;
-    icon: React.FC<any>;
-    isActive: boolean;
-    onClick: () => void;
-}> = ({ label, icon: Icon, isActive, onClick }) => (
-    <button
-        onClick={onClick}
-        className={`relative flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none ${
-            isActive ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'
-        }`}
-    >
-        <Icon className="w-5 h-5" />
-        <span>{label}</span>
-    </button>
-);
-
-const ForecastCell: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
-    const confidenceColor = forecast.confidence > 0.8 ? 'bg-green-500' : forecast.confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500';
-    const statusInfo = forecast.status === 'confirmed' 
-        ? { text: '已证实', color: 'bg-green-100 text-green-800' }
-        : { text: '传闻中', color: 'bg-yellow-100 text-yellow-800' };
-
-    return (
-        <div className="p-2 space-y-2 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <p className="font-semibold text-gray-800 text-sm">{forecast.techName}</p>
+const renderSpec = (spec: string | SpecDetail | null | undefined): React.ReactNode => {
+    if (spec === null || spec === undefined) {
+        return <span className="text-gray-400">-</span>;
+    }
+    if (typeof spec === 'string') {
+        return spec;
+    }
+    if (typeof spec === 'object' && 'value' in spec) {
+        return (
             <div>
-                <div className="flex justify-between items-center mb-0.5">
-                    <span className="text-xs text-gray-500">可信度</span>
-                    <span className={`text-xs font-bold ${statusInfo.color} px-1.5 py-0.5 rounded-full`}>{statusInfo.text}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                    <div className={confidenceColor} style={{ width: `${forecast.confidence * 100}%`, height: '100%', borderRadius: 'inherit' }}></div>
-                </div>
+                <span>{spec.value}</span>
+                {spec.supplier && <span className="text-xs text-gray-500 ml-2 bg-gray-100 px-1.5 py-0.5 rounded">@{spec.supplier}</span>}
             </div>
-            <button onClick={onSourceClick} className="text-xs text-blue-600 hover:underline font-semibold">
-                溯源
-            </button>
-        </div>
-    );
+        );
+    }
+    return <span className="text-gray-400">-</span>;
 };
 
-const SourceModal: React.FC<{ forecast: NewTechForecast; onClose: () => void }> = ({ forecast, onClose }) => (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
-            <div className="p-6 border-b flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">情报来源</h3>
-                <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><CloseIcon className="w-6 h-6" /></button>
-            </div>
-            <div className="p-6">
-                <p className="text-sm text-gray-600 mb-2">以下信息支撑了对 <strong className="text-gray-800">{forecast.brand} {forecast.model}</strong> 的 <strong className="text-gray-800">"{forecast.techName}"</strong> 技术预测：</p>
-                <div className="bg-gray-50 border p-4 rounded-lg">
-                    <p className="font-semibold text-gray-800">{forecast.sourceArticle}</p>
-                    <a href={forecast.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm mt-2 inline-block">
-                        查看原文 &rarr;
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-);
 
-const ComparisonColumn: React.FC<{ vehicle: VehicleTechSpec, diffs: Set<string> }> = ({ vehicle, diffs }) => {
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(techDimensions.map(c => c.key)));
-    const toggleCategory = (key: string) => {
-        setExpandedCategories(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
-            return newSet;
-        });
-    };
+const CompetitorView: React.FC = () => {
+    const [selectedVehicles] = useState<VehicleTechSpec[]>([mockVehicleSpecs[0], mockVehicleSpecs[2], mockVehicleSpecs[4]]);
 
     return (
-        <div className="flex-shrink-0 w-80 bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-gray-200 bg-gray-50/50">
-                <h3 className="font-bold text-lg text-gray-900">{vehicle.name}</h3>
-                <p className="text-sm text-gray-500">{vehicle.platform}</p>
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">核心竞品技术参数对比</h2>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th scope="col" className="px-6 py-3 rounded-tl-lg min-w-[200px]">技术维度</th>
+                            {selectedVehicles.map(v => (
+                                <th key={v.id} scope="col" className="px-6 py-3 min-w-[200px]">{v.name}</th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {techDimensions.map((category) => (
+                            <React.Fragment key={category.key}>
+                                <tr className="bg-gray-100 font-semibold text-gray-800">
+                                    <td colSpan={selectedVehicles.length + 1} className="px-4 py-2">{category.label}</td>
+                                </tr>
+                                {category.subDimensions.map(subDim => (
+                                    <tr key={subDim.key} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-6 py-4 font-medium text-gray-900">{subDim.label}</td>
+                                        {selectedVehicles.map(vehicle => (
+                                            <td key={vehicle.id} className="px-6 py-4">
+                                                {renderSpec(vehicle.specs[category.key]?.[subDim.key])}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
             </div>
-            <div className="flex-1 overflow-y-auto">
-                {techDimensions.map(cat => (
-                    <div key={cat.key} className="border-b border-gray-200 last:border-b-0">
-                        <button onClick={() => toggleCategory(cat.key)} className="w-full flex justify-between items-center p-3 font-semibold text-gray-700 hover:bg-gray-100/70">
-                            <span>{cat.label}</span>
-                            <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${expandedCategories.has(cat.key) ? 'rotate-180' : ''}`} />
-                        </button>
-                        {expandedCategories.has(cat.key) && (
-                            <div className="px-3 pb-3 space-y-2">
-                                {cat.subDimensions.map(sub => {
-                                    const isDifferent = diffs.has(`${cat.key}.${sub.key}`);
-                                    return (
-                                        <div key={sub.key} className="relative flex justify-between items-start text-sm p-2 rounded-md hover:bg-gray-50">
-                                            {isDifferent && <div className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 rounded-r-full"></div>}
-                                            <span className="text-gray-600">{sub.label}</span>
-                                            {getSpecDisplay(vehicle.specs[cat.key]?.[sub.key])}
-                                        </div>
-                                    );
-                                })}
+        </div>
+    );
+}
+
+const ForecastView: React.FC = () => {
+    return (
+        <div className="bg-white p-6 rounded-xl border border-gray-200">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">前沿技术预测</h2>
+            <div className="space-y-4">
+                {mockTechForecasts.map(forecast => (
+                    <div key={forecast.id} className="p-4 border rounded-lg">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="font-bold text-gray-800">{forecast.techName}</p>
+                                <p className="text-sm text-gray-600">{forecast.brand} {forecast.model}</p>
                             </div>
-                        )}
+                            <div className={`px-2 py-1 text-xs font-semibold rounded-full ${forecast.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                {forecast.status === 'confirmed' ? '已确认' : '传闻'}
+                            </div>
+                        </div>
+                         <div className="mt-3">
+                            <p className="text-xs text-gray-500">来源: <a href={forecast.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{forecast.sourceArticle}</a></p>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${forecast.confidence * 100}%` }}></div>
+                            </div>
+                            <p className="text-right text-xs text-gray-500 mt-1">置信度: {Math.round(forecast.confidence * 100)}%</p>
+                        </div>
                     </div>
                 ))}
             </div>
         </div>
     );
-};
+}
 
+const PlaceholderView: React.FC<{ mode: ComparisonMode }> = ({ mode }) => {
+    const option = modeOptions.find(opt => opt.key === mode);
+    return (
+        <div className="bg-white p-6 rounded-xl border-2 border-dashed flex items-center justify-center h-96">
+            <div className="text-center text-gray-500">
+                <p className="font-semibold text-lg">{option?.label} 视图正在建设中...</p>
+                <p className="text-sm mt-1">此功能即将推出。</p>
+            </div>
+        </div>
+    );
+}
 
-// --- Main Component ---
 export const TechDashboard: React.FC = () => {
     const [mode, setMode] = useState<ComparisonMode>('competitor');
-    const [selections, setSelections] = useState<Record<string, any>>({
-        item0: 'xiaomi-su7-max',
-        item1: 'tesla-model3-2024',
-    });
-    const [comparisonData, setComparisonData] = useState<VehicleTechSpec[]>([]);
-    const [differences, setDifferences] = useState<Set<string>>(new Set());
-    
-    // State for Forecast mode
-    const [forecastFilters, setForecastFilters] = useState<Record<string, boolean>>({});
-    const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
-    const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-    const [selectedForecastForSource, setSelectedForecastForSource] = useState<NewTechForecast | null>(null);
 
-    const uniqueBrands = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.brand))), []);
-    const uniqueModels = useMemo(() => Array.from(new Set(mockVehicleSpecs.map(v => v.model))), []);
-    const forecastBrands = useMemo(() => Array.from(new Set(mockTechForecasts.map(f => f.brand))), []);
-
-    const modes: { key: ComparisonMode, label: string, icon: React.FC<any> }[] = [
-        { key: 'forecast', label: '新技术预测', icon: BrainIcon },
-        { key: 'competitor', label: '竞品对位', icon: EyeIcon },
-        { key: 'brand', label: '产品梯队', icon: TrendingUpIcon },
-        { key: 'evolution', label: '车型演进', icon: LightBulbIcon },
-        { key: 'tech', label: '技术专题', icon: GearIcon },
-        { key: 'supply_chain', label: '供应链/平台', icon: UsersIcon },
-    ];
-
-    // --- Data Processing Logic ---
-    useEffect(() => {
-        let data: VehicleTechSpec[] = [];
-        if (mode !== 'forecast') {
-             switch (mode) {
-                case 'competitor':
-                    data = Object.values(selections)
-                        .map(id => mockVehicleSpecs.find(v => v.id === id))
-                        .filter(Boolean) as VehicleTechSpec[];
-                    break;
-                case 'brand':
-                    data = (selections.models || []).map((id:string) => mockVehicleSpecs.find(v => v.id === id)).filter(Boolean);
-                    break;
-                case 'evolution':
-                    data = mockVehicleSpecs.filter(v => v.model === selections.model).sort((a, b) => a.year - b.year);
-                    break;
-                case 'tech':
-                     if (selections.tech) {
-                        const [catKey, subKey] = selections.tech.split('.');
-                        data = mockVehicleSpecs.filter(v => v.specs[catKey]?.[subKey]);
-                    }
-                    break;
-                case 'supply_chain':
-                    if (selections.type === 'supplier' && selections.value) {
-                        data = mockVehicleSpecs.filter(v => 
-                            Object.values(v.specs).some(cat => 
-                                Object.values(cat).some(spec => typeof spec === 'object' && spec?.supplier === selections.value)
-                            )
-                        );
-                    } else if (selections.type === 'platform' && selections.value) {
-                        data = mockVehicleSpecs.filter(v => v.platform === selections.value);
-                    }
-                    break;
-            }
-            setComparisonData(data);
-
-            // Calculate differences
-            const diffSet = new Set<string>();
-            if (data.length > 1) {
-                techDimensions.forEach(cat => {
-                    cat.subDimensions.forEach(sub => {
-                        const firstValue = getSpecValue(data[0].specs[cat.key]?.[sub.key]);
-                        for (let i = 1; i < data.length; i++) {
-                            if (getSpecValue(data[i].specs[cat.key]?.[sub.key]) !== firstValue) {
-                                diffSet.add(`${cat.key}.${sub.key}`);
-                                break;
-                            }
-                        }
-                    });
-                });
-            }
-            setDifferences(diffSet);
-        }
-    }, [selections, mode]);
-
-    const groupedForecasts = useMemo(() => {
-        const enabledBrands = Object.entries(forecastFilters).filter(([_, v]) => v).map(([k, _]) => k);
-        const filtered = enabledBrands.length > 0 ? mockTechForecasts.filter(f => enabledBrands.includes(f.brand)) : mockTechForecasts;
-
-        return filtered.reduce((acc, forecast) => {
-            if (!acc[forecast.brand]) acc[forecast.brand] = {};
-            if (!acc[forecast.brand][forecast.model]) acc[forecast.brand][forecast.model] = [];
-            acc[forecast.brand][forecast.model].push(forecast);
-            return acc;
-        }, {} as Record<string, Record<string, NewTechForecast[]>>);
-    }, [forecastFilters]);
-    
-    // --- UI State Management ---
-    useEffect(() => {
-        const initialFilters: Record<string, boolean> = {};
-        forecastBrands.forEach(brand => initialFilters[brand] = true);
-        setForecastFilters(initialFilters);
-        setExpandedBrands(new Set(forecastBrands));
-    }, []);
-
-    const handleModeChange = (newMode: ComparisonMode) => {
-        setMode(newMode);
-        switch (newMode) {
-            case 'competitor': setSelections({ item0: 'xiaomi-su7-max', item1: 'tesla-model3-2024' }); break;
-            case 'brand': setSelections({ brand: '理想', models: ['li-l7-2024', 'li-l9-2024'] }); break;
-            case 'evolution': setSelections({ model: 'M7' }); break;
-            case 'tech': setSelections({ tech: 'power.platform' }); break;
-            case 'supply_chain': setSelections({ type: 'supplier', value: 'NVIDIA' }); break;
-            case 'forecast': setSelections({}); break;
-        }
-    };
-    
-    const toggleBrandExpansion = (brand: string) => {
-        setExpandedBrands(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(brand)) newSet.delete(brand); else newSet.add(brand);
-            return newSet;
-        });
-    };
-
-    const handleForecastFilterChange = (brand: string) => {
-        setForecastFilters(prev => ({...prev, [brand]: !prev[brand]}));
-    };
-    
-    const handleOpenSourceModal = (forecast: NewTechForecast) => {
-        setSelectedForecastForSource(forecast);
-        setIsSourceModalOpen(true);
-    };
-
-    // --- Render Functions ---
-    const renderControls = () => {
-        const handleSelectChange = (key: string, value: any) => {
-            setSelections(prev => ({...prev, [key]: value}));
-        };
-
+    const renderContent = () => {
         switch (mode) {
             case 'competitor':
-                return (
-                    <div className="flex items-center gap-2">
-                        {Object.keys(selections).map((key, i) => (
-                             <select key={key} value={selections[key] || ''} onChange={e => handleSelectChange(key, e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                {mockVehicleSpecs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                             </select>
-                        ))}
-                         <button onClick={() => handleSelectChange(`item${Object.keys(selections).length}`, mockVehicleSpecs[0].id)} className="p-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300"><PlusIcon className="w-5 h-5 text-gray-600" /></button>
-                    </div>
-                );
-            case 'brand':
-                const modelsOfBrand = mockVehicleSpecs.filter(v => v.brand === selections.brand);
-                return (
-                    <div className="flex gap-4">
-                        <select value={selections.brand} onChange={e => setSelections({ brand: e.target.value, models: []})} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                         <select multiple value={selections.models} onChange={e => handleSelectChange('models', Array.from(e.target.selectedOptions, option => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            {modelsOfBrand.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                        </select>
-                    </div>
-                );
-            case 'evolution':
-                return <select value={selections.model} onChange={e => handleSelectChange('model', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>;
-            case 'tech':
-                return <select value={selections.tech} onChange={e => handleSelectChange('tech', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    {techDimensions.map(cat => (
-                        <optgroup key={cat.key} label={cat.label}>
-                            {cat.subDimensions.map(sub => <option key={`${cat.key}.${sub.key}`} value={`${cat.key}.${sub.key}`}>{sub.label}</option>)}
-                        </optgroup>
-                    ))}
-                    </select>;
-            case 'supply_chain':
-                return (
-                    <div className="flex gap-4">
-                        <select value={selections.type} onChange={e => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="supplier">供应商</option>
-                            <option value="platform">整车平台</option>
-                        </select>
-                        <select value={selections.value} onChange={e => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">-- 请选择 --</option>
-                            {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
-                        </select>
-                    </div>
-                );
+                return <CompetitorView />;
             case 'forecast':
-                 return (
-                    <div className="flex items-center gap-4">
-                        <span className="font-semibold text-sm text-gray-700">筛选车企:</span>
-                        <div className="flex flex-wrap gap-x-4 gap-y-2">
-                            {forecastBrands.map(brand => (
-                                <label key={brand} className="flex items-center space-x-2 cursor-pointer">
-                                    <input type="checkbox" checked={forecastFilters[brand] || false} onChange={() => handleForecastFilterChange(brand)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
-                                    <span className="text-sm text-gray-800">{brand}</span>
-                                </label>
-                            ))}
-                        </div>
-                    </div>
-                );
+                return <ForecastView />;
+            case 'brand':
+            case 'evolution':
+            case 'tech':
+            case 'supply_chain':
+                return <PlaceholderView mode={mode} />;
+            default:
+                return <CompetitorView />;
         }
-    };
-    
-    const renderContent = () => {
-        if (mode === 'forecast') {
-            return (
-                <div className="overflow-auto">
-                    <table className="w-full min-w-[1200px] border-collapse text-sm">
-                        <thead className="sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm">
-                            <tr className="border-b">
-                                <th className="w-56 p-3 text-left font-semibold text-gray-600">车企/车型</th>
-                                {techDimensions.map(dim => <th key={dim.key} className="p-3 text-left font-semibold text-gray-600 min-w-[150px]">{dim.label}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {Object.entries(groupedForecasts).map(([brand, models]) => (
-                                <React.Fragment key={brand}>
-                                    <tr className="border-b bg-gray-50 hover:bg-gray-100 cursor-pointer" onClick={() => toggleBrandExpansion(brand)}>
-                                        <td className="p-3 font-semibold text-gray-800 flex items-center gap-2 sticky left-0 bg-gray-50 z-[5]">
-                                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedBrands.has(brand) ? 'rotate-180' : ''}`} />
-                                            {brand}
-                                        </td>
-                                        <td colSpan={techDimensions.length} className="bg-gray-50"></td>
-                                    </tr>
-                                    {expandedBrands.has(brand) && Object.entries(models).map(([model, forecasts]) => (
-                                        <tr key={model} className="border-b bg-white">
-                                            <td className="p-3 pl-10 font-medium text-gray-700 sticky left-0 bg-white z-[5]">{model}</td>
-                                            {techDimensions.map(dim => {
-                                                const forecast = forecasts.find(f => f.techDimensionKey === dim.key);
-                                                return (
-                                                    <td key={dim.key} className="p-2 align-top">
-                                                        {forecast ? <ForecastCell forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : null}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </React.Fragment>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            );
-        }
-        
-        if (comparisonData.length === 0) {
-            return <div className="p-10 text-center text-gray-500">请在上方选择有效的对比项。</div>
-        }
-
-        return (
-            <div className="flex-1 overflow-x-auto p-4">
-                <div className="flex gap-4">
-                    {comparisonData.map(vehicle => (
-                        <ComparisonColumn key={vehicle.id} vehicle={vehicle} diffs={differences} />
-                    ))}
-                </div>
-            </div>
-        );
-    };
-
-    const activeModeIndex = modes.findIndex(m => m.key === mode);
+    }
 
     return (
-        <>
-            <div className="h-full flex flex-col bg-gray-50 p-4 sm:p-6 gap-4 sm:gap-6">
-                <header className="flex-shrink-0 bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-4">
-                    <div className="relative flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
-                        {modes.map(({ key, ...modeProps }) => (
-                            <ModeTab key={key} {...modeProps} isActive={mode === key} onClick={() => handleModeChange(key)} />
-                        ))}
-                         <div
-                            className="absolute top-1 bottom-1 bg-white rounded-lg shadow-md transition-all duration-300 ease-in-out"
-                            style={{
-                                width: `calc(100% / ${modes.length})`,
-                                left: `calc(100% / ${modes.length} * ${activeModeIndex})`,
-                            }}
-                        />
-                    </div>
-                    <div className="min-h-[44px] flex items-center">{renderControls()}</div>
-                </header>
+        <div className="p-6 bg-gray-50/50 min-h-full">
+            <header className="mb-6">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-3xl font-bold text-gray-900">技术看板</h1>
+                </div>
+                 <p className="mt-1 text-gray-600">从多维度洞察和比较汽车行业的技术格局。</p>
+            </header>
 
-                <main className="flex-1 flex flex-col overflow-hidden">
-                    {renderContent()}
-                </main>
+            <div className="mb-6 bg-white p-2 rounded-xl border inline-flex items-center gap-2">
+                {modeOptions.map(option => (
+                     <button
+                        key={option.key}
+                        onClick={() => setMode(option.key)}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                            mode === option.key ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                    >
+                        <option.icon className="w-5 h-5" />
+                        {option.label}
+                    </button>
+                ))}
             </div>
-            {isSourceModalOpen && selectedForecastForSource && (
-                <SourceModal 
-                    forecast={selectedForecastForSource}
-                    onClose={() => setIsSourceModalOpen(false)}
-                />
-            )}
-        </>
+
+            <main>
+                {renderContent()}
+            </main>
+        </div>
     );
 };
