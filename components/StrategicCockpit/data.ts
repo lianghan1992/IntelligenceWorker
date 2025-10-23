@@ -1,5 +1,5 @@
 import { StrategicLookKey } from '../../types';
-import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon } from '../icons';
+import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, RssIcon } from '../icons';
 
 export interface SubCategory {
     key: string;
@@ -8,7 +8,7 @@ export interface SubCategory {
 }
 
 export interface Category {
-    key: StrategicLookKey;
+    key: StrategicLookKey | 'all';
     label: string;
     icon: React.FC<any>;
     description: string;
@@ -17,6 +17,14 @@ export interface Category {
 }
 
 export const lookCategories: Category[] = [
+    { 
+        key: 'all', 
+        label: '所有情报', 
+        icon: RssIcon, 
+        description: '您订阅的所有情报源的最新动态', 
+        hasSettings: false,
+        children: []
+    },
     { 
         key: 'industry', 
         label: '看行业', 

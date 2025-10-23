@@ -24,17 +24,24 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     activeQuery
 }) => {
     
-    const handlePrimaryClick = (key: StrategicLookKey) => {
-        if (key !== selectedLook) {
-            setSelectedLook(key);
-            const category = categories.find(c => c.key === key);
-            const firstSub = category?.children[0];
+    const handlePrimaryClick = (category: Category) => {
+        const key = category.key;
+        setSelectedLook(key);
+        
+        if (category.children.length > 0) {
+            const firstSub = category.children[0];
             if (firstSub) {
-                setSelectedSubLook(firstSub.key);
-                onSubCategoryClick(firstSub.keywords, firstSub.label);
+                // Only change sub-look if the primary category is changing, or if the current view isn't a sub-look
+                if (key !== selectedLook || activeQuery.type !== 'sublook') {
+                    setSelectedSubLook(firstSub.key);
+                    onSubCategoryClick(firstSub.keywords, firstSub.label);
+                }
             } else {
                 setSelectedSubLook(null);
             }
+        } else { // Handle categories with no children like "所有情报"
+            setSelectedSubLook(null);
+            onSubCategoryClick('*', category.label); // Pass '*' and label
         }
     };
 
@@ -50,7 +57,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                 return (
                     <div key={category.key}>
                         <button
-                            onClick={() => handlePrimaryClick(category.key)}
+                            onClick={() => handlePrimaryClick(category)}
                             className={`w-full flex items-center justify-between text-left p-3 rounded-lg text-sm font-semibold transition-colors duration-200
                                 ${isPrimaryActive 
                                     ? 'bg-blue-50 text-blue-700' 
@@ -62,7 +69,9 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                                 <category.icon className={`w-5 h-5 ${isPrimaryActive ? 'text-blue-600' : 'text-gray-500'}`} />
                                 <span>{category.label}</span>
                             </div>
-                            <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isPrimaryActive ? 'rotate-180' : ''}`} />
+                            {category.children.length > 0 && (
+                                <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isPrimaryActive ? 'rotate-180' : ''}`} />
+                            )}
                         </button>
 
                         {isPrimaryActive && category.children.length > 0 && (

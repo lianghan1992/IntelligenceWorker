@@ -11,15 +11,14 @@ import { getUserPois, searchArticlesFiltered } from '../../api';
 // --- Main Component ---
 export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
     // Left navigation state
-    const [selectedLook, setSelectedLook] = useState('industry');
-    const [selectedSubLook, setSelectedSubLook] = useState<string | null>('tech');
+    const [selectedLook, setSelectedLook] = useState('all');
+    const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
     // Active query state for API calls
-    const initialSubLook = lookCategories.find(c => c.key === 'industry')?.children.find(sc => sc.key === 'tech');
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi', value: string, label: string }>({ 
         type: 'sublook', 
-        value: initialSubLook?.keywords || '新技术', 
-        label: initialSubLook?.label || '新技术' 
+        value: '*', 
+        label: '所有情报' 
     });
 
     // Data fetching and display state
