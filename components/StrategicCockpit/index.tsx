@@ -15,7 +15,12 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>('tech');
     
     // Active query state for API calls
-    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi', value: string, label: string }>({ type: 'sublook', value: 'tech', label: '新技术' });
+    const initialSubLook = lookCategories.find(c => c.key === 'industry')?.children.find(sc => sc.key === 'tech');
+    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi', value: string, label: string }>({ 
+        type: 'sublook', 
+        value: initialSubLook?.keywords || '新技术', 
+        label: initialSubLook?.label || '新技术' 
+    });
 
     // Data fetching and display state
     const [articles, setArticles] = useState<InfoItem[]>([]);
@@ -52,6 +57,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 query_text: query,
                 page,
                 limit: 15,
+                similarity_threshold: 0.35, // 降低阈值以返回更多结果
             };
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;

@@ -1,20 +1,8 @@
 import React from 'react';
 import { StrategicLookKey } from '../../types';
 import { ChevronDownIcon } from '../icons';
+import { Category, SubCategory } from './data';
 
-interface SubCategory {
-    key: string;
-    label: string;
-}
-
-interface Category {
-    key: StrategicLookKey;
-    label: string;
-    icon: React.FC<any>;
-    description: string;
-    hasSettings: boolean;
-    children: SubCategory[];
-}
 
 interface StrategicCompassProps {
     categories: Category[];
@@ -43,7 +31,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
             const firstSub = category?.children[0];
             if (firstSub) {
                 setSelectedSubLook(firstSub.key);
-                onSubCategoryClick(firstSub.key, firstSub.label);
+                onSubCategoryClick(firstSub.keywords, firstSub.label);
             } else {
                 setSelectedSubLook(null);
             }
@@ -52,7 +40,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
 
     const handleSubCategoryClick = (subCategory: SubCategory) => {
         setSelectedSubLook(subCategory.key);
-        onSubCategoryClick(subCategory.key, subCategory.label);
+        onSubCategoryClick(subCategory.keywords, subCategory.label);
     }
 
     return (
