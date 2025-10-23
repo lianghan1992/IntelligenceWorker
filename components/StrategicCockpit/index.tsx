@@ -118,10 +118,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     };
 
     return (
-        <div className="h-full flex bg-slate-50 overflow-hidden">
+        <div className="h-full flex bg-slate-50">
             {/* Left Sidebar */}
-            <aside className="w-64 flex-shrink-0 flex flex-col p-4">
-                <div className="flex-1 overflow-y-auto space-y-4 scrollbar-hide">
+            <aside className="w-64 flex-shrink-0 p-4 flex flex-col">
+                <div className="overflow-y-auto space-y-4 scrollbar-hide">
                     <StrategicCompass
                         categories={lookCategories}
                         selectedLook={selectedLook}
@@ -142,26 +142,24 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             </aside>
 
             {/* Main Content Area (Middle + Right) */}
-            <main className="flex-1 flex p-4 pl-0 overflow-hidden">
-                <div className="flex-1 grid grid-cols-10 gap-4 overflow-hidden">
-                    <div className="col-span-6 overflow-hidden h-full">
-                        <IntelligenceCenter
-                            title={activeQuery.label}
-                            articles={articles}
-                            isLoading={isLoading}
-                            isLoadingMore={isLoadingMore}
-                            error={error}
-                            selectedArticleId={selectedArticle?.id || null}
-                            onSelectArticle={setSelectedArticle}
-                            onLoadMore={handleLoadMore}
-                            hasMore={pagination.page < pagination.totalPages}
-                        />
-                    </div>
-                    <div className="col-span-4 overflow-hidden h-full">
-                         <EvidenceTrail
-                            selectedArticle={selectedArticle}
-                        />
-                    </div>
+            <main className="flex-1 grid grid-cols-10 gap-4 p-4 pl-0 min-w-0">
+                <div className="col-span-6 min-h-0">
+                    <IntelligenceCenter
+                        title={activeQuery.label}
+                        articles={articles}
+                        isLoading={isLoading}
+                        isLoadingMore={isLoadingMore}
+                        error={error}
+                        selectedArticleId={selectedArticle?.id || null}
+                        onSelectArticle={setSelectedArticle}
+                        onLoadMore={handleLoadMore}
+                        hasMore={pagination.page < pagination.totalPages}
+                    />
+                </div>
+                <div className="col-span-4 min-h-0">
+                     <EvidenceTrail
+                        selectedArticle={selectedArticle}
+                    />
                 </div>
             </main>
 
