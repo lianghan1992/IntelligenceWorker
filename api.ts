@@ -6,8 +6,7 @@ import {
 import { 
     User, Subscription, InfoItem, PlanDetails, ApiPoi, SystemSource, 
     LivestreamTask, PaginatedResponse, LivestreamPrompt, AllPrompts,
-    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate, UserProfileDetails,
-    ManuscriptItem
+    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate, UserProfileDetails
 } from './types';
 
 // --- Generic API Fetch Helper ---
@@ -211,8 +210,8 @@ export const stopListenTask = (taskId: string): Promise<void> => apiFetch<void>(
 export const getTaskLog = (taskId: string): Promise<{ log_content: string }> =>
     apiFetch<{ log_content: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/log`);
 
-export const getTaskManuscript = (taskId: string): Promise<ManuscriptItem[]> =>
-    apiFetch<ManuscriptItem[]>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/manuscript`);
+export const getTaskManuscript = (taskId: string, format: 'json' | 'md' = 'json'): Promise<any> =>
+    apiFetch<any>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/manuscript?format=${format}`);
 
 
 // --- Prompts API ---

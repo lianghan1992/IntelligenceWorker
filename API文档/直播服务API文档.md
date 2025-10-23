@@ -389,34 +389,66 @@ curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef123
 }
 ```
 
-## 11. 获取任务原始文稿
+## 11. 获取任务原始文稿 (JSON 或 Markdown)
 
-获取指定任务分析后产出的`01_raw_manuscript.json`文件内容。
+获取指定任务分析后产出的原始文稿，支持JSON和Markdown两种格式。
 
 -   **路径:** `/livestream/tasks/{task_id}/manuscript`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `format` | string | `json` | 请求的文稿格式，可选值为 `json` 或 `md`。 |
+
+---
+
+**使用示例 1: 获取JSON格式 (默认)**
+
 **cURL请求示例**
 ```bash
-curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/manuscript \
+# format=json (或不提供format参数)
+curl -X GET "http://127.0.0.1:7657/livestream/tasks/a1b2c3d4.../manuscript?format=json" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 **返回示例 (200 OK)**
+
+直接返回 `01_raw_manuscript.json` 文件解析后的内容。
+
 ```json
-[
-  {
-    "frame_number": 10,
-    "filename": "frame_10.jpg",
-    "confidence": 0.95,
-    "content": "这是一段识别出的文字。"
-  },
-  {
-    "frame_number": 25,
-    "filename": "frame_25.jpg",
-    "confidence": 0.98,
-    "content": "这是另一段文字。"
-  }
-]
+{
+  "title": "汽车发布会原始文字稿",
+  "total_frames": 41,
+  "data": [
+    {
+      "frame_number": 1,
+      "filename": "frame_00001.png",
+      "content": "磁浮路感 贴地飞行..."
+    }
+  ]
+}
+```
+
+---
+
+**使用示例 2: 获取Markdown格式**
+
+**cURL请求示例**
+```bash
+curl -X GET "http://127.0.0.1:7657/livestream/tasks/a1b2c3d4.../manuscript?format=md" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+
+返回一个包含Markdown纯文本内容的JSON对象。
+
+```json
+{
+  "format": "md",
+  "content": "# 汽车发布会原始文字稿\n\n--- (帧序号: 1 | ...\n..."
+}
 ```

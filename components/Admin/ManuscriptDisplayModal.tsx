@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from '../icons';
 import { getTaskManuscript } from '../../api';
-import { ManuscriptItem } from '../../types';
 
 interface ManuscriptDisplayModalProps {
   taskId: string;
@@ -10,7 +9,8 @@ interface ManuscriptDisplayModalProps {
 }
 
 export const ManuscriptDisplayModal: React.FC<ManuscriptDisplayModalProps> = ({ taskId, taskName, onClose }) => {
-    const [manuscript, setManuscript] = useState<ManuscriptItem[]>([]);
+    const [content, setContent] = useState('');
+    const [format, setFormat] = useState<'json' | 'md'>('json');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -19,16 +19,22 @@ export const ManuscriptDisplayModal: React.FC<ManuscriptDisplayModalProps> = ({ 
             setIsLoading(true);
             setError('');
             try {
-                const response = await getTaskManuscript(taskId);
-                setManuscript(response);
+                const response = await getTaskManuscript(taskId, format);
+                if (format === 'json') {
+                    setContent(JSON.stringify(response, null, 2));
+                } else {
+                    // API for 'md' returns { format: 'md', content: '...' }
+                    setContent(response.content || 'Markdown 内容为空。');
+                }
             } catch (err: any) {
-                setError(err.message || '加载原始文稿失败');
+                setError(err.message || `加载原始文稿 (${format}) 失败`);
+                setContent('');
             } finally {
                 setIsLoading(false);
             }
         };
         fetchManuscript();
-    }, [taskId]);
+    }, [taskId, format]);
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
@@ -42,15 +48,32 @@ export const ManuscriptDisplayModal: React.FC<ManuscriptDisplayModalProps> = ({ 
                         <CloseIcon className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                <div className="p-3 border-b bg-gray-50/70">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">格式:</span>
+                        <button 
+                            onClick={() => setFormat('json')}
+                            disabled={isLoading}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${format === 'json' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-100 border'}`}
+                        >
+                            JSON
+                        </button>
+                        <button 
+                            onClick={() => setFormat('md')}
+                            disabled={isLoading}
+                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${format === 'md' ? 'bg-blue-600 text-white' : 'bg-white hover:bg-gray-100 border'}`}
+                        >
+                            Markdown
+                        </button>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto bg-gray-900 text-white p-4">
                     {isLoading ? (
-                        <p className="text-gray-500 p-4">正在加载文稿...</p>
+                        <p className="text-gray-400 animate-pulse">正在加载 {format.toUpperCase()} 文稿...</p>
                     ) : error ? (
-                        <p className="text-red-500 p-4">错误: {error}</p>
+                        <p className="text-red-400">错误: {error}</p>
                     ) : (
-                        <pre className="text-sm whitespace-pre-wrap font-mono break-words bg-white p-4 rounded-md border text-gray-800">
-                            {manuscript && manuscript.length > 0 ? JSON.stringify(manuscript, null, 2) : '文稿内容为空。'}
-                        </pre>
+                        <pre className="text-sm whitespace-pre-wrap font-mono break-words">{content}</pre>
                     )}
                 </div>
                 <div className="px-6 py-4 bg-white border-t flex justify-end rounded-b-2xl">
