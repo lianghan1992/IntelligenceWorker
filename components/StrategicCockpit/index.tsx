@@ -12,7 +12,7 @@ import { getUserPois, searchArticlesFiltered } from '../../api';
 export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
     // Left navigation state
     const [selectedLook, setSelectedLook] = useState('industry');
-    const [selectedSubLook, setSelectedSubLook] = useState('tech');
+    const [selectedSubLook, setSelectedSubLook] = useState<string | null>('tech');
     
     // Active query state for API calls
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi', value: string, label: string }>({ type: 'sublook', value: 'tech', label: '新技术' });
