@@ -1,5 +1,5 @@
 import React from 'react';
-import { FeedIcon, DiveIcon, ChartIcon, SparklesIcon, ArrowRightIcon, CheckIcon } from './icons';
+import { FeedIcon, DiveIcon, ChartIcon, SparklesIcon, ArrowRightIcon, CheckIcon } from '../icons';
 
 interface HomePageProps {
     onEnter: () => void;

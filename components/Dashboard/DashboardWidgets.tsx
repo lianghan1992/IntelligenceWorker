@@ -1,5 +1,6 @@
 import React from 'react';
-import { DocumentTextIcon, BookmarkIcon, RssIcon, TrendingUpIcon } from './icons';
+import { DocumentTextIcon, RssIcon, TrendingUpIcon } from '../icons';
+import { BookmarkIcon } from './icons';
 
 interface DashboardWidgetsProps {
     stats: {

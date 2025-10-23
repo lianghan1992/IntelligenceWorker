@@ -1,18 +1,16 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard';
-import { InfoFeed } from './components/InfoFeed';
-import { DeepDives } from './components/DeepDives';
+import { Dashboard } from './components/Dashboard/index';
+import { InfoFeed } from './components/InfoFeed/index';
+import { DeepDives } from './components/DeepDives/index';
 import { IndustryEvents } from './components/IndustryEvents/index';
-import { ReportGenerator } from './components/ReportGenerator';
-// FIX: Corrected import path for AdminPage
+import { ReportGenerator } from './components/ReportGenerator/index';
 import { AdminPage } from './components/Admin';
-import { AuthModal } from './components/AuthModal';
+import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
-import { HomePage } from './components/HomePage';
-import { StrategicCockpit } from './components/StrategicCockpit';
-import { NewTechForecast } from './components/NewTechForecast';
+import { HomePage } from './components/HomePage/index';
+import { StrategicCockpit } from './components/StrategicCockpit/index';
+import { NewTechForecast } from './components/NewTechForecast/index';
 import { User, View, Subscription, InfoItem, DeepDive } from './types';
 import { getSubscriptions, searchArticlesFiltered, getMe } from './api';
 import { mockDeepDives } from './mockData';
@@ -114,7 +112,7 @@ const App: React.FC = () => {
     }
     switch (view) {
       case 'dashboard':
-        return <Dashboard user={user} subscriptions={subscriptions} />;
+        return <Dashboard user={user} subscriptions={subscriptions} infoItems={infoItems} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
       case 'feed':
@@ -131,7 +129,7 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <Dashboard user={user} subscriptions={subscriptions} />;
+        return <Dashboard user={user} subscriptions={subscriptions} infoItems={infoItems} onNavigate={handleNavigate} />;
     }
   };
 

@@ -131,12 +131,6 @@ export const DocumentTextIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     </Icon>
 );
 
-export const BookmarkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-    </Icon>
-);
-
 export const RssIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12.75 19.5v-.75a7.5 7.5 0 00-7.5-7.5H4.5m0-6.75h.75c7.87 0 14.25 6.38 14.25 14.25v.75M6 18.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
@@ -204,13 +198,6 @@ export const PencilIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 export const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-    </Icon>
-);
-
-export const TimelineIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 3a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 3zM10 8.5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5a.75.75 0 01.75-.75zM10 16a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5a.75.75 0 01.75-.75z" />
-        <path fillRule="evenodd" d="M11.5 2a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0zM10 7a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" clipRule="evenodd" />
     </Icon>
 );
 

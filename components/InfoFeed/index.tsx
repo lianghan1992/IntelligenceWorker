@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, createRef } from 'react';
-import { InfoItem, Subscription } from '../types';
-import { SearchIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon, BrainIcon } from './icons';
+import { InfoItem, Subscription } from '../../types';
+import { SearchIcon, SparklesIcon, ChevronLeftIcon, ChevronRightIcon, BrainIcon } from '../icons';
 import { InfoDetailModal } from './InfoDetailModal';
 
 interface InfoFeedProps {

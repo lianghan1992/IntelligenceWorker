@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Subscription, StrategicLookKey, InsightBriefing, InfoItem } from '../types';
-import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, GearIcon } from './icons';
+import { Subscription, StrategicLookKey, InsightBriefing, InfoItem } from '../../types';
+import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, GearIcon } from '../icons';
 
 // --- Mock Data ---
 const mockBriefings: InsightBriefing[] = [

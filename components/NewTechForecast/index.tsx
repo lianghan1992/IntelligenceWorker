@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../types';
-import { mockTechPredictions, mockPredictionEvidence } from '../mockData';
-import { CloseIcon, PlusIcon, PencilIcon, DownloadIcon } from './icons';
+import { TechPrediction, PredictionEvidence, PredictionStatus, User } from '../../types';
+import { mockTechPredictions, mockPredictionEvidence } from '../../mockData';
+import { CloseIcon, PlusIcon, PencilIcon, DownloadIcon } from '../icons';
 
 // --- Types ---
 interface Vehicle {

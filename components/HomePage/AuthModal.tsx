@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { login, register } from '../api';
-import { User } from '../types';
-import { CloseIcon, LogoIcon } from './icons';
+import { login, register } from '../../api';
+import { User } from '../../types';
+import { CloseIcon, LogoIcon } from '../icons';
 
 interface AuthModalProps {
     onLoginSuccess: (user: User) => void;

@@ -1,8 +1,8 @@
 
 
 import React, { useState, useMemo } from 'react';
-import { DeepDive } from '../types';
-import { SearchIcon } from './icons';
+import { DeepDive } from '../../types';
+import { SearchIcon } from '../icons';
 
 interface DeepDivesProps {
     dives: DeepDive[];

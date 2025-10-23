@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon } from './icons';
-import { Slide } from '../types';
+import { SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons';
+import { Slide } from '../../types';
 
 // 模拟的AI思考过程和JSON输出
 const mockAiThoughtProcess = `

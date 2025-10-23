@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { InfoItem } from '../types';
-import { CloseIcon, SparklesIcon, DocumentTextIcon, TimelineIcon } from './icons';
+import { InfoItem } from '../../types';
+import { CloseIcon, SparklesIcon, DocumentTextIcon } from '../icons';
+import { TimelineIcon } from './icons';
 
 interface InfoDetailModalProps {
     item: InfoItem;
