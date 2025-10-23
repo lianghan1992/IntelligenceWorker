@@ -52,7 +52,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 query_text: query,
                 page,
                 limit: limit,
-                similarity_threshold: 0.35,
+                similarity_threshold: 0.5,
             };
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
