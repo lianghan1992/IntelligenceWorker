@@ -57,7 +57,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 query_text: query,
                 page,
                 limit: 15,
-                similarity_threshold: 0.35, // 降低阈值以返回更多结果
+                similarity_threshold: 0.35,
             };
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
@@ -116,9 +116,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     };
 
     return (
-        <div className="h-full bg-slate-50 flex flex-col">
-            <div className="flex-1 flex gap-6 p-6">
-                <aside className="w-64 flex-shrink-0 h-full overflow-y-auto scrollbar-hide space-y-4">
+        <div className="h-full flex overflow-hidden bg-slate-50">
+            {/* Left Sidebar */}
+            <aside className="w-64 flex-shrink-0 h-full flex flex-col p-6 pr-0">
+                <div className="overflow-y-auto scrollbar-hide space-y-6 pr-6">
                     <StrategicCompass
                         categories={lookCategories}
                         selectedLook={selectedLook}
@@ -135,9 +136,12 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                         onPoiClick={(value, label) => handleNavChange('poi', value, label)}
                         activeQuery={activeQuery}
                     />
-                </aside>
+                </div>
+            </aside>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-10 gap-6">
+            {/* Main Content Area (Middle + Right) */}
+            <div className="flex-1 grid grid-cols-10 gap-6 p-6 overflow-hidden">
+                <div className="col-span-6 h-full">
                     <IntelligenceCenter
                         title={activeQuery.label}
                         articles={articles}
@@ -149,11 +153,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                         onLoadMore={handleLoadMore}
                         hasMore={pagination.page < pagination.totalPages}
                     />
-                    <EvidenceTrail
+                </div>
+                <div className="col-span-4 h-full">
+                     <EvidenceTrail
                         selectedArticle={selectedArticle}
                     />
                 </div>
             </div>
+
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
         </div>

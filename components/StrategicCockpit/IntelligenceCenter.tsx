@@ -59,7 +59,6 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
-    // FIX: Initialize useRef with null as it expects an argument.
     const observer = useRef<IntersectionObserver | null>(null);
     
     const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
@@ -76,7 +75,7 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     }, [isLoading, isLoadingMore, hasMore, onLoadMore]);
 
     return (
-        <main className="lg:col-span-6 h-full flex flex-col">
+        <main className="h-full flex flex-col">
             <div className="p-4 bg-white rounded-t-xl border-b border-slate-200 shadow-sm flex-shrink-0">
                 <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
                 <p className="text-xs text-slate-500">AI为您聚合的相关情报</p>
@@ -91,26 +90,16 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                 ) : articles.length > 0 ? (
                     <>
                         {articles.map((article, index) => {
-                            if (articles.length === index + 1) {
-                                return (
-                                    <div ref={lastArticleElementRef} key={article.id}>
-                                        <ArticleCard
-                                            article={article}
-                                            isActive={selectedArticleId === article.id}
-                                            onClick={() => onSelectArticle(article)}
-                                        />
-                                    </div>
-                                );
-                            } else {
-                                return (
+                            const isLastElement = articles.length === index + 1;
+                            return (
+                                <div ref={isLastElement ? lastArticleElementRef : null} key={article.id}>
                                     <ArticleCard
-                                        key={article.id}
                                         article={article}
                                         isActive={selectedArticleId === article.id}
                                         onClick={() => onSelectArticle(article)}
                                     />
-                                );
-                            }
+                                </div>
+                            );
                         })}
                         {isLoadingMore && (
                             <>

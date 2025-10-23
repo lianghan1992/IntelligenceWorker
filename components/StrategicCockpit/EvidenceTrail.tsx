@@ -35,7 +35,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     }, [selectedArticle]);
 
     return (
-        <aside className="lg:col-span-4 h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
+        <aside className="h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
             <div className="p-4 border-b border-slate-200 flex-shrink-0">
                 <h3 className="font-semibold text-slate-800">情报详情</h3>
                 <p className="text-xs text-slate-500">在此深入阅读情报内容</p>
