@@ -398,8 +398,8 @@ export const TechDashboard: React.FC = () => {
             <div className="h-full flex flex-col bg-gray-50 p-4 sm:p-6 gap-4 sm:gap-6">
                 <header className="flex-shrink-0 bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-4">
                     <div className="relative flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
-                        {modes.map((m) => (
-                            <ModeTab key={m.key} {...m} isActive={mode === m.key} onClick={() => handleModeChange(m.key)} />
+                        {modes.map(({ key, ...modeProps }) => (
+                            <ModeTab key={key} {...modeProps} isActive={mode === key} onClick={() => handleModeChange(key)} />
                         ))}
                          <div
                             className="absolute top-1 bottom-1 bg-white rounded-lg shadow-md transition-all duration-300 ease-in-out"
