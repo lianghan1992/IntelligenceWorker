@@ -1,11 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Subscription, User, InfoItem, LivestreamTask, View, ApiPoi } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { Subscription, User, InfoItem, View } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
-import { getLivestreamTasks } from '../../api';
 import { FeedIcon, GearIcon } from '../icons';
-import { CalendarDaysIcon, FireIcon } from './icons';
-import { SubscriptionManager } from './SubscriptionManager'; // New import
-import { FocusPointManagerModal } from './FocusPointManagerModal'; // New import
+import { FireIcon } from './icons';
+import { SubscriptionManager } from './SubscriptionManager';
+import { FocusPointManagerModal } from './FocusPointManagerModal';
+import { TodaysEvents } from './TodaysEvents'; // New import
 
 // --- Helper Functions ---
 const getGreeting = (): string => {
@@ -22,11 +22,13 @@ const DailyBriefing: React.FC<{ user: User }> = ({ user }) => (
         <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-blue-500/10 rounded-full filter blur-3xl opacity-50"></div>
         <div className="absolute -bottom-1/2 -left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50"></div>
         
-        <div className="relative z-10">
-            <h2 className="text-2xl font-bold text-gray-800">👋 {user.username}，{getGreeting()}！</h2>
-            <p className="text-gray-600 mt-2 leading-relaxed">
-                这是您的AI每日晨报：自您上次登录以来，平台共为您监控到 <strong className="text-blue-600">1,254</strong> 条新情报。其中，您的核心竞品 <strong className="font-semibold text-gray-800">“比亚迪”</strong> 发布了DM5.0技术，被判定为 <span className="font-semibold text-red-600">高影响力事件</span>。同时，您关注的 <strong className="font-semibold text-gray-800">“固态电池”</strong> 技术有 <strong className="text-blue-600">2</strong> 条新进展。今日建议重点关注欧盟关税政策的最新动向。
-            </p>
+        <div className="relative z-10 flex">
+            <div className="flex-grow">
+                <h2 className="text-2xl font-bold text-gray-800">👋 {user.username}，{getGreeting()}！</h2>
+                <p className="text-gray-600 mt-2 leading-relaxed max-w-4xl">
+                    这是您的AI每日晨报：自您上次登录以来，平台共为您监控到 <strong className="text-blue-600">1,254</strong> 条新情报。其中，您的核心竞品 <strong className="font-semibold text-gray-800">“比亚迪”</strong> 发布了DM5.0技术，被判定为 <span className="font-semibold text-red-600">高影响力事件</span>。同时，您关注的 <strong className="font-semibold text-gray-800">“固态电池”</strong> 技术有 <strong className="text-blue-600">2</strong> 条新进展。今日建议重点关注欧盟关税政策的最新动向。
+                </p>
+            </div>
         </div>
     </div>
 );
@@ -45,7 +47,7 @@ const IntelligenceItem: React.FC<{ item: any; onCtaClick: () => void }> = ({ ite
             cta = '查看溯源';
             break;
         case 'conference':
-            Icon = CalendarDaysIcon;
+            Icon = FeedIcon; // Changed for consistency, as Calendar icon is in TodaysEvents
             tag = '[相关发布会]';
             tagColor = 'text-indigo-500';
             title = item.title;
@@ -87,7 +89,6 @@ const FocusPointCard: React.FC<{ entityName: string; items: any[]; onNavigate: (
         if (itemType === 'conference') {
             onNavigate('events');
         } else {
-            // Potentially navigate to feed or a specific item view
             onNavigate('feed');
         }
     };
@@ -112,7 +113,6 @@ const FocusPointCard: React.FC<{ entityName: string; items: any[]; onNavigate: (
 };
 
 const FocusPointsSection: React.FC<{ infoItems: InfoItem[]; onNavigate: (view: View) => void; onManageClick: () => void; }> = ({ infoItems, onNavigate, onManageClick }) => {
-    // Mock data based on the provided image
     const groupedItems = useMemo(() => {
         const bydItems = [
             { type: 'briefing', title: '发布第五代DM技术，以2.9L油耗和2100公里续航挑战A级车市场。', source: 'AI情报洞察' },
@@ -127,8 +127,8 @@ const FocusPointsSection: React.FC<{ infoItems: InfoItem[]; onNavigate: (view: V
     }, [infoItems]);
 
     return (
-        <div className="space-y-6">
-             <div className="flex justify-between items-center">
+        <div>
+             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">我的关注点</h2>
                 <button onClick={onManageClick} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
                     <GearIcon className="w-4 h-4" />
@@ -140,46 +140,6 @@ const FocusPointsSection: React.FC<{ infoItems: InfoItem[]; onNavigate: (view: V
                     <FocusPointCard key={group.name} entityName={group.name} items={group.items} onNavigate={onNavigate} />
                 ))}
              </div>
-        </div>
-    );
-};
-
-// --- 3. Upcoming Events Section ---
-const UpcomingEventsSection: React.FC<{ onNavigate: (view: View) => void }> = ({ onNavigate }) => {
-    const [events, setEvents] = useState<LivestreamTask[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchEvents = async () => {
-            try {
-                const response = await getLivestreamTasks({ limit: 3, status: 'pending', sort_by: 'start_time', order: 'asc' });
-                setEvents(response.items);
-            } catch (error) {
-                console.error("Failed to fetch upcoming events:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchEvents();
-    }, []);
-
-    if (loading || events.length === 0) return null;
-
-    return (
-        <div>
-             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">近期重要发布会</h2>
-                <button onClick={() => onNavigate('events')} className="text-sm font-semibold text-blue-600 hover:underline">查看全部</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {events.map(event => (
-                    <div key={event.id} className="bg-white p-5 rounded-xl border border-gray-200 transition-shadow hover:shadow-md">
-                        <p className="font-semibold text-gray-800">{event.livestream_name}</p>
-                        <p className="text-sm text-gray-500 mt-1">{event.host_name}</p>
-                        <p className="text-sm text-blue-600 font-semibold mt-3">{new Date(event.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                ))}
-            </div>
         </div>
     );
 };
@@ -218,13 +178,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, infoI
                 <div className="max-w-7xl mx-auto space-y-10">
                     <DailyBriefing user={user} />
                     <DashboardWidgets stats={stats} />
-                    <SubscriptionManager />
                     <FocusPointsSection 
                         infoItems={infoItems} 
                         onNavigate={onNavigate} 
                         onManageClick={() => setIsFocusPointModalOpen(true)}
                     />
-                    <UpcomingEventsSection onNavigate={onNavigate} />
+                    <TodaysEvents onNavigate={onNavigate} />
+                    <SubscriptionManager />
                 </div>
             </div>
             {isFocusPointModalOpen && (

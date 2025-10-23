@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SystemSource } from '../../types';
 import { getSources, getUserSubscribedSources, addUserSourceSubscription, deleteUserSourceSubscription } from '../../api';
-import { RssIcon, CheckIcon, PlusIcon } from '../icons';
+import { RssIcon, CheckIcon, PlusIcon, UsersIcon } from '../icons';
 
 const SourceCard: React.FC<{
     source: SystemSource;
@@ -14,24 +13,30 @@ const SourceCard: React.FC<{
     const subscribers = useMemo(() => Math.floor(1000 + Math.random() * 9000), []);
 
     return (
-        <div className="bg-white p-5 rounded-xl border border-gray-200 flex flex-col items-start justify-between shadow-sm hover:shadow-md transition-shadow">
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between h-full">
             <div>
-                <h3 className="text-lg font-bold text-gray-800">{source.source_name}</h3>
-                <div className="text-xs text-gray-500 mt-2 space-y-1">
-                    <p>{source.points_count}个情报点</p>
-                    <p>{subscribers.toLocaleString('en-US')}人已订阅</p>
+                <h3 className="text-base font-bold text-gray-800 truncate" title={source.source_name}>{source.source_name}</h3>
+                <div className="text-xs text-gray-500 mt-2 space-y-1.5">
+                    <p className="flex items-center gap-1.5">
+                        <RssIcon className="w-3.5 h-3.5" />
+                        <span>{source.points_count} 个情报点</span>
+                    </p>
+                    <p className="flex items-center gap-1.5">
+                        <UsersIcon className="w-3.5 h-3.5" />
+                        <span>{subscribers.toLocaleString()} 订阅</span>
+                    </p>
                 </div>
             </div>
             <button
                 onClick={() => onToggleSubscription(source.id, isSubscribed)}
                 disabled={isLoading}
-                className={`w-full mt-4 py-2 px-4 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                className={`w-full mt-4 py-1.5 px-3 text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-1.5 ${
                     isSubscribed
-                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                } disabled:bg-gray-200 disabled:cursor-wait`}
+                        ? 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                } disabled:opacity-50 disabled:cursor-wait`}
             >
-                {isSubscribed ? <CheckIcon className="w-4 h-4"/> : <PlusIcon className="w-4 h-4"/>}
+                {isSubscribed ? <CheckIcon className="w-4 h-4 text-green-500"/> : <PlusIcon className="w-4 h-4"/>}
                 {isSubscribed ? '已订阅' : '订阅'}
             </button>
         </div>
@@ -106,7 +111,7 @@ export const SubscriptionManager: React.FC = () => {
                 </h2>
             </div>
             {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {sources.map(source => (
                     <SourceCard
                         key={source.id}
