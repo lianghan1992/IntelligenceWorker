@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { InfoItem } from '../../types';
 import { RssIcon } from '../icons';
 
@@ -59,31 +59,21 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
-    const loadMoreRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!hasMore || isLoading || isLoadingMore) return;
-
-        const observer = new IntersectionObserver(
-            entries => {
-                if (entries[0].isIntersecting) {
-                    onLoadMore();
-                }
-            },
-            { rootMargin: "200px" } // 在距离视口200px时触发
-        );
-
-        const currentRef = loadMoreRef.current;
-        if (currentRef) {
-            observer.observe(currentRef);
-        }
-
-        return () => {
-            if (currentRef) {
-                observer.unobserve(currentRef);
+    // FIX: Initialize useRef with null as it expects an argument.
+    const observer = useRef<IntersectionObserver | null>(null);
+    
+    const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
+        if (isLoading || isLoadingMore) return;
+        if (observer.current) observer.current.disconnect();
+        
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                onLoadMore();
             }
-        };
-    }, [hasMore, onLoadMore, isLoading, isLoadingMore]);
+        });
+        
+        if (node) observer.current.observe(node);
+    }, [isLoading, isLoadingMore, hasMore, onLoadMore]);
 
     return (
         <main className="lg:col-span-6 h-full flex flex-col">
@@ -100,15 +90,28 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                     </div>
                 ) : articles.length > 0 ? (
                     <>
-                        {articles.map(article => (
-                            <ArticleCard
-                                key={article.id}
-                                article={article}
-                                isActive={selectedArticleId === article.id}
-                                onClick={() => onSelectArticle(article)}
-                            />
-                        ))}
-                        {hasMore && <div ref={loadMoreRef} />}
+                        {articles.map((article, index) => {
+                            if (articles.length === index + 1) {
+                                return (
+                                    <div ref={lastArticleElementRef} key={article.id}>
+                                        <ArticleCard
+                                            article={article}
+                                            isActive={selectedArticleId === article.id}
+                                            onClick={() => onSelectArticle(article)}
+                                        />
+                                    </div>
+                                );
+                            } else {
+                                return (
+                                    <ArticleCard
+                                        key={article.id}
+                                        article={article}
+                                        isActive={selectedArticleId === article.id}
+                                        onClick={() => onSelectArticle(article)}
+                                    />
+                                );
+                            }
+                        })}
                         {isLoadingMore && (
                             <>
                                 <SkeletonCard />
