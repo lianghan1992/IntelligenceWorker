@@ -120,7 +120,7 @@ const App: React.FC = () => {
             onNavigate={handleNavigate}
             onUpgrade={() => setShowPricingModal(true)}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-hidden">
           {renderView()}
         </main>
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
