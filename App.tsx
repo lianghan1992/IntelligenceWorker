@@ -9,7 +9,7 @@ import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
 import { StrategicCockpit } from './components/StrategicCockpit/index';
-import { NewTechForecast } from './components/NewTechForecast/index';
+import { TechDashboard } from './components/TechDashboard/index'; // 导入新的技术看板组件
 import { User, View, Subscription, DeepDive } from './types';
 import { getSubscriptions, getMe } from './api';
 import { mockDeepDives } from './mockData';
@@ -94,8 +94,12 @@ const App: React.FC = () => {
         return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
+      // 恢复 'forecast' 指向一个通用页面，此处以 DeepDives 为例
       case 'forecast':
-        return <NewTechForecast user={user} />;
+        return <DeepDives dives={deepDives} />;
+      // 新增 'techboard' 路由到新的技术看板
+      case 'techboard':
+        return <TechDashboard />;
       case 'dives':
         return <DeepDives dives={deepDives} />;
       case 'events':

@@ -1,6 +1,6 @@
 // src/types.ts
 
-export type View = 'dashboard' | 'cockpit' | 'forecast' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'dashboard' | 'cockpit' | 'forecast' | 'dives' | 'events' | 'ai' | 'admin' | 'techboard';
 export type AdminView = 'users' | 'events' | 'intelligence';
 
 export interface User {
@@ -119,29 +119,31 @@ export interface RecommendedSubscription {
     description: string;
 }
 
-export type PredictionStatus = '官方证实' | '基本确认' | '高概率' | '传闻';
-
-export interface TechPrediction {
-    prediction_id: string;
-    vehicle_model: string;
-    category: string;
-    sub_category: string;
-    current_prediction: string;
-    confidence_score: number;
-    prediction_status: PredictionStatus;
-    reasoning_log: string;
-    supporting_evidence_ids: string[];
-    last_updated_at: string;
+// --- Tech Dashboard Types ---
+export interface TechDimension {
+    key: string;
+    label: string;
+    description?: string;
 }
 
-export interface PredictionEvidence {
-    evidence_id: string;
-    source_name: string;
-    published_at: string;
-    source_quote: string;
-    original_url: string;
-    initial_confidence: number;
+export interface TechDimensionCategory {
+    key: string;
+    label: string;
+    subDimensions: TechDimension[];
 }
+
+export interface VehicleTechSpec {
+    id: string; // e.g., 'li-l7-2024'
+    name: string; // e.g., '理想 L7 2024款'
+    brand: string; // e.g., '理想'
+    year: number; // e.g., 2024
+    specs: {
+        [categoryKey: string]: {
+            [subDimensionKey: string]: string | null;
+        };
+    };
+}
+
 
 export interface LivestreamTask {
     id: string;
