@@ -42,7 +42,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     
     const fetchArticles = useCallback(async (query: string, page: number = 1) => {
         setIsLoading(true);
-        setArticles([]); // Always clear articles on new fetch for pagination
+        if (page === 1) {
+            setArticles([]); // Only clear for the first page of a new query
+        }
         setSelectedArticle(null); // Reset detail view on new search
         setError(null);
 
@@ -52,7 +54,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 query_text: query,
                 page,
                 limit: limit,
-                similarity_threshold: 0.5,
+                similarity_threshold: 0.35,
             };
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;

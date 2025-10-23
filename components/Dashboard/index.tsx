@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Subscription, User, InfoItem, View, ApiPoi } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { FeedIcon, GearIcon } from '../icons';
@@ -186,10 +186,15 @@ const FocusPointCard: React.FC<{ entityName: string; items: InfoItem[]; }> = ({ 
     );
 };
 
-const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageClick: () => void; }> = ({ onNavigate, onManageClick }) => {
+const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageClick: () => void; subscriptions: Subscription[] }> = ({ onNavigate, onManageClick, subscriptions }) => {
     const [focusPoints, setFocusPoints] = useState<ApiPoi[]>([]);
     const [focusPointFeeds, setFocusPointFeeds] = useState<Record<string, InfoItem[]>>({});
     const [isLoading, setIsLoading] = useState(true);
+
+    const subscribedSourceNames = useMemo(() => {
+        if (!subscriptions) return [];
+        return Array.from(new Set(subscriptions.map(sub => sub.source_name)));
+    }, [subscriptions]);
     
     useEffect(() => {
         const fetchFocusData = async () => {
@@ -199,10 +204,18 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                 setFocusPoints(pois);
 
                 if (pois.length > 0) {
+                    const params: any = {
+                        limit: 3,
+                        similarity_threshold: 0.35,
+                    };
+                    if (subscribedSourceNames.length > 0) {
+                        params.source_names = subscribedSourceNames;
+                    }
+
                     const feedPromises = pois.map(poi => 
                         searchArticlesFiltered({
+                            ...params,
                             query_text: poi.content,
-                            limit: 3
                         }).then(result => ({ poiId: poi.id, items: result.items }))
                     );
                     const results = await Promise.all(feedPromises);
@@ -220,7 +233,7 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
         };
 
         fetchFocusData();
-    }, []);
+    }, [subscribedSourceNames]);
 
 
     return (
@@ -263,6 +276,12 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNavigate }) => {
     const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
+    const [focusPointsKey, setFocusPointsKey] = useState(0);
+
+    const handleFocusPointModalClose = () => {
+        setIsFocusPointModalOpen(false);
+        setFocusPointsKey(prev => prev + 1); // Increment key to trigger refetch
+    };
 
     return (
         <>
@@ -281,8 +300,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
 
                     <LazyLoadModule placeholder={<FocusPointsSkeleton />}>
                         <FocusPointsSection 
+                            key={focusPointsKey}
                             onNavigate={onNavigate} 
                             onManageClick={() => setIsFocusPointModalOpen(true)}
+                            subscriptions={subscriptions}
                         />
                     </LazyLoadModule>
                     
@@ -292,7 +313,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
                 </div>
             </div>
             {isFocusPointModalOpen && (
-                <FocusPointManagerModal onClose={() => setIsFocusPointModalOpen(false)} />
+                <FocusPointManagerModal onClose={handleFocusPointModalClose} />
             )}
         </>
     );
