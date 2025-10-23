@@ -48,13 +48,25 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
         const fetchEvents = async () => {
             setLoading(true);
             try {
-                const [upcomingRes, liveRes] = await Promise.all([
+                const [pendingRes, liveRes, listeningRes] = await Promise.all([
                     getLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' })
+                    getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' })
                 ]);
-                const combined = [...liveRes.items, ...upcomingRes.items];
+                const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items];
                 const uniqueEvents = Array.from(new Map(combined.map(e => [e.id, e])).values());
-                const sortedEvents = uniqueEvents.sort((a,b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+                
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const endOfDay = new Date();
+                endOfDay.setHours(23, 59, 59, 999);
+
+                const todaysEvents = uniqueEvents.filter(event => {
+                    const eventDate = new Date(event.start_time);
+                    return eventDate >= today && eventDate <= endOfDay;
+                });
+
+                const sortedEvents = todaysEvents.sort((a,b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
                 setEvents(sortedEvents.slice(0, 3)); // Show top 3
             } catch (error) {
                 console.error("Failed to fetch today's events:", error);

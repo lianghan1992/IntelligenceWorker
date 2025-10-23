@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { Subscription, User, InfoItem, View } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Subscription, User, InfoItem, View, ApiPoi } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { FeedIcon, GearIcon } from '../icons';
 import { FireIcon } from './icons';
 import { SubscriptionManager } from './SubscriptionManager';
 import { FocusPointManagerModal } from './FocusPointManagerModal';
-import { TodaysEvents } from './TodaysEvents'; // New import
+import { TodaysEvents } from './TodaysEvents';
+import { getUserPois, searchArticlesFiltered } from '../../api';
 
 // --- Helper Functions ---
 const getGreeting = (): string => {
@@ -34,47 +35,16 @@ const DailyBriefing: React.FC<{ user: User }> = ({ user }) => (
 );
 
 // --- 2. Focus Points Section ---
-const IntelligenceItem: React.FC<{ item: any; onCtaClick: () => void }> = ({ item, onCtaClick }) => {
-    let Icon, tag, tagColor, title, source, cta;
-
-    switch (item.type) {
-        case 'briefing':
-            Icon = FireIcon;
-            tag = '[AI洞察简报]';
-            tagColor = 'text-orange-500';
-            title = item.title;
-            source = `来源: ${item.source}`;
-            cta = '查看溯源';
-            break;
-        case 'conference':
-            Icon = FeedIcon; // Changed for consistency, as Calendar icon is in TodaysEvents
-            tag = '[相关发布会]';
-            tagColor = 'text-indigo-500';
-            title = item.title;
-            source = `来源: ${item.source}`;
-            cta = '立即查看';
-            break;
-        default: // news
-            Icon = FeedIcon;
-            tag = '';
-            tagColor = 'text-gray-400';
-            title = item.title;
-            source = `来源: ${item.source}`;
-            cta = '';
-            break;
-    }
-    
+const IntelligenceItem: React.FC<{ item: InfoItem; onCtaClick: () => void }> = ({ item, onCtaClick }) => {
     return (
         <div className="flex items-start space-x-4 py-3">
-            <Icon className={`w-6 h-6 mt-0.5 flex-shrink-0 ${tagColor}`} />
+            <FeedIcon className="w-6 h-6 mt-0.5 flex-shrink-0 text-blue-500" />
             <div className="flex-grow">
                 <p className="text-gray-800 text-base leading-snug">
-                    {tag && <span className={`font-semibold mr-1.5 text-blue-600`}>{tag}</span>}
-                    {title}
-                    {cta && <button onClick={onCtaClick} className="ml-2 text-sm font-semibold text-blue-600 hover:underline focus:outline-none">{cta}</button>}
+                    {item.title}
                 </p>
                 <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-sm text-gray-500">{source}</span>
+                    <span className="text-sm text-gray-500">来源: {item.source_name}</span>
                 </div>
             </div>
         </div>
@@ -82,17 +52,9 @@ const IntelligenceItem: React.FC<{ item: any; onCtaClick: () => void }> = ({ ite
 };
 
 
-const FocusPointCard: React.FC<{ entityName: string; items: any[]; onNavigate: (view: View) => void; }> = ({ entityName, items, onNavigate }) => {
+const FocusPointCard: React.FC<{ entityName: string; items: InfoItem[]; onNavigate: (view: View) => void; }> = ({ entityName, items, onNavigate }) => {
     const hasUpdates = items.length > 0;
     
-    const handleCtaClick = (itemType: string) => {
-        if (itemType === 'conference') {
-            onNavigate('events');
-        } else {
-            onNavigate('feed');
-        }
-    };
-
     return (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b flex justify-between items-center bg-gray-50/50">
@@ -105,26 +67,49 @@ const FocusPointCard: React.FC<{ entityName: string; items: any[]; onNavigate: (
             </div>
             {hasUpdates && (
                  <div className="px-5 divide-y divide-gray-100">
-                    {items.map((item, index) => <IntelligenceItem key={index} item={item} onCtaClick={() => handleCtaClick(item.type)} />)}
+                    {items.map((item) => <IntelligenceItem key={item.id} item={item} onCtaClick={() => onNavigate('feed')} />)}
                 </div>
             )}
         </div>
     );
 };
 
-const FocusPointsSection: React.FC<{ infoItems: InfoItem[]; onNavigate: (view: View) => void; onManageClick: () => void; }> = ({ infoItems, onNavigate, onManageClick }) => {
-    const groupedItems = useMemo(() => {
-        const bydItems = [
-            { type: 'briefing', title: '发布第五代DM技术，以2.9L油耗和2100公里续航挑战A级车市场。', source: 'AI情报洞察' },
-            { type: 'news', title: '秦L、海豹06 DM-i正式上市，售价9.98万元起。', source: '情报信息流' },
-            { type: 'conference', title: '“第五代DM技术发布暨秦L/海豹06上市发布会”AI解读报告已生成。', source: '发布会' },
-        ];
-        
-        return [
-            { name: '比亚迪', items: bydItems },
-            { name: '特斯拉', items: [] }
-        ];
-    }, [infoItems]);
+const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageClick: () => void; }> = ({ onNavigate, onManageClick }) => {
+    const [focusPoints, setFocusPoints] = useState<ApiPoi[]>([]);
+    const [focusPointFeeds, setFocusPointFeeds] = useState<Record<string, InfoItem[]>>({});
+    const [isLoading, setIsLoading] = useState(true);
+    
+    useEffect(() => {
+        const fetchFocusData = async () => {
+            setIsLoading(true);
+            try {
+                const pois = await getUserPois();
+                setFocusPoints(pois);
+
+                if (pois.length > 0) {
+                    const feedPromises = pois.map(poi => 
+                        searchArticlesFiltered({
+                            query_text: poi.content,
+                            limit: 3
+                        }).then(result => ({ poiId: poi.id, items: result.items }))
+                    );
+                    const results = await Promise.all(feedPromises);
+                    const feeds = results.reduce((acc, current) => {
+                        acc[current.poiId] = current.items;
+                        return acc;
+                    }, {} as Record<string, InfoItem[]>);
+                    setFocusPointFeeds(feeds);
+                }
+            } catch (error) {
+                console.error("Failed to fetch focus points data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchFocusData();
+    }, []);
+
 
     return (
         <div>
@@ -136,9 +121,23 @@ const FocusPointsSection: React.FC<{ infoItems: InfoItem[]; onNavigate: (view: V
                 </button>
              </div>
              <div className="space-y-6">
-                {groupedItems.map(group => (
-                    <FocusPointCard key={group.name} entityName={group.name} items={group.items} onNavigate={onNavigate} />
-                ))}
+                {isLoading ? (
+                    <div className="text-center py-10 text-gray-500">正在加载关注点动态...</div>
+                ) : focusPoints.length === 0 ? (
+                    <div className="text-center py-10 bg-white rounded-xl border border-dashed">
+                        <p className="text-gray-500">您还未设置任何关注点。</p>
+                        <button onClick={onManageClick} className="mt-2 text-sm font-semibold text-blue-600 hover:underline">立即设置</button>
+                    </div>
+                ) : (
+                    focusPoints.map(point => (
+                        <FocusPointCard 
+                            key={point.id} 
+                            entityName={point.content} 
+                            items={focusPointFeeds[point.id] || []} 
+                            onNavigate={onNavigate} 
+                        />
+                    ))
+                )}
              </div>
         </div>
     );
@@ -180,7 +179,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, infoI
                     <DashboardWidgets stats={stats} />
                     <TodaysEvents onNavigate={onNavigate} />
                     <FocusPointsSection 
-                        infoItems={infoItems} 
                         onNavigate={onNavigate} 
                         onManageClick={() => setIsFocusPointModalOpen(true)}
                     />
