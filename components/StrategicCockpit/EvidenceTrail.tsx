@@ -17,7 +17,6 @@ interface EvidenceTrailProps {
 
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     
-    // Auto scroll to top when article changes
     const contentRef = React.useRef<HTMLDivElement>(null);
     useEffect(() => {
         if (contentRef.current) {
@@ -31,7 +30,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         }
 
         if (window.marked && typeof window.marked.parse === 'function') {
-            // A simple regex to wrap image markdown in a styled figure
             const markdownWithStyledImages = selectedArticle.content.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
                 '<figure><img src="$2" alt="$1" class="rounded-lg border shadow-sm my-4"><figcaption class="text-center text-xs text-gray-500 mt-2">$1</figcaption></figure>'
@@ -50,31 +48,35 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
 
     return (
         <aside className="h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
-            <div className="p-4 border-b border-slate-200 flex-shrink-0">
-                <h3 className="font-semibold text-slate-800">情报详情</h3>
-                <p className="text-xs text-slate-500">在此深入阅读情报内容</p>
-            </div>
-            {selectedArticle ? (
-                <>
-                    <div ref={contentRef} className="flex-1 overflow-y-auto p-6 scrollbar-hide">
-                        <div className='mb-6'>
-                            <h2 className='text-xl font-bold text-slate-900'>{selectedArticle.title}</h2>
-                            <div className='text-xs text-slate-500 mt-2'>
-                                <span>{selectedArticle.source_name}</span> / <span>{new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleString('zh-CN')}</span>
-                            </div>
+            <div className="p-4 border-b border-slate-200 flex-shrink-0 flex justify-between items-center min-h-[77px]">
+                {selectedArticle ? (
+                    <>
+                        <div className="flex-1 overflow-hidden pr-4">
+                             <h3 className="font-bold text-slate-800 text-base truncate" title={selectedArticle.title}>
+                                {selectedArticle.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {selectedArticle.source_name} &nbsp;&nbsp;|&nbsp;&nbsp; {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleString('zh-CN')}
+                            </p>
                         </div>
-                        
-                        <article 
-                            className="prose prose-sm max-w-none prose-headings:font-bold prose-p:text-slate-700 prose-p:leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: articleHtml }}
-                        />
-                    </div>
-                    <div className="px-6 py-4 bg-slate-50 border-t flex justify-end flex-shrink-0">
-                        <a href={selectedArticle.original_url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+                        <a href={selectedArticle.original_url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
                             查看原文
                         </a>
+                    </>
+                ) : (
+                    <div>
+                        <h3 className="font-semibold text-slate-800">情报详情</h3>
+                        <p className="text-xs text-slate-500">在此深入阅读情报内容</p>
                     </div>
-                </>
+                )}
+            </div>
+            {selectedArticle ? (
+                <div ref={contentRef} className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                    <article 
+                        className="prose prose-sm max-w-none prose-headings:font-bold prose-p:text-slate-700 prose-p:leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: articleHtml }}
+                    />
+                </div>
             ) : (
                 <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 p-4">
                     <DocumentTextIcon className="w-12 h-12 text-slate-300 mb-4" />

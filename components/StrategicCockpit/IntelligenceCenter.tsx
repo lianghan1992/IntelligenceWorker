@@ -17,9 +17,13 @@ const ArticleCard: React.FC<{
     >
         <h4 className="font-bold text-slate-800 group-hover:text-blue-600 text-base">{article.title}</h4>
         <p className="text-sm text-slate-600 mt-2 line-clamp-2">{article.content}</p>
-        <div className="text-xs text-slate-400 mt-3 flex justify-between items-center">
-            <span>{article.source_name}</span>
-            <span>{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN')}</span>
+        <div className="mt-3 flex items-center space-x-2">
+            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-md">
+                {article.source_name}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-md">
+                {new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN')}
+            </span>
         </div>
     </div>
 );
@@ -29,9 +33,9 @@ const SkeletonCard: React.FC = () => (
         <div className="h-5 w-3/4 bg-slate-200 rounded animate-pulse"></div>
         <div className="h-4 w-full bg-slate-200 rounded mt-3 animate-pulse"></div>
         <div className="h-4 w-5/6 bg-slate-200 rounded mt-2 animate-pulse"></div>
-        <div className="flex justify-between mt-3">
-            <div className="h-3 w-1/4 bg-slate-200 rounded animate-pulse"></div>
-            <div className="h-3 w-1/4 bg-slate-200 rounded animate-pulse"></div>
+        <div className="flex items-center space-x-2 mt-3">
+            <div className="h-5 w-1/4 bg-slate-200 rounded-md animate-pulse"></div>
+            <div className="h-5 w-1/4 bg-slate-200 rounded-md animate-pulse"></div>
         </div>
     </div>
 );
@@ -59,14 +63,14 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
-    const observer = useRef<IntersectionObserver>();
+    // FIX: Changed useRef to provide an initial null value. This is a more common and robust pattern for refs that will hold object instances and resolves the error.
+    const observer = useRef<IntersectionObserver | null>(null);
     
     const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoading || isLoadingMore) return;
         if (observer.current) observer.current.disconnect();
         
         observer.current = new IntersectionObserver(entries => {
-            // FIX: Add optional chaining for robustness, in case entries array is empty.
             if (entries[0]?.isIntersecting && hasMore) {
                 onLoadMore();
             }
