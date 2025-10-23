@@ -63,9 +63,9 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
-    // FIX: Changed useRef to provide an initial null value. This is a more common and robust pattern for refs that will hold object instances and resolves the error.
     const observer = useRef<IntersectionObserver | null>(null);
-    
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
     const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoading || isLoadingMore) return;
         if (observer.current) observer.current.disconnect();
@@ -74,6 +74,10 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
             if (entries[0]?.isIntersecting && hasMore) {
                 onLoadMore();
             }
+        }, {
+            root: scrollContainerRef.current,
+            rootMargin: "0px 0px 200px 0px", // Trigger when 200px from the bottom of the container
+            threshold: 0.01
         });
         
         if (node) observer.current.observe(node);
@@ -85,7 +89,7 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                 <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
                 <p className="text-xs text-slate-500">AI为您聚合的相关情报</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
                 {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
                 ) : error ? (
