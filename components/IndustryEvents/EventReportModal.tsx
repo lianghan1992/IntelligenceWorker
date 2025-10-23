@@ -2,36 +2,42 @@ import React, { useMemo } from 'react';
 import { LivestreamTask } from '../../types';
 import { CloseIcon, DocumentTextIcon } from '../icons';
 
+// 为从CDN加载的 `marked` 库提供类型声明
+declare global {
+  interface Window {
+    marked?: {
+      parse(markdownString: string): string;
+    };
+  }
+}
+
 interface EventReportModalProps {
     event: LivestreamTask;
     onClose: () => void;
 }
 
-// A simple markdown to HTML converter for the report content
-const markdownToHtml = (markdown: string | null): string => {
-    if (!markdown) return '<p>报告内容为空。</p>';
-    
-    let html = markdown
-        .split('\n')
-        .filter(line => line.trim() !== '')
-        .map(line => {
-            if (line.startsWith('### ')) return `<h3>${line.substring(4)}</h3>`;
-            if (line.startsWith('## ')) return `<h2>${line.substring(3)}</h2>`;
-            if (line.startsWith('# ')) return `<h1>${line.substring(2)}</h1>`;
-            if (line.startsWith('- ') || line.startsWith('* ')) return `<li>${line.substring(2)}</li>`;
-            return `<p>${line}</p>`;
-        })
-        .join('');
-    
-    // Wrap consecutive li elements in ul
-    html = html.replace(/<li>/g, '<ul><li>').replace(/<\/li>/g, '</li></ul>').replace(/<\/ul><ul>/g, '');
-
-    return html;
-};
-
-
 export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClose }) => {
-    const reportHtml = useMemo(() => markdownToHtml(event.summary_report), [event.summary_report]);
+    const reportHtml = useMemo(() => {
+        if (!event.summary_report) {
+            return '<p>报告内容为空。</p>';
+        }
+    
+        // 直接从 window 对象访问 marked，确保库已加载
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(event.summary_report);
+        }
+        
+        console.error("marked.js is not loaded or is not a function. Falling back to pre-formatted text.");
+        // 如果 marked.js 加载失败，提供一个可读性更好的回退方案
+        const escapedContent = event.summary_report
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+            
+        return `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 1rem;">${escapedContent}</pre>`;
+    }, [event.summary_report]);
 
     const formattedDate = new Date(event.start_time).toLocaleString('zh-CN', {
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -59,7 +65,7 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
                 {/* Content */}
                 <div className="flex-1 bg-gray-50/70 overflow-y-auto p-8">
                     <article 
-                        className="prose prose-slate max-w-none prose-h2:font-bold prose-h2:text-xl prose-h2:mb-3 prose-h2:mt-6 prose-p:leading-relaxed prose-strong:font-semibold"
+                        className="prose prose-slate max-w-none prose-h2:font-bold prose-h2:text-xl prose-h2:mb-3 prose-h2:mt-6 prose-p:leading-relaxed prose-strong:font-semibold prose-li:my-1 prose-ul:pl-5 prose-headings:text-gray-800"
                         dangerouslySetInnerHTML={{ __html: reportHtml }}
                     />
                 </div>
