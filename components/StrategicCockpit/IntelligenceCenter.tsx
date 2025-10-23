@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { InfoItem } from '../../types';
 import { RssIcon } from '../icons';
 
@@ -59,6 +59,32 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!hasMore || isLoading || isLoadingMore) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting) {
+                    onLoadMore();
+                }
+            },
+            { rootMargin: "200px" } // 在距离视口200px时触发
+        );
+
+        const currentRef = loadMoreRef.current;
+        if (currentRef) {
+            observer.observe(currentRef);
+        }
+
+        return () => {
+            if (currentRef) {
+                observer.unobserve(currentRef);
+            }
+        };
+    }, [hasMore, onLoadMore, isLoading, isLoadingMore]);
+
     return (
         <main className="lg:col-span-6 h-full flex flex-col">
             <div className="p-4 bg-white rounded-t-xl border-b border-slate-200 shadow-sm flex-shrink-0">
@@ -82,14 +108,12 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                                 onClick={() => onSelectArticle(article)}
                             />
                         ))}
-                        {hasMore && (
-                            <button
-                                onClick={onLoadMore}
-                                disabled={isLoadingMore}
-                                className="w-full py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-70"
-                            >
-                                {isLoadingMore ? '加载中...' : '加载更多'}
-                            </button>
+                        {hasMore && <div ref={loadMoreRef} />}
+                        {isLoadingMore && (
+                            <>
+                                <SkeletonCard />
+                                <SkeletonCard />
+                            </>
                         )}
                     </>
                 ) : (
