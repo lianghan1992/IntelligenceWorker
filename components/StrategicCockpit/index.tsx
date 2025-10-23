@@ -23,9 +23,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     // Data fetching and display state
     const [articles, setArticles] = useState<InfoItem[]>([]);
-    const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Detail view state
@@ -42,13 +41,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     }, [subscriptions]);
     
     const fetchArticles = useCallback(async (query: string, page: number = 1) => {
-        if (page === 1) {
-            setIsLoading(true);
-            setArticles([]);
-            setSelectedArticle(null); // Reset detail view on new search
-        } else {
-            setIsLoadingMore(true);
-        }
+        setIsLoading(true);
+        setArticles([]); // Always clear articles on new fetch for pagination
+        setSelectedArticle(null); // Reset detail view on new search
         setError(null);
 
         try {
@@ -63,11 +58,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             }
             const response = await searchArticlesFiltered(params);
             
-            setArticles(prev => (page === 1 ? response.items || [] : [...prev, ...(response.items || [])]));
-            setPagination({ page: response.page, totalPages: response.totalPages ?? 1 });
+            setArticles(response.items || []);
+            setPagination({ page: response.page, totalPages: response.totalPages ?? 1, total: response.total });
             
-            // Auto-select the first article on initial load
-            if (page === 1 && response.items && response.items.length > 0) {
+            // Auto-select the first article on new page load
+            if (response.items && response.items.length > 0) {
                 setSelectedArticle(response.items[0]);
             }
 
@@ -75,7 +70,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             setError(err.message || '获取情报失败');
         } finally {
             setIsLoading(false);
-            setIsLoadingMore(false);
         }
     }, [subscribedSourceNames]);
 
@@ -90,9 +84,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         setActiveQuery({ type, value, label });
     };
 
-    const handleLoadMore = () => {
-        if (pagination.page < pagination.totalPages && !isLoadingMore) {
-            fetchArticles(activeQuery.value, pagination.page + 1);
+    const handlePageChange = (newPage: number) => {
+        if (newPage > 0 && newPage <= pagination.totalPages) {
+            fetchArticles(activeQuery.value, newPage);
         }
     };
     
@@ -118,50 +112,53 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     };
 
     return (
-        <div className="h-full flex bg-slate-50">
-            {/* Left Sidebar */}
-            <aside className="w-64 flex-shrink-0 p-4 flex flex-col">
-                <div className="overflow-y-auto space-y-4 scrollbar-hide">
-                    <StrategicCompass
-                        categories={lookCategories}
-                        selectedLook={selectedLook}
-                        setSelectedLook={setSelectedLook}
-                        selectedSubLook={selectedSubLook}
-                        setSelectedSubLook={setSelectedSubLook}
-                        onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
-                        activeQuery={activeQuery}
-                    />
-                    <FocusPoints 
-                        onManageClick={() => setIsFocusPointModalOpen(true)}
-                        pois={pois}
-                        isLoading={isLoadingPois}
-                        onPoiClick={(value, label) => handleNavChange('poi', value, label)}
-                        activeQuery={activeQuery}
-                    />
-                </div>
-            </aside>
+        <div className="h-full flex flex-col bg-slate-50">
+            <div className="flex-1 flex min-h-0">
+                {/* Left Sidebar */}
+                <aside className="w-64 flex-shrink-0 p-4 flex flex-col">
+                    <div className="overflow-y-auto space-y-4 scrollbar-hide">
+                        <StrategicCompass
+                            categories={lookCategories}
+                            selectedLook={selectedLook}
+                            setSelectedLook={setSelectedLook}
+                            selectedSubLook={selectedSubLook}
+                            setSelectedSubLook={setSelectedSubLook}
+                            onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
+                            activeQuery={activeQuery}
+                        />
+                        <FocusPoints 
+                            onManageClick={() => setIsFocusPointModalOpen(true)}
+                            pois={pois}
+                            isLoading={isLoadingPois}
+                            onPoiClick={(value, label) => handleNavChange('poi', value, label)}
+                            activeQuery={activeQuery}
+                        />
+                    </div>
+                </aside>
 
-            {/* Main Content Area (Middle + Right) */}
-            <main className="flex-1 grid grid-cols-10 gap-4 p-4 pl-0 min-w-0">
-                <div className="col-span-6 min-h-0">
-                    <IntelligenceCenter
-                        title={activeQuery.label}
-                        articles={articles}
-                        isLoading={isLoading}
-                        isLoadingMore={isLoadingMore}
-                        error={error}
-                        selectedArticleId={selectedArticle?.id || null}
-                        onSelectArticle={setSelectedArticle}
-                        onLoadMore={handleLoadMore}
-                        hasMore={pagination.page < pagination.totalPages}
-                    />
-                </div>
-                <div className="col-span-4 min-h-0">
-                     <EvidenceTrail
-                        selectedArticle={selectedArticle}
-                    />
-                </div>
-            </main>
+                {/* Main Content Area (Middle + Right) */}
+                 <main className="flex-1 grid grid-cols-10 gap-4 p-4 pl-0 min-w-0">
+                    <div className="col-span-6 flex flex-col min-h-0">
+                        <IntelligenceCenter
+                            title={activeQuery.label}
+                            articles={articles}
+                            isLoading={isLoading}
+                            error={error}
+                            selectedArticleId={selectedArticle?.id || null}
+                            onSelectArticle={setSelectedArticle}
+                            currentPage={pagination.page}
+                            totalPages={pagination.totalPages}
+                            totalItems={pagination.total}
+                            onPageChange={handlePageChange}
+                        />
+                    </div>
+                    <div className="col-span-4 min-h-0">
+                         <EvidenceTrail
+                            selectedArticle={selectedArticle}
+                        />
+                    </div>
+                </main>
+            </div>
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>

@@ -1,6 +1,6 @@
-import React, { useRef, useCallback } from 'react';
+import React from 'react';
 import { InfoItem } from '../../types';
-import { RssIcon } from '../icons';
+import { RssIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 
 const ArticleCard: React.FC<{
     article: InfoItem;
@@ -44,52 +44,38 @@ interface IntelligenceCenterProps {
     title: string;
     articles: InfoItem[];
     isLoading: boolean;
-    isLoadingMore: boolean;
     error: string | null;
     selectedArticleId: string | null;
     onSelectArticle: (article: InfoItem) => void;
-    onLoadMore: () => void;
-    hasMore: boolean;
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    onPageChange: (newPage: number) => void;
 }
 
 export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     title,
     articles,
     isLoading,
-    isLoadingMore,
     error,
     selectedArticleId,
     onSelectArticle,
-    onLoadMore,
-    hasMore
+    currentPage,
+    totalPages,
+    totalItems,
+    onPageChange
 }) => {
-    const observer = useRef<IntersectionObserver | null>(null);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-    const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
-        if (isLoading || isLoadingMore) return;
-        if (observer.current) observer.current.disconnect();
-        
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0]?.isIntersecting && hasMore) {
-                onLoadMore();
-            }
-        }, {
-            root: scrollContainerRef.current,
-            rootMargin: "0px 0px 200px 0px", // Trigger when 200px from the bottom of the container
-            threshold: 0.01
-        });
-        
-        if (node) observer.current.observe(node);
-    }, [isLoading, isLoadingMore, hasMore, onLoadMore]);
-
+    
     return (
         <div className="h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
+            {/* Header */}
             <div className="p-4 border-b border-slate-200 flex-shrink-0">
                 <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
                 <p className="text-xs text-slate-500">AI为您聚合的相关情报</p>
             </div>
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+
+            {/* Content List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
                 {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
                 ) : error ? (
@@ -97,26 +83,14 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                         <p>加载失败: {error}</p>
                     </div>
                 ) : articles.length > 0 ? (
-                    <>
-                        {articles.map((article, index) => {
-                            const isLastElement = articles.length === index + 1;
-                            return (
-                                <div ref={isLastElement ? lastArticleElementRef : null} key={article.id}>
-                                    <ArticleCard
-                                        article={article}
-                                        isActive={selectedArticleId === article.id}
-                                        onClick={() => onSelectArticle(article)}
-                                    />
-                                </div>
-                            );
-                        })}
-                        {isLoadingMore && (
-                            <>
-                                <SkeletonCard />
-                                <SkeletonCard />
-                            </>
-                        )}
-                    </>
+                    articles.map((article) => (
+                        <ArticleCard
+                            key={article.id}
+                            article={article}
+                            isActive={selectedArticleId === article.id}
+                            onClick={() => onSelectArticle(article)}
+                        />
+                    ))
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500">
                         <RssIcon className="w-12 h-12 text-slate-300 mb-4" />
@@ -125,6 +99,32 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Footer / Pagination */}
+            {totalItems > 0 && !isLoading && (
+                <div className="flex-shrink-0 p-3 border-t border-slate-200 flex justify-between items-center text-sm">
+                    <span className="text-slate-600 font-medium">共 {totalItems} 条</span>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => onPageChange(currentPage - 1)} 
+                            disabled={currentPage <= 1}
+                            className="p-1.5 rounded-md border bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeftIcon className="w-4 h-4 text-slate-600"/>
+                        </button>
+                        <span className="text-slate-600">
+                            第 {currentPage} / {totalPages} 页
+                        </span>
+                        <button 
+                            onClick={() => onPageChange(currentPage + 1)}
+                            disabled={currentPage >= totalPages}
+                            className="p-1.5 rounded-md border bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRightIcon className="w-4 h-4 text-slate-600"/>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
