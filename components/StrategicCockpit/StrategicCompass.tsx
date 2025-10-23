@@ -44,7 +44,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     }
 
     return (
-        <nav className="w-full bg-white rounded-2xl border border-gray-200 p-3 space-y-1">
+        <nav className="bg-white rounded-2xl border border-gray-200 p-3 space-y-1">
             {categories.map((category) => {
                 const isPrimaryActive = selectedLook === category.key;
                 return (

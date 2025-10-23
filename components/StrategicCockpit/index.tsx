@@ -46,11 +46,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         if (page === 1) {
             setIsLoading(true);
             setArticles([]);
+            setSelectedArticle(null); // Reset detail view on new search
         } else {
             setIsLoadingMore(true);
         }
         setError(null);
-        setSelectedArticle(null);
 
         try {
             const params: any = {
@@ -64,12 +64,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             }
             const response = await searchArticlesFiltered(params);
             
-            if (page === 1) {
-                setArticles(response.items || []);
-            } else {
-                setArticles(prev => [...prev, ...(response.items || [])]);
-            }
+            setArticles(prev => (page === 1 ? response.items || [] : [...prev, ...(response.items || [])]));
             setPagination({ page: response.page, totalPages: response.totalPages ?? 1 });
+            
+            // Auto-select the first article on initial load
+            if (page === 1 && response.items && response.items.length > 0) {
+                setSelectedArticle(response.items[0]);
+            }
+
         } catch (err: any) {
             setError(err.message || '获取情报失败');
         } finally {
@@ -77,6 +79,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             setIsLoadingMore(false);
         }
     }, [subscribedSourceNames]);
+
 
     useEffect(() => {
         if (activeQuery.value) {
@@ -116,10 +119,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     };
 
     return (
-        <div className="h-full flex overflow-hidden bg-slate-50">
+        <div className="h-full flex bg-slate-50 overflow-hidden">
             {/* Left Sidebar */}
-            <aside className="w-64 flex-shrink-0 h-full flex flex-col p-6 pr-0">
-                <div className="overflow-y-auto scrollbar-hide space-y-6 pr-6">
+            <aside className="w-64 flex-shrink-0 flex flex-col p-4">
+                <div className="flex-1 overflow-y-auto space-y-4 scrollbar-hide">
                     <StrategicCompass
                         categories={lookCategories}
                         selectedLook={selectedLook}
@@ -140,26 +143,28 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             </aside>
 
             {/* Main Content Area (Middle + Right) */}
-            <div className="flex-1 grid grid-cols-10 gap-6 p-6 overflow-hidden">
-                <div className="col-span-6 h-full">
-                    <IntelligenceCenter
-                        title={activeQuery.label}
-                        articles={articles}
-                        isLoading={isLoading}
-                        isLoadingMore={isLoadingMore}
-                        error={error}
-                        selectedArticleId={selectedArticle?.id || null}
-                        onSelectArticle={setSelectedArticle}
-                        onLoadMore={handleLoadMore}
-                        hasMore={pagination.page < pagination.totalPages}
-                    />
+            <main className="flex-1 flex p-4 pl-0 overflow-hidden">
+                <div className="flex-1 grid grid-cols-10 gap-4 overflow-hidden">
+                    <div className="col-span-6 overflow-hidden h-full">
+                        <IntelligenceCenter
+                            title={activeQuery.label}
+                            articles={articles}
+                            isLoading={isLoading}
+                            isLoadingMore={isLoadingMore}
+                            error={error}
+                            selectedArticleId={selectedArticle?.id || null}
+                            onSelectArticle={setSelectedArticle}
+                            onLoadMore={handleLoadMore}
+                            hasMore={pagination.page < pagination.totalPages}
+                        />
+                    </div>
+                    <div className="col-span-4 overflow-hidden h-full">
+                         <EvidenceTrail
+                            selectedArticle={selectedArticle}
+                        />
+                    </div>
                 </div>
-                <div className="col-span-4 h-full">
-                     <EvidenceTrail
-                        selectedArticle={selectedArticle}
-                    />
-                </div>
-            </div>
+            </main>
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>

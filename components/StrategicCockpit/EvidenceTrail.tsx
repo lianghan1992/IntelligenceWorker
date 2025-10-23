@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon } from '../icons';
 
@@ -16,13 +16,27 @@ interface EvidenceTrailProps {
 }
 
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
+    
+    // Auto scroll to top when article changes
+    const contentRef = React.useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.scrollTop = 0;
+        }
+    }, [selectedArticle]);
+
     const articleHtml = useMemo(() => {
         if (!selectedArticle || !selectedArticle.content) {
             return '';
         }
 
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(selectedArticle.content);
+            // A simple regex to wrap image markdown in a styled figure
+            const markdownWithStyledImages = selectedArticle.content.replace(
+                /!\[(.*?)\]\((.*?)\)/g,
+                '<figure><img src="$2" alt="$1" class="rounded-lg border shadow-sm my-4"><figcaption class="text-center text-xs text-gray-500 mt-2">$1</figcaption></figure>'
+            );
+            return window.marked.parse(markdownWithStyledImages);
         }
 
         console.warn("marked.js is not available. Falling back to plain text with line breaks.");
@@ -42,7 +56,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             </div>
             {selectedArticle ? (
                 <>
-                    <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+                    <div ref={contentRef} className="flex-1 overflow-y-auto p-6 scrollbar-hide">
                         <div className='mb-6'>
                             <h2 className='text-xl font-bold text-slate-900'>{selectedArticle.title}</h2>
                             <div className='text-xs text-slate-500 mt-2'>
@@ -51,7 +65,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         </div>
                         
                         <article 
-                            className="prose prose-sm max-w-none prose-headings:font-bold prose-p:text-slate-700 prose-p:leading-relaxed prose-img:rounded-lg prose-img:border"
+                            className="prose prose-sm max-w-none prose-headings:font-bold prose-p:text-slate-700 prose-p:leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: articleHtml }}
                         />
                     </div>
@@ -65,7 +79,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                 <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 p-4">
                     <DocumentTextIcon className="w-12 h-12 text-slate-300 mb-4" />
                     <p className="font-semibold">未选择情报</p>
-                    <p className="text-sm">请在左侧列表中选择一篇情报以查看详情。</p>
+                    <p className="text-sm">请在中间列表中选择一篇情报以查看详情。</p>
                 </div>
             )}
         </aside>

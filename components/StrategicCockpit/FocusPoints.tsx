@@ -12,7 +12,7 @@ interface FocusPointsProps {
 
 export const FocusPoints: React.FC<FocusPointsProps> = ({ onManageClick, pois, isLoading, onPoiClick, activeQuery }) => {
     return (
-        <div className="w-full bg-white rounded-2xl border border-gray-200 p-3">
+        <div className="bg-white rounded-2xl border border-gray-200 p-3">
             <div className="flex items-center justify-between p-3">
                 <h3 className="text-sm font-semibold text-gray-600 flex items-center gap-3">
                     <TagIcon className="w-5 h-5 text-gray-500" />

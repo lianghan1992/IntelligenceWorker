@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { InfoItem } from '../../types';
 import { RssIcon } from '../icons';
 
@@ -59,14 +59,15 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     onLoadMore,
     hasMore
 }) => {
-    const observer = useRef<IntersectionObserver | null>(null);
+    const observer = useRef<IntersectionObserver>();
     
     const lastArticleElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoading || isLoadingMore) return;
         if (observer.current) observer.current.disconnect();
         
         observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
+            // FIX: Add optional chaining for robustness, in case entries array is empty.
+            if (entries[0]?.isIntersecting && hasMore) {
                 onLoadMore();
             }
         });
@@ -75,12 +76,12 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     }, [isLoading, isLoadingMore, hasMore, onLoadMore]);
 
     return (
-        <main className="h-full flex flex-col">
-            <div className="p-4 bg-white rounded-t-xl border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div className="h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="p-4 border-b border-slate-200 flex-shrink-0">
                 <h3 className="font-bold text-slate-800 text-lg">{title}</h3>
                 <p className="text-xs text-slate-500">AI为您聚合的相关情报</p>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white rounded-b-xl scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
                 {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
                 ) : error ? (
@@ -116,6 +117,6 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                     </div>
                 )}
             </div>
-        </main>
+        </div>
     );
 };
