@@ -117,7 +117,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     return (
         <div className="h-full bg-slate-50 flex flex-col">
-            <div className="flex-1 flex gap-6 p-6 overflow-hidden">
+            <div className="flex-1 flex gap-6 p-6">
                 <aside className="w-64 flex-shrink-0 h-full overflow-y-auto scrollbar-hide space-y-4">
                     <StrategicCompass
                         categories={lookCategories}
@@ -137,7 +137,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     />
                 </aside>
 
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-10 gap-6 overflow-hidden">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-10 gap-6">
                     <IntelligenceCenter
                         title={activeQuery.label}
                         articles={articles}
