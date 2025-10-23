@@ -6,7 +6,7 @@ import {
 import { 
     User, Subscription, InfoItem, PlanDetails, ApiPoi, SystemSource, 
     LivestreamTask, PaginatedResponse, LivestreamPrompt, AllPrompts,
-    SearchResult, IntelligenceTask
+    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate
 } from './types';
 
 // --- Generic API Fetch Helper ---
@@ -60,6 +60,27 @@ export const register = (username: string, email: string, password: string): Pro
     });
 
 export const getMe = (): Promise<User> => apiFetch<User>(`${USER_SERVICE_PATH}/me`);
+
+// --- User Management API (Admin) ---
+export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
+    // Filter out null or undefined params before creating query string
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([_, v]) => v != null && v !== ''));
+    // FIX: Cast `filteredParams` to `Record<string, string>` to satisfy the `URLSearchParams` constructor's type requirements.
+    const query = new URLSearchParams(filteredParams as Record<string, string>).toString();
+    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/?${query}`);
+}
+
+export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
+    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deleteUser = (userId: string): Promise<void> =>
+    apiFetch<void>(`${USER_SERVICE_PATH}/${userId}`, {
+        method: 'DELETE',
+    });
+
 
 // --- Plans API ---
 export const getPlans = (): Promise<PlanDetails> => apiFetch<PlanDetails>(`${USER_SERVICE_PATH}/plans`);

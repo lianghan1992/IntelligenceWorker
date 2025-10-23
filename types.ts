@@ -1,7 +1,7 @@
 // src/types.ts
 
 export type View = 'dashboard' | 'cockpit' | 'feed' | 'forecast' | 'dives' | 'events' | 'ai' | 'admin';
-export type AdminView = 'events' | 'intelligence' | 'users' | 'dives';
+export type AdminView = 'users' | 'events' | 'intelligence';
 
 export interface User {
   id: string;
@@ -9,6 +9,24 @@ export interface User {
   email: string;
   subscription_plan: 'free' | 'premium';
   is_admin?: boolean;
+}
+
+export interface UserListItem {
+  id: string;
+  username: string;
+  email: string;
+  plan_name: string;
+  source_subscription_count: number;
+  poi_count: number;
+  status: 'active' | 'disabled';
+  created_at: string;
+}
+
+export interface UserForAdminUpdate {
+    username?: string;
+    email?: string;
+    plan_name?: 'free' | 'premium';
+    status?: 'active' | 'disabled';
 }
 
 export interface Subscription {
