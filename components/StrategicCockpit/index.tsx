@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Subscription, StrategicLookKey, InsightBriefing, InfoItem } from '../../types';
 import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, GearIcon } from '../icons';
+import { lookCategories } from './data';
+import { StrategicCompass } from './StrategicCompass';
 
 // --- Mock Data ---
 const mockBriefings: InsightBriefing[] = [
@@ -63,44 +65,6 @@ const mockSourceArticles: InfoItem[] = [
 
 // --- Components ---
 
-const LookCategoryCard: React.FC<{
-    look: { key: StrategicLookKey; label: string; icon: React.FC<any>; description: string };
-    isActive: boolean;
-    onClick: () => void;
-    onSettingsClick: (e: React.MouseEvent) => void;
-    hasSettings: boolean;
-}> = ({ look, isActive, onClick, onSettingsClick, hasSettings }) => (
-    <div
-        onClick={onClick}
-        className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer relative group ${
-            isActive 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
-                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-blue-300'
-        }`}
-    >
-        <div className="flex items-center space-x-4">
-            <div className={`p-2 rounded-lg ${isActive ? 'bg-white/20' : 'bg-slate-100'}`}>
-                <look.icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-slate-600'}`} />
-            </div>
-            <div>
-                <h3 className="font-bold">{look.label}</h3>
-                <p className={`text-xs ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>{look.description}</p>
-            </div>
-        </div>
-        {hasSettings && (
-            <button
-                onClick={onSettingsClick}
-                className={`absolute top-2 right-2 p-1.5 rounded-full transition-colors ${
-                    isActive ? 'text-blue-100 hover:bg-white/20' : 'text-slate-400 hover:bg-slate-200'
-                }`}
-                aria-label={`设置 ${look.label}`}
-            >
-                <GearIcon className="w-4 h-4" />
-            </button>
-        )}
-    </div>
-);
-
 const InsightBriefingCard: React.FC<{
     briefing: InsightBriefing;
     isActive: boolean;
@@ -137,24 +101,17 @@ const SourceArticleCard: React.FC<{ article: InfoItem }> = ({ article }) => (
 // --- Main Component ---
 export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
     const [selectedLook, setSelectedLook] = useState<StrategicLookKey>('industry');
+    const [selectedSubLook, setSelectedSubLook] = useState<string | null>('tech');
     const [selectedBriefing, setSelectedBriefing] = useState<InsightBriefing | null>(null);
 
-    const lookCategories = [
-        { key: 'industry' as StrategicLookKey, label: '看行业', icon: TrendingUpIcon, description: '宏观趋势与政策脉搏', hasSettings: false },
-        { key: 'customer' as StrategicLookKey, label: '看客户', icon: UsersIcon, description: '用户需求与市场声音', hasSettings: false },
-        { key: 'competitor' as StrategicLookKey, label: '看对手', icon: EyeIcon, description: '核心竞对动态追踪', hasSettings: true },
-        { key: 'self' as StrategicLookKey, label: '看自己', icon: LightBulbIcon, description: '企业声誉与产品反馈', hasSettings: true },
-    ];
-
     const filteredBriefings = useMemo(() => {
+        // NOTE: Sub-look filtering logic will be added here later.
+        // For now, it filters only by the main category.
         return mockBriefings.filter(b => b.category === selectedLook);
     }, [selectedLook]);
     
-    // 修复：将setState从useMemo移至useEffect，以避免无限渲染循环和修复白屏问题。
     useEffect(() => {
         if (filteredBriefings.length > 0) {
-            // Check if the currently selected briefing is still in the filtered list.
-            // If not, or if nothing is selected, select the first one.
             const isCurrentBriefingVisible = filteredBriefings.some(b => b.id === selectedBriefing?.id);
             if (!isCurrentBriefingVisible) {
                 setSelectedBriefing(filteredBriefings[0]);
@@ -170,10 +127,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         return mockSourceArticles.filter(a => selectedBriefing.sourceArticleIds.includes(a.id));
     }, [selectedBriefing]);
 
-    const handleLookClick = (key: StrategicLookKey) => {
-        setSelectedLook(key);
-    };
-
     return (
         <div className="h-full bg-slate-50 flex flex-col">
             {/* Header */}
@@ -186,24 +139,18 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
                 
                 {/* Left Panel: Strategic Compass */}
-                <div className="lg:col-span-3 h-full overflow-y-auto space-y-4 pr-2 -mr-2">
-                    {lookCategories.map((look) => (
-                        <LookCategoryCard
-                            key={look.key}
-                            look={look}
-                            isActive={selectedLook === look.key}
-                            onClick={() => handleLookClick(look.key)}
-                            onSettingsClick={(e) => {
-                                e.stopPropagation();
-                                alert(`打开 ${look.label} 设置`);
-                            }}
-                            hasSettings={look.hasSettings}
-                        />
-                    ))}
+                <div className="lg:col-span-2 h-full overflow-y-auto pr-2 -mr-2 scrollbar-hide">
+                    <StrategicCompass
+                        categories={lookCategories}
+                        selectedLook={selectedLook}
+                        setSelectedLook={setSelectedLook}
+                        selectedSubLook={selectedSubLook}
+                        setSelectedSubLook={setSelectedSubLook}
+                    />
                 </div>
 
                 {/* Middle Panel: Insight Hub */}
-                <div className="lg:col-span-5 h-full overflow-y-auto space-y-4 pr-2 -mr-2">
+                <div className="lg:col-span-6 h-full overflow-y-auto space-y-4 pr-2 -mr-2 scrollbar-hide">
                     {filteredBriefings.length > 0 ? (
                         filteredBriefings.map(briefing => (
                             <InsightBriefingCard
@@ -227,7 +174,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                         <p className="text-xs text-slate-500">构成选中洞察的原始情报</p>
                     </div>
                     {sourceArticles.length > 0 ? (
-                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
                             {sourceArticles.map(article => (
                                 <SourceArticleCard key={article.id} article={article} />
                             ))}
@@ -239,6 +186,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     )}
                 </div>
             </div>
+             <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
         </div>
     );
 };
