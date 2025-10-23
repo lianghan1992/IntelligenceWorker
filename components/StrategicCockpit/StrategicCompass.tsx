@@ -1,6 +1,6 @@
 import React from 'react';
 import { StrategicLookKey } from '../../types';
-import { GearIcon } from '../icons';
+import { ChevronDownIcon } from '../icons';
 
 interface SubCategory {
     key: string;
@@ -24,54 +24,6 @@ interface StrategicCompassProps {
     setSelectedSubLook: (key: string | null) => void;
 }
 
-const PrimaryCategory: React.FC<{
-    look: Category;
-    isActive: boolean;
-    onClick: () => void;
-}> = ({ look, isActive, onClick }) => (
-    <div
-        onClick={onClick}
-        className={`w-full p-3 rounded-xl border transition-all duration-300 cursor-pointer group ${
-            isActive 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
-                : 'bg-white hover:bg-slate-50 border-slate-200 hover:border-blue-300'
-        }`}
-    >
-        <div className="flex items-center space-x-3">
-            <div className={`flex-shrink-0 p-2 rounded-lg ${isActive ? 'bg-white/20' : 'bg-slate-100'}`}>
-                <look.icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-600'}`} />
-            </div>
-            <div>
-                <h3 className="font-bold text-sm">{look.label}</h3>
-            </div>
-        </div>
-    </div>
-);
-
-const SubCategoryChips: React.FC<{
-    subCategories: SubCategory[];
-    selectedSubLook: string | null;
-    onSelect: (key: string) => void;
-}> = ({ subCategories, selectedSubLook, onSelect }) => (
-    <div className="pl-4 pr-1 pt-3 pb-2 animate-in fade-in-0 duration-300">
-        <div className="flex flex-wrap gap-2">
-            {subCategories.map(sub => (
-                <button
-                    key={sub.key}
-                    onClick={() => onSelect(sub.key)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${
-                        selectedSubLook === sub.key
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                >
-                    {sub.label}
-                </button>
-            ))}
-        </div>
-    </div>
-);
-
 export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     categories,
     selectedLook,
@@ -81,30 +33,63 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
 }) => {
     
     const handlePrimaryClick = (key: StrategicLookKey) => {
+        if (key === selectedLook) {
+          // Clicking the same one again could toggle it, but for accordion style, we'll just let it be.
+          // Or we can toggle by setting to null: setSelectedLook(selectedLook === key ? null : key);
+          return;
+        }
         setSelectedLook(key);
-        // Reset sub-category or set to default when primary category changes
+        // Automatically select the first sub-item when a new primary is selected
         const category = categories.find(c => c.key === key);
         setSelectedSubLook(category?.children[0]?.key || null);
     };
 
     return (
-        <div className="space-y-3">
-            {categories.map((look) => (
-                <div key={look.key}>
-                    <PrimaryCategory
-                        look={look}
-                        isActive={selectedLook === look.key}
-                        onClick={() => handlePrimaryClick(look.key)}
-                    />
-                    {selectedLook === look.key && look.children.length > 0 && (
-                        <SubCategoryChips
-                            subCategories={look.children}
-                            selectedSubLook={selectedSubLook}
-                            onSelect={setSelectedSubLook}
-                        />
-                    )}
-                </div>
-            ))}
-        </div>
+        <nav className="w-full bg-white rounded-2xl border border-gray-200 p-3 space-y-1">
+            {categories.map((category) => {
+                const isActive = selectedLook === category.key;
+                return (
+                    <div key={category.key}>
+                        <button
+                            onClick={() => handlePrimaryClick(category.key)}
+                            className={`w-full flex items-center justify-between text-left p-3 rounded-lg text-sm font-semibold transition-colors duration-200
+                                ${isActive 
+                                    ? 'bg-blue-50 text-blue-700' 
+                                    : 'text-gray-600 hover:bg-gray-100'
+                                }
+                            `}
+                        >
+                            <div className="flex items-center gap-3">
+                                <category.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                                <span>{category.label}</span>
+                            </div>
+                            <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isActive ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isActive && category.children.length > 0 && (
+                            <div className="pl-6 pt-2 pb-1 space-y-1 animate-in fade-in-0 duration-300">
+                                {category.children.map(subCategory => (
+                                    <button
+                                        key={subCategory.key}
+                                        onClick={() => setSelectedSubLook(subCategory.key)}
+                                        className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors relative flex items-center
+                                            ${selectedSubLook === subCategory.key 
+                                                ? 'font-semibold text-blue-700' 
+                                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                                            }
+                                        `}
+                                    >
+                                        {selectedSubLook === subCategory.key && 
+                                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-1 bg-blue-600 rounded-r-full"></span>
+                                        }
+                                        <span className="ml-2">{subCategory.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </nav>
     );
 };

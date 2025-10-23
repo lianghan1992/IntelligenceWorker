@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Subscription, StrategicLookKey, InsightBriefing, InfoItem } from '../../types';
-import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, GearIcon } from '../icons';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
 
@@ -44,7 +43,6 @@ const mockBriefings: InsightBriefing[] = [
         id: 'brief-5',
         title: '自动驾驶卡车商业化落地新机遇：干线物流场景',
         summary: '随着“干线物流”场景法规的逐步明确，以及L4级技术在限定区域的成熟，自动驾驶卡车在港口、矿山等封闭场景的商业化落地正在加速。',
-        // FIX: The category 'opportunity' is not valid for 'StrategicLookKey'. Changed to 'industry' as it relates to industry trends.
         category: 'industry',
         sourceArticleIds: ['art-7'],
         generatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
@@ -130,16 +128,16 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     return (
         <div className="h-full bg-slate-50 flex flex-col">
             {/* Header */}
-            <div className="p-6 border-b border-slate-200 bg-white/80 backdrop-blur-sm">
+            <header className="p-6 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex-shrink-0">
                 <h1 className="text-2xl font-bold text-slate-800">AI情报洞察</h1>
                 <p className="text-slate-500 mt-1">从引导式战略视角探索情报，发现决策依据。</p>
-            </div>
+            </header>
 
-            {/* Main Content Grid */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
+            {/* Main Content Area */}
+            <div className="flex-1 flex gap-6 p-6 overflow-hidden">
                 
                 {/* Left Panel: Strategic Compass */}
-                <div className="lg:col-span-2 h-full overflow-y-auto pr-2 -mr-2 scrollbar-hide">
+                <aside className="w-64 flex-shrink-0 h-full overflow-y-auto scrollbar-hide">
                     <StrategicCompass
                         categories={lookCategories}
                         selectedLook={selectedLook}
@@ -147,43 +145,46 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                         selectedSubLook={selectedSubLook}
                         setSelectedSubLook={setSelectedSubLook}
                     />
-                </div>
+                </aside>
 
-                {/* Middle Panel: Insight Hub */}
-                <div className="lg:col-span-6 h-full overflow-y-auto space-y-4 pr-2 -mr-2 scrollbar-hide">
-                    {filteredBriefings.length > 0 ? (
-                        filteredBriefings.map(briefing => (
-                            <InsightBriefingCard
-                                key={briefing.id}
-                                briefing={briefing}
-                                isActive={selectedBriefing?.id === briefing.id}
-                                onClick={() => setSelectedBriefing(briefing)}
-                            />
-                        ))
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-center text-slate-500 bg-white rounded-xl border border-dashed">
-                           <p>该视角下暂无AI洞察简报</p>
-                        </div>
-                    )}
-                </div>
+                {/* Right Content Grid (contains middle and right panels) */}
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-10 gap-6 overflow-hidden">
+                    {/* Middle Panel: Insight Hub */}
+                    <main className="lg:col-span-6 h-full overflow-y-auto space-y-4 pr-2 -mr-2 scrollbar-hide">
+                        {filteredBriefings.length > 0 ? (
+                            filteredBriefings.map(briefing => (
+                                <InsightBriefingCard
+                                    key={briefing.id}
+                                    briefing={briefing}
+                                    isActive={selectedBriefing?.id === briefing.id}
+                                    onClick={() => setSelectedBriefing(briefing)}
+                                />
+                            ))
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-center text-slate-500 bg-white rounded-xl border border-dashed">
+                               <p>该视角下暂无AI洞察简报</p>
+                            </div>
+                        )}
+                    </main>
 
-                {/* Right Panel: Evidence Trail */}
-                <div className="lg:col-span-4 h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
-                    <div className="p-4 border-b border-slate-200">
-                        <h3 className="font-semibold text-slate-800">情报溯源</h3>
-                        <p className="text-xs text-slate-500">构成选中洞察的原始情报</p>
-                    </div>
-                    {sourceArticles.length > 0 ? (
-                         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
-                            {sourceArticles.map(article => (
-                                <SourceArticleCard key={article.id} article={article} />
-                            ))}
+                    {/* Right Panel: Evidence Trail */}
+                    <aside className="lg:col-span-4 h-full flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="p-4 border-b border-slate-200">
+                            <h3 className="font-semibold text-slate-800">情报溯源</h3>
+                            <p className="text-xs text-slate-500">构成选中洞察的原始情报</p>
                         </div>
-                    ) : (
-                        <div className="flex-1 flex items-center justify-center text-center text-slate-500 p-4">
-                           <p>请在中间栏选择一篇洞察简报<br/>以查看其原始情报来源。</p>
-                        </div>
-                    )}
+                        {sourceArticles.length > 0 ? (
+                             <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
+                                {sourceArticles.map(article => (
+                                    <SourceArticleCard key={article.id} article={article} />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-center text-slate-500 p-4">
+                               <p>请在中间栏选择一篇洞察简报<br/>以查看其原始情报来源。</p>
+                            </div>
+                        )}
+                    </aside>
                 </div>
             </div>
              <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
