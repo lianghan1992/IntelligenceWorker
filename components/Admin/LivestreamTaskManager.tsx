@@ -9,6 +9,9 @@ import {
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
+import { LogDisplayModal } from './LogDisplayModal';
+import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
+
 
 // --- Internal Components ---
 const StatCard: React.FC<{ title: string; value: number | string; icon: React.ReactNode }> = ({ title, value, icon }) => (
@@ -64,6 +67,8 @@ export const LivestreamTaskManager: React.FC = () => {
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
     const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop'} | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
+    const [logModalTask, setLogModalTask] = useState<LivestreamTask | null>(null);
+    const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
     const [stats, setStats] = useState<any>({});
@@ -234,6 +239,7 @@ export const LivestreamTaskManager: React.FC = () => {
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
                                 const imageUrl = task.livestream_image?.startsWith('data:image') ? task.livestream_image : `data:image/jpeg;base64,${task.livestream_image}`;
+                                const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
@@ -244,14 +250,17 @@ export const LivestreamTaskManager: React.FC = () => {
                                     <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
                                     <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {['pending', 'listening', 'recording'].includes(task.status.toLowerCase()) && (
-                                                <button onClick={() => handleAction(task, task.status.toLowerCase() === 'pending' ? 'start' : 'stop')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-md" title={task.status.toLowerCase() === 'pending' ? '开始监听' : '停止监听'}>
-                                                    {task.status.toLowerCase() === 'pending' ? <PlayIcon className="w-4 h-4 text-green-600" /> : <StopIcon className="w-4 h-4 text-yellow-600" />}
-                                                </button>
+                                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                            {task.status.toLowerCase() === 'pending' && (
+                                                <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                             )}
-                                            <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="p-2 text-gray-500 hover:bg-gray-100 rounded-md disabled:opacity-30 disabled:cursor-not-allowed" title="查看报告"><DocumentTextIcon className="w-4 h-4 text-blue-600" /></button>
-                                            <button onClick={() => handleAction(task, 'delete')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-md" title="删除任务"><TrashIcon className="w-4 h-4 text-red-600" /></button>
+                                            {['listening', 'recording'].includes(task.status.toLowerCase()) && (
+                                                <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
+                                            )}
+                                            <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
+                                            <button onClick={() => setLogModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">日志</button>
+                                            <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
+                                            <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -274,6 +283,8 @@ export const LivestreamTaskManager: React.FC = () => {
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
             {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={loadTasks} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
+            {logModalTask && <LogDisplayModal taskId={logModalTask.id} taskName={logModalTask.livestream_name} onClose={() => setLogModalTask(null)} />}
+            {manuscriptModalTask && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskToAction && (
                 <ConfirmationModal
                     title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}

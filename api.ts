@@ -6,7 +6,8 @@ import {
 import { 
     User, Subscription, InfoItem, PlanDetails, ApiPoi, SystemSource, 
     LivestreamTask, PaginatedResponse, LivestreamPrompt, AllPrompts,
-    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate, UserProfileDetails
+    SearchResult, IntelligenceTask, UserListItem, UserForAdminUpdate, UserProfileDetails,
+    ManuscriptItem
 } from './types';
 
 // --- Generic API Fetch Helper ---
@@ -206,6 +207,13 @@ export const createHistoryLivestreamTask = (data: { url: string; livestream_name
 export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
 export const startListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, { method: 'POST' });
 export const stopListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, { method: 'POST' });
+
+export const getTaskLog = (taskId: string): Promise<{ log_content: string }> =>
+    apiFetch<{ log_content: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/log`);
+
+export const getTaskManuscript = (taskId: string): Promise<ManuscriptItem[]> =>
+    apiFetch<ManuscriptItem[]>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/manuscript`);
+
 
 // --- Prompts API ---
 export const getLivestreamPrompts = (): Promise<LivestreamPrompt[]> => apiFetch<LivestreamPrompt[]>(`${LIVESTREAM_SERVICE_PATH}/prompts`);

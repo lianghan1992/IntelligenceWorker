@@ -367,3 +367,56 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/history \
   "updated_at": "2023-12-20T10:00:00Z"
 }
 ```
+
+## 10. 获取任务分析日志
+
+获取指定任务在分析过程中生成的详细日志文件。
+
+-   **路径:** `/livestream/tasks/{task_id}/log`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/log \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "log_content": "2025-10-23 10:00:00,123 - INFO - 🎬 开始分析视频...\n2025-10-23 10:00:05,456 - INFO - 🎞️ 视频抽帧完成...\n..."
+}
+```
+
+## 11. 获取任务原始文稿
+
+获取指定任务分析后产出的`01_raw_manuscript.json`文件内容。
+
+-   **路径:** `/livestream/tasks/{task_id}/manuscript`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/manuscript \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "frame_number": 10,
+    "filename": "frame_10.jpg",
+    "confidence": 0.95,
+    "content": "这是一段识别出的文字。"
+  },
+  {
+    "frame_number": 25,
+    "filename": "frame_25.jpg",
+    "confidence": 0.98,
+    "content": "这是另一段文字。"
+  }
+]
+```

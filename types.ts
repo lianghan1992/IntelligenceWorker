@@ -230,3 +230,10 @@ export interface IntelligenceTask {
   created_at: string;
   updated_at: string;
 }
+
+export interface ManuscriptItem {
+    frame_number: number;
+    filename: string;
+    confidence: number;
+    content: string;
+}
