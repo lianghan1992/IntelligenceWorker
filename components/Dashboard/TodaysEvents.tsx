@@ -134,11 +134,18 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                     return eventDate >= today && eventDate <= endOfDay;
                 });
 
-                const sortedEvents = todaysEvents.sort((a,b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-                setEvents(sortedEvents.slice(0, 3)); // Show top 3
+                const sortedEvents = todaysEvents.sort((a, b) => {
+                    const statusA = a.status.toLowerCase() === 'recording' ? 0 : 1;
+                    const statusB = b.status.toLowerCase() === 'recording' ? 0 : 1;
+                    if (statusA !== statusB) {
+                        return statusA - statusB;
+                    }
+                    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+                });
+                setEvents(sortedEvents.slice(0, 4)); // Show top 4
             } catch (error) {
                 console.error("Failed to fetch today's events:", error);
-                setEvents([]); // Ensure events is an empty array on error
+                setEvents([]); 
             } finally {
                 setLoading(false);
             }
@@ -160,15 +167,15 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                     查看全部 <ArrowRightIcon className="w-4 h-4"/>
                 </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {loading ? (
-                     Array.from({ length: 3 }).map((_, index) => <SkeletonCard key={index} />)
+                     Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)
                 ) : events.length > 0 ? (
                     events.map(event => (
                         <EventCard key={event.id} event={event} onNavigate={onNavigate} />
                     ))
                 ) : (
-                    <div className="md:col-span-3 bg-white p-6 rounded-xl border border-dashed text-center text-gray-500">
+                    <div className="sm:col-span-2 lg:col-span-4 bg-white p-6 rounded-xl border border-dashed text-center text-gray-500">
                         今日暂无发布会安排。
                     </div>
                 )}

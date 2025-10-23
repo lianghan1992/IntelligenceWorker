@@ -35,16 +35,18 @@ const DailyBriefing: React.FC<{ user: User }> = ({ user }) => (
 );
 
 // --- 2. Focus Points Section ---
-const IntelligenceItem: React.FC<{ item: InfoItem; onCtaClick: () => void }> = ({ item, onCtaClick }) => {
+const IntelligenceItem: React.FC<{ item: InfoItem }> = ({ item }) => {
     return (
-        <div className="flex items-start space-x-4 py-3">
-            <FeedIcon className="w-6 h-6 mt-0.5 flex-shrink-0 text-blue-500" />
+        <div className="group flex items-start space-x-4 py-3.5 transition-colors hover:bg-slate-50/80 -mx-6 px-6">
+            <div className="mt-1 w-5 h-5 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                <FeedIcon className="w-3 h-3 text-slate-500" />
+            </div>
             <div className="flex-grow">
-                <p className="text-gray-800 text-base leading-snug">
+                <p className="text-slate-800 text-sm leading-snug group-hover:text-blue-600 font-medium">
                     {item.title}
                 </p>
                 <div className="flex justify-between items-center mt-1.5">
-                    <span className="text-sm text-gray-500">来源: {item.source_name}</span>
+                    <span className="text-xs text-slate-400">来源: {item.source_name}</span>
                 </div>
             </div>
         </div>
@@ -52,22 +54,29 @@ const IntelligenceItem: React.FC<{ item: InfoItem; onCtaClick: () => void }> = (
 };
 
 
-const FocusPointCard: React.FC<{ entityName: string; items: InfoItem[]; onNavigate: (view: View) => void; }> = ({ entityName, items, onNavigate }) => {
+const FocusPointCard: React.FC<{ entityName: string; items: InfoItem[]; }> = ({ entityName, items }) => {
     const hasUpdates = items.length > 0;
     
     return (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="p-5 border-b flex justify-between items-center bg-gray-50/50">
-                <h3 className="text-xl font-bold text-gray-800">{entityName}</h3>
+        <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <FireIcon className="w-5 h-5 text-orange-500" />
+                    {entityName}
+                </h3>
                 {hasUpdates ? (
-                    <span className="text-sm font-semibold text-gray-600">今日新增 <span className="text-blue-600 font-bold">{items.length}</span> 条高价值情报</span>
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">新增 {items.length} 条</span>
                 ) : (
-                     <span className="text-sm text-gray-500">暂无重大更新</span>
+                     <span className="text-xs text-gray-500">今日暂无更新</span>
                 )}
             </div>
-            {hasUpdates && (
-                 <div className="px-5 divide-y divide-gray-100">
-                    {items.map((item) => <IntelligenceItem key={item.id} item={item} onCtaClick={() => onNavigate('feed')} />)}
+            {hasUpdates ? (
+                 <div className="px-6 divide-y divide-gray-100">
+                    {items.map((item) => <IntelligenceItem key={item.id} item={item} />)}
+                </div>
+            ) : (
+                <div className="px-6 py-8 text-center text-sm text-gray-500">
+                    今日暂无相关高价值情报
                 </div>
             )}
         </div>
@@ -134,7 +143,6 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                             key={point.id} 
                             entityName={point.content} 
                             items={focusPointFeeds[point.id] || []} 
-                            onNavigate={onNavigate} 
                         />
                     ))
                 )}
