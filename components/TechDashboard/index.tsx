@@ -22,15 +22,15 @@ const getSpecValue = (spec: string | SpecDetail | null): string => {
 };
 
 const getConfidenceGradient = (confidence: number): string => {
-    if (confidence > 0.8) return 'from-sky-100 to-sky-200';
-    if (confidence > 0.5) return 'from-amber-100 to-amber-200';
-    return 'from-red-100 to-red-200';
+    if (confidence > 0.8) return 'from-emerald-400 to-teal-400';
+    if (confidence > 0.5) return 'from-amber-400 to-orange-400';
+    return 'from-rose-400 to-red-500';
 };
 
 const getStatusChipStyle = (status: 'confirmed' | 'rumored') => {
     return status === 'confirmed'
-        ? { text: '已证实', className: 'bg-green-100 text-green-800 border-green-200' }
-        : { text: '传闻中', className: 'bg-amber-100 text-amber-800 border-amber-200' };
+        ? { text: '已证实', className: 'text-green-900' }
+        : { text: '传闻中', className: 'text-amber-900' };
 };
 
 
@@ -54,35 +54,41 @@ const ModeTab: React.FC<{
 
 const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
     const statusInfo = getStatusChipStyle(forecast.status);
+    const tagBaseStyle = "px-1.5 py-0.5 bg-white/70 backdrop-blur-sm border border-black/10 rounded-md text-xs font-semibold flex items-center gap-1 shadow-sm";
 
     return (
-        <div className="relative rounded-lg border border-gray-200/80 shadow-sm overflow-hidden bg-white group transition-all duration-300 hover:shadow-md h-full min-h-[90px]">
-            {/* Gradient Background */}
-            <div className={`absolute inset-0 bg-gradient-to-r ${getConfidenceGradient(forecast.confidence)} opacity-80`} style={{ width: `${forecast.confidence * 100}%` }}></div>
+        <div className="relative rounded-xl border border-gray-200/80 shadow-sm overflow-hidden bg-gray-100 group transition-all duration-300 hover:shadow-md h-full">
+            {/* Gradient Background Progress */}
+            <div className={`absolute inset-y-0 left-0 bg-gradient-to-r ${getConfidenceGradient(forecast.confidence)}`} style={{ width: `${forecast.confidence * 100}%` }}></div>
+            <div className="absolute inset-0 bg-black/5"></div>
             
-            {/* Content */}
-            <div className="relative h-full flex flex-col justify-between p-3">
-                {/* Title (top part) */}
-                <p className="font-bold text-gray-800 text-sm leading-snug">{forecast.techName}</p>
+            {/* Content Layer */}
+            <div className="relative h-full flex flex-col justify-between p-2">
+                {/* Title */}
+                <p className="font-bold text-gray-900 text-sm leading-tight [text-shadow:0_1px_1px_rgba(255,255,255,0.7)]">
+                    {forecast.techName}
+                </p>
                 
-                {/* Tags (bottom part) */}
-                <div className="flex items-center justify-between gap-1 text-[11px] mt-2">
-                    {/* Status & Date */}
-                    <div className="flex items-center gap-2">
-                        <span className={`px-1.5 py-0.5 rounded-full border font-semibold ${statusInfo.className}`}>{statusInfo.text}</span>
-                        <div className="flex items-center gap-1 text-gray-500 font-medium">
-                            <CalendarIcon className="w-3 h-3" />
+                {/* Tags Row */}
+                <div className="flex items-center justify-between gap-1">
+                    {/* Left Tags */}
+                    <div className="flex items-center gap-1.5">
+                         <span className={`${tagBaseStyle} ${statusInfo.className}`}>
+                             {statusInfo.text}
+                         </span>
+                         <div className={`${tagBaseStyle} text-gray-700`}>
+                            <CalendarIcon className="w-3.5 h-3.5" />
                             <span>{forecast.firstDisclosedAt}</span>
                         </div>
                     </div>
                     
-                    {/* Source Button */}
+                    {/* Right Tag (Button) */}
                     <button 
                         onClick={onSourceClick} 
-                        className="px-2 py-1 bg-white/50 backdrop-blur-sm border border-gray-900/10 rounded-md text-gray-600 hover:bg-white hover:text-blue-600 transition-all duration-200 flex items-center gap-1"
+                        className={`${tagBaseStyle} text-gray-700 hover:bg-white/90 hover:text-blue-600 transition-colors`}
                     >
-                        <DocumentTextIcon className="w-3 h-3"/>
-                        查看信源
+                        <DocumentTextIcon className="w-3.5 h-3.5"/>
+                        <span>信源</span>
                     </button>
                 </div>
             </div>
