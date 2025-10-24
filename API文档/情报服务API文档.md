@@ -357,7 +357,28 @@ curl -X GET "http://127.0.0.1:7657/intelligence/articles?source_name=%E7%9B%96%E
 }
 ```
 
-### 2.9. 语义搜索文章
+### 2.9. 追溯生成历史文章摘要 (后台任务)
+
+启动一个后台任务，为数据库中所有当前 `summary` 字段为空的文章，调用AI模型生成摘要并补全数据。
+
+-   **路径:** `/intelligence/articles/backfill-summaries`
+-   **方法:** `POST`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/intelligence/articles/backfill-summaries \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (202 Accepted)**
+```json
+{
+  "message": "Summary backfill task started successfully. It will run in the background."
+}
+```
+
+### 2.10. 语义搜索文章
 
 在指定情报点的文章中执行简单的语义搜索。
 
@@ -518,6 +539,7 @@ curl -X POST http://127.0.0.1:7657/intelligence/search/articles_filtered \
 
 ---
 
+
 ### 2.11. 获取所有提示词
 
 返回 `prompts.json` 文件中的所有内容。
@@ -593,7 +615,7 @@ curl -X POST http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/c
 }
 ```
 
-**返回示例 (201 Created)**
+**返回示例 (201- Created)**
 ```json
 {
   "message": "Prompt created successfully."
@@ -659,3 +681,5 @@ curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/cu
   "message": "Prompt deleted successfully."
 }
 ```
+
+---
