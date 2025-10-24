@@ -36,7 +36,9 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
             try {
                 // 1. Get total articles today
                 const pointIds = subscriptions.map(sub => sub.id);
-                const today = new Date().toISOString().split('T')[0];
+                const d = new Date();
+                const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
                 let totalArticlesToday = 0;
                 if (pointIds.length > 0) {
                     const articlesData = await searchArticlesFiltered({

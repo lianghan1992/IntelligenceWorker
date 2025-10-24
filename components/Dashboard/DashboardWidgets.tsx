@@ -70,7 +70,9 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
 
             try {
                 const pointIds = subscriptions.map(sub => sub.id);
-                const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+                const d = new Date();
+                const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 
                 // Fetch today's articles to get the total count and a sample for active points
                 const articlesData = await searchArticlesFiltered({

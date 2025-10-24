@@ -14,13 +14,15 @@ const formatTimeLeft = (distance: number): string | null => {
 
 const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => void }> = ({ event, onNavigate }) => {
     const [timeLeft, setTimeLeft] = useState<string | null>(null);
-    const isLive = event.status.toLowerCase() === 'recording';
+    const statusLower = event.status.toLowerCase();
+    const isLive = statusLower === 'recording';
+    const isCompleted = statusLower === 'completed';
     const imageUrl = event.livestream_image?.startsWith('data:image') 
         ? event.livestream_image 
         : `data:image/jpeg;base64,${event.livestream_image}`;
 
     useEffect(() => {
-        if (isLive) return;
+        if (isLive || isCompleted) return;
 
         const timer = setInterval(() => {
             const now = new Date().getTime();
@@ -35,7 +37,7 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [event.start_time, isLive]);
+    }, [event.start_time, isLive, isCompleted]);
 
     return (
         <div 
@@ -60,6 +62,10 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                             </span>
                             直播中
                         </span>
+                    ) : isCompleted ? (
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-500/90 backdrop-blur-sm">
+                            已结束
+                        </span>
                     ) : (
                          <span className="px-3 py-1 text-xs font-bold rounded-full bg-blue-500/90 backdrop-blur-sm">
                             即将开始
@@ -68,7 +74,7 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                 </div>
 
                 {/* Middle: Countdown */}
-                {!isLive && timeLeft && (
+                {!isLive && !isCompleted && timeLeft && (
                     <div className="text-center">
                         <div className="text-4xl font-bold tracking-tighter" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                             {timeLeft}
@@ -116,12 +122,13 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
         const fetchEvents = async () => {
             setLoading(true);
             try {
-                const [pendingRes, liveRes, listeningRes] = await Promise.all([
+                const [pendingRes, liveRes, listeningRes, completedRes] = await Promise.all([
                     getLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
                     getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' })
+                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
                 ]);
-                const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items];
+                const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items, ...completedRes.items];
                 const uniqueEvents = Array.from(new Map(combined.map(e => [e.id, e])).values());
                 
                 const today = new Date();
@@ -133,15 +140,31 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                     const eventDate = new Date(event.start_time);
                     return eventDate >= today && eventDate <= endOfDay;
                 });
+                
+                const getStatusPriority = (status: string) => {
+                    const s = status.toLowerCase();
+                    if (s === 'recording') return 0; // Live
+                    if (s === 'listening' || s === 'pending') return 1; // Upcoming
+                    if (s === 'completed') return 2; // Finished
+                    return 3; // Others
+                };
 
                 const sortedEvents = todaysEvents.sort((a, b) => {
-                    const statusA = a.status.toLowerCase() === 'recording' ? 0 : 1;
-                    const statusB = b.status.toLowerCase() === 'recording' ? 0 : 1;
-                    if (statusA !== statusB) {
-                        return statusA - statusB;
+                    const priorityA = getStatusPriority(a.status);
+                    const priorityB = getStatusPriority(b.status);
+                    if (priorityA !== priorityB) {
+                        return priorityA - priorityB;
                     }
-                    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+                    // For upcoming, sort by start time ascending. For completed, sort by start time descending (most recent first)
+                    if (priorityA === 1) { // upcoming
+                        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+                    }
+                    if (priorityA === 2) { // completed
+                        return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+                    }
+                    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime(); // default for live and others
                 });
+
                 setEvents(sortedEvents.slice(0, 4)); // Show top 4
             } catch (error) {
                 console.error("Failed to fetch today's events:", error);
