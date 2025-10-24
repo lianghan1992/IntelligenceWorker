@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
-import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts, mockAIAnalyses } from './data';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, ClockIcon, QuestionMarkCircleIcon, ChevronUpDownIcon } from '../icons';
+import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts, mockAIAnalyses, mockTechDimensionAnalyses } from './data';
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, ClockIcon, QuestionMarkCircleIcon, ChevronUpDownIcon, SparklesIcon } from '../icons';
 
 // --- Helper Functions ---
 const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
@@ -51,10 +51,10 @@ const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => v
     const tagBaseStyle = "px-2 py-1 bg-white/60 backdrop-blur-sm border border-black/10 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm";
 
     return (
-        <div className="relative rounded-xl border border-gray-200/80 shadow-sm overflow-hidden bg-gray-200 group transition-all duration-300 hover:shadow-md h-full">
+        <div className="relative rounded-xl border border-gray-200/80 shadow-sm overflow-hidden bg-slate-200 group transition-all duration-300 hover:shadow-md h-full">
             {/* Gradient Background Progress */}
             <div 
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-300 to-teal-500"
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-300 to-blue-600"
                 style={{ width: `${forecast.confidence * 100}%` }}
             ></div>
             
@@ -362,7 +362,7 @@ export const TechDashboard: React.FC = () => {
         if (mode === 'forecast') {
             return (
                 <div className="overflow-auto p-4 space-y-4">
-                    <div className="grid grid-cols-[200px_repeat(6,minmax(200px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
+                    <div className="grid grid-cols-[240px_repeat(6,minmax(200px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
                          <div className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">车型</div>
                          {techDimensions.map(dim => <div key={dim.key} className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">{dim.label}</div>)}
                     </div>
@@ -375,30 +375,37 @@ export const TechDashboard: React.FC = () => {
                             {expandedBrands.has(brand) && (
                                 <div className="divide-y divide-gray-100">
                                     {Object.entries(models).map(([model, forecasts]) => (
-                                        <div key={model} className="grid grid-cols-[200px_repeat(6,minmax(200px,1fr))] items-stretch">
-                                            <div className="p-3 border-r border-gray-100 flex flex-col justify-start">
-                                                <div className="font-semibold text-gray-800 text-lg mb-4">{model}</div>
+                                        <div key={model} className="grid grid-cols-[240px_repeat(6,minmax(200px,1fr))] items-stretch">
+                                            <div className="p-4 border-r border-gray-100 flex flex-col justify-start">
+                                                <h4 className="font-semibold text-gray-800 text-xl">{model}</h4>
                                                 {mockAIAnalyses[model] && (
-                                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                                        <h4 className="font-semibold text-sm text-blue-800 flex items-center gap-1.5 mb-2">
+                                                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                                        <h5 className="font-semibold text-sm text-blue-800 flex items-center gap-1.5 mb-2">
                                                             <LightBulbIcon className="w-4 h-4 text-blue-500" />
                                                             AI一句话点评
-                                                        </h4>
+                                                        </h5>
                                                         <p className="text-xs text-blue-700 leading-relaxed">{mockAIAnalyses[model]}</p>
                                                     </div>
                                                 )}
                                             </div>
                                             {techDimensions.map(dim => {
                                                 const forecastsForCell = forecasts.filter(f => f.techDimensionKey === dim.key);
+                                                const dimensionSummary = mockTechDimensionAnalyses[`${brand.toLowerCase()}-${dim.key}`];
                                                 return (
                                                     <div key={dim.key} className="p-2 border-r border-gray-100 last:border-r-0 h-full">
-                                                         {forecastsForCell.length > 0 ? (
-                                                            <div className="flex flex-col gap-2 h-full">
-                                                                {forecastsForCell.map(forecast => (
-                                                                    <ForecastChip key={forecast.id} forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} />
-                                                                ))}
-                                                            </div>
-                                                        ) : null}
+                                                        <div className="flex flex-col gap-2 h-full">
+                                                            {dimensionSummary && (
+                                                                <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg">
+                                                                    <p className="text-xs text-purple-800 leading-relaxed flex items-start gap-1.5">
+                                                                        <SparklesIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-purple-500" />
+                                                                        <span>{dimensionSummary}</span>
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                            {forecastsForCell.map(forecast => (
+                                                                <ForecastChip key={forecast.id} forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} />
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

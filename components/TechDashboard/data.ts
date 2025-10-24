@@ -356,3 +356,9 @@ export const mockAIAnalyses: Record<string, string> = {
     'M9': '问界M9依托华为全栈技术，在智驾与座舱体验上持续引领，构筑核心壁垒。',
     'MEGA': '理想MEGA通过押注极致的补能效率（5C快充）来定义高端纯电市场，试图在续航焦虑之外开辟新的核心竞争维度。'
 };
+
+export const mockTechDimensionAnalyses: Record<string, string> = {
+    '小米-smart_driving': '小米在城市NOA和端到端模型上双线发力，展现出追赶第一梯队的决心。',
+    '小米-body_structure': '已量产9100t一体化压铸技术，在车身制造工艺上达到行业领先水平。',
+    '特斯拉-smart_driving': '纯视觉方案持续迭代，FSD V12的端到端模型是其核心护城河，但Lidar的缺失在部分场景下仍存争议。',
+};
