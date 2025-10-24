@@ -94,10 +94,6 @@ const App: React.FC = () => {
         return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
-      // 恢复 'forecast' 指向一个通用页面，此处以 DeepDives 为例
-      case 'forecast':
-        return <DeepDives dives={deepDives} />;
-      // 新增 'techboard' 路由到新的技术看板
       case 'techboard':
         return <TechDashboard />;
       case 'dives':
