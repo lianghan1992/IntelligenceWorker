@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts } from './data';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CalendarIcon } from '../icons';
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, ClockIcon, QuestionMarkCircleIcon, ChevronUpDownIcon } from '../icons';
 
 // --- Helper Functions ---
 const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
@@ -21,16 +21,10 @@ const getSpecValue = (spec: string | SpecDetail | null): string => {
     return spec.value;
 };
 
-const getConfidenceGradient = (confidence: number): string => {
-    if (confidence > 0.8) return 'from-emerald-400 to-teal-400';
-    if (confidence > 0.5) return 'from-amber-400 to-orange-400';
-    return 'from-rose-400 to-red-500';
-};
-
 const getStatusChipStyle = (status: 'confirmed' | 'rumored') => {
     return status === 'confirmed'
-        ? { text: '已证实', className: 'text-green-900' }
-        : { text: '传闻中', className: 'text-amber-900' };
+        ? { text: '已证实', icon: CheckIcon, className: 'text-green-800' }
+        : { text: '传闻中', icon: QuestionMarkCircleIcon, className: 'text-amber-800' };
 };
 
 
@@ -54,31 +48,37 @@ const ModeTab: React.FC<{
 
 const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
     const statusInfo = getStatusChipStyle(forecast.status);
-    const tagBaseStyle = "px-1.5 py-0.5 bg-white/70 backdrop-blur-sm border border-black/10 rounded-md text-xs font-semibold flex items-center gap-1 shadow-sm";
+    const tagBaseStyle = "px-2 py-1 bg-white/60 backdrop-blur-sm border border-black/10 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm";
 
     return (
-        <div className="relative rounded-xl border border-gray-200/80 shadow-sm overflow-hidden bg-gray-100 group transition-all duration-300 hover:shadow-md h-full">
+        <div className="relative rounded-xl border border-gray-200/80 shadow-sm overflow-hidden bg-gray-200 group transition-all duration-300 hover:shadow-md h-full">
             {/* Gradient Background Progress */}
-            <div className={`absolute inset-y-0 left-0 bg-gradient-to-r ${getConfidenceGradient(forecast.confidence)}`} style={{ width: `${forecast.confidence * 100}%` }}></div>
-            <div className="absolute inset-0 bg-black/5"></div>
+            <div 
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-300 to-teal-500"
+                style={{ width: `${forecast.confidence * 100}%` }}
+            ></div>
             
             {/* Content Layer */}
-            <div className="relative h-full flex flex-col justify-between p-2">
+            <div className="relative h-full flex flex-col justify-between p-2.5">
                 {/* Title */}
-                <p className="font-bold text-gray-900 text-sm leading-tight [text-shadow:0_1px_1px_rgba(255,255,255,0.7)]">
+                <p className="font-bold text-gray-900 text-sm leading-tight [text-shadow:0_1px_1px_rgba(255,255,255,0.8)]">
                     {forecast.techName}
                 </p>
                 
                 {/* Tags Row */}
-                <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center justify-between gap-1.5">
                     {/* Left Tags */}
                     <div className="flex items-center gap-1.5">
                          <span className={`${tagBaseStyle} ${statusInfo.className}`}>
+                             <statusInfo.icon className="w-3.5 h-3.5" />
                              {statusInfo.text}
                          </span>
-                         <div className={`${tagBaseStyle} text-gray-700`}>
-                            <CalendarIcon className="w-3.5 h-3.5" />
-                            <span>{forecast.firstDisclosedAt}</span>
+                         <div 
+                            className={`${tagBaseStyle} text-gray-700`}
+                            title={`首次披露: ${forecast.firstDisclosedAt}\n最新更新: ${forecast.lastUpdatedAt}`}
+                         >
+                            <ClockIcon className="w-3.5 h-3.5" />
+                            <span>{forecast.lastUpdatedAt}</span>
                         </div>
                     </div>
                     

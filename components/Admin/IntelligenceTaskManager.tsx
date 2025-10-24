@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { IntelligenceTask } from '../../types';
 import { getIntelligenceTasks } from '../../api';
-import { RefreshIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from '../icons';
+import { RefreshIcon, ChevronDownIcon, ChevronUpDownIcon } from '../icons';
 
 const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
@@ -23,7 +24,8 @@ const SortableHeader: React.FC<{
         <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onSort(column)}>
             {label}
             {sortConfig.sort_by === column ? (
-                sortConfig.order === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+                // FIX: Use rotated ChevronDownIcon for ascending sort indicator
+                sortConfig.order === 'asc' ? <ChevronDownIcon className="w-3 h-3 rotate-180" /> : <ChevronDownIcon className="w-3 h-3" />
             ) : (
                 <ChevronUpDownIcon className="w-3 h-3 text-gray-400" />
             )}

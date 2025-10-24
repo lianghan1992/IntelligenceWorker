@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks, deleteLivestreamTask, getLivestreamTasksStats, startListenTask, stopListenTask } from '../../api';
@@ -5,7 +6,7 @@ import { AddEventModal } from './AddEventModal';
 import { AddHistoryEventModal } from './AddHistoryEventModal';
 import { 
     PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, PlayIcon, StopIcon, EyeIcon, CheckIcon, SparklesIcon,
-    ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, SearchIcon, VideoCameraIcon, CloseIcon
+    ChevronDownIcon, ChevronUpDownIcon, SearchIcon, VideoCameraIcon, CloseIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -46,7 +47,8 @@ const SortableHeader: React.FC<{
         <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onSort(column)}>
             {label}
             {sortConfig.sort_by === column ? (
-                sortConfig.order === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+                // FIX: Use rotated ChevronDownIcon for ascending sort indicator
+                sortConfig.order === 'asc' ? <ChevronDownIcon className="w-3 h-3 rotate-180" /> : <ChevronDownIcon className="w-3 h-3" />
             ) : (
                 <ChevronUpDownIcon className="w-3 h-3 text-gray-400" />
             )}

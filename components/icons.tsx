@@ -225,20 +225,26 @@ export const StopIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </Icon>
 );
 
-export const ChevronUpIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+export const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+  </Icon>
+);
+
+export const ClockIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </Icon>
+);
+
+export const QuestionMarkCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
     </Icon>
 );
 
 export const ChevronUpDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
+    <Icon {...props} strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
-    </Icon>
-);
-
-export const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M5.75 3a.75.75 0 01.75.75V4h7V3.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V3.75A.75.75 0 015.75 3zM4.5 8.25a.75.75 0 01.75-.75h10a.75.75 0 010 1.5H5.25a.75.75 0 01-.75-.75zM8 10.75a.75.75 0 000 1.5h4a.75.75 0 000-1.5H8z" clipRule="evenodd" />
     </Icon>
 );

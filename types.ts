@@ -163,6 +163,7 @@ export interface NewTechForecast {
     status: 'rumored' | 'confirmed';
     confidence: number; // 0 to 1
     firstDisclosedAt: string; // YYYY-MM-DD
+    lastUpdatedAt: string; // YYYY-MM-DD
     sourceArticle: string;
     sourceUrl: string;
 }
