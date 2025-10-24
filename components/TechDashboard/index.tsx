@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts } from './data';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon } from '../icons';
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon } from '../icons';
 
 // --- Helper Functions ---
 const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
@@ -30,8 +30,8 @@ const ModeTab: React.FC<{
 }> = ({ label, icon: Icon, isActive, onClick }) => (
     <button
         onClick={onClick}
-        className={`relative flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold transition-colors duration-200 focus:outline-none ${
-            isActive ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'
+        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold rounded-lg transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+            isActive ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'
         }`}
     >
         <Icon className="w-5 h-5" />
@@ -39,30 +39,31 @@ const ModeTab: React.FC<{
     </button>
 );
 
-const ForecastCell: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
+const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
     const confidenceColor = forecast.confidence > 0.8 ? 'bg-green-500' : forecast.confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500';
-    const statusInfo = forecast.status === 'confirmed' 
-        ? { text: '已证实', color: 'bg-green-100 text-green-800' }
-        : { text: '传闻中', color: 'bg-yellow-100 text-yellow-800' };
+    const statusInfo = forecast.status === 'confirmed'
+        ? { text: '已证实', className: 'text-green-700 bg-green-100' }
+        : { text: '传闻中', className: 'text-amber-700 bg-amber-100' };
 
     return (
-        <div className="bg-slate-50/50 p-2.5 rounded-lg h-full flex flex-col justify-between space-y-2 hover:bg-slate-100 transition-colors">
-            <p className="font-semibold text-gray-800 text-sm leading-tight">{forecast.techName}</p>
-            <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">可信度</span>
-                    <span className={`text-[11px] font-bold ${statusInfo.color} px-1.5 py-0.5 rounded-full`}>{statusInfo.text}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                    <div className={confidenceColor} style={{ width: `${forecast.confidence * 100}%`, height: '100%', borderRadius: 'inherit' }}></div>
-                </div>
+        <div className="group relative bg-slate-50 p-2.5 rounded-lg h-full flex flex-col justify-between space-y-2 hover:bg-slate-100 transition-colors border border-slate-200/80">
+            <div className="flex items-start justify-between">
+                <p className="font-semibold text-gray-800 text-sm leading-tight pr-1">{forecast.techName}</p>
+                 <span className={`text-[10px] font-bold ${statusInfo.className} px-1.5 py-0.5 rounded-full flex-shrink-0`}>{statusInfo.text}</span>
             </div>
-            <button onClick={onSourceClick} className="text-xs text-blue-600 hover:underline font-semibold self-start">
-                情报溯源
-            </button>
+            <div className="flex items-center justify-between">
+                 <button onClick={onSourceClick} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
+                    <DocumentTextIcon className="w-4 h-4" />
+                </button>
+                <div className="w-full mx-2 bg-gray-200 rounded-full h-1 relative overflow-hidden">
+                    <div className={`${confidenceColor} absolute top-0 left-0 h-full rounded-full`} style={{ width: `${forecast.confidence * 100}%` }}></div>
+                </div>
+                <span className="text-xs font-medium text-gray-500">{ (forecast.confidence * 100).toFixed(0) }%</span>
+            </div>
         </div>
     );
 };
+
 
 const SourceModal: React.FC<{ forecast: NewTechForecast; onClose: () => void }> = ({ forecast, onClose }) => (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -108,14 +109,13 @@ const ComparisonColumn: React.FC<{ vehicle: VehicleTechSpec, diffs: Set<string> 
                             <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${expandedCategories.has(cat.key) ? 'rotate-180' : ''}`} />
                         </button>
                         {expandedCategories.has(cat.key) && (
-                            <div className="px-3 pb-3 space-y-2">
+                            <div className="divide-y divide-gray-100">
                                 {cat.subDimensions.map(sub => {
                                     const isDifferent = diffs.has(`${cat.key}.${sub.key}`);
                                     return (
-                                        <div key={sub.key} className="relative flex justify-between items-start text-sm p-2 rounded-md hover:bg-gray-50">
-                                            {isDifferent && <div className="absolute left-0 top-1 bottom-1 w-1 bg-amber-400 rounded-r-full"></div>}
-                                            <span className="text-gray-600">{sub.label}</span>
-                                            {getSpecDisplay(vehicle.specs[cat.key]?.[sub.key])}
+                                        <div key={sub.key} className={`flex justify-between items-start text-sm p-3 transition-colors ${isDifferent ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
+                                            <span className="text-gray-600 flex-1">{sub.label}</span>
+                                            <div className="flex-1">{getSpecDisplay(vehicle.specs[cat.key]?.[sub.key])}</div>
                                         </div>
                                     );
                                 })}
@@ -330,7 +330,7 @@ export const TechDashboard: React.FC = () => {
         if (mode === 'forecast') {
             return (
                 <div className="overflow-auto p-4 space-y-4">
-                    <div className="grid grid-cols-[200px_repeat(6,minmax(160px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
+                    <div className="grid grid-cols-[200px_repeat(6,minmax(180px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
                          <div className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">车型</div>
                          {techDimensions.map(dim => <div key={dim.key} className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">{dim.label}</div>)}
                     </div>
@@ -343,13 +343,13 @@ export const TechDashboard: React.FC = () => {
                             {expandedBrands.has(brand) && (
                                 <div className="divide-y divide-gray-100">
                                     {Object.entries(models).map(([model, forecasts]) => (
-                                        <div key={model} className="grid grid-cols-[200px_repeat(6,minmax(160px,1fr))] items-stretch">
-                                            <div className="p-3 font-semibold text-gray-800 border-r border-gray-100">{model}</div>
+                                        <div key={model} className="grid grid-cols-[200px_repeat(6,minmax(180px,1fr))] items-stretch">
+                                            <div className="p-3 font-semibold text-gray-800 border-r border-gray-100 flex items-center">{model}</div>
                                             {techDimensions.map(dim => {
                                                 const forecast = forecasts.find(f => f.techDimensionKey === dim.key);
                                                 return (
                                                     <div key={dim.key} className="p-2 border-r border-gray-100 last:border-r-0 h-full">
-                                                        {forecast ? <ForecastCell forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : null}
+                                                        {forecast ? <ForecastChip forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : null}
                                                     </div>
                                                 );
                                             })}
@@ -378,23 +378,14 @@ export const TechDashboard: React.FC = () => {
         );
     };
 
-    const activeModeIndex = modes.findIndex(m => m.key === mode);
-
     return (
         <>
             <div className="h-full flex flex-col bg-slate-100 p-4 sm:p-6 gap-4 sm:gap-6">
                 <header className="flex-shrink-0 bg-white p-4 rounded-2xl border border-gray-200/80 shadow-sm space-y-4">
-                    <div className="relative flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
+                    <div className="flex items-center gap-2 p-1 bg-gray-100 rounded-xl">
                         {modes.map(({ key, ...modeProps }) => (
                             <ModeTab key={key} {...modeProps} isActive={mode === key} onClick={() => handleModeChange(key)} />
                         ))}
-                         <div
-                            className="absolute top-1 bottom-1 bg-white rounded-lg shadow-md transition-all duration-300 ease-in-out"
-                            style={{
-                                width: `calc(100% / ${modes.length})`,
-                                left: `calc(100% / ${modes.length} * ${activeModeIndex})`,
-                            }}
-                        />
                     </div>
                     <div className="min-h-[44px] flex items-center">{renderControls()}</div>
                 </header>

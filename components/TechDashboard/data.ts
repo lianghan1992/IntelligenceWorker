@@ -77,6 +77,9 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '三元锂', supplier: '宁德时代' }, 
                 motor: '后置单电机' 
             },
+            body_structure: {
+                body_casting: null
+            }
         },
     },
     {
@@ -102,6 +105,9 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '三元锂', supplier: '宁德时代' }, 
                 motor: '前后双电机' 
             },
+            body_structure: {
+                body_casting: null
+            }
         },
     },
     {
@@ -127,6 +133,9 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '三元锂', supplier: '宁德时代' }, 
                 motor: '前后双电机' 
             },
+            body_structure: {
+                body_casting: null
+            }
         },
     },
      {
@@ -152,6 +161,9 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '三元锂', supplier: '宁德时代' }, 
                 motor: '前后双电机' 
             },
+            body_structure: {
+                body_casting: null
+            }
         },
     },
     {
@@ -205,12 +217,15 @@ export const mockVehicleSpecs: VehicleTechSpec[] = [
                 battery: { value: '磷酸铁锂', supplier: '宁德时代' }, 
                 motor: { value: '后置永磁同步电机', supplier: '特斯拉' }
             },
+            body_structure: {
+                body_casting: null
+            }
         },
     },
 ];
 
 export const mockSuppliers = [
-    '华为', 'NVIDIA', '高通', '宁德时代', '禾赛科技', '特斯拉', 'AMD'
+    '华为', 'NVIDIA', '高通', '宁德时代', '禾赛科技', '特斯拉', 'AMD', '海天金属'
 ];
 export const mockPlatforms = [
     '华为途灵平台', '理想增程2.0平台', '小米摩德纳平台', 'Tesla 第三代平台'
