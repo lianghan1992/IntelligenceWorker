@@ -42,28 +42,41 @@ const ModeTab: React.FC<{
 const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
     const confidenceColor = forecast.confidence > 0.8 ? 'bg-green-500' : forecast.confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500';
     const statusInfo = forecast.status === 'confirmed'
-        ? { text: '已证实', className: 'text-green-700 bg-green-100' }
-        : { text: '传闻中', className: 'text-amber-700 bg-amber-100' };
+        ? { text: '已证实', className: 'text-green-800 bg-green-100 border-green-200' }
+        : { text: '传闻中', className: 'text-amber-800 bg-amber-100 border-amber-200' };
 
     return (
-        <div className="group relative bg-slate-50 p-2.5 rounded-lg h-full flex flex-col justify-between space-y-2 hover:bg-slate-100 transition-colors border border-slate-200/80">
-            <div className="flex items-start justify-between">
-                <p className="font-semibold text-gray-800 text-sm leading-tight pr-1">{forecast.techName}</p>
-                 <span className={`text-[10px] font-bold ${statusInfo.className} px-1.5 py-0.5 rounded-full flex-shrink-0`}>{statusInfo.text}</span>
+        <div className="bg-white p-3 rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between group">
+            {/* Top part: Tech name */}
+            <div>
+                <p className="font-bold text-gray-800 text-sm leading-snug">{forecast.techName}</p>
             </div>
-            <div className="flex items-center justify-between">
-                 <button onClick={onSourceClick} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600">
+            
+            {/* Bottom part: Info line */}
+            <div className="mt-2 flex items-center justify-between gap-2">
+                {/* Status Tag */}
+                <span className={`text-[10px] font-bold ${statusInfo.className} px-1.5 py-0.5 rounded-full border`}>{statusInfo.text}</span>
+                
+                {/* Confidence bar + percentage */}
+                <div className="flex items-center gap-1.5 flex-grow">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div className={`${confidenceColor} h-1.5 rounded-full`} style={{ width: `${forecast.confidence * 100}%` }}></div>
+                    </div>
+                    <span className="text-xs font-medium text-gray-500 w-8 text-right">{(forecast.confidence * 100).toFixed(0)}%</span>
+                </div>
+
+                {/* Source Icon */}
+                <button 
+                    onClick={onSourceClick}
+                    title="查看情报来源"
+                    className="flex-shrink-0 text-gray-400 hover:text-blue-600 transition-colors"
+                >
                     <DocumentTextIcon className="w-4 h-4" />
                 </button>
-                <div className="w-full mx-2 bg-gray-200 rounded-full h-1 relative overflow-hidden">
-                    <div className={`${confidenceColor} absolute top-0 left-0 h-full rounded-full`} style={{ width: `${forecast.confidence * 100}%` }}></div>
-                </div>
-                <span className="text-xs font-medium text-gray-500">{ (forecast.confidence * 100).toFixed(0) }%</span>
             </div>
         </div>
     );
 };
-
 
 const SourceModal: React.FC<{ forecast: NewTechForecast; onClose: () => void }> = ({ forecast, onClose }) => (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
