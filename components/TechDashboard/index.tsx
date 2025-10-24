@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts } from './data';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon } from '../icons';
+import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CalendarIcon } from '../icons';
 
 // --- Helper Functions ---
 const getSpecDisplay = (spec: string | SpecDetail | null): ReactNode => {
@@ -20,6 +20,19 @@ const getSpecValue = (spec: string | SpecDetail | null): string => {
     if (typeof spec === 'string') return spec;
     return spec.value;
 };
+
+const getConfidenceGradient = (confidence: number): string => {
+    if (confidence > 0.8) return 'from-sky-100 to-sky-200';
+    if (confidence > 0.5) return 'from-amber-100 to-amber-200';
+    return 'from-red-100 to-red-200';
+};
+
+const getStatusChipStyle = (status: 'confirmed' | 'rumored') => {
+    return status === 'confirmed'
+        ? { text: '已证实', className: 'bg-green-100 text-green-800 border-green-200' }
+        : { text: '传闻中', className: 'bg-amber-100 text-amber-800 border-amber-200' };
+};
+
 
 // --- Sub-Components ---
 const ModeTab: React.FC<{
@@ -40,43 +53,43 @@ const ModeTab: React.FC<{
 );
 
 const ForecastChip: React.FC<{ forecast: NewTechForecast; onSourceClick: () => void }> = ({ forecast, onSourceClick }) => {
-    const confidenceColor = forecast.confidence > 0.8 ? 'bg-green-500' : forecast.confidence > 0.5 ? 'bg-yellow-500' : 'bg-red-500';
-    const statusInfo = forecast.status === 'confirmed'
-        ? { text: '已证实', className: 'text-green-800 bg-green-100 border-green-200' }
-        : { text: '传闻中', className: 'text-amber-800 bg-amber-100 border-amber-200' };
+    const statusInfo = getStatusChipStyle(forecast.status);
 
     return (
-        <div className="bg-white p-3 rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between group">
-            {/* Top part: Tech name */}
-            <div>
-                <p className="font-bold text-gray-800 text-sm leading-snug">{forecast.techName}</p>
-            </div>
+        <div className="relative rounded-lg border border-gray-200/80 shadow-sm overflow-hidden bg-white group transition-all duration-300 hover:shadow-md h-full min-h-[90px]">
+            {/* Gradient Background */}
+            <div className={`absolute inset-0 bg-gradient-to-r ${getConfidenceGradient(forecast.confidence)} opacity-80`} style={{ width: `${forecast.confidence * 100}%` }}></div>
             
-            {/* Bottom part: Info line */}
-            <div className="mt-2 flex items-center justify-between gap-2">
-                {/* Status Tag */}
-                <span className={`text-[10px] font-bold ${statusInfo.className} px-1.5 py-0.5 rounded-full border`}>{statusInfo.text}</span>
+            {/* Content */}
+            <div className="relative h-full flex flex-col justify-between p-3">
+                {/* Title (top part) */}
+                <p className="font-bold text-gray-800 text-sm leading-snug">{forecast.techName}</p>
                 
-                {/* Confidence bar + percentage */}
-                <div className="flex items-center gap-1.5 flex-grow">
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className={`${confidenceColor} h-1.5 rounded-full`} style={{ width: `${forecast.confidence * 100}%` }}></div>
+                {/* Tags (bottom part) */}
+                <div className="flex items-center justify-between gap-1 text-[11px] mt-2">
+                    {/* Status & Date */}
+                    <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded-full border font-semibold ${statusInfo.className}`}>{statusInfo.text}</span>
+                        <div className="flex items-center gap-1 text-gray-500 font-medium">
+                            <CalendarIcon className="w-3 h-3" />
+                            <span>{forecast.firstDisclosedAt}</span>
+                        </div>
                     </div>
-                    <span className="text-xs font-medium text-gray-500 w-8 text-right">{(forecast.confidence * 100).toFixed(0)}%</span>
+                    
+                    {/* Source Button */}
+                    <button 
+                        onClick={onSourceClick} 
+                        className="px-2 py-1 bg-white/50 backdrop-blur-sm border border-gray-900/10 rounded-md text-gray-600 hover:bg-white hover:text-blue-600 transition-all duration-200 flex items-center gap-1"
+                    >
+                        <DocumentTextIcon className="w-3 h-3"/>
+                        查看信源
+                    </button>
                 </div>
-
-                {/* Source Icon */}
-                <button 
-                    onClick={onSourceClick}
-                    title="查看情报来源"
-                    className="flex-shrink-0 text-gray-400 hover:text-blue-600 transition-colors"
-                >
-                    <DocumentTextIcon className="w-4 h-4" />
-                </button>
             </div>
         </div>
     );
 };
+
 
 const SourceModal: React.FC<{ forecast: NewTechForecast; onClose: () => void }> = ({ forecast, onClose }) => (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -343,7 +356,7 @@ export const TechDashboard: React.FC = () => {
         if (mode === 'forecast') {
             return (
                 <div className="overflow-auto p-4 space-y-4">
-                    <div className="grid grid-cols-[200px_repeat(6,minmax(180px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
+                    <div className="grid grid-cols-[200px_repeat(6,minmax(200px,1fr))] gap-px bg-gray-200 border border-gray-200 sticky top-0 z-10">
                          <div className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">车型</div>
                          {techDimensions.map(dim => <div key={dim.key} className="p-3 text-left font-semibold text-gray-600 bg-gray-50/80 backdrop-blur-sm">{dim.label}</div>)}
                     </div>
@@ -356,13 +369,19 @@ export const TechDashboard: React.FC = () => {
                             {expandedBrands.has(brand) && (
                                 <div className="divide-y divide-gray-100">
                                     {Object.entries(models).map(([model, forecasts]) => (
-                                        <div key={model} className="grid grid-cols-[200px_repeat(6,minmax(180px,1fr))] items-stretch">
+                                        <div key={model} className="grid grid-cols-[200px_repeat(6,minmax(200px,1fr))] items-stretch">
                                             <div className="p-3 font-semibold text-gray-800 border-r border-gray-100 flex items-center">{model}</div>
                                             {techDimensions.map(dim => {
-                                                const forecast = forecasts.find(f => f.techDimensionKey === dim.key);
+                                                const forecastsForCell = forecasts.filter(f => f.techDimensionKey === dim.key);
                                                 return (
                                                     <div key={dim.key} className="p-2 border-r border-gray-100 last:border-r-0 h-full">
-                                                        {forecast ? <ForecastChip forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} /> : null}
+                                                         {forecastsForCell.length > 0 ? (
+                                                            <div className="flex flex-col gap-2 h-full">
+                                                                {forecastsForCell.map(forecast => (
+                                                                    <ForecastChip key={forecast.id} forecast={forecast} onSourceClick={() => handleOpenSourceModal(forecast)} />
+                                                                ))}
+                                                            </div>
+                                                        ) : null}
                                                     </div>
                                                 );
                                             })}

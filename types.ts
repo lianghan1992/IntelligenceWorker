@@ -162,6 +162,7 @@ export interface NewTechForecast {
     techName: string;
     status: 'rumored' | 'confirmed';
     confidence: number; // 0 to 1
+    firstDisclosedAt: string; // YYYY-MM-DD
     sourceArticle: string;
     sourceUrl: string;
 }

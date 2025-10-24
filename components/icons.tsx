@@ -236,3 +236,9 @@ export const ChevronUpDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" />
     </Icon>
 );
+
+export const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M5.75 3a.75.75 0 01.75.75V4h7V3.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V3.75A.75.75 0 015.75 3zM4.5 8.25a.75.75 0 01.75-.75h10a.75.75 0 010 1.5H5.25a.75.75 0 01-.75-.75zM8 10.75a.75.75 0 000 1.5h4a.75.75 0 000-1.5H8z" clipRule="evenodd" />
+    </Icon>
+);
