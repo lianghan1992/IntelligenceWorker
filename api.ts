@@ -9,3 +9,4 @@ export * from './api/auth';
 export * from './api/user';
 export * from './api/intelligence';
 export * from './api/livestream';
+export * from './api/competitiveness';

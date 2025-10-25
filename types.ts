@@ -263,3 +263,61 @@ export interface ManuscriptItem {
     confidence: number;
     content: string;
 }
+
+// --- Competitiveness Dashboard Types ---
+export type CompetitivenessView = 'forecast' | 'entities' | 'modules' | 'data_query' | 'backfill_jobs' | 'system_status';
+
+export interface CompetitivenessEntity {
+    id: string;
+    name: string;
+    entity_type: string;
+    aliases: string[];
+    description: string | null;
+    metadata: Record<string, any>;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string | null;
+}
+
+export interface CompetitivenessModule {
+    id: string;
+    module_key: string;
+    module_name: string;
+    target_entity_types: string[];
+    extraction_fields: Record<string, any>;
+    final_data_table: string;
+    description: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string | null;
+}
+
+export interface BackfillJob {
+    id: string;
+    name: string;
+    description: string;
+    start_date: string;
+    end_date: string;
+    status: 'pending' | 'running' | 'paused' | 'completed' | 'failed';
+    priority: number;
+    created_at: string;
+}
+
+export interface SystemStatus {
+    service_name: string;
+    version: string;
+    status: 'healthy' | 'unhealthy';
+    uptime: string;
+    database_status: 'connected' | 'disconnected';
+    active_modules: number;
+    total_entities: number;
+    processing_queue_size: number;
+    last_processing_time: string;
+}
+
+export interface DataQueryResponse<T> {
+  data: T[];
+  page: number;
+  limit: number;
+  total: number;
+}

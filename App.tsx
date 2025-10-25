@@ -9,7 +9,7 @@ import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
 import { StrategicCockpit } from './components/StrategicCockpit/index';
-import { TechDashboard } from './components/TechDashboard/index'; // 导入新的技术看板组件
+import { CompetitivenessDashboard } from './components/CompetitivenessDashboard/index'; // 导入新的竞争力看板组件
 import { User, View, Subscription, DeepDive } from './types';
 import { getSubscriptions, getMe } from './api';
 import { mockDeepDives } from './mockData';
@@ -95,7 +95,7 @@ const App: React.FC = () => {
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} />;
       case 'techboard':
-        return <TechDashboard />;
+        return <CompetitivenessDashboard />;
       case 'dives':
         return <DeepDives dives={deepDives} />;
       case 'events':

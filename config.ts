@@ -16,3 +16,6 @@ export const INTELLIGENCE_SERVICE_PATH = `${API_BASE_URL}/intelligence`;
 
 // Full path for livestream analysis service
 export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
+
+// Full path for competitiveness dashboard service
+export const COMPETITIVENESS_SERVICE_PATH = `${API_BASE_URL}/competitiveness`;
