@@ -1,19 +1,41 @@
 import React, { useState, useMemo, useEffect, ReactNode, useCallback } from 'react';
-import { VehicleTechSpec, SpecDetail, NewTechForecast, CompetitivenessView } from '../../types';
-import { techDimensions, mockVehicleSpecs, mockTechForecasts, mockAIAnalyses, mockTechDimensionAnalyses, mockBrandAnalyses } from './data';
-import { ChevronDownIcon, UsersIcon, EyeIcon, TrendingUpIcon, LightBulbIcon, GearIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, ClockIcon, QuestionMarkCircleIcon, ChevronUpDownIcon, SparklesIcon, ChartIcon, RefreshIcon, SearchIcon, PencilIcon, TrashIcon } from '../icons';
-import { getEntities, getModules, getSystemStatus, getSystemHealth } from '../../api';
+import { NewTechForecast, CompetitivenessView, CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus } from '../../types';
+import { techDimensions, mockTechForecasts, mockAIAnalyses, mockTechDimensionAnalyses, mockBrandAnalyses } from './data';
+import { 
+    ChevronDownIcon, UsersIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, 
+    ClockIcon, QuestionMarkCircleIcon, SparklesIcon, RefreshIcon, SearchIcon, PencilIcon, TrashIcon,
+    ServerIcon, DatabaseIcon, ViewGridIcon, PlayIcon, StopIcon, LightBulbIcon
+} from '../icons';
+import { getEntities, createEntity, updateEntity, deleteEntity, getModules, createModule, getBackfillJobs, createBackfillJob, startBackfillJob, pauseBackfillJob, getSystemStatus, queryData } from '../../api';
 
-// --- Reusable Spinner Component ---
-const Spinner: React.FC = () => (
+// --- Reusable Components ---
+const Spinner: React.FC<{ size?: string }> = ({ size = 'h-8 w-8' }) => (
     <div className="flex justify-center items-center h-full">
-        <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg className={`animate-spin text-blue-600 ${size}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
     </div>
 );
 
+const ViewContainer: React.FC<{ title: string; onRefresh?: () => void; isLoading?: boolean; children: ReactNode; rightHeader?: ReactNode }> = ({ title, onRefresh, isLoading, children, rightHeader }) => (
+    <div className="p-6 h-full flex flex-col">
+        <div className="flex justify-between items-center mb-6 flex-shrink-0">
+            <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+            <div className="flex items-center gap-2">
+                {rightHeader}
+                {onRefresh && (
+                    <button onClick={onRefresh} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                )}
+            </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+            {children}
+        </div>
+    </div>
+);
 
 // ===================================================================================
 // 1. FORECAST VIEW (Preserved from original Tech Dashboard)
@@ -131,8 +153,8 @@ const ForecastView: React.FC = () => {
     };
 
     return (
-      <>
-        <div className="p-4 bg-white rounded-lg border flex items-center gap-4 mb-4">
+      <div className="h-full flex flex-col p-6">
+        <div className="p-4 bg-white rounded-lg border flex items-center gap-4 mb-4 flex-shrink-0">
             <span className="font-semibold text-sm text-gray-700">筛选车企:</span>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
                 {forecastBrands.map(brand => (
@@ -219,7 +241,7 @@ const ForecastView: React.FC = () => {
                 onClose={() => setIsSourceModalOpen(false)}
             />
         )}
-      </>
+      </div>
     );
 };
 
@@ -227,24 +249,13 @@ const ForecastView: React.FC = () => {
 // 2. ENTITY MANAGER VIEW
 // ===================================================================================
 const EntityManager: React.FC = () => {
-    // This component will be a placeholder for now as per the user's request to prioritize the forecast view.
     return (
-         <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">实体管理</h1>
-                <div className="flex items-center gap-2">
-                    <button className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                        <RefreshIcon className="w-5 h-5" />
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                        <PlusIcon className="w-4 h-4" /> <span>创建实体</span>
-                    </button>
-                </div>
-            </div>
-            <div className="text-center py-20 bg-gray-50 rounded-lg border-2 border-dashed">
+         <ViewContainer title="实体管理">
+            <div className="text-center py-20 bg-gray-100 rounded-lg border-2 border-dashed">
                 <p className="text-gray-500">实体管理界面正在开发中。</p>
+                <p className="text-sm text-gray-400 mt-2">将实现实体的创建、读取、更新和删除功能。</p>
             </div>
-        </div>
+        </ViewContainer>
     );
 };
 
@@ -253,22 +264,12 @@ const EntityManager: React.FC = () => {
 // ===================================================================================
 const ModuleManager: React.FC = () => {
      return (
-         <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">模块管理</h1>
-                <div className="flex items-center gap-2">
-                    <button className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                        <RefreshIcon className="w-5 h-5" />
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                        <PlusIcon className="w-4 h-4" /> <span>创建模块</span>
-                    </button>
-                </div>
-            </div>
-            <div className="text-center py-20 bg-gray-50 rounded-lg border-2 border-dashed">
+         <ViewContainer title="模块管理">
+            <div className="text-center py-20 bg-gray-100 rounded-lg border-2 border-dashed">
                 <p className="text-gray-500">模块管理界面正在开发中。</p>
+                <p className="text-sm text-gray-400 mt-2">将实现分析模块的创建和列表展示。</p>
             </div>
-        </div>
+        </ViewContainer>
     );
 };
 
@@ -276,13 +277,56 @@ const ModuleManager: React.FC = () => {
 // 4. DATA QUERY VIEW
 // ===================================================================================
 const DataQueryView: React.FC = () => {
+    const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: '10' });
+    const [results, setResults] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleQuery = async () => {
+        setIsLoading(true);
+        setError('');
+        setResults(null);
+        try {
+            const queryBody = {
+                entity_types: params.entity_types.split(',').map(s => s.trim()).filter(Boolean),
+                data_table: params.data_table
+            };
+            const queryParams = { limit: parseInt(params.limit) };
+            const data = await queryData(queryParams, queryBody);
+            setResults(data);
+        } catch (e: any) {
+            setError(e.message || '查询失败');
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
      return (
-         <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-800 mb-6">数据查询</h1>
-            <div className="text-center py-20 bg-gray-50 rounded-lg border-2 border-dashed">
-                <p className="text-gray-500">数据查询界面正在开发中。</p>
+        <ViewContainer title="数据查询">
+            <div className="space-y-4 p-4 bg-white rounded-lg border">
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">数据表</label>
+                    <input value={params.data_table} onChange={e => setParams({...params, data_table: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">实体类型 (逗号分隔)</label>
+                    <input value={params.entity_types} onChange={e => setParams({...params, entity_types: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">数量限制</label>
+                    <input value={params.limit} onChange={e => setParams({...params, limit: e.target.value})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                </div>
+                <button onClick={handleQuery} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
+                    {isLoading ? '查询中...' : '查询'}
+                </button>
             </div>
-        </div>
+            <div className="mt-4 p-4 bg-gray-900 text-white rounded-lg font-mono text-xs overflow-auto">
+                {isLoading && <p>正在加载...</p>}
+                {error && <p className="text-red-400">错误: {error}</p>}
+                {results && <pre>{JSON.stringify(results, null, 2)}</pre>}
+                {!isLoading && !error && !results && <p className="text-gray-400">查询结果将显示在这里</p>}
+            </div>
+        </ViewContainer>
     );
 };
 
@@ -290,73 +334,72 @@ const DataQueryView: React.FC = () => {
 // 5. BACKFILL JOBS MANAGER VIEW
 // ===================================================================================
 const BackfillJobsManager: React.FC = () => {
-     return (
-         <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-800 mb-6">回溯任务管理</h1>
-            <div className="text-center py-20 bg-gray-50 rounded-lg border-2 border-dashed">
+    return (
+         <ViewContainer title="回溯任务管理">
+            <div className="text-center py-20 bg-gray-100 rounded-lg border-2 border-dashed">
                 <p className="text-gray-500">回溯任务管理界面正在开发中。</p>
+                <p className="text-sm text-gray-400 mt-2">将实现回溯任务的创建、启动、暂停和状态监控。</p>
             </div>
-        </div>
+        </ViewContainer>
     );
 };
-
 
 // ===================================================================================
 // 6. SYSTEM STATUS VIEW
 // ===================================================================================
 const SystemStatusView: React.FC = () => {
-    const [status, setStatus] = useState<any>(null);
-    const [health, setHealth] = useState<any>(null);
+    const [status, setStatus] = useState<SystemStatus | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
+        setError('');
         try {
-            const [statusRes, healthRes] = await Promise.all([
-                getSystemStatus(),
-                getSystemHealth()
-            ]);
+            const statusRes = await getSystemStatus();
             setStatus(statusRes);
-            setHealth(healthRes);
-        } catch (error) {
+        } catch (error: any) {
+            setError(error.message || '获取系统状态失败');
             console.error("Failed to fetch system status", error);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+        const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+        return () => clearInterval(interval);
+    }, [fetchData]);
+
+    const getStatusIndicator = (s: string) => {
+        const lower = s.toLowerCase();
+        if (lower === 'healthy' || lower === 'connected') return 'bg-green-500';
+        return 'bg-red-500';
+    }
     
     return (
-         <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">系统状态</h1>
-                 <button onClick={fetchData} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
-            </div>
-            {isLoading ? <Spinner /> : (
-                <div className="bg-white p-6 rounded-lg border grid grid-cols-2 md:grid-cols-3 gap-6">
-                    {status && Object.entries(status).map(([key, value]) => (
+         <ViewContainer title="系统状态" onRefresh={fetchData} isLoading={isLoading}>
+            {isLoading && !status ? <Spinner /> : error ? (
+                <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>
+            ) : status ? (
+                <div className="bg-white p-6 rounded-lg border grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                    {Object.entries(status).map(([key, value]) => (
                         <div key={key}>
-                            <p className="text-sm font-medium text-gray-500">{key}</p>
-                            <p className="text-lg font-semibold text-gray-800">{String(value)}</p>
+                            <p className="text-sm font-medium text-gray-500 capitalize">{key.replace(/_/g, ' ')}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                { (key === 'status' || key === 'database_status') && (
+                                    <span className={`w-2.5 h-2.5 rounded-full ${getStatusIndicator(String(value))}`}></span>
+                                )}
+                                <p className="text-lg font-semibold text-gray-800">{String(value)}</p>
+                            </div>
                         </div>
                     ))}
-                     {health && (
-                        <div>
-                            <p className="text-sm font-medium text-gray-500">健康检查</p>
-                            <p className="text-lg font-semibold text-gray-800">{health.status}</p>
-                        </div>
-                     )}
                 </div>
-            )}
-        </div>
+            ) : <p>未能加载系统状态。</p>}
+        </ViewContainer>
     );
 };
-
 
 // ===================================================================================
 // MAIN COMPONENT & NAVIGATION
@@ -368,10 +411,10 @@ export const CompetitivenessDashboard: React.FC = () => {
     const navItems: { view: CompetitivenessView; label: string; icon: React.FC<any> }[] = [
         { view: 'forecast', label: '新技术预测', icon: BrainIcon },
         { view: 'entities', label: '实体管理', icon: UsersIcon },
-        { view: 'modules', label: '模块管理', icon: GearIcon },
-        { view: 'data_query', label: '数据查询', icon: SearchIcon },
+        { view: 'modules', label: '模块管理', icon: ViewGridIcon },
+        { view: 'data_query', label: '数据查询', icon: DatabaseIcon },
         { view: 'backfill_jobs', label: '回溯任务', icon: RefreshIcon },
-        { view: 'system_status', label: '系统状态', icon: ChartIcon },
+        { view: 'system_status', label: '系统状态', icon: ServerIcon },
     ];
 
     const renderSubView = () => {
@@ -406,7 +449,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 overflow-y-auto flex flex-col">
+            <main className="flex-1 overflow-hidden flex flex-col">
                 {renderSubView()}
             </main>
         </div>
