@@ -27,6 +27,12 @@ app.use('/api', createProxyMiddleware({
     '^/api': '', // 移除 /api 前缀
   },
   logLevel: 'debug',
+  onProxyReq: (proxyReq, req, res) => {
+    // 关键修复：确保将原始请求的协议（http或https）通过 X-Forwarded-Proto 头传递给后端。
+    // 这使得后端（例如带有 ProxyHeadersMiddleware 的 FastAPI）在处理重定向时能够生成正确的URL，
+    // 从而解决了在HTTPS环境下出现的“混合内容”错误。
+    proxyReq.setHeader('X-Forwarded-Proto', req.protocol);
+  }
 }));
 
 // 代理WebSocket连接
