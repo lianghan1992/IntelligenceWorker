@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { CompetitivenessEntity, CompetitivenessModule } from '../../types';
 import { 
     getEntities, createEntity, updateEntity, deleteEntity,
-    getModules, createModule, updateModule, deleteModule, createBackfillJob
+    getModules, createModule, updateModule, deleteModule
 } from '../../api';
 import { 
     CloseIcon, PlusIcon, TrashIcon, PencilIcon, SearchIcon, RefreshIcon, 
@@ -20,7 +20,7 @@ const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     </div>
 );
 
-const TagInput: React.FC<{ value: string[]; onChange: (value: string[]) => void }> = ({ value, onChange }) => {
+const TagInput: React.FC<{ value: string[]; onChange: (value: string[]) => void, placeholder?: string }> = ({ value, onChange, placeholder }) => {
     const [inputValue, setInputValue] = useState('');
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && inputValue.trim()) {
@@ -45,18 +45,19 @@ const TagInput: React.FC<{ value: string[]; onChange: (value: string[]) => void 
                         </button>
                     </span>
                 ))}
+                 <input
+                    type="text"
+                    value={inputValue}
+                    onChange={e => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={placeholder || "输入后按回车添加..."}
+                    className="flex-1 bg-transparent focus:outline-none text-sm"
+                />
             </div>
-            <input
-                type="text"
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="输入别名后按回车添加..."
-                className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3"
-            />
         </div>
     );
 };
+
 
 // --- Entity Modal ---
 const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: () => void; onSuccess: () => void; }> = ({ entity, onClose, onSuccess }) => {
@@ -65,7 +66,7 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
         entity_type: entity?.entity_type || '',
         aliases: entity?.aliases || [],
         description: entity?.description || '',
-        metadata: entity ? JSON.stringify(entity.metadata, null, 2) : '{}',
+        metadata: entity?.metadata ? JSON.stringify(entity.metadata, null, 2) : '{}',
         is_active: entity ? entity.is_active : true
     });
     const [isLoading, setIsLoading] = useState(false);
@@ -75,11 +76,13 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
         setIsLoading(true);
         setError('');
         try {
-            let parsedMetadata;
-            try {
-                parsedMetadata = JSON.parse(formData.metadata);
-            } catch (e) {
-                throw new Error('元数据 (Metadata) 不是有效的JSON格式。');
+            let parsedMetadata = {};
+            if (formData.metadata && formData.metadata.trim() !== '') {
+                try {
+                    parsedMetadata = JSON.parse(formData.metadata);
+                } catch (e) {
+                    throw new Error('元数据 (Metadata) 不是有效的JSON格式。');
+                }
             }
             
             const payload = { ...formData, metadata: parsedMetadata };
@@ -118,7 +121,7 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">别名</label>
-                        <TagInput value={formData.aliases} onChange={v => setFormData(p => ({ ...p, aliases: v }))} />
+                        <TagInput value={formData.aliases} onChange={v => setFormData(p => ({ ...p, aliases: v }))} placeholder="输入别名后按回车添加..." />
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
@@ -305,14 +308,199 @@ const EntityManager: React.FC = () => {
     );
 };
 
+// --- Module Modal ---
+const ModuleModal: React.FC<{ module?: CompetitivenessModule | null; onClose: () => void; onSuccess: () => void; }> = ({ module, onClose, onSuccess }) => {
+    const [formData, setFormData] = useState({
+        module_name: module?.module_name || '',
+        module_key: module?.module_key || '',
+        target_entity_types: module?.target_entity_types || [],
+        final_data_table: module?.final_data_table || '',
+        description: module?.description || '',
+        extraction_fields: module ? JSON.stringify(module.extraction_fields, null, 2) : '{}',
+        is_active: module ? module.is_active : true
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            let parsedFields = {};
+            if (formData.extraction_fields && formData.extraction_fields.trim()) {
+                try {
+                    parsedFields = JSON.parse(formData.extraction_fields);
+                } catch (e) {
+                    throw new Error('提取字段 (Extraction Fields) 不是有效的JSON格式。');
+                }
+            }
+            
+            const payload = { ...formData, extraction_fields: parsedFields };
+            
+            if (module) {
+                await updateModule(module.id, payload);
+            } else {
+                await createModule(payload);
+            }
+            onSuccess();
+        } catch (e: any) {
+            setError(e.message || '操作失败');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-2xl relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95 flex flex-col max-h-[90vh]">
+                <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-gray-900">{module ? '编辑模块' : '新建模块'}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><CloseIcon className="w-6 h-6" /></button>
+                </div>
+                <div className="p-6 space-y-4 overflow-y-auto">
+                    {error && <p className="text-sm text-red-600 bg-red-100 p-3 rounded-lg">{error}</p>}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">模块名称</label>
+                            <input value={formData.module_name} onChange={e => setFormData(p => ({ ...p, module_name: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">模块键 (Key)</label>
+                            <input value={formData.module_key} onChange={e => setFormData(p => ({ ...p, module_key: e.target.value }))} disabled={!!module} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 disabled:bg-gray-200" />
+                        </div>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">目标实体类型</label>
+                        <TagInput value={formData.target_entity_types} onChange={v => setFormData(p => ({ ...p, target_entity_types: v }))} placeholder="输入实体类型后按回车添加..." />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">最终数据表</label>
+                        <input value={formData.final_data_table} onChange={e => setFormData(p => ({ ...p, final_data_table: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                        <textarea value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">提取字段 (JSON)</label>
+                        <textarea value={formData.extraction_fields} onChange={e => setFormData(p => ({ ...p, extraction_fields: e.target.value }))} rows={8} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 font-mono text-sm" />
+                    </div>
+                    <div>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                           <input type="checkbox" checked={formData.is_active} onChange={e => setFormData(p => ({...p, is_active: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
+                           <span className="text-sm text-gray-800">激活</span>
+                       </label>
+                   </div>
+                </div>
+                <div className="px-6 py-4 bg-gray-50 border-t flex justify-end flex-shrink-0">
+                    <button onClick={handleSubmit} disabled={isLoading} className="py-2 px-6 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:bg-blue-300">
+                        {isLoading ? '保存中...' : '保存'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // --- Module Manager ---
 const ModuleManager: React.FC = () => {
-  return (
-    <div>
-      <h2 className="text-xl font-bold">模块管理</h2>
-      <p className="mt-4">模块管理功能即将上线，敬请期待。</p>
-    </div>
-  );
+    const [modules, setModules] = useState<CompetitivenessModule[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [modalState, setModalState] = useState<{ type: 'new' | 'edit' | 'delete' | null, data?: CompetitivenessModule }>({ type: null });
+
+    const fetchData = useCallback(async (showLoading = true) => {
+        if (showLoading) setIsLoading(true);
+        setError('');
+        try {
+            const response = await getModules({});
+            setModules(response || []);
+        } catch (e: any) {
+            setError(e.message || '加载模块失败');
+        } finally {
+            if (showLoading) setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchData() }, [fetchData]);
+    
+    const filteredModules = useMemo(() => {
+        return modules.filter(m => 
+            m.module_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            m.module_key.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+    }, [searchTerm, modules]);
+    
+    const handleDelete = async () => {
+        if (modalState.type !== 'delete' || !modalState.data) return;
+        try {
+            await deleteModule(modalState.data.id);
+            setModalState({ type: null });
+            fetchData(false);
+        } catch (e: any) {
+            setError(e.message || '删除失败');
+        }
+    };
+
+    return (
+        <div className="h-full flex flex-col">
+            {error && <p className="text-sm text-red-600 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
+            
+            <div className="flex-shrink-0 mb-4 p-4 bg-white rounded-lg border flex items-center justify-between">
+                <div className="relative">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索模块..." className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
+                </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => fetchData()} className="p-2.5 bg-white border rounded-lg"><RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} /></button>
+                    <button onClick={() => setModalState({ type: 'new' })} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg"><PlusIcon className="w-4 h-4" /> 新建模块</button>
+                </div>
+            </div>
+
+            <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                        <tr>
+                            <th className="px-6 py-3">模块名称</th>
+                            <th className="px-6 py-3">模块键</th>
+                            <th className="px-6 py-3">目标实体类型</th>
+                            <th className="px-6 py-3">状态</th>
+                            <th className="px-6 py-3">更新时间</th>
+                            <th className="px-6 py-3 text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
+                        : filteredModules.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何模块。</td></tr>)
+                        : (filteredModules.map(mod => (
+                            <tr key={mod.id} className="bg-white border-b hover:bg-gray-50">
+                                <td className="px-6 py-4 font-medium text-gray-900">{mod.module_name}</td>
+                                <td className="px-6 py-4 font-mono text-xs">{mod.module_key}</td>
+                                <td className="px-6 py-4">{mod.target_entity_types.join(', ')}</td>
+                                <td className="px-6 py-4">
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${mod.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                        {mod.is_active ? '已激活' : '未激活'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4">{new Date(mod.updated_at || mod.created_at).toLocaleString('zh-CN')}</td>
+                                <td className="px-6 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <button onClick={() => setModalState({ type: 'edit', data: mod })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
+                                        <button onClick={() => setModalState({ type: 'delete', data: mod })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        )))}
+                    </tbody>
+                </table>
+            </div>
+
+            {(modalState.type === 'new' || modalState.type === 'edit') && <ModuleModal module={modalState.data} onClose={() => setModalState({type: null})} onSuccess={() => { setModalState({type: null}); fetchData(false); }} />}
+            {modalState.type === 'delete' && modalState.data && <ConfirmationModal title="确认删除" message={`确定要删除模块 "${modalState.data.module_name}" 吗？`} onConfirm={handleDelete} onCancel={() => setModalState({type: null})} />}
+        </div>
+    );
 };
 
 
@@ -323,7 +511,7 @@ export const CompetitivenessManager: React.FC = () => {
     const renderSubView = () => {
         switch (subView) {
             case 'entities': return <EntityManager />;
-            case 'modules': return <p className="p-4 text-gray-500">模块管理功能即将上线，敬请期待。</p>;
+            case 'modules': return <ModuleManager />;
             default: return <EntityManager />;
         }
     };
