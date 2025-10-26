@@ -4,7 +4,7 @@ import { techDimensions, mockTechForecasts, mockAIAnalyses, mockTechDimensionAna
 import { 
     ChevronDownIcon, UsersIcon, BrainIcon, CloseIcon, PlusIcon, DocumentTextIcon, CheckIcon, 
     ClockIcon, QuestionMarkCircleIcon, SparklesIcon, RefreshIcon, SearchIcon, PencilIcon, TrashIcon,
-    ServerIcon, DatabaseIcon, ViewGridIcon, PlayIcon, StopIcon, LightBulbIcon
+    ServerIcon, DatabaseIcon, ViewGridIcon, PlayIcon, StopIcon, LightBulbIcon, ChevronLeftIcon, ChevronRightIcon
 } from '../icons';
 import { getEntities, createEntity, updateEntity, deleteEntity, getModules, createModule, getBackfillJobs, createBackfillJob, startBackfillJob, pauseBackfillJob, getSystemStatus, queryData } from '../../api';
 
@@ -31,7 +31,7 @@ const ViewContainer: React.FC<{ title: string; onRefresh?: () => void; isLoading
                 )}
             </div>
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
             {children}
         </div>
     </div>
@@ -277,21 +277,25 @@ const ModuleManager: React.FC = () => {
 // 4. DATA QUERY VIEW
 // ===================================================================================
 const DataQueryView: React.FC = () => {
-    const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: '10' });
+    const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: 10 });
     const [results, setResults] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [page, setPage] = useState(1);
 
-    const handleQuery = async () => {
+    const handleQuery = useCallback(async (newPage = 1) => {
         setIsLoading(true);
         setError('');
-        setResults(null);
+        setPage(newPage);
         try {
             const queryBody = {
                 entity_types: params.entity_types.split(',').map(s => s.trim()).filter(Boolean),
                 data_table: params.data_table
             };
-            const queryParams = { limit: parseInt(params.limit) };
+            const queryParams = { 
+                limit: params.limit,
+                offset: (newPage - 1) * params.limit
+            };
             const data = await queryData(queryParams, queryBody);
             setResults(data);
         } catch (e: any) {
@@ -299,11 +303,23 @@ const DataQueryView: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }
+    }, [params]);
+
+    const headers = useMemo(() => {
+        if (results?.data?.length > 0) {
+            return Object.keys(results.data[0]);
+        }
+        return [];
+    }, [results]);
+
+    const totalPages = useMemo(() => {
+        if (!results || !results.limit) return 1;
+        return Math.ceil(results.total / results.limit) || 1;
+    }, [results]);
 
      return (
         <ViewContainer title="数据查询">
-            <div className="space-y-4 p-4 bg-white rounded-lg border">
+            <div className="space-y-4 p-4 bg-white rounded-lg border mb-4">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数据表</label>
                     <input value={params.data_table} onChange={e => setParams({...params, data_table: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
@@ -314,17 +330,57 @@ const DataQueryView: React.FC = () => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数量限制</label>
-                    <input value={params.limit} onChange={e => setParams({...params, limit: e.target.value})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    <input value={params.limit} onChange={e => setParams({...params, limit: Number(e.target.value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
-                <button onClick={handleQuery} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
+                <button onClick={() => handleQuery(1)} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
                     {isLoading ? '查询中...' : '查询'}
                 </button>
             </div>
-            <div className="mt-4 p-4 bg-gray-900 text-white rounded-lg font-mono text-xs overflow-auto">
-                {isLoading && <p>正在加载...</p>}
-                {error && <p className="text-red-400">错误: {error}</p>}
-                {results && <pre>{JSON.stringify(results, null, 2)}</pre>}
-                {!isLoading && !error && !results && <p className="text-gray-400">查询结果将显示在这里</p>}
+
+            <div className="flex-1 bg-white rounded-lg border overflow-hidden flex flex-col">
+                <div className="overflow-auto flex-1">
+                    {isLoading ? <Spinner /> 
+                    : error ? <div className="p-4 text-red-600">错误: {error}</div>
+                    : !results || results.data.length === 0 ? <div className="p-4 text-gray-500">查询结果将显示在这里。</div>
+                    : (
+                        <table className="w-full text-sm text-left text-gray-500">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                                <tr>
+                                    {headers.map(header => (
+                                        <th key={header} scope="col" className="px-6 py-3">{header.replace(/_/g, ' ')}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {results.data.map((item: any) => (
+                                    <tr key={item.id} className="bg-white border-b hover:bg-gray-50">
+                                        {headers.map(header => (
+                                            <td key={header} className="px-6 py-4 max-w-xs truncate" title={String(item[header])}>
+                                                {item[header] === null ? <span className="text-gray-400">null</span> : String(item[header])}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                {results && results.total > 0 && (
+                     <div className="flex-shrink-0 p-3 border-t border-gray-200 flex justify-between items-center text-sm">
+                        <span className="text-gray-600 font-medium">共 {results.total} 条</span>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => handleQuery(page - 1)} disabled={page <= 1 || isLoading} className="p-1.5 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
+                                <ChevronLeftIcon className="w-4 h-4 text-gray-600"/>
+                            </button>
+                            <span className="text-gray-600">
+                                第 {page} / {totalPages} 页
+                            </span>
+                            <button onClick={() => handleQuery(page + 1)} disabled={page >= totalPages || isLoading} className="p-1.5 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
+                                <ChevronRightIcon className="w-4 h-4 text-gray-600"/>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </ViewContainer>
     );
