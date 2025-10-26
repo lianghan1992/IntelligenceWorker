@@ -12,19 +12,10 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
         apiParams.offset = (params.page - 1) * params.limit;
         delete apiParams.page; // The backend expects offset, not page
     }
-    
-    // DECISIVE FIX: Manually build query string and URL to guarantee trailing slash.
-    const filteredParams = Object.fromEntries(
-        Object.entries(apiParams).filter(([_, v]) => v !== null && v !== undefined && v !== '')
-    );
-    const queryString = new URLSearchParams(filteredParams as Record<string, string>).toString();
-    
-    let finalUrl = `${COMPETITIVENESS_SERVICE_PATH}/entities/`;
-    if (queryString) {
-        finalUrl += `?${queryString}`;
-    }
-
-    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(finalUrl);
+    const query = createApiQuery(apiParams);
+    // CRITICAL FIX: Replicated the simple, working URL pattern from other API files as requested.
+    // This ensures a trailing slash is always present before the query string, preventing the redirect.
+    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
@@ -47,9 +38,8 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- Module Management ---
 export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
     const query = createApiQuery(params);
-    // DECISIVE FIX: Explicitly construct URL with a guaranteed trailing slash before query params.
-    const url = `${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`;
-    return apiFetch<PaginatedResponse<CompetitivenessModule>>(url);
+    // Ensure trailing slash before query params.
+    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
@@ -73,7 +63,8 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 // --- Data Query ---
 export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
     const query = createApiQuery(params);
-    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
+    // Assuming this endpoint also requires a trailing slash
+    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query/${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
     });
@@ -82,9 +73,8 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // DECISIVE FIX: Explicitly construct URL with a guaranteed trailing slash before query params.
-    const url = `${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`;
-    return apiFetch<BackfillJob[]>(url);
+    // Ensure trailing slash before query params.
+    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
