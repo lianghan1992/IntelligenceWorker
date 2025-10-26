@@ -154,7 +154,7 @@ const EntityManager: React.FC = () => {
     const [filters, setFilters] = useState({ entity_type: '', is_active: '' });
     const [searchTerm, setSearchTerm] = useState('');
     
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, size: 10, total: 0, pages: 1 });
     const [modalState, setModalState] = useState<{ type: 'edit' | 'new' | 'delete' | null, data?: CompetitivenessEntity | null }>({ type: null });
     
     const [uniqueEntityTypes, setUniqueEntityTypes] = useState<string[]>([]);
@@ -163,45 +163,38 @@ const EntityManager: React.FC = () => {
         if (showLoading) setIsLoading(true);
         setError('');
         try {
-            // NOTE: The API expects `offset` but we manage state with `page` for consistency.
-            // The conversion happens in the api/competitiveness.ts file.
             const response = await getEntities({ 
                 page: pagination.page,
-                limit: pagination.limit,
+                size: pagination.size,
                 entity_type: filters.entity_type || undefined,
                 is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
-                // Server-side search is assumed not to exist per docs, so search is client-side on the current page.
             });
 
-            // Assuming a paginated response like { items: [], total: ... }
             setEntities(response.items || []);
             setPagination(prev => ({ 
                 ...prev, 
                 total: response.total,
-                totalPages: Math.ceil(response.total / prev.limit) || 1
+                pages: response.pages || 1
             }));
 
-            // Fetch all unique types for the filter dropdown (one-time or infrequent fetch)
             if (uniqueEntityTypes.length === 0) {
-                 const allEntities = await getEntities({ limit: 1000 }); // fetch a large number to populate types
+                 const allEntities = await getEntities({ size: 1000 });
                  setUniqueEntityTypes([...new Set(allEntities.items.map(e => e.entity_type))]);
             }
         } catch (e: any) {
             setError(e.message || '加载实体失败');
-            // If the error is 422, it might be that the server does not return a paginated object.
             if (e.message.includes('422')) {
-                 setError('加载失败 (422): 后端API可能不支持分页或参数有误。请检查API文档。');
+                 setError('加载失败 (422): 后端API参数有误。请检查API文档。');
             }
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit, filters.entity_type, filters.is_active, uniqueEntityTypes.length]);
+    }, [pagination.page, pagination.size, filters.entity_type, filters.is_active, uniqueEntityTypes.length]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
     
-    // Client-side search on the currently fetched page of entities
     const filteredEntities = useMemo(() => {
         return entities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }, [searchTerm, entities]);
@@ -218,17 +211,15 @@ const EntityManager: React.FC = () => {
     };
     
     const handlePageChange = (newPage: number) => {
-        if (newPage > 0 && newPage <= pagination.totalPages) {
+        if (newPage > 0 && newPage <= pagination.pages) {
             setPagination(prev => ({ ...prev, page: newPage }));
         }
     };
     
     const handleFilterChange = () => {
-        setPagination(p => ({...p, page: 1})); // Reset to first page on filter change
-        // The useEffect on `fetchData` will trigger the refetch
+        setPagination(p => ({...p, page: 1}));
     }
     
-    // We need a separate effect to trigger refetch when filters change
     useEffect(() => {
         handleFilterChange();
     }, [filters.entity_type, filters.is_active]);
@@ -299,11 +290,11 @@ const EntityManager: React.FC = () => {
             
             <div className="flex-shrink-0 flex justify-between items-center mt-4 text-sm">
                 <span className="text-gray-600">共 {pagination.total} 条</span>
-                {pagination.totalPages > 1 && (
+                {pagination.pages > 1 && (
                     <div className="flex items-center gap-2">
                         <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md"><ChevronLeftIcon className="w-4 h-4" /></button>
-                        <span>第 {pagination.page} / {pagination.totalPages} 页</span>
-                        <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md"><ChevronRightIcon className="w-4 h-4" /></button>
+                        <span>第 {pagination.page} / {pagination.pages} 页</span>
+                        <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.pages} className="px-3 py-1 bg-white border rounded-md"><ChevronRightIcon className="w-4 h-4" /></button>
                     </div>
                 )}
             </div>

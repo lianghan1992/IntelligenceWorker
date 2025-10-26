@@ -5,32 +5,26 @@ import {
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
-// A generic response type since the API doc doesn't specify a paginated wrapper for all endpoints
-// but the frontend code seems to expect it. We will assume a flexible structure.
-interface PaginatedResponse<T> {
+// This response type is specific to the getEntities endpoint as per the new API doc.
+interface PaginatedEntitiesResponse<T> {
   items: T[];
   total: number;
   page: number;
-  limit: number;
-  totalPages?: number;
+  size: number;
+  pages?: number;
 }
 
 
 // --- Entity Management ---
-export const getEntities = (params: { page?: number; limit?: number; [key: string]: any }): Promise<PaginatedResponse<CompetitivenessEntity>> => {
-    const apiParams: { [key: string]: any } = { ...params };
-    if (params.page && params.limit) {
-        apiParams.offset = (params.page - 1) * params.limit;
-        delete apiParams.page; // The backend expects offset, not page
-    }
-    const query = createApiQuery(apiParams);
-    // CRITICAL FIX: Replicated the simple, working URL pattern from other API files as requested.
-    // This ensures a trailing slash is always present before the query string, preventing the redirect.
-    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
+export const getEntities = (params: { page?: number; size?: number; [key: string]: any }): Promise<PaginatedEntitiesResponse<CompetitivenessEntity>> => {
+    const query = createApiQuery(params);
+    // Per API doc, this endpoint uses a trailing slash. e.g., /entities/?page=1&size=10
+    return apiFetch<PaginatedEntitiesResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
-    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities/`, {
+    // Per API doc, this endpoint does not use a trailing slash.
+    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -47,14 +41,15 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
     });
 
 // --- Module Management ---
-export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
+export const getModules = (params: any): Promise<CompetitivenessModule[]> => {
     const query = createApiQuery(params);
-    // Ensure trailing slash before query params for consistency.
-    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
+    // Per API doc, this endpoint does not use a trailing slash and returns an array.
+    return apiFetch<CompetitivenessModule[]>(`${COMPETITIVENESS_SERVICE_PATH}/modules${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
-    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules/`, {
+    // Per API doc, this endpoint does not use a trailing slash.
+    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -74,8 +69,8 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 // --- Data Query ---
 export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
     const query = createApiQuery(params);
-    // Add trailing slash for consistency.
-    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query/${query}`, {
+    // Per API doc, this endpoint does not use a trailing slash.
+    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
     });
@@ -84,12 +79,13 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // Ensure trailing slash before query params for consistency.
-    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
+    // Per API doc, this endpoint does not use a trailing slash.
+    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
-    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/`, {
+    // Per API doc, this endpoint does not use a trailing slash.
+    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs`, {
         method: 'POST',
         body: JSON.stringify(data),
     });

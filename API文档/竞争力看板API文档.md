@@ -47,9 +47,9 @@ Authorization: Bearer <your_jwt_token>
 
 ### 3.1. 获取实体列表
 
-获取系统中的实体列表，支持按类型和激活状态过滤。
+获取系统中的实体列表，支持按类型和激活状态过滤，并提供标准分页。
 
-- **路径:** `/entities`
+- **路径:** `/entities/`
 - **方法:** `GET`
 
 **查询参数**
@@ -58,33 +58,39 @@ Authorization: Bearer <your_jwt_token>
 | :--- | :--- | :--- | :--- |
 | `entity_type` | string | 否 | 实体类型过滤 |
 | `is_active` | boolean | 否 | 激活状态过滤 |
-| `limit` | integer | 否 | 返回数量限制，默认20，最大100 |
-| `offset` | integer | 否 | 偏移量，默认0 |
+| `page` | integer | 否 | 页码，默认1 |
+| `size` | integer | 否 | 每页数量，默认50 |
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://localhost:7657/competitiveness/entities?entity_type=car_brand&is_active=true&limit=10" \
+curl -X GET "http://localhost:7657/competitiveness/entities/?entity_type=car_brand&page=1&size=10" \
 -H "Authorization: Bearer <your_jwt_token>"
 ```
 
 **返回示例 (200 OK)**
 ```json
-[
-  {
-    "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
-    "name": "特斯拉",
-    "entity_type": "car_brand",
-    "aliases": ["Tesla", "TESLA"],
-    "description": "美国电动汽车制造商",
-    "metadata": {
-      "country": "美国",
-      "founded": "2003"
-    },
-    "is_active": true,
-    "created_at": "2024-01-01T00:00:00.000Z",
-    "updated_at": "2024-01-15T10:30:00.000Z"
-  }
-]
+{
+  "items": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "name": "特斯拉",
+      "entity_type": "car_brand",
+      "aliases": ["Tesla", "TESLA"],
+      "description": "美国电动汽车制造商",
+      "metadata": {
+        "country": "美国",
+        "founded": "2003"
+      },
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "updated_at": "2024-01-15T10:30:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 10,
+  "pages": 1
+}
 ```
 
 ### 3.2. 创建实体
