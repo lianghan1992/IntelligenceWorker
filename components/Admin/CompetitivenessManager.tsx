@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { CompetitivenessEntity, CompetitivenessModule } from '../../types';
 import { 
     getEntities, createEntity, updateEntity, deleteEntity,
@@ -13,7 +13,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 // --- Reusable Components ---
 const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     <div className={`flex items-center justify-center ${small ? '' : 'py-10'}`}>
-        <svg className={`animate-spin ${small ? 'h-5 w-5' : 'h-8 w-8'} text-blue-600`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg className={`animate-spin ${small ? 'h-5 w-5' : 'h-8 w-8'} text-blue-600`} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
@@ -147,52 +147,64 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
 
 // --- Entity Manager ---
 const EntityManager: React.FC = () => {
-    const [allEntities, setAllEntities] = useState<CompetitivenessEntity[]>([]);
-    const [paginatedEntities, setPaginatedEntities] = useState<CompetitivenessEntity[]>([]);
+    const [entities, setEntities] = useState<CompetitivenessEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
     const [filters, setFilters] = useState({ entity_type: '', is_active: '' });
     const [searchTerm, setSearchTerm] = useState('');
     
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
     const [modalState, setModalState] = useState<{ type: 'edit' | 'new' | 'delete' | null, data?: CompetitivenessEntity | null }>({ type: null });
     
-    const uniqueEntityTypes = [...new Set(allEntities.map(e => e.entity_type))];
+    const [uniqueEntityTypes, setUniqueEntityTypes] = useState<string[]>([]);
 
     const fetchData = useCallback(async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
         setError('');
         try {
-            const fetchedEntities = await getEntities({ 
+            // NOTE: The API expects `offset` but we manage state with `page` for consistency.
+            // The conversion happens in the api/competitiveness.ts file.
+            const response = await getEntities({ 
+                page: pagination.page,
+                limit: pagination.limit,
                 entity_type: filters.entity_type || undefined,
                 is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
-                limit: 1000, // Add a high limit to fetch all entities for client-side processing
-                offset: 0
+                // Server-side search is assumed not to exist per docs, so search is client-side on the current page.
             });
-            setAllEntities(fetchedEntities);
+
+            // Assuming a paginated response like { items: [], total: ... }
+            setEntities(response.items || []);
+            setPagination(prev => ({ 
+                ...prev, 
+                total: response.total,
+                totalPages: Math.ceil(response.total / prev.limit) || 1
+            }));
+
+            // Fetch all unique types for the filter dropdown (one-time or infrequent fetch)
+            if (uniqueEntityTypes.length === 0) {
+                 const allEntities = await getEntities({ limit: 1000 }); // fetch a large number to populate types
+                 setUniqueEntityTypes([...new Set(allEntities.items.map(e => e.entity_type))]);
+            }
         } catch (e: any) {
             setError(e.message || '加载实体失败');
+            // If the error is 422, it might be that the server does not return a paginated object.
+            if (e.message.includes('422')) {
+                 setError('加载失败 (422): 后端API可能不支持分页或参数有误。请检查API文档。');
+            }
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [filters.entity_type, filters.is_active]);
+    }, [pagination.page, pagination.limit, filters.entity_type, filters.is_active, uniqueEntityTypes.length]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
-    useEffect(() => {
-        const filtered = allEntities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        setPagination(p => ({ ...p, page: 1, total: filtered.length }));
-    }, [searchTerm, allEntities]);
-
-     useEffect(() => {
-        const filtered = allEntities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
-        const start = (pagination.page - 1) * pagination.limit;
-        const end = start + pagination.limit;
-        setPaginatedEntities(filtered.slice(start, end));
-    }, [pagination.page, pagination.limit, searchTerm, allEntities]);
+    
+    // Client-side search on the currently fetched page of entities
+    const filteredEntities = useMemo(() => {
+        return entities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [searchTerm, entities]);
     
     const handleDelete = async () => {
         if (modalState.type !== 'delete' || !modalState.data) return;
@@ -205,7 +217,21 @@ const EntityManager: React.FC = () => {
         }
     };
     
-    const totalPages = Math.ceil(pagination.total / pagination.limit);
+    const handlePageChange = (newPage: number) => {
+        if (newPage > 0 && newPage <= pagination.totalPages) {
+            setPagination(prev => ({ ...prev, page: newPage }));
+        }
+    };
+    
+    const handleFilterChange = () => {
+        setPagination(p => ({...p, page: 1})); // Reset to first page on filter change
+        // The useEffect on `fetchData` will trigger the refetch
+    }
+    
+    // We need a separate effect to trigger refetch when filters change
+    useEffect(() => {
+        handleFilterChange();
+    }, [filters.entity_type, filters.is_active]);
 
     return (
         <div className="h-full flex flex-col">
@@ -215,7 +241,7 @@ const EntityManager: React.FC = () => {
                  <div className="flex items-center gap-4">
                     <div className="relative">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="在当前页搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
                     </div>
                     <select value={filters.entity_type} onChange={e => setFilters(p => ({...p, entity_type: e.target.value}))} className="bg-white border border-gray-300 rounded-lg py-2 px-3">
                         <option value="">所有类型</option>
@@ -247,8 +273,8 @@ const EntityManager: React.FC = () => {
                     </thead>
                     <tbody>
                         {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
-                        : paginatedEntities.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何实体。</td></tr>)
-                        : (paginatedEntities.map(entity => (
+                        : filteredEntities.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何实体。</td></tr>)
+                        : (filteredEntities.map(entity => (
                             <tr key={entity.id} className="bg-white border-b hover:bg-gray-50">
                                 <td className="px-6 py-4 font-medium text-gray-900">{entity.name}</td>
                                 <td className="px-6 py-4">{entity.entity_type}</td>
@@ -273,11 +299,11 @@ const EntityManager: React.FC = () => {
             
             <div className="flex-shrink-0 flex justify-between items-center mt-4 text-sm">
                 <span className="text-gray-600">共 {pagination.total} 条</span>
-                {totalPages > 1 && (
+                {pagination.totalPages > 1 && (
                     <div className="flex items-center gap-2">
-                        <button onClick={() => setPagination(p => ({...p, page: p.page - 1}))} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md"><ChevronLeftIcon className="w-4 h-4" /></button>
-                        <span>第 {pagination.page} / {totalPages} 页</span>
-                        <button onClick={() => setPagination(p => ({...p, page: p.page + 1}))} disabled={pagination.page >= totalPages} className="px-3 py-1 bg-white border rounded-md"><ChevronRightIcon className="w-4 h-4" /></button>
+                        <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md"><ChevronLeftIcon className="w-4 h-4" /></button>
+                        <span>第 {pagination.page} / {pagination.totalPages} 页</span>
+                        <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md"><ChevronRightIcon className="w-4 h-4" /></button>
                     </div>
                 )}
             </div>

@@ -2,14 +2,22 @@
 
 import { COMPETITIVENESS_SERVICE_PATH } from '../config';
 import { 
-    CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, DataQueryResponse
+    CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
+    DataQueryResponse, PaginatedResponse 
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- Entity Management ---
-export const getEntities = (params: any): Promise<CompetitivenessEntity[]> => {
-    const query = createApiQuery(params);
-    return apiFetch<CompetitivenessEntity[]>(`${COMPETITIVENESS_SERVICE_PATH}/entities${query}`);
+export const getEntities = (params: { page?: number; limit?: number; [key: string]: any }): Promise<PaginatedResponse<CompetitivenessEntity>> => {
+    const apiParams: { [key: string]: any } = { ...params };
+    if (params.page && params.limit) {
+        apiParams.offset = (params.page - 1) * params.limit;
+        delete apiParams.page; // The backend expects offset, not page
+    }
+    const query = createApiQuery(apiParams);
+    // Assuming the backend returns a paginated response like other services, even if docs are ambiguous.
+    // This is necessary for proper server-side pagination.
+    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
