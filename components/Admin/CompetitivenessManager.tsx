@@ -166,7 +166,9 @@ const EntityManager: React.FC = () => {
         try {
             const fetchedEntities = await getEntities({ 
                 entity_type: filters.entity_type || undefined,
-                is_active: filters.is_active === '' ? undefined : filters.is_active === 'true'
+                is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
+                limit: 1000, // Add a high limit to fetch all entities for client-side processing
+                offset: 0
             });
             setAllEntities(fetchedEntities);
         } catch (e: any) {
@@ -280,7 +282,7 @@ const EntityManager: React.FC = () => {
                 )}
             </div>
 
-            {(modalState.type === 'new' || modalState.type === 'edit') && <EntityModal entity={modalState.data} onClose={() => setModalState({type: null})} onSuccess={() => fetchData(false)} />}
+            {(modalState.type === 'new' || modalState.type === 'edit') && <EntityModal entity={modalState.data} onClose={() => setModalState({type: null})} onSuccess={() => { setModalState({type: null}); fetchData(false); }} />}
             {modalState.type === 'delete' && modalState.data && <ConfirmationModal title="确认删除" message={`确定要删除实体 "${modalState.data.name}" 吗？`} onConfirm={handleDelete} onCancel={() => setModalState({type: null})} />}
         </div>
     );
@@ -291,7 +293,7 @@ const ModuleManager: React.FC = () => {
   return (
     <div>
       <h2 className="text-xl font-bold">模块管理</h2>
-      <p className="mt-4">模块管理功能正在开发中，敬请期待。</p>
+      <p className="mt-4">模块管理功能即将上线，敬请期待。</p>
     </div>
   );
 };
@@ -304,7 +306,7 @@ export const CompetitivenessManager: React.FC = () => {
     const renderSubView = () => {
         switch (subView) {
             case 'entities': return <EntityManager />;
-            case 'modules': return <p className="p-4 text-gray-500">实体管理功能即将上线，敬请期待。</p>;
+            case 'modules': return <p className="p-4 text-gray-500">模块管理功能即将上线，敬请期待。</p>;
             default: return <EntityManager />;
         }
     };

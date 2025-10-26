@@ -10,7 +10,8 @@ import { apiFetch, createApiQuery } from './helper';
 // --- User Management API (Admin) ---
 export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}${query}`);
+    // Add trailing slash to avoid backend redirect that causes Mixed Content error
+    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/${query}`);
 }
 
 export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
