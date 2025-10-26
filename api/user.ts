@@ -1,5 +1,3 @@
-// src/api/user.ts
-
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 

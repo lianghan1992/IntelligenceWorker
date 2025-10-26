@@ -17,7 +17,8 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
     const query = createApiQuery(apiParams);
     // Assuming the backend returns a paginated response like other services, even if docs are ambiguous.
     // This is necessary for proper server-side pagination.
-    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities${query}`);
+    // Add trailing slash to avoid backend redirect that causes 500 error.
+    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
@@ -38,9 +39,10 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
     });
 
 // --- Module Management ---
-export const getModules = (params: any): Promise<CompetitivenessModule[]> => {
+export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
     const query = createApiQuery(params);
-    return apiFetch<CompetitivenessModule[]>(`${COMPETITIVENESS_SERVICE_PATH}/modules${query}`);
+    // Add trailing slash for consistency and to prevent potential redirect issues.
+    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
