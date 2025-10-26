@@ -13,12 +13,12 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
         delete apiParams.page; // The backend expects offset, not page
     }
     const query = createApiQuery(apiParams);
-    // REMOVED trailing slash to match API documentation and avoid redirect
-    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities${query}`);
+    // FINAL FIX: Add trailing slash to match behavior of working /user/ endpoint and avoid redirects.
+    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
-    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities`, {
+    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -37,12 +37,12 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- Module Management ---
 export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
     const query = createApiQuery(params);
-    // REMOVED trailing slash to match API documentation
-    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules${query}`);
+    // FINAL FIX: Add trailing slash to avoid redirect errors.
+    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
-    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules`, {
+    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -71,12 +71,12 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // REMOVED trailing slash to match API documentation
-    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs${query}`);
+    // FINAL FIX: Add trailing slash to avoid redirect errors.
+    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
-    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs`, {
+    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
