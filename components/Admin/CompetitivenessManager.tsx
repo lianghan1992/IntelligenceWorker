@@ -4,7 +4,6 @@ import {
     getEntities, createEntity, updateEntity, deleteEntity,
     getModules, createModule, updateModule, deleteModule, createBackfillJob
 } from '../../api';
-// FIX: Import UsersIcon to resolve reference error
 import { 
     CloseIcon, PlusIcon, TrashIcon, PencilIcon, SearchIcon, RefreshIcon, 
     ChevronLeftIcon, ChevronRightIcon, BrainIcon, UsersIcon
@@ -14,7 +13,6 @@ import { ConfirmationModal } from './ConfirmationModal';
 // --- Reusable Components ---
 const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     <div className={`flex items-center justify-center ${small ? '' : 'py-10'}`}>
-        {/* FIX: Corrected SVG viewBox attribute from "0 BORDER="0" 24 24" to "0 0 24 24" */}
         <svg className={`animate-spin ${small ? 'h-5 w-5' : 'h-8 w-8'} text-blue-600`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -92,7 +90,6 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
                 await createEntity(payload);
             }
             onSuccess();
-            onClose();
         } catch (e: any) {
             setError(e.message || '操作失败');
         } finally {
@@ -125,7 +122,7 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
-                        <textarea value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                        <textarea value={formData.description || ''} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">元数据 (JSON)</label>
@@ -148,67 +145,58 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
     );
 };
 
-
-// --- Entity Manager Component ---
+// --- Entity Manager ---
 const EntityManager: React.FC = () => {
-    const [entities, setEntities] = useState<CompetitivenessEntity[]>([]);
+    const [allEntities, setAllEntities] = useState<CompetitivenessEntity[]>([]);
+    const [paginatedEntities, setPaginatedEntities] = useState<CompetitivenessEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const [filters, setFilters] = useState({ entity_type: '', is_active: '', name: '' });
+    const [filters, setFilters] = useState({ entity_type: '', is_active: '' });
     const [searchTerm, setSearchTerm] = useState('');
-    const searchTimeoutRef = useRef<number | null>(null);
-
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
-    const [modalState, setModalState] = useState<{ type: 'edit' | 'new' | 'delete', data?: CompetitivenessEntity | null }>({ type: 'new', data: null });
     
-    const uniqueEntityTypes = [...new Set(entities.map(e => e.entity_type))];
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+    const [modalState, setModalState] = useState<{ type: 'edit' | 'new' | 'delete' | null, data?: CompetitivenessEntity | null }>({ type: null });
+    
+    const uniqueEntityTypes = [...new Set(allEntities.map(e => e.entity_type))];
 
     const fetchData = useCallback(async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
         setError('');
         try {
-            // NOTE: API does not support pagination, so we do it client-side
-            const allEntities = await getEntities({ 
+            const fetchedEntities = await getEntities({ 
                 entity_type: filters.entity_type || undefined,
                 is_active: filters.is_active === '' ? undefined : filters.is_active === 'true'
             });
-
-            const filteredByName = allEntities.filter(e => e.name.toLowerCase().includes(filters.name.toLowerCase()));
-            setPagination(p => ({...p, total: filteredByName.length}));
-
-            const start = (pagination.page - 1) * pagination.limit;
-            const end = start + pagination.limit;
-            setEntities(filteredByName.slice(start, end));
-
+            setAllEntities(fetchedEntities);
         } catch (e: any) {
             setError(e.message || '加载实体失败');
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [filters, pagination.page, pagination.limit]);
+    }, [filters.entity_type, filters.is_active]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-    
+
     useEffect(() => {
-        setPagination(p => ({...p, page: 1}));
-    }, [filters]);
+        const filtered = allEntities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        setPagination(p => ({ ...p, page: 1, total: filtered.length }));
+    }, [searchTerm, allEntities]);
 
-    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchTerm(e.target.value);
-        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-        searchTimeoutRef.current = window.setTimeout(() => {
-            setFilters(prev => ({...prev, name: e.target.value}));
-        }, 500);
-    };
-
+     useEffect(() => {
+        const filtered = allEntities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        const start = (pagination.page - 1) * pagination.limit;
+        const end = start + pagination.limit;
+        setPaginatedEntities(filtered.slice(start, end));
+    }, [pagination.page, pagination.limit, searchTerm, allEntities]);
+    
     const handleDelete = async () => {
         if (modalState.type !== 'delete' || !modalState.data) return;
         try {
             await deleteEntity(modalState.data.id);
-            setModalState({ type: 'new', data: null });
+            setModalState({ type: null });
             fetchData(false);
         } catch (e: any) {
             setError(e.message || '删除失败');
@@ -225,7 +213,7 @@ const EntityManager: React.FC = () => {
                  <div className="flex items-center gap-4">
                     <div className="relative">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" value={searchTerm} onChange={handleSearchChange} placeholder="搜索名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
                     </div>
                     <select value={filters.entity_type} onChange={e => setFilters(p => ({...p, entity_type: e.target.value}))} className="bg-white border border-gray-300 rounded-lg py-2 px-3">
                         <option value="">所有类型</option>
@@ -257,8 +245,8 @@ const EntityManager: React.FC = () => {
                     </thead>
                     <tbody>
                         {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
-                        : entities.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何实体。</td></tr>)
-                        : (entities.map(entity => (
+                        : paginatedEntities.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何实体。</td></tr>)
+                        : (paginatedEntities.map(entity => (
                             <tr key={entity.id} className="bg-white border-b hover:bg-gray-50">
                                 <td className="px-6 py-4 font-medium text-gray-900">{entity.name}</td>
                                 <td className="px-6 py-4">{entity.entity_type}</td>
@@ -292,24 +280,31 @@ const EntityManager: React.FC = () => {
                 )}
             </div>
 
-            {(modalState.type === 'new' || (modalState.type === 'edit' && modalState.data)) && <EntityModal entity={modalState.data} onClose={() => setModalState({type: 'new', data: null})} onSuccess={() => fetchData(false)} />}
-            {modalState.type === 'delete' && modalState.data && <ConfirmationModal title="确认删除" message={`确定要删除实体 "${modalState.data.name}" 吗？`} onConfirm={handleDelete} onCancel={() => setModalState({type: 'new', data: null})} />}
+            {(modalState.type === 'new' || modalState.type === 'edit') && <EntityModal entity={modalState.data} onClose={() => setModalState({type: null})} onSuccess={() => fetchData(false)} />}
+            {modalState.type === 'delete' && modalState.data && <ConfirmationModal title="确认删除" message={`确定要删除实体 "${modalState.data.name}" 吗？`} onConfirm={handleDelete} onCancel={() => setModalState({type: null})} />}
         </div>
     );
 };
 
-// ===================================================================================
-// 3. MODULE MANAGER VIEW
-// ===================================================================================
-// ... (Implementation to be added here)
+// --- Module Manager ---
+const ModuleManager: React.FC = () => {
+  return (
+    <div>
+      <h2 className="text-xl font-bold">模块管理</h2>
+      <p className="mt-4">模块管理功能正在开发中，敬请期待。</p>
+    </div>
+  );
+};
 
+
+// --- Main Component ---
 export const CompetitivenessManager: React.FC = () => {
     const [subView, setSubView] = useState<'entities' | 'modules'>('entities');
 
     const renderSubView = () => {
         switch (subView) {
             case 'entities': return <EntityManager />;
-            case 'modules': return <div>模块管理功能即将上线，敬请期待。</div>;
+            case 'modules': return <p className="p-4 text-gray-500">实体管理功能即将上线，敬请期待。</p>;
             default: return <EntityManager />;
         }
     };
