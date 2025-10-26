@@ -1,9 +1,20 @@
 import { COMPETITIVENESS_SERVICE_PATH } from '../config';
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
-    DataQueryResponse, PaginatedResponse 
+    DataQueryResponse 
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
+
+// A generic response type since the API doc doesn't specify a paginated wrapper for all endpoints
+// but the frontend code seems to expect it. We will assume a flexible structure.
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages?: number;
+}
+
 
 // --- Entity Management ---
 export const getEntities = (params: { page?: number; limit?: number; [key: string]: any }): Promise<PaginatedResponse<CompetitivenessEntity>> => {
@@ -38,7 +49,7 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- Module Management ---
 export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
     const query = createApiQuery(params);
-    // Ensure trailing slash before query params.
+    // Ensure trailing slash before query params for consistency.
     return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
 };
 
@@ -63,7 +74,7 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 // --- Data Query ---
 export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
     const query = createApiQuery(params);
-    // Assuming this endpoint also requires a trailing slash
+    // Add trailing slash for consistency.
     return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query/${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
@@ -73,7 +84,7 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // Ensure trailing slash before query params.
+    // Ensure trailing slash before query params for consistency.
     return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
 }
 
