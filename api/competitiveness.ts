@@ -12,9 +12,19 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
         apiParams.offset = (params.page - 1) * params.limit;
         delete apiParams.page; // The backend expects offset, not page
     }
-    const query = createApiQuery(apiParams);
-    // FINAL FIX: Add trailing slash to match behavior of working /user/ endpoint and avoid redirects.
-    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
+    
+    // DECISIVE FIX: Manually build query string and URL to guarantee trailing slash.
+    const filteredParams = Object.fromEntries(
+        Object.entries(apiParams).filter(([_, v]) => v !== null && v !== undefined && v !== '')
+    );
+    const queryString = new URLSearchParams(filteredParams as Record<string, string>).toString();
+    
+    let finalUrl = `${COMPETITIVENESS_SERVICE_PATH}/entities/`;
+    if (queryString) {
+        finalUrl += `?${queryString}`;
+    }
+
+    return apiFetch<PaginatedResponse<CompetitivenessEntity>>(finalUrl);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
@@ -37,8 +47,9 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- Module Management ---
 export const getModules = (params: any): Promise<PaginatedResponse<CompetitivenessModule>> => {
     const query = createApiQuery(params);
-    // FINAL FIX: Add trailing slash to avoid redirect errors.
-    return apiFetch<PaginatedResponse<CompetitivenessModule>>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`);
+    // DECISIVE FIX: Explicitly construct URL with a guaranteed trailing slash before query params.
+    const url = `${COMPETITIVENESS_SERVICE_PATH}/modules/${query}`;
+    return apiFetch<PaginatedResponse<CompetitivenessModule>>(url);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
@@ -71,8 +82,9 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // FINAL FIX: Add trailing slash to avoid redirect errors.
-    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
+    // DECISIVE FIX: Explicitly construct URL with a guaranteed trailing slash before query params.
+    const url = `${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`;
+    return apiFetch<BackfillJob[]>(url);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
