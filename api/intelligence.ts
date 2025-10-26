@@ -71,5 +71,5 @@ export const getAllPrompts = (): Promise<AllPrompts> => apiFetch<AllPrompts>(`${
 // --- Intelligence Tasks (formerly Crawler Tasks) API ---
 export const getIntelligenceTasks = (params: any): Promise<PaginatedResponse<IntelligenceTask>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<IntelligenceTask>>(`${INTELLIGENCE_SERVICE_PATH}/tasks?${query}`);
+    return apiFetch<PaginatedResponse<IntelligenceTask>>(`${INTELLIGENCE_SERVICE_PATH}/tasks${query}`);
 };

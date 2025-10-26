@@ -9,7 +9,7 @@ import { apiFetch, createApiQuery } from './helper';
 // --- Entity Management ---
 export const getEntities = (params: any): Promise<CompetitivenessEntity[]> => {
     const query = createApiQuery(params);
-    return apiFetch<CompetitivenessEntity[]>(`${COMPETITIVENESS_SERVICE_PATH}/entities?${query}`);
+    return apiFetch<CompetitivenessEntity[]>(`${COMPETITIVENESS_SERVICE_PATH}/entities${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
@@ -32,7 +32,7 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- Module Management ---
 export const getModules = (params: any): Promise<CompetitivenessModule[]> => {
     const query = createApiQuery(params);
-    return apiFetch<CompetitivenessModule[]>(`${COMPETITIVENESS_SERVICE_PATH}/modules?${query}`);
+    return apiFetch<CompetitivenessModule[]>(`${COMPETITIVENESS_SERVICE_PATH}/modules${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
@@ -56,7 +56,7 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 // --- Data Query ---
 export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
     const query = createApiQuery(params);
-    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query?${query}`, {
+    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
     });
@@ -65,7 +65,7 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs?${query}`);
+    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>

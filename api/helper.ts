@@ -42,5 +42,6 @@ export const createApiQuery = (params: any): string => {
     const filteredParams = Object.fromEntries(
         Object.entries(params).filter(([_, v]) => v !== null && v !== undefined && v !== '')
     );
-    return new URLSearchParams(filteredParams as Record<string, string>).toString();
+    const queryString = new URLSearchParams(filteredParams as Record<string, string>).toString();
+    return queryString ? `?${queryString}` : '';
 }

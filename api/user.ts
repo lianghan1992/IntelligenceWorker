@@ -5,13 +5,12 @@ import {
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource 
 } from '../types';
-import { apiFetch } from './helper';
+import { apiFetch, createApiQuery } from './helper';
 
 // --- User Management API (Admin) ---
 export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([_, v]) => v != null && v !== ''));
-    const query = new URLSearchParams(filteredParams as Record<string, string>).toString();
-    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/?${query}`);
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/${query}`);
 }
 
 export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 

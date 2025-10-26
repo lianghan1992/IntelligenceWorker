@@ -7,7 +7,7 @@ import { apiFetch, createApiQuery } from './helper';
 // --- Livestream / Events API ---
 export const getLivestreamTasks = (params: any): Promise<PaginatedResponse<LivestreamTask>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks?${query}`);
+    return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks${query}`);
 };
 
 export const getLivestreamTasksStats = (): Promise<any> => apiFetch<any>(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
