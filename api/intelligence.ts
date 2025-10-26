@@ -27,7 +27,7 @@ export const deleteSource = (sourceName: string): Promise<void> =>
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, { method: 'DELETE' });
 
 export const getPointsBySourceName = (sourceName: string): Promise<Subscription[]> =>
-    apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/points?source_name=${encodeURIComponent(sourceName)}`);
+    apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/points${createApiQuery({ source_name: sourceName })}`);
     
 export const createIntelligencePoint = (data: Partial<Subscription>): Promise<{ message: string, point_id: string }> => 
     apiFetch<{ message: string, point_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
@@ -43,7 +43,7 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
 
 // --- Articles / InfoItems API ---
 export const searchArticles = (query: string, pointIds: string[], top_k: number): Promise<InfoItem[]> =>
-    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/articles?top_k=${top_k}`, {
+    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/articles${createApiQuery({ top_k })}`, {
         method: 'POST',
         body: JSON.stringify({ query_text: query, point_ids: pointIds }),
     });

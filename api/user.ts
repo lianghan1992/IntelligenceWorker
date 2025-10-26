@@ -10,7 +10,7 @@ import { apiFetch, createApiQuery } from './helper';
 // --- User Management API (Admin) ---
 export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/${query}`);
+    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}${query}`);
 }
 
 export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
