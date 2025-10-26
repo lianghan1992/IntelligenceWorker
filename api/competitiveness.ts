@@ -1,5 +1,3 @@
-// src/api/competitiveness.ts
-
 import { COMPETITIVENESS_SERVICE_PATH } from '../config';
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
@@ -15,9 +13,7 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
         delete apiParams.page; // The backend expects offset, not page
     }
     const query = createApiQuery(apiParams);
-    // Assuming the backend returns a paginated response like other services, even if docs are ambiguous.
-    // This is necessary for proper server-side pagination.
-    // Add trailing slash to avoid backend redirect that causes 500 error.
+    // Add trailing slash to avoid backend redirect that causes Mixed Content error.
     return apiFetch<PaginatedResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
@@ -75,7 +71,8 @@ export const queryData = (params: any, queryBody: any): Promise<DataQueryRespons
 // --- Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs${query}`);
+    // Add trailing slash for consistency.
+    return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
