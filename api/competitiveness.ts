@@ -41,6 +41,18 @@ export const createModule = (data: Partial<CompetitivenessModule>): Promise<Comp
         body: JSON.stringify(data),
     });
 
+export const updateModule = (id: string, data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
+    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deleteModule = (id: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${COMPETITIVENESS_SERVICE_PATH}/modules/${id}`, {
+        method: 'DELETE',
+    });
+
+
 // --- Data Query ---
 export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
     const query = createApiQuery(params);

@@ -1,7 +1,7 @@
 // src/types.ts
 
 export type View = 'dashboard' | 'cockpit' | 'dives' | 'events' | 'ai' | 'admin' | 'techboard';
-export type AdminView = 'users' | 'events' | 'intelligence';
+export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness';
 
 export interface User {
   id: string;
