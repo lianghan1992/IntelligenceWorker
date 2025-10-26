@@ -20,7 +20,10 @@
 // 解决方案在后端/代理层面：
 // 代理服务器必须发送 `X-Forwarded-Proto: https` 请求头，并且后端应用服务器
 // (例如 Uvicorn) 必须配置为信任代理头（例如，使用 `--proxy-headers` 标志）。
-export const API_BASE_URL = '/api';
+
+// 临时调整：根据后端团队的请求，暂时移除 /api 前缀以绕过重定向问题。
+// 后端修复后，应将此值恢复为 '/api'。
+export const API_BASE_URL = '';
 
 // Full path for the user authentication & subscription service
 export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
