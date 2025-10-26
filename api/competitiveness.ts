@@ -18,7 +18,7 @@ export const getEntities = (params: { page?: number; limit?: number; [key: strin
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
-    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities`, {
+    apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -42,7 +42,7 @@ export const getModules = (params: any): Promise<PaginatedResponse<Competitivene
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
-    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules`, {
+    apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -76,7 +76,7 @@ export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
-    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs`, {
+    apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
