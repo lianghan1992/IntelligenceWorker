@@ -20,6 +20,20 @@ const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     </div>
 );
 
+const ToggleSwitch: React.FC<{ checked: boolean; onChange: (checked: boolean) => void, disabled?: boolean }> = ({ checked, onChange, disabled }) => (
+    <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        disabled={disabled}
+        className={`${checked ? 'bg-blue-600' : 'bg-gray-200'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+    >
+        <span className={`${checked ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+    </button>
+);
+
+
 const TagInput: React.FC<{ value: string[]; onChange: (value: string[]) => void, placeholder?: string }> = ({ value, onChange, placeholder }) => {
     const [inputValue, setInputValue] = useState('');
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -132,9 +146,9 @@ const EntityModal: React.FC<{ entity?: CompetitivenessEntity | null; onClose: ()
                         <textarea value={formData.metadata} onChange={e => setFormData(p => ({ ...p, metadata: e.target.value }))} rows={5} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 font-mono text-sm" />
                     </div>
                      <div>
-                         <label className="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" checked={formData.is_active} onChange={e => setFormData(p => ({...p, is_active: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                            <span className="text-sm text-gray-800">激活</span>
+                         <label className="flex items-center space-x-3 cursor-pointer">
+                            <ToggleSwitch checked={formData.is_active} onChange={c => setFormData(p => ({...p, is_active: c}))} />
+                            <span className="text-sm font-medium text-gray-700">激活实体</span>
                         </label>
                     </div>
                 </div>
@@ -153,14 +167,23 @@ const EntityManager: React.FC = () => {
     const [entities, setEntities] = useState<CompetitivenessEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-
+    
     const [filters, setFilters] = useState({ entity_type: '', is_active: '' });
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     
     const [pagination, setPagination] = useState({ page: 1, size: 10, total: 0, pages: 1 });
     const [modalState, setModalState] = useState<{ type: 'edit' | 'new' | 'delete' | null, data?: CompetitivenessEntity | null }>({ type: null });
     
     const [uniqueEntityTypes, setUniqueEntityTypes] = useState<string[]>([]);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
+    
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
 
     const fetchData = useCallback(async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
@@ -171,6 +194,7 @@ const EntityManager: React.FC = () => {
                 size: pagination.size,
                 entity_type: filters.entity_type || undefined,
                 is_active: filters.is_active === '' ? undefined : filters.is_active === 'true',
+                search_term: debouncedSearchTerm || undefined
             });
 
             setEntities(response.items || []);
@@ -182,25 +206,22 @@ const EntityManager: React.FC = () => {
 
             if (uniqueEntityTypes.length === 0) {
                  const allEntities = await getEntities({ size: 1000 });
-                 setUniqueEntityTypes([...new Set(allEntities.items.map(e => e.entity_type))]);
+                 setUniqueEntityTypes([...new Set(allEntities.items.map(e => e.entity_type))].sort());
             }
         } catch (e: any) {
-            setError(e.message || '加载实体失败');
-            if (e.message.includes('422')) {
-                 setError('加载失败 (422): 后端API参数有误。请检查API文档。');
-            }
+             setError(e.message || '加载实体失败');
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.size, filters.entity_type, filters.is_active, uniqueEntityTypes.length]);
+    }, [pagination.page, pagination.size, filters.entity_type, filters.is_active, debouncedSearchTerm, uniqueEntityTypes.length]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-    
-    const filteredEntities = useMemo(() => {
-        return entities.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [searchTerm, entities]);
+
+    useEffect(() => {
+        setPagination(p => ({...p, page: 1}));
+    }, [filters.entity_type, filters.is_active, debouncedSearchTerm]);
     
     const handleDelete = async () => {
         if (modalState.type !== 'delete' || !modalState.data) return;
@@ -213,19 +234,24 @@ const EntityManager: React.FC = () => {
         }
     };
     
+    const handleToggleActive = async (entity: CompetitivenessEntity) => {
+        setTogglingId(entity.id);
+        try {
+            await updateEntity(entity.id, { is_active: !entity.is_active });
+            // Update local state for immediate feedback before refetch
+            setEntities(prev => prev.map(e => e.id === entity.id ? {...e, is_active: !e.is_active} : e));
+        } catch (err: any) {
+            setError(`为 ${entity.name} 更新状态失败: ${err.message}`);
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.pages) {
             setPagination(prev => ({ ...prev, page: newPage }));
         }
     };
-    
-    const handleFilterChange = () => {
-        setPagination(p => ({...p, page: 1}));
-    }
-    
-    useEffect(() => {
-        handleFilterChange();
-    }, [filters.entity_type, filters.is_active]);
 
     return (
         <div className="h-full flex flex-col">
@@ -235,7 +261,7 @@ const EntityManager: React.FC = () => {
                  <div className="flex items-center gap-4">
                     <div className="relative">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="在当前页搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
+                        <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索实体名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
                     </div>
                     <select value={filters.entity_type} onChange={e => setFilters(p => ({...p, entity_type: e.target.value}))} className="bg-white border border-gray-300 rounded-lg py-2 px-3">
                         <option value="">所有类型</option>
@@ -260,23 +286,27 @@ const EntityManager: React.FC = () => {
                             <th className="px-6 py-3">名称</th>
                             <th className="px-6 py-3">类型</th>
                             <th className="px-6 py-3">别名</th>
-                            <th className="px-6 py-3">状态</th>
+                            <th className="px-6 py-3">描述</th>
+                            <th className="px-6 py-3">激活</th>
                             <th className="px-6 py-3">更新时间</th>
                             <th className="px-6 py-3 text-center">操作</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
-                        : filteredEntities.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何实体。</td></tr>)
-                        : (filteredEntities.map(entity => (
+                        {isLoading ? (<tr><td colSpan={7}><Spinner /></td></tr>)
+                        : entities.length === 0 ? (<tr><td colSpan={7} className="text-center py-10">未找到任何实体。</td></tr>)
+                        : (entities.map(entity => (
                             <tr key={entity.id} className="bg-white border-b hover:bg-gray-50">
                                 <td className="px-6 py-4 font-medium text-gray-900">{entity.name}</td>
                                 <td className="px-6 py-4">{entity.entity_type}</td>
-                                <td className="px-6 py-4">{entity.aliases.join(', ')}</td>
+                                <td className="px-6 py-4 max-w-sm truncate" title={entity.aliases.join(', ')}>{entity.aliases.join(', ')}</td>
+                                <td className="px-6 py-4 max-w-xs truncate" title={entity.description || ''}>{entity.description}</td>
                                 <td className="px-6 py-4">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${entity.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                        {entity.is_active ? '已激活' : '未激活'}
-                                    </span>
+                                    <ToggleSwitch
+                                        checked={entity.is_active}
+                                        onChange={() => handleToggleActive(entity)}
+                                        disabled={togglingId === entity.id}
+                                    />
                                 </td>
                                 <td className="px-6 py-4">{new Date(entity.updated_at || entity.created_at).toLocaleString('zh-CN')}</td>
                                 <td className="px-6 py-4 text-center">
@@ -295,9 +325,9 @@ const EntityManager: React.FC = () => {
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 {pagination.pages > 1 && (
                     <div className="flex items-center gap-2">
-                        <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md"><ChevronLeftIcon className="w-4 h-4" /></button>
+                        <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="p-2 bg-white border rounded-md disabled:opacity-50"><ChevronLeftIcon className="w-4 h-4" /></button>
                         <span>第 {pagination.page} / {pagination.pages} 页</span>
-                        <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.pages} className="px-3 py-1 bg-white border rounded-md"><ChevronRightIcon className="w-4 h-4" /></button>
+                        <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.pages} className="p-2 bg-white border rounded-md disabled:opacity-50"><ChevronRightIcon className="w-4 h-4" /></button>
                     </div>
                 )}
             </div>
@@ -386,9 +416,9 @@ const ModuleModal: React.FC<{ module?: CompetitivenessModule | null; onClose: ()
                         <textarea value={formData.extraction_fields} onChange={e => setFormData(p => ({ ...p, extraction_fields: e.target.value }))} rows={8} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 font-mono text-sm" />
                     </div>
                     <div>
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                           <input type="checkbox" checked={formData.is_active} onChange={e => setFormData(p => ({...p, is_active: e.target.checked}))} className="h-4 w-4 rounded border-gray-300 text-blue-600"/>
-                           <span className="text-sm text-gray-800">激活</span>
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                           <ToggleSwitch checked={formData.is_active} onChange={c => setFormData(p => ({...p, is_active: c}))} />
+                           <span className="text-sm font-medium text-gray-700">激活模块</span>
                        </label>
                    </div>
                 </div>
