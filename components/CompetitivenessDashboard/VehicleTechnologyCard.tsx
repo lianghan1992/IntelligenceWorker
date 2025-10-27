@@ -79,7 +79,9 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
                                 <div className="space-y-3">
                                     {entityFindings.map(finding => (
                                         <div key={finding.id} className="bg-white p-3 rounded-lg border shadow-sm">
-                                            <p className="font-semibold text-gray-800">{finding.technology_name || '[未命名技术]'}</p>
+                                            <p className="font-semibold text-gray-800">
+                                                {finding.technology_name ? finding.technology_name : <span className="italic text-gray-500">[技术名称缺失]</span>}
+                                            </p>
                                             <div className="mt-2 space-y-1 text-xs text-gray-600">
                                                 <p><strong>应用领域:</strong> {finding.application_area || 'N/A'}</p>
                                                 <p><strong>成熟度:</strong> {finding.maturity_level || 'N/A'}</p>
