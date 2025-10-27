@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getEntities } from '../../api';
 import { CompetitivenessEntity } from '../../types';
 import { VehicleTechnologyCard } from './VehicleTechnologyCard';
-import { ChevronDownIcon, CloseIcon, UsersIcon } from '../icons';
+import { ChevronDownIcon, CloseIcon, UsersIcon, BrainIcon, TrendingUpIcon, EyeIcon } from '../icons';
 
 // --- Reusable MultiSelect Dropdown Component ---
 interface MultiSelectProps {
@@ -44,7 +44,7 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, selected, on
         <div className="relative w-full max-w-2xl" ref={dropdownRef}>
             <div className="flex items-center gap-2 flex-wrap p-2 border border-gray-300 bg-white rounded-lg cursor-text" onClick={() => setIsOpen(true)}>
                 <UsersIcon className="w-5 h-5 text-gray-400 flex-shrink-0 ml-1" />
-                {selected.length === 0 && !isOpen && <span className="text-gray-500">{placeholder}</span>}
+                {selected.length === 0 && !isOpen && !searchTerm && <span className="text-gray-500">{placeholder}</span>}
                 {selected.map(item => (
                     <span key={item.id} className="flex items-center gap-1.5 bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full">
                         {item.name}
@@ -88,9 +88,8 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, selected, on
     );
 };
 
-
-// --- Main Dashboard Component ---
-export const CompetitivenessDashboard: React.FC = () => {
+// --- View for "新技术看板" ---
+const VehicleTechnologyView: React.FC = () => {
     const [allEntities, setAllEntities] = useState<CompetitivenessEntity[]>([]);
     const [selectedEntities, setSelectedEntities] = useState<CompetitivenessEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -100,15 +99,24 @@ export const CompetitivenessDashboard: React.FC = () => {
         setIsLoading(true);
         setError('');
         try {
-            // Fetch all active car_brand and car_model entities for the selector
-            const brandsRes = await getEntities({ size: 1000, is_active: true, entity_type: 'car_brand' });
-            const modelsRes = await getEntities({ size: 1000, is_active: true, entity_type: 'car_model' });
+            // Fetch all active car_brand, car_model, and company entities for the selector
+            const [brandsRes, modelsRes, companiesRes] = await Promise.all([
+                getEntities({ size: 1000, is_active: true, entity_type: 'car_brand' }),
+                getEntities({ size: 1000, is_active: true, entity_type: 'car_model' }),
+                getEntities({ size: 1000, is_active: true, entity_type: 'company' })
+            ]);
             
-            const combined = [...(brandsRes.items || []), ...(modelsRes.items || [])];
-            // Sort by name for better UX in the dropdown
-            combined.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+            const combined = [
+                ...(brandsRes.items || []), 
+                ...(modelsRes.items || []),
+                ...(companiesRes.items || [])
+            ];
+            
+            // Remove duplicates and sort by name for better UX in the dropdown
+            const uniqueEntities = Array.from(new Map(combined.map(e => [e.id, e])).values());
+            uniqueEntities.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 
-            setAllEntities(combined);
+            setAllEntities(uniqueEntities);
 
         } catch (e: any) {
             setError(e.message || '加载实体列表失败');
@@ -124,12 +132,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     const selectedEntityIds = useMemo(() => selectedEntities.map(e => e.id), [selectedEntities]);
 
     return (
-        <div className="p-6 bg-gray-50/70 h-full overflow-y-auto">
-            <header className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">竞争力看板</h1>
-                <p className="text-gray-600 mt-1">选择您关注的实体，洞察其在各个维度的最新情报。</p>
-            </header>
-
+        <>
             <div className="sticky top-0 z-20 bg-gray-50/70 backdrop-blur-sm py-4 mb-6">
                 {isLoading ? (
                     <div className="h-[50px] bg-gray-200 rounded-lg animate-pulse max-w-2xl"></div>
@@ -148,9 +151,6 @@ export const CompetitivenessDashboard: React.FC = () => {
             <main className="space-y-8">
                 {selectedEntityIds.length > 0 ? (
                     <VehicleTechnologyCard selectedEntityIds={selectedEntityIds} />
-                    // 未来可以添加更多卡片
-                    // <MarketAnalysisCard selectedEntityIds={selectedEntityIds} />
-                    // <SupplyChainCard selectedEntityIds={selectedEntityIds} />
                 ) : (
                     <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border-2 border-dashed">
                         <UsersIcon className="w-16 h-16 text-gray-300 mb-4" />
@@ -159,6 +159,59 @@ export const CompetitivenessDashboard: React.FC = () => {
                     </div>
                 )}
             </main>
+        </>
+    );
+};
+
+
+// --- Main Dashboard Component ---
+const TABS = [
+    { key: 'vehicle_technology', label: '新技术', icon: BrainIcon },
+    { key: 'technology_forecast', label: '技术预测', icon: TrendingUpIcon },
+    { key: 'market_analysis', label: '市场分析', icon: EyeIcon }
+];
+
+export const CompetitivenessDashboard: React.FC = () => {
+    const [activeTab, setActiveTab] = useState(TABS[0].key);
+
+    const renderContent = () => {
+        switch(activeTab) {
+            case 'vehicle_technology':
+                return <VehicleTechnologyView />;
+            case 'technology_forecast':
+            case 'market_analysis':
+                return (
+                    <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border-2 border-dashed mt-6">
+                        <h2 className="text-xl font-semibold text-gray-700">正在开发中</h2>
+                        <p className="text-gray-500 mt-2">此看板功能即将上线，敬请期待。</p>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div className="p-6 bg-gray-50/70 h-full overflow-y-auto">
+            <div className="border-b border-gray-200 mb-6">
+                <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                                activeTab === tab.key
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <tab.icon className="w-5 h-5" />
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
+                </nav>
+            </div>
+            {renderContent()}
         </div>
     );
 };
