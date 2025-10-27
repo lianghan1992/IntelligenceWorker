@@ -28,12 +28,6 @@ const getStatusDetails = (status: string) => {
     return { text: '已结束', className: 'bg-gray-500 text-white', type: 'finished' };
 };
 
-const getSafeImageUrl = (base64String: string | null): string | null => {
-    if (!base64String) return null;
-    if (base64String.startsWith('data:image')) return base64String;
-    return `data:image/jpeg;base64,${base64String}`;
-};
-
 const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
     return (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-4 text-white text-center font-bold" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.7)' }}>
@@ -48,7 +42,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const hasReport = isFinished && !!task.summary_report;
-    const imageUrl = getSafeImageUrl(task.livestream_image);
+    const imageUrl = task.livestream_image;
     const [timeLeft, setTimeLeft] = useState('');
 
     useEffect(() => {
