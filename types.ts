@@ -1,104 +1,23 @@
-// src/types.ts
+// types.ts
 
-export type View = 'dashboard' | 'cockpit' | 'dives' | 'events' | 'ai' | 'admin' | 'techboard';
-export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness';
+// --- General ---
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages?: number;
+  size?: number; // for competitiveness API
+  pages?: number; // for competitiveness API
+}
 
+// --- User & Auth ---
 export interface User {
   id: string;
   username: string;
   email: string;
-  subscription_plan: 'free' | 'premium';
-  is_admin?: boolean;
-}
-
-export interface UserListItem {
-  id: string;
-  username: string;
-  email: string;
   plan_name: string;
-  source_subscription_count: number;
-  poi_count: number;
   status: 'active' | 'disabled';
-  created_at: string;
-}
-
-export interface UserForAdminUpdate {
-    username?: string;
-    email?: string;
-    plan_name?: 'free' | 'premium';
-    status?: 'active' | 'disabled';
-}
-
-export interface UserProfileSource {
-  id: string;
-  name: string;
-}
-
-export interface UserProfilePOI {
-  id: string;
-  content: string;
-  keywords: string;
-}
-
-export interface UserProfileDetails {
-  user_id: string;
-  username: string;
-  intelligence_sources: {
-    count: number;
-    items: UserProfileSource[];
-  };
-  points_of_interest: {
-    count: number;
-    items: UserProfilePOI[];
-  };
-}
-
-
-export interface Subscription {
-  id: string;
-  source_name: string;
-  point_name: string;
-  point_url: string;
-  cron_schedule: string;
-  url_prompt_key: string;
-  summary_prompt_key: string;
-  is_active: 0 | 1;
-  created_at: string;
-  last_triggered_at: string | null;
-}
-
-export interface InfoItem {
-  id: string;
-  title: string;
-  content: string;
-  source_name: string;
-  point_id: string;
-  point_name: string;
-  original_url: string;
-  publish_date: string;
-  created_at: string;
-  // Optional fields added for frontend enrichment
-  influence?: 'high' | 'medium' | 'low';
-  sentiment?: 'positive' | 'neutral' | 'negative';
-  entities?: string[];
-}
-
-export interface SearchResult extends InfoItem {
-  similarity_score?: number;
-}
-
-export interface DeepDive {
-  id: string;
-  title: string;
-  summary: string;
-  author: string;
-  date: string;
-  imageUrl: string;
-  tags: string[];
-  category: {
-    primary: string;
-    secondary: string;
-  };
 }
 
 export interface Plan {
@@ -113,101 +32,50 @@ export interface PlanDetails {
     premium: Plan;
 }
 
-export interface RecommendedSubscription {
-    id: string;
-    name: string;
-    description: string;
-}
+// --- Views ---
+export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
+export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness';
 
-// --- Tech Dashboard Types ---
-export type ComparisonMode = 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain' | 'forecast';
-
-export interface SpecDetail {
-    value: string;
-    supplier?: string;
-    details?: Record<string, string | number>; // For tech-centric view
-}
-
-export interface TechDimension {
-    key: string;
-    label: string;
-    description?: string;
-}
-
-export interface TechDimensionCategory {
-    key: string;
-    label: string;
-    subDimensions: TechDimension[];
-}
-
-export interface VehicleTechSpec {
-    id: string; // e.g., 'li-l7-2024'
-    name: string; // e.g., '理想 L7 2024款'
-    brand: string; // e.g., '理想'
-    model: string; // e.g., 'L7'
-    year: number; // e.g., 2024
-    platform?: string; // e.g., '理想增程2.0平台'
-    specs: {
-        [categoryKey: string]: {
-            [subDimensionKey: string]: string | SpecDetail | null;
-        };
-    };
-}
-
-export interface NewTechForecast {
-    id: string;
-    brand: string;
-    model: string;
-    techDimensionKey: string; // e.g., 'smart_driving'
-    techName: string;
-    status: 'rumored' | 'confirmed';
-    confidence: number; // 0 to 1
-    firstDisclosedAt: string; // YYYY-MM-DD
-    lastUpdatedAt: string; // YYYY-MM-DD
-    sourceArticle: string;
-    sourceUrl: string;
-}
-
-
-export interface LivestreamTask {
-    id: string;
-    livestream_name: string;
-    url: string;
-    start_time: string;
-    status: string; // e.g., 'pending', 'listening', 'recording', 'processing', 'completed', 'failed'
-    summary_report: string | null;
-    livestream_image: string | null;
-    entity: string;
-    host_name: string;
-    created_at: string;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  page: number;
-  limit: number;
-  total: number;
-  totalPages?: number;
-}
-
-export interface Slide {
-    id: string;
-    title: string;
-    content: string;
-    status: 'queued' | 'generating' | 'done';
+// --- Intelligence & Subscriptions ---
+export interface Subscription {
+  id: string;
+  user_id: string;
+  source_name: string;
+  point_name: string;
+  point_url: string;
+  cron_schedule: string;
+  is_active: 0 | 1;
+  created_at: string;
+  updated_at: string;
+  last_triggered_at: string | null;
+  url_prompt_key: string;
+  summary_prompt_key: string;
 }
 
 export interface SystemSource {
-    id: string;
-    source_name: string;
-    points_count: number;
+  id: string;
+  source_name: string;
+  description: string | null;
+  points_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface FocusPoint {
-    id: string;
-    title: string;
-    keywords: string[];
-    relatedCount: number;
+export interface InfoItem {
+  id: string;
+  source_name: string;
+  point_name: string;
+  point_id: string;
+  title: string;
+  content: string;
+  original_url: string;
+  publish_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SearchResult extends InfoItem {
+  similarity_score?: number;
 }
 
 export interface ApiPoi {
@@ -216,16 +84,41 @@ export interface ApiPoi {
     keywords: string;
 }
 
-export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
+// --- Deep Dives & Recommendations ---
+export interface DeepDive {
+  id: string;
+  title: string;
+  summary: string;
+  author: string;
+  date: string;
+  tags: string[];
+  imageUrl: string;
+  category: {
+    primary: string;
+    secondary: string;
+  };
+}
 
-export interface InsightBriefing {
+export interface RecommendedSubscription {
     id: string;
-    title: string;
-    summary: string;
-    category: StrategicLookKey;
-    sourceArticleIds: string[];
-    generatedAt: string;
-    entities?: string[];
+    name: string;
+    description: string;
+    subscribers: number;
+}
+
+// --- Industry Events (Livestream) ---
+export interface LivestreamTask {
+  id: string;
+  url: string;
+  livestream_name: string;
+  entity: string;
+  host_name: string;
+  start_time: string;
+  status: 'pending' | 'listening' | 'recording' | 'processing' | 'completed' | 'failed';
+  summary_report: string | null;
+  livestream_image: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface LivestreamPrompt {
@@ -233,10 +126,42 @@ export interface LivestreamPrompt {
     content: string;
 }
 
+// --- Report Generator ---
+export interface Slide {
+  id: string;
+  title: string;
+  content: string;
+  status: 'queued' | 'generating' | 'done';
+}
+
+// --- Admin ---
+export interface UserListItem {
+    id: string;
+    username: string;
+    email: string;
+    plan_name: '免费版' | '高级版';
+    status: 'active' | 'disabled';
+    source_subscription_count: number;
+    poi_count: number;
+    created_at: string;
+}
+
+export interface UserForAdminUpdate {
+    username: string;
+    email: string;
+    plan_name: 'free' | 'premium';
+    status: 'active' | 'disabled';
+}
+
+export interface UserProfileDetails {
+    intelligence_sources: { items: SystemSource[] };
+    points_of_interest: { items: ApiPoi[] };
+}
+
 export interface Prompt {
     name: string;
-    description: string;
-    prompt: string;
+    content: string;
+    description?: string;
 }
 
 export interface AllPrompts {
@@ -245,28 +170,69 @@ export interface AllPrompts {
 }
 
 export interface IntelligenceTask {
-  id: string;
-  point_id: string;
-  source_name: string;
-  point_name: string;
-  task_type: string;
-  url: string;
-  status: string;
-  payload: string | null;
-  created_at: string;
-  updated_at: string;
+    id: string;
+    source_name: string;
+    point_name: string;
+    created_at: string;
+    status: 'processing' | 'completed' | 'failed' | 'pending' | 'pending_jina';
+    task_type: string;
+    payload: string | null;
 }
 
-export interface ManuscriptItem {
-    frame_number: number;
-    filename: string;
+// --- Strategic Cockpit ---
+export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
+
+// --- Competitiveness Dashboard & Tech ---
+export interface SpecDetail {
+    value: string;
+    supplier?: string;
+    details?: any;
+}
+
+export type SpecValue = string | SpecDetail | null;
+
+export interface VehicleTechSpec {
+    id: string;
+    name: string;
+    brand: string;
+    model: string;
+    year: number;
+    platform: string;
+    specs: {
+        [categoryKey: string]: {
+            [subDimensionKey: string]: SpecValue;
+        }
+    };
+}
+
+export interface TechDimension {
+    key: string;
+    label: string;
+}
+
+export interface TechDimensionCategory {
+    key: string;
+    label: string;
+    subDimensions: TechDimension[];
+}
+
+export type ComparisonMode = 'forecast' | 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain';
+
+export interface NewTechForecast {
+    id: string;
+    brand: string;
+    model: string;
+    techDimensionKey: string;
+    techName: string;
+    status: 'confirmed' | 'rumored';
     confidence: number;
-    content: string;
+    firstDisclosedAt: string;
+    lastUpdatedAt: string;
+    sourceArticle: string;
+    sourceUrl: string;
 }
 
-// --- Competitiveness Dashboard Types ---
-export type CompetitivenessView = 'forecast' | 'entities' | 'modules' | 'data_query' | 'backfill_jobs' | 'system_status';
-
+// --- Competitiveness Backend ---
 export interface CompetitivenessEntity {
     id: string;
     name: string;
@@ -276,66 +242,72 @@ export interface CompetitivenessEntity {
     metadata: Record<string, any>;
     is_active: boolean;
     created_at: string;
-    updated_at: string | null;
+    updated_at: string;
 }
 
 export interface CompetitivenessModule {
     id: string;
-    module_key: string;
     module_name: string;
+    module_key: string;
     target_entity_types: string[];
-    extraction_fields: Record<string, any>;
     final_data_table: string;
     description: string | null;
+    extraction_fields: Record<string, any>;
     is_active: boolean;
     created_at: string;
-    updated_at: string | null;
+    updated_at: string;
 }
 
 export interface BackfillJob {
     id: string;
     name: string;
-    description: string;
+    description: string | null;
     start_date: string;
     end_date: string;
     status: 'pending' | 'running' | 'paused' | 'completed' | 'failed';
-    priority: number;
     created_at: string;
+    updated_at: string;
 }
 
 export interface SystemStatus {
-    service_name: string;
-    version: string;
-    status: 'healthy' | 'unhealthy';
+    status: string;
+    database_status: string;
     uptime: string;
-    database_status: 'connected' | 'disconnected';
+    version: string;
     statistics: {
         active_modules: number;
         total_entities: number;
         processing_queue_size: number;
-        [key: string]: any; // Allow other stats fields
     };
-    [key: string]: any; // Allow other top-level fields
 }
 
 export interface DataQueryResponse<T> {
-  data: T[];
-  page: number;
-  limit: number;
-  total: number;
+    data: T[];
+    total: number;
+    limit: number;
+    offset: number;
 }
 
 export interface VehicleTechnologyFinding {
     id: string;
     entity_id: string;
     entity_name: string;
-    technology_name: string;
-    application_area: string;
-    maturity_level: string;
-    impact_assessment: string;
-    event_date: string;
-    confidence_score: number;
-    latest_source_article_id: string;
+    technology_name: string | null;
+    application_area: string | null;
+    maturity_level: string | null;
+    event_date: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MarketAnalysisFinding {
+    id: string;
+    entity_id: string;
+    entity_name: string;
+    revenue: number | null;
+    growth_rate: number | null;
+    market_share: number | null;
+    event_date: string | null;
     created_at: string;
     updated_at: string;
 }

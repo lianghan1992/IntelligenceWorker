@@ -43,7 +43,7 @@ const UserDetailsModal: React.FC<{ user: UserListItem; type: 'sources' | 'pois';
             return sources.length > 0 ? (
                 <ul className="space-y-2">
                     {sources.map(source => (
-                        <li key={source.id} className="p-2 bg-gray-50 rounded-md">{source.name}</li>
+                        <li key={source.id} className="p-2 bg-gray-50 rounded-md">{source.source_name}</li>
                     ))}
                 </ul>
             ) : <p>该用户没有订阅任何情报源。</p>;
