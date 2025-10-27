@@ -324,3 +324,18 @@ export interface DataQueryResponse<T> {
   limit: number;
   total: number;
 }
+
+export interface VehicleTechnologyFinding {
+    id: string;
+    entity_id: string;
+    entity_name: string;
+    technology_name: string;
+    application_area: string;
+    maturity_level: string;
+    impact_assessment: string;
+    event_date: string;
+    confidence_score: number;
+    latest_source_article_id: string;
+    created_at: string;
+    updated_at: string;
+}
