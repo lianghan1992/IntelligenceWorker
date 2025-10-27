@@ -309,10 +309,13 @@ export interface SystemStatus {
     status: 'healthy' | 'unhealthy';
     uptime: string;
     database_status: 'connected' | 'disconnected';
-    active_modules: number;
-    total_entities: number;
-    processing_queue_size: number;
-    last_processing_time: string;
+    statistics: {
+        active_modules: number;
+        total_entities: number;
+        processing_queue_size: number;
+        [key: string]: any; // Allow other stats fields
+    };
+    [key: string]: any; // Allow other top-level fields
 }
 
 export interface DataQueryResponse<T> {

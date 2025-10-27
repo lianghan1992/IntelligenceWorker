@@ -578,9 +578,8 @@ const ModuleManager: React.FC = () => {
     );
 };
 
-// ===================================================================================
-// DATA QUERY VIEW
-// ===================================================================================
+// --- FIX: Add DataQueryView component ---
+// --- Data Query View ---
 const DataQueryView: React.FC = () => {
     const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: 10 });
     const [results, setResults] = useState<any>(null);
@@ -955,9 +954,9 @@ const SystemStatusManager: React.FC = () => {
         return [
             { icon: ServerIcon, label: '服务状态', value: status.status, isStatus: true },
             { icon: DatabaseIcon, label: '数据库', value: status.database_status, isStatus: true },
-            { icon: BrainIcon, label: '激活模块数', value: status.active_modules ?? 0 },
-            { icon: UsersIcon, label: '实体总数', value: status.total_entities ?? 0 },
-            { icon: RefreshIcon, label: '处理队列', value: status.processing_queue_size ?? 0 },
+            { icon: BrainIcon, label: '激活模块数', value: status.statistics?.active_modules ?? 0 },
+            { icon: UsersIcon, label: '实体总数', value: status.statistics?.total_entities ?? 0 },
+            { icon: RefreshIcon, label: '处理队列', value: status.statistics?.processing_queue_size ?? 0 },
             { icon: ClockIcon, label: '服务版本', value: status.version ?? 'N/A' },
             { icon: ClockIcon, label: '持续运行时间', value: status.uptime ?? 'N/A' },
         ];
