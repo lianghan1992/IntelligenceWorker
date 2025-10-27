@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { getEntities, getModules } from '../../api';
+import { getEntities } from '../../api';
 import { CompetitivenessEntity } from '../../types';
 import { VehicleTechnologyCard } from './VehicleTechnologyCard';
-import { SearchIcon, ChevronDownIcon, CloseIcon, UsersIcon } from '../icons';
+import { ChevronDownIcon, CloseIcon, UsersIcon } from '../icons';
 
 // --- Reusable MultiSelect Dropdown Component ---
 interface MultiSelectProps {
