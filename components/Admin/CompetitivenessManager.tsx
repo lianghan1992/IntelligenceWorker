@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus } from '../../types';
 import { 
@@ -711,8 +710,26 @@ const BackfillJobModal: React.FC<{ onClose: () => void; onSuccess: () => void; }
     useEffect(() => {
         const fetchDependencies = async () => {
             try {
+                // Fetch all active modules using pagination
+                const fetchAllModules = async (): Promise<CompetitivenessModule[]> => {
+                    const allModules: CompetitivenessModule[] = [];
+                    let offset = 0;
+                    const limit = 100; // Max limit as per API documentation
+                    while (true) {
+                        const modulesPage = await getModules({ is_active: true, limit, offset });
+                        if (modulesPage && modulesPage.length > 0) {
+                            allModules.push(...modulesPage);
+                        }
+                        if (!modulesPage || modulesPage.length < limit) {
+                            break; // This was the last page
+                        }
+                        offset += limit;
+                    }
+                    return allModules;
+                };
+
                 const [modulesRes, entitiesRes] = await Promise.all([
-                    getModules({ is_active: true, limit: 1000 }),
+                    fetchAllModules(),
                     getEntities({ is_active: true, size: 1000 })
                 ]);
                 setAvailableModules(modulesRes || []);
@@ -904,7 +921,7 @@ const BackfillJobsManager: React.FC = () => {
 
 // --- System Status Manager ---
 const SystemStatusManager: React.FC = () => {
-    const [status, setStatus] = useState<SystemStatus | null>(null);
+    const [status, setStatus] = useState<Partial<SystemStatus> | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -927,7 +944,7 @@ const SystemStatusManager: React.FC = () => {
         return () => clearInterval(interval);
     }, [fetchData]);
 
-    const getStatusIndicator = (s: string) => {
+    const getStatusIndicator = (s: string | undefined) => {
         const lower = s?.toLowerCase();
         if (lower === 'healthy' || lower === 'connected') return { class: 'bg-green-500', text: '正常' };
         return { class: 'bg-red-500', text: '异常' };
@@ -976,7 +993,7 @@ const SystemStatusManager: React.FC = () => {
 
 // --- Main Component ---
 export const CompetitivenessManager: React.FC = () => {
-    const [subView, setSubView] = useState<'entities' | 'modules' | 'backfill_jobs' | 'system_status' | 'data_query'>('system_status');
+    const [subView, setSubView] = useState<'entities' | 'modules' | 'backfill_jobs' | 'system_status' | 'data_query'>('entities');
 
     const renderSubView = () => {
         switch (subView) {
