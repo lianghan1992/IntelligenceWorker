@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { getEntities } from '../../api';
 import { CompetitivenessEntity } from '../../types';
 import { VehicleTechnologyCard } from './VehicleTechnologyCard';
-import { MarketAnalysisCard } from './MarketAnalysisCard';
 import { ChevronDownIcon, CloseIcon, UsersIcon, BrainIcon, TrendingUpIcon, EyeIcon } from '../icons';
 
 // --- Reusable MultiSelect Dropdown Component ---
@@ -89,31 +88,31 @@ const MultiSelectDropdown: React.FC<MultiSelectProps> = ({ options, selected, on
     );
 };
 
-
-// --- Main Dashboard Component ---
-const TABS = [
-    { key: 'vehicle_technology', label: '新技术', icon: BrainIcon },
-    { key: 'market_analysis', label: '市场分析', icon: EyeIcon },
-    { key: 'technology_forecast', label: '技术预测', icon: TrendingUpIcon },
-];
-
-export const CompetitivenessDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState(TABS[0].key);
-    
+// --- View for "新技术看板" ---
+const VehicleTechnologyView: React.FC = () => {
     const [allEntities, setAllEntities] = useState<CompetitivenessEntity[]>([]);
     const [selectedEntities, setSelectedEntities] = useState<CompetitivenessEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    
+
     const fetchAllEntities = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
-            const entityTypesToFetch = ['car_brand', 'car_model', 'company'];
-            const promises = entityTypesToFetch.map(type => getEntities({ size: 1000, is_active: true, entity_type: type }));
-            const responses = await Promise.all(promises);
-            const combined = responses.flatMap(res => res.items || []);
+            // Fetch all active car_brand, car_model, and company entities for the selector
+            const [brandsRes, modelsRes, companiesRes] = await Promise.all([
+                getEntities({ size: 1000, is_active: true, entity_type: 'car_brand' }),
+                getEntities({ size: 1000, is_active: true, entity_type: 'car_model' }),
+                getEntities({ size: 1000, is_active: true, entity_type: 'company' })
+            ]);
             
+            const combined = [
+                ...(brandsRes.items || []), 
+                ...(modelsRes.items || []),
+                ...(companiesRes.items || [])
+            ];
+            
+            // Remove duplicates and sort by name for better UX in the dropdown
             const uniqueEntities = Array.from(new Map(combined.map(e => [e.id, e])).values());
             uniqueEntities.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 
@@ -132,23 +131,55 @@ export const CompetitivenessDashboard: React.FC = () => {
     
     const selectedEntityIds = useMemo(() => selectedEntities.map(e => e.id), [selectedEntities]);
 
+    return (
+        <>
+            <div className="sticky top-0 z-20 bg-gray-50/70 backdrop-blur-sm py-4 mb-6">
+                {isLoading ? (
+                    <div className="h-[50px] bg-gray-200 rounded-lg animate-pulse max-w-2xl"></div>
+                ) : error ? (
+                    <div className="p-3 bg-red-100 text-red-700 rounded-lg">{error}</div>
+                ) : (
+                     <MultiSelectDropdown
+                        options={allEntities}
+                        selected={selectedEntities}
+                        onChange={setSelectedEntities}
+                        placeholder="选择或搜索要对比的实体 (例如: 小米汽车, 特斯拉...)"
+                    />
+                )}
+            </div>
+
+            <main className="space-y-8">
+                {selectedEntityIds.length > 0 ? (
+                    <VehicleTechnologyCard selectedEntityIds={selectedEntityIds} />
+                ) : (
+                    <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border-2 border-dashed">
+                        <UsersIcon className="w-16 h-16 text-gray-300 mb-4" />
+                        <h2 className="text-xl font-semibold text-gray-700">请选择实体开始分析</h2>
+                        <p className="text-gray-500 mt-2">从上方的筛选器中选择一个或多个您感兴趣的实体，<br />系统将自动加载相关的竞争力情报。</p>
+                    </div>
+                )}
+            </main>
+        </>
+    );
+};
+
+
+// --- Main Dashboard Component ---
+const TABS = [
+    { key: 'vehicle_technology', label: '新技术', icon: BrainIcon },
+    { key: 'technology_forecast', label: '技术预测', icon: TrendingUpIcon },
+    { key: 'market_analysis', label: '市场分析', icon: EyeIcon }
+];
+
+export const CompetitivenessDashboard: React.FC = () => {
+    const [activeTab, setActiveTab] = useState(TABS[0].key);
+
     const renderContent = () => {
-        if (selectedEntityIds.length === 0) {
-             return (
-                <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border-2 border-dashed mt-6">
-                    <UsersIcon className="w-16 h-16 text-gray-300 mb-4" />
-                    <h2 className="text-xl font-semibold text-gray-700">请选择实体开始分析</h2>
-                    <p className="text-gray-500 mt-2">从上方的筛选器中选择一个或多个您感兴趣的实体，<br />系统将自动加载相关的竞争力情报。</p>
-                </div>
-            );
-        }
-        
         switch(activeTab) {
             case 'vehicle_technology':
-                return <VehicleTechnologyCard selectedEntityIds={selectedEntityIds} />;
-            case 'market_analysis':
-                return <MarketAnalysisCard selectedEntityIds={selectedEntityIds} />;
+                return <VehicleTechnologyView />;
             case 'technology_forecast':
+            case 'market_analysis':
                 return (
                     <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl border-2 border-dashed mt-6">
                         <h2 className="text-xl font-semibold text-gray-700">正在开发中</h2>
@@ -162,7 +193,7 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     return (
         <div className="p-6 bg-gray-50/70 h-full overflow-y-auto">
-            <div className="border-b border-gray-200">
+            <div className="border-b border-gray-200 mb-6">
                 <nav className="-mb-px flex space-x-6" aria-label="Tabs">
                     {TABS.map(tab => (
                         <button
@@ -180,25 +211,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                     ))}
                 </nav>
             </div>
-
-            <div className="sticky top-0 z-10 bg-gray-50/70 backdrop-blur-sm py-4 my-6">
-                 {isLoading ? (
-                    <div className="h-[50px] bg-gray-200 rounded-lg animate-pulse max-w-2xl"></div>
-                ) : error ? (
-                    <div className="p-3 bg-red-100 text-red-700 rounded-lg">{error}</div>
-                ) : (
-                     <MultiSelectDropdown
-                        options={allEntities}
-                        selected={selectedEntities}
-                        onChange={setSelectedEntities}
-                        placeholder="选择或搜索要对比的实体 (例如: 小米汽车, 特斯拉...)"
-                    />
-                )}
-            </div>
-            
-            <main className="space-y-8">
-                {renderContent()}
-            </main>
+            {renderContent()}
         </div>
     );
 };
