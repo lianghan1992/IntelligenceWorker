@@ -938,11 +938,11 @@ const SystemStatusManager: React.FC = () => {
         return [
             { icon: ServerIcon, label: '服务状态', value: status.status, isStatus: true },
             { icon: DatabaseIcon, label: '数据库', value: status.database_status, isStatus: true },
-            { icon: BrainIcon, label: '激活模块数', value: status.active_modules },
-            { icon: UsersIcon, label: '实体总数', value: status.total_entities },
-            { icon: RefreshIcon, label: '处理队列', value: status.processing_queue_size },
-            { icon: ClockIcon, label: '服务版本', value: status.version },
-            { icon: ClockIcon, label: '持续运行时间', value: status.uptime },
+            { icon: BrainIcon, label: '激活模块数', value: status.active_modules ?? 0 },
+            { icon: UsersIcon, label: '实体总数', value: status.total_entities ?? 0 },
+            { icon: RefreshIcon, label: '处理队列', value: status.processing_queue_size ?? 0 },
+            { icon: ClockIcon, label: '服务版本', value: status.version ?? 'N/A' },
+            { icon: ClockIcon, label: '持续运行时间', value: status.uptime ?? 'N/A' },
         ];
     }, [status]);
     
@@ -976,7 +976,7 @@ const SystemStatusManager: React.FC = () => {
 
 // --- Main Component ---
 export const CompetitivenessManager: React.FC = () => {
-    const [subView, setSubView] = useState<'entities' | 'modules' | 'backfill_jobs' | 'system_status' | 'data_query'>('entities');
+    const [subView, setSubView] = useState<'entities' | 'modules' | 'backfill_jobs' | 'system_status' | 'data_query'>('system_status');
 
     const renderSubView = () => {
         switch (subView) {
