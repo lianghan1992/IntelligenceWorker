@@ -7,6 +7,20 @@ interface TaskCardProps {
     onViewReport: () => void;
 }
 
+// Helper function to safely create a data URI for an image
+const getSafeImageSrc = (base64Data: string | null | undefined): string | null => {
+  // 1. Check for falsy values, empty strings, and common invalid string placeholders
+  if (!base64Data || base64Data.trim() === '' || base64Data.toLowerCase() === 'none' || base64Data.toLowerCase() === 'null') {
+    return null;
+  }
+  // 2. Check if it's already a valid data URI
+  if (base64Data.startsWith('data:image')) {
+    return base64Data;
+  }
+  // 3. Assume it's a raw base64 string and add the prefix.
+  return `data:image/jpeg;base64,${base64Data}`;
+};
+
 const getStatusDetails = (status: string) => {
     const statusLower = status.toLowerCase();
 
@@ -42,7 +56,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const hasReport = isFinished && !!task.summary_report;
-    const imageUrl = task.livestream_image;
+    const imageUrl = getSafeImageSrc(task.livestream_image);
     const [timeLeft, setTimeLeft] = useState('');
 
     useEffect(() => {
