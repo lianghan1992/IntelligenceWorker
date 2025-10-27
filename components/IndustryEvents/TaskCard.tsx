@@ -42,9 +42,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const hasReport = isFinished && !!task.summary_report;
-    const imageUrl = task.livestream_image?.startsWith('data:image')
-        ? task.livestream_image
-        : `data:image/jpeg;base64,${task.livestream_image}`;
+    const imageUrl = task.livestream_image;
     const [timeLeft, setTimeLeft] = useState('');
 
     useEffect(() => {
@@ -98,7 +96,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             onClick={hasReport ? onViewReport : undefined}
             className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 ${hasReport ? 'cursor-pointer' : 'cursor-default'}`}
         >
-            {task.livestream_image ? (
+            {imageUrl ? (
                 <img src={imageUrl} alt={task.livestream_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             ) : (
                 <div className="absolute inset-0 w-full h-full bg-gray-800"></div>

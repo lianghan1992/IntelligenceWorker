@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks, deleteLivestreamTask, getLivestreamTasksStats, startListenTask, stopListenTask } from '../../api';
@@ -239,14 +241,12 @@ export const LivestreamTaskManager: React.FC = () => {
                         ) : (
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
-                                const imageUrl = task.livestream_image?.startsWith('data:image')
-                                    ? task.livestream_image
-                                    : `data:image/jpeg;base64,${task.livestream_image}`;
+                                const imageUrl = task.livestream_image;
                                 const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
-                                        {task.livestream_image ? <img src={imageUrl} alt="" className="w-16 h-10 object-cover rounded-md bg-gray-200" /> : <div className="w-16 h-10 rounded-md bg-gray-200 flex items-center justify-center"><VideoCameraIcon className="w-6 h-6 text-gray-400"/></div>}
+                                        {imageUrl ? <img src={imageUrl} alt="" className="w-16 h-10 object-cover rounded-md bg-gray-200" /> : <div className="w-16 h-10 rounded-md bg-gray-200 flex items-center justify-center"><VideoCameraIcon className="w-6 h-6 text-gray-400"/></div>}
                                     </td>
                                     <td className="px-6 py-4 font-medium text-gray-900">{task.livestream_name}<br/><span className="text-xs text-gray-500 font-normal">{task.entity}</span></td>
                                     <td className="px-6 py-4">{task.host_name}</td>
