@@ -3,6 +3,59 @@ import { LivestreamTask, View } from '../../types';
 import { getLivestreamTasks } from '../../api';
 import { VideoCameraIcon, ArrowRightIcon } from '../icons';
 
+// Helper function to safely handle various image data formats from the backend
+const getSafeImageSrc = (imageData: string | null | undefined): string | null => {
+  // 1. Initial cleanup for falsy or placeholder values
+  if (!imageData || imageData.trim() === '' || imageData.toLowerCase() === 'none' || imageData.toLowerCase() === 'null') {
+    return null;
+  }
+  
+  // 2. Handle full external URLs
+  if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
+    return imageData;
+  }
+
+  // 3. Handle potential data URIs, including broken ones due to double-encoding
+  if (imageData.startsWith('data:image')) {
+    const parts = imageData.split(',');
+    if (parts.length < 2) return null; // Malformed
+
+    const prefix = parts[0];
+    let payload = parts.slice(1).join(',');
+
+    try {
+      // Attempt to decode, checking for double-encoding
+      const decodedPayload = atob(payload);
+
+      if (decodedPayload.startsWith('data:image')) {
+        // Case: The entire data URI was base64 encoded. The decoded payload is the correct URI.
+        // e.g., base64('data:image/jpeg;base64,/9j/...')
+        return decodedPayload;
+      } else if (decodedPayload.startsWith('/9j/')) {
+        // Case: The base64 data was double-encoded.
+        // e.g., base64('/9j/...')
+        return `${prefix},${decodedPayload}`;
+      }
+    } catch (e) {
+      // Decoding failed, which is expected for a correct, single-encoded base64 string.
+      // We can proceed assuming the original imageData is correct.
+    }
+    
+    // If no double-encoding was detected, return the original URI as is.
+    return imageData;
+  }
+  
+  // 4. Fallback for raw base64 string without a prefix
+  try {
+    atob(imageData); // Verify it's valid base64
+    return `data:image/jpeg;base64,${imageData}`;
+  } catch (e) {
+    console.error("Invalid image data format:", imageData);
+    return null; // The data is not a URL, not a data URI, and not valid raw base64.
+  }
+};
+
+
 const formatTimeLeft = (distance: number): string | null => {
     if (distance < 0) return null;
     const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -17,9 +70,7 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
     const statusLower = event.status.toLowerCase();
     const isLive = statusLower === 'recording';
     const isCompleted = statusLower === 'completed';
-    const imageUrl = event.livestream_image?.startsWith('data:image') 
-        ? event.livestream_image 
-        : `data:image/jpeg;base64,${event.livestream_image}`;
+    const imageUrl = getSafeImageSrc(event.livestream_image);
 
     useEffect(() => {
         if (isLive || isCompleted) return;
@@ -44,7 +95,7 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
             onClick={() => onNavigate('events')}
             className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
         >
-            {event.livestream_image ? (
+            {imageUrl ? (
                 <img src={imageUrl} alt={event.livestream_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             ) : (
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-700 to-gray-900"></div>
