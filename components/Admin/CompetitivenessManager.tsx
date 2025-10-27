@@ -237,7 +237,16 @@ const EntityManager: React.FC = () => {
     const handleToggleActive = async (entity: CompetitivenessEntity) => {
         setTogglingId(entity.id);
         try {
-            await updateEntity(entity.id, { is_active: !entity.is_active });
+            // Send the full entity object with the toggled is_active state
+            const payload = {
+                name: entity.name,
+                entity_type: entity.entity_type,
+                aliases: entity.aliases,
+                description: entity.description,
+                metadata: entity.metadata,
+                is_active: !entity.is_active
+            };
+            await updateEntity(entity.id, payload);
             // Update local state for immediate feedback before refetch
             setEntities(prev => prev.map(e => e.id === entity.id ? {...e, is_active: !e.is_active} : e));
         } catch (err: any) {
