@@ -150,11 +150,15 @@ export const LivestreamTaskManager: React.FC = () => {
     };
 
     const confirmAction = async () => {
-        if (!taskToAction || !taskToAction.task.id) return;
+        if (!taskToAction) return;
+
         setActionLoading(true);
         setError(null);
         const { task, action } = taskToAction;
         try {
+            if (!task.id) {
+                throw new Error("操作失败：任务ID不存在。");
+            }
             switch (action) {
                 case 'delete': await deleteLivestreamTask(task.id); break;
                 case 'start': await startListenTask(task.id); break;
