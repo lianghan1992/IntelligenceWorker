@@ -539,3 +539,316 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef12
 **错误响应:**
 - `404 Not Found`: 当提供的 `task_id` 不存在时返回。
 - `500 Internal Server Error`: 当后台处理发生意外错误时返回。
+
+---
+
+## 16. WebSocket 实时通知
+
+直播服务提供 WebSocket 接口，用于实时推送任务状态变化、创建和删除等事件通知。
+
+### 16.1 WebSocket 端点
+
+#### 通用 WebSocket 连接
+- **端点:** `ws://localhost:7657/ws`
+- **认证:** 需要在连接时提供 `token` 查询参数
+- **功能:** 接收所有类型的系统通知
+
+#### 直播服务专用连接
+- **端点:** `ws://localhost:7657/ws/livestream`
+- **认证:** 需要在连接时提供 `token` 查询参数
+- **功能:** 专门接收直播任务相关的实时通知
+
+#### 房间连接
+- **端点:** `ws://localhost:7657/ws/room/{room_name}`
+- **认证:** 需要在连接时提供 `token` 查询参数
+- **功能:** 加入指定房间，接收房间内的消息广播
+
+### 16.2 连接示例
+
+```javascript
+// 连接到直播服务专用 WebSocket
+const ws = new WebSocket('ws://localhost:7657/ws/livestream?token=YOUR_JWT_TOKEN');
+
+ws.onopen = function(event) {
+    console.log('WebSocket 连接已建立');
+};
+
+ws.onmessage = function(event) {
+    const message = JSON.parse(event.data);
+    console.log('收到消息:', message);
+};
+
+ws.onclose = function(event) {
+    console.log('WebSocket 连接已关闭');
+};
+```
+
+### 16.3 消息格式
+
+所有 WebSocket 消息都遵循统一的 JSON 格式：
+
+```json
+{
+  "type": "message_type",
+  "data": {
+    // 具体的消息数据
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "livestream_service"
+}
+```
+
+### 16.4 消息类型
+
+#### 任务状态更新通知
+
+当任务状态发生变化时（如从 pending 变为 listening，或从 processing 变为 completed），会发送此类通知。
+
+```json
+{
+  "type": "task_status_update",
+  "data": {
+    "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "status": "listening",
+    "livestream_name": "新车发布会",
+    "host_name": "主播名称",
+    "updated_at": "2025-01-20T10:30:00Z"
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "livestream_service"
+}
+```
+
+**状态值说明:**
+- `pending`: 任务已创建，等待开始
+- `listening`: 正在监听直播
+- `recording`: 正在录制
+- `processing`: 正在进行AI分析
+- `completed`: 任务已完成
+- `failed`: 任务失败
+
+#### 任务创建通知
+
+当新的直播任务被创建时发送。
+
+```json
+{
+  "type": "task_created",
+  "data": {
+    "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "livestream_name": "新车发布会",
+    "host_name": "主播名称",
+    "start_time": "2025-01-20T14:00:00Z",
+    "status": "pending"
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "livestream_service"
+}
+```
+
+#### 任务删除通知
+
+当直播任务被删除时发送。
+
+```json
+{
+  "type": "task_deleted",
+  "data": {
+    "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "livestream_name": "新车发布会"
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "livestream_service"
+}
+```
+
+#### 连接确认消息
+
+WebSocket 连接建立成功后发送。
+
+```json
+{
+  "type": "connection_established",
+  "data": {
+    "user_id": "user-uuid",
+    "connection_id": "connection-uuid"
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "websocket_manager"
+}
+```
+
+#### 错误消息
+
+当发生错误时发送，如认证失败等。
+
+```json
+{
+  "type": "error",
+  "data": {
+    "error_code": "AUTHENTICATION_FAILED",
+    "message": "Invalid or expired token"
+  },
+  "timestamp": "2025-01-20T10:30:00Z",
+  "source": "websocket_manager"
+}
+```
+
+### 16.5 客户端集成示例
+
+#### 基础 JavaScript 客户端
+
+```javascript
+class LivestreamWebSocketClient {
+  constructor(token) {
+    this.token = token;
+    this.ws = null;
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+  }
+
+  connect() {
+    const wsUrl = `ws://localhost:7657/ws/livestream?token=${this.token}`;
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.onopen = () => {
+      console.log('WebSocket 连接已建立');
+      this.reconnectAttempts = 0;
+    };
+
+    this.ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      this.handleMessage(message);
+    };
+
+    this.ws.onclose = () => {
+      console.log('WebSocket 连接已关闭');
+      this.handleReconnect();
+    };
+
+    this.ws.onerror = (error) => {
+      console.error('WebSocket 错误:', error);
+    };
+  }
+
+  handleMessage(message) {
+    switch (message.type) {
+      case 'task_status_update':
+        this.onTaskStatusUpdate(message.data);
+        break;
+      case 'task_created':
+        this.onTaskCreated(message.data);
+        break;
+      case 'task_deleted':
+        this.onTaskDeleted(message.data);
+        break;
+      case 'connection_established':
+        console.log('连接确认:', message.data);
+        break;
+      case 'error':
+        console.error('服务器错误:', message.data);
+        break;
+    }
+  }
+
+  onTaskStatusUpdate(data) {
+    console.log(`任务 ${data.task_id} 状态更新为: ${data.status}`);
+    // 在这里更新 UI 中的任务状态
+  }
+
+  onTaskCreated(data) {
+    console.log(`新任务创建: ${data.livestream_name}`);
+    // 在这里添加新任务到 UI
+  }
+
+  onTaskDeleted(data) {
+    console.log(`任务已删除: ${data.task_id}`);
+    // 在这里从 UI 中移除任务
+  }
+
+  handleReconnect() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      setTimeout(() => {
+        console.log(`尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+        this.connect();
+      }, 1000 * this.reconnectAttempts);
+    }
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+    }
+  }
+}
+
+// 使用示例
+const client = new LivestreamWebSocketClient('your-jwt-token');
+client.connect();
+```
+
+#### React Hook 示例
+
+```javascript
+import { useState, useEffect, useRef } from 'react';
+
+export const useLivestreamWebSocket = (token) => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const ws = useRef(null);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const wsUrl = `ws://localhost:7657/ws/livestream?token=${token}`;
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => {
+      setIsConnected(true);
+    };
+
+    ws.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      
+      switch (message.type) {
+        case 'task_status_update':
+          setTasks(prev => prev.map(task => 
+            task.id === message.data.task_id 
+              ? { ...task, status: message.data.status }
+              : task
+          ));
+          break;
+        case 'task_created':
+          setTasks(prev => [...prev, message.data]);
+          break;
+        case 'task_deleted':
+          setTasks(prev => prev.filter(task => task.id !== message.data.task_id));
+          break;
+      }
+    };
+
+    ws.current.onclose = () => {
+      setIsConnected(false);
+    };
+
+    return () => {
+      if (ws.current) {
+        ws.current.close();
+      }
+    };
+  }, [token]);
+
+  return { isConnected, tasks };
+};
+```
+
+### 16.6 最佳实践
+
+1. **认证管理**: 确保 JWT Token 有效，在 Token 过期前及时刷新
+2. **重连机制**: 实现自动重连逻辑，处理网络中断情况
+3. **错误处理**: 妥善处理各种错误消息和异常情况
+4. **性能优化**: 避免在消息处理中执行耗时操作
+5. **内存管理**: 及时清理不再需要的事件监听器和数据
+
+更多详细的 WebSocket 设计和使用指南，请参考 [WebSocket 设计指南](../../WebSocket_Design_Guide.md)。

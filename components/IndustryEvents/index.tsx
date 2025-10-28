@@ -37,7 +37,7 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await getPublicLivestreamTasks({ limit: 1000, sort_by: 'created_at', order: 'desc' });
+            const response = await getPublicLivestreamTasks({ limit: 50, sort_by: 'created_at', order: 'desc' });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
             } else {
