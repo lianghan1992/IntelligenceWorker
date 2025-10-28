@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
-import { getLivestreamTasks } from '../../api';
+import { getPublicLivestreamTasks } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
 
@@ -20,7 +20,7 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {tasks.map((task) => (
-                    <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
+                    <TaskCard key={task.url + task.start_time} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
             </div>
         </section>
@@ -37,7 +37,7 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await getLivestreamTasks({ limit: 1000, sort_by: 'created_at', order: 'desc' });
+            const response = await getPublicLivestreamTasks({ limit: 1000, sort_by: 'created_at', order: 'desc' });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
             } else {

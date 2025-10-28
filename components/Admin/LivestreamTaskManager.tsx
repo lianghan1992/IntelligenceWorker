@@ -13,59 +13,6 @@ import { LogDisplayModal } from './LogDisplayModal';
 import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
 
 
-// Helper function to safely handle various image data formats from the backend
-const getSafeImageSrc = (imageData: string | null | undefined): string | null => {
-  // 1. Initial cleanup for falsy or placeholder values
-  if (!imageData || imageData.trim() === '' || imageData.toLowerCase() === 'none' || imageData.toLowerCase() === 'null') {
-    return null;
-  }
-  
-  // 2. Handle full external URLs
-  if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-    return imageData;
-  }
-
-  // 3. Handle potential data URIs, including broken ones due to double-encoding
-  if (imageData.startsWith('data:image')) {
-    const parts = imageData.split(',');
-    if (parts.length < 2) return null; // Malformed
-
-    const prefix = parts[0];
-    let payload = parts.slice(1).join(',');
-
-    try {
-      // Attempt to decode, checking for double-encoding
-      const decodedPayload = atob(payload);
-
-      if (decodedPayload.startsWith('data:image')) {
-        // Case: The entire data URI was base64 encoded. The decoded payload is the correct URI.
-        // e.g., base64('data:image/jpeg;base64,/9j/...')
-        return decodedPayload;
-      } else if (decodedPayload.startsWith('/9j/')) {
-        // Case: The base64 data was double-encoded.
-        // e.g., base64('/9j/...')
-        return `${prefix},${decodedPayload}`;
-      }
-    } catch (e) {
-      // Decoding failed, which is expected for a correct, single-encoded base64 string.
-      // We can proceed assuming the original imageData is correct.
-    }
-    
-    // If no double-encoding was detected, return the original URI as is.
-    return imageData;
-  }
-  
-  // 4. Fallback for raw base64 string without a prefix
-  try {
-    atob(imageData); // Verify it's valid base64
-    return `data:image/jpeg;base64,${imageData}`;
-  } catch (e) {
-    console.error("Invalid image data format:", imageData);
-    return null; // The data is not a URL, not a data URI, and not valid raw base64.
-  }
-};
-
-
 // --- Internal Components ---
 const StatCard: React.FC<{ title: string; value: number | string; icon: React.ReactNode }> = ({ title, value, icon }) => (
     <div className="bg-white p-4 rounded-lg border border-gray-200 flex items-center gap-4 shadow-sm">
@@ -203,7 +150,7 @@ export const LivestreamTaskManager: React.FC = () => {
     };
 
     const confirmAction = async () => {
-        if (!taskToAction) return;
+        if (!taskToAction || !taskToAction.task.id) return;
         setActionLoading(true);
         setError(null);
         const { task, action } = taskToAction;
@@ -292,12 +239,11 @@ export const LivestreamTaskManager: React.FC = () => {
                         ) : (
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
-                                const imageUrl = getSafeImageSrc(task.livestream_image);
                                 const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4">
-                                        {imageUrl ? <img src={imageUrl} alt="" className="w-16 h-10 object-cover rounded-md bg-gray-200" /> : <div className="w-16 h-10 rounded-md bg-gray-200 flex items-center justify-center"><VideoCameraIcon className="w-6 h-6 text-gray-400"/></div>}
+                                        <div className="w-16 h-10 rounded-md bg-gray-200 flex items-center justify-center"><VideoCameraIcon className="w-6 h-6 text-gray-400"/></div>
                                     </td>
                                     <td className="px-6 py-4 font-medium text-gray-900">{task.livestream_name}<br/><span className="text-xs text-gray-500 font-normal">{task.entity}</span></td>
                                     <td className="px-6 py-4">{task.host_name}</td>
@@ -337,8 +283,8 @@ export const LivestreamTaskManager: React.FC = () => {
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
             {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={loadTasks} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
-            {logModalTask && <LogDisplayModal taskId={logModalTask.id} taskName={logModalTask.livestream_name} onClose={() => setLogModalTask(null)} />}
-            {manuscriptModalTask && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
+            {logModalTask && logModalTask.id && <LogDisplayModal taskId={logModalTask.id} taskName={logModalTask.livestream_name} onClose={() => setLogModalTask(null)} />}
+            {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskToAction && (
                 <ConfirmationModal
                     title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}

@@ -49,7 +49,6 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks \
   "bililive_live_id": "abcdef1234567890",
   "host_name": "主播名称",
   "prompt_content": "完整的提示词内容...",
-  "livestream_image": "data:image/jpeg;base64, புகைப்படம்...",
   "summary_report": null,
   "created_at": "2025-10-21T13:00:00Z",
   "updated_at": "2025-10-21T13:00:00Z"
@@ -98,7 +97,6 @@ curl -X GET "http://127.0.0.1:7657/livestream/tasks?page=1&limit=10&status=recor
       "bililive_live_id": "abcdef1234567890",
       "host_name": "主播名称",
       "prompt_content": "完整的提示词内容...",
-      "livestream_image": "data:image/jpeg;base64, புகைப்படம்...",
       "summary_report": null,
       "created_at": "2025-10-21T13:00:00Z",
       "updated_at": "2025-10-21T14:05:00Z"
@@ -111,7 +109,54 @@ curl -X GET "http://127.0.0.1:7657/livestream/tasks?page=1&limit=10&status=recor
 }
 ```
 
-## 3. 获取单个直播任务
+## 3. 获取公开直播任务列表 (分页、排序)
+
+获取系统中所有直播任务的公开列表，支持分页和排序。此接口仅返回部分公开字段，不包含敏感信息。
+
+-   **路径:** `/livestream/public_tasks`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | 1 | 请求的页码 |
+| `limit` | integer | 20 | 每页返回的数量 |
+| `sort_by` | string | `start_time` | 排序字段 (`start_time`, `livestream_name`) |
+| `order` | string | `desc` | 排序方向 (`asc` 或 `desc`) |
+
+**cURL请求示例**
+```bash
+# 获取第一页，每页10个，并按开始时间升序排序
+curl -X GET "http://127.0.0.1:7657/livestream/public_tasks?page=1&limit=10&sort_by=start_time&order=asc" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+
+返回一个包含分页元数据和当前页公开任务列表的对象。
+
+```json
+{
+  "items": [
+    {
+      "url": "https://live.bilibili.com/12345",
+      "livestream_name": "新车发布会",
+      "start_time": "2025-10-21T14:00:00Z",
+      "status": "recording",
+      "host_name": "主播名称",
+      "summary_report": null
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "limit": 10,
+  "totalPages": 15
+}
+```
+
+## 5. 获取单个直播任务
 
 获取指定ID的直播任务的详细信息。
 
@@ -139,14 +184,13 @@ curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef123
   "bililive_live_id": "abcdef1234567890",
   "host_name": "主播名称",
   "prompt_content": "完整的提示词内容...",
-  "livestream_image": "data:image/jpeg;base64, புகைப்படம்...",
   "summary_report": null,
   "created_at": "2025-10-21T13:00:00Z",
   "updated_at": "2025-10-21T14:05:00Z"
 }
 ```
 
-## 4. 获取任务统计
+## 6. 获取任务统计
 
 快速获取各种状态的任务数量，用于仪表盘或概览展示。
 
@@ -173,7 +217,7 @@ curl -X GET http://127.0.0.1:7657/livestream/tasks/stats \
 }
 ```
 
-## 4. 开始监听任务
+## 7. 开始监听任务
 
 手动触发对一个任务的监听。通常在任务创建后会自动开始监听。
 
@@ -196,7 +240,7 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef12
 }
 ```
 
-## 5. 停止监听任务
+## 8. 停止监听任务
 
 手动停止对一个任务的监听。
 
@@ -219,7 +263,7 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef12
 }
 ```
 
-## 6. 删除任务
+## 9. 删除任务
 
 从系统中删除一个任务。此操作会同时从数据库和 `bililive-go` 中删除该任务。
 
@@ -242,7 +286,7 @@ curl -X DELETE http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef
 }
 ```
 
-## 7. 获取所有提示词
+## 10. 获取所有提示词
 
 获取系统中所有可用提示词的列表及其内容。
 
@@ -269,7 +313,7 @@ curl -X GET http://127.0.0.1:7657/livestream/prompts
 ]
 ```
 
-## 8. 更新提示词
+## 11. 更新提示词
 
 更新指定提示词文件的内容。
 
@@ -296,7 +340,7 @@ curl -X GET http://127.0.0.1:7657/livestream/prompts
 curl -X POST http://127.0.0.1:7657/livestream/prompts/01.车企发布会摘要总结.md \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
--d '{
+-d '{ 
   "content": "这是新的提示词内容。"
 }'
 ```
@@ -309,7 +353,7 @@ curl -X POST http://127.0.0.1:7657/livestream/prompts/01.车企发布会摘要�
 }
 ```
 
-## 9. 追加历史任务
+## 12. 追加历史任务
 
 允许用户上传已经存在的发布会总结报告，将其作为一条已完成的历史任务存入数据库。
 
@@ -335,7 +379,7 @@ curl -X POST http://127.0.0.1:7657/livestream/prompts/01.车企发布会摘要�
 curl -X POST http://127.0.0.1:7657/livestream/tasks/history \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
--d '{
+-d '{ 
   "url": "https://example.com/history_event",
   "livestream_name": "2023年度技术大会",
   "entity": "某科技公司",
@@ -346,7 +390,7 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/history \
 }'
 ```
 
-**返回示例 (201- Created)**
+**返回示例 (201 Created)**
 
 返回新创建的历史任务对象，其`status`字段为`completed`。
 
@@ -368,7 +412,7 @@ curl -X POST http://127.0.0.1:7657/livestream/tasks/history \
 }
 ```
 
-## 10. 获取任务分析日志
+## 13. 获取任务分析日志
 
 获取指定任务在分析过程中生成的详细日志文件。
 
@@ -389,7 +433,7 @@ curl -X GET http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef123
 }
 ```
 
-## 11. 获取任务原始文稿 (JSON 或 Markdown)
+## 14. 获取任务原始文稿 (JSON 或 Markdown)
 
 获取指定任务分析后产出的原始文稿，支持JSON和Markdown两种格式。
 
@@ -452,3 +496,45 @@ curl -X GET "http://127.0.0.1:7657/livestream/tasks/a1b2c3d4.../manuscript?forma
   "content": "# 汽车发布会原始文字稿\n\n--- (帧序号: 1 | ...\n..."
 }
 ```
+
+---
+
+## 15. 重新触发AI分析 (Re-trigger Analysis)
+
+**路径:** `/livestream/tasks/{task_id}/re-analyze`
+
+**方法:** `POST`
+
+**认证:** 需要Bearer Token
+
+**说明:**
+手动重新触发对一个指定任务的分析流程。该接口具有智能判断能力：
+- 如果任务目录中已经存在 `01_raw_manuscript.json` 文件，则只会重新执行AI总结步骤。
+- 如果原始稿件不存在，则会从头开始执行完整的视频分析流程（包括视频拼接、抽帧、OCR、总结等）。
+
+此功能在AI总结效果不佳、需要使用不同提示词重新总结，或早期分析步骤失败时非常有用。
+
+**路径参数:**
+- `task_id` (string, required): 需要重新分析的任务的唯一ID。
+
+**请求体:**
+- (无)
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/re-analyze \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**成功响应 (200 OK):**
+```json
+{
+  "task_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "success",
+  "message": "Task analysis has been re-triggered."
+}
+```
+
+**错误响应:**
+- `404 Not Found`: 当提供的 `task_id` 不存在时返回。
+- `500 Internal Server Error`: 当后台处理发生意外错误时返回。

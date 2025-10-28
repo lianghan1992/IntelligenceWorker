@@ -10,6 +10,11 @@ export const getLivestreamTasks = (params: any): Promise<PaginatedResponse<Lives
     return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks${query}`);
 };
 
+export const getPublicLivestreamTasks = (params: any): Promise<PaginatedResponse<LivestreamTask>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/public_tasks${query}`);
+};
+
 export const getLivestreamTasksStats = (): Promise<any> => apiFetch<any>(`${LIVESTREAM_SERVICE_PATH}/tasks/stats`);
 
 export const createLivestreamTask = (data: { url: string; livestream_name: string; entity: string; start_time: string; prompt_file: string; image?: File }): Promise<LivestreamTask> => {

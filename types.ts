@@ -108,15 +108,15 @@ export interface RecommendedSubscription {
 
 // --- Industry Events (Livestream) ---
 export interface LivestreamTask {
-  id: string;
+  id?: string;
   url: string;
   livestream_name: string;
-  entity: string;
+  entity?: string;
   host_name: string;
   start_time: string;
   status: 'pending' | 'listening' | 'recording' | 'processing' | 'completed' | 'failed';
   summary_report: string | null;
-  livestream_image: string | null;
+  livestream_image?: string | null;
   created_at: string;
   updated_at: string;
 }
