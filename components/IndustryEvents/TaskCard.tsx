@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
-import { DocumentTextIcon, FilmIcon } from '../icons';
+import { DocumentTextIcon, FilmIcon, PlayIcon } from '../icons';
 
 interface TaskCardProps {
     task: LivestreamTask;
@@ -94,6 +94,7 @@ const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
 export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
+    const isLive = statusDetails.type === 'live';
     const hasReport = isFinished && !!task.summary_report;
     const [timeLeft, setTimeLeft] = useState('');
     const imageUrl = getSafeImageSrc(task.livestream_image);
@@ -167,6 +168,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             <div className="absolute inset-0 flex flex-col justify-end p-4 text-white z-10">
                 <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.livestream_name}</h3>
                 <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{task.host_name} &nbsp;&nbsp;|&nbsp;&nbsp; {formattedDate}</p>
+
+                {isLive && (
+                    <div className="mt-4">
+                        <a
+                            href={task.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all transform hover:scale-105"
+                        >
+                            <PlayIcon className="w-4 h-4" />
+                            <span>观看直播</span>
+                        </a>
+                    </div>
+                )}
 
                 {isFinished && (
                     <div className="mt-4 flex gap-3">

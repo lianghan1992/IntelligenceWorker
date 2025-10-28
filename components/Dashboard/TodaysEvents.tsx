@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask, View } from '../../types';
 import { getPublicLivestreamTasks } from '../../api';
-import { VideoCameraIcon, ArrowRightIcon } from '../icons';
+import { VideoCameraIcon, ArrowRightIcon, PlayIcon } from '../icons';
 
 // Helper function to safely handle various image data formats from the backend
 const getSafeImageSrc = (imageData: string | null | undefined): string | null => {
@@ -136,6 +136,18 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                 
                 {/* Bottom: Info */}
                 <div style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>
+                    {isLive && (
+                        <a 
+                            href={event.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="mb-3 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all transform hover:scale-105"
+                        >
+                            <PlayIcon className="w-4 h-4" />
+                            <span>观看直播</span>
+                        </a>
+                    )}
                     <span className="inline-block bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-2 py-0.5 rounded-full mb-1">
                         {event.entity || event.host_name}
                     </span>
