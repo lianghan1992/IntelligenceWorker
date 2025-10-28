@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask, View } from '../../types';
-import { getLivestreamTasks } from '../../api';
+import { getPublicLivestreamTasks } from '../../api';
 import { VideoCameraIcon, ArrowRightIcon } from '../icons';
 
 // Helper function to safely handle various image data formats from the backend
@@ -174,13 +174,13 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
             setLoading(true);
             try {
                 const [pendingRes, liveRes, listeningRes, completedRes] = await Promise.all([
-                    getLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
+                    getPublicLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
+                    getPublicLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
+                    getPublicLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
+                    getPublicLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
                 ]);
                 const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items, ...completedRes.items];
-                const uniqueEvents = Array.from(new Map(combined.map(e => [e.id, e])).values());
+                const uniqueEvents = Array.from(new Map(combined.map(e => [e.url, e])).values());
                 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -246,7 +246,7 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                      Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)
                 ) : events.length > 0 ? (
                     events.map(event => (
-                        <EventCard key={event.id} event={event} onNavigate={onNavigate} />
+                        <EventCard key={event.url + event.start_time} event={event} onNavigate={onNavigate} />
                     ))
                 ) : (
                     <div className="sm:col-span-2 lg:col-span-4 bg-white p-6 rounded-xl border border-dashed text-center text-gray-500">
