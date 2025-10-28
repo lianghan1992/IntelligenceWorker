@@ -227,7 +227,6 @@ export const LivestreamTaskManager: React.FC = () => {
                 <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
-                            <th scope="col" className="px-6 py-3 w-24">封面</th>
                             <SortableHeader column="livestream_name" label="直播名称" sortConfig={sort} onSort={handleSort} />
                             <th scope="col" className="px-6 py-3">主播/公司</th>
                             <SortableHeader column="start_time" label="开始时间" sortConfig={sort} onSort={handleSort} />
@@ -237,18 +236,15 @@ export const LivestreamTaskManager: React.FC = () => {
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={6} className="text-center py-10">加载中...</td></tr>
+                            <tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>
                         ) : tasks.length === 0 ? (
-                            <tr><td colSpan={6} className="text-center py-10">未找到任何任务。</td></tr>
+                            <tr><td colSpan={5} className="text-center py-10">未找到任何任务。</td></tr>
                         ) : (
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
                                 const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4">
-                                        <div className="w-16 h-10 rounded-md bg-gray-200 flex items-center justify-center"><VideoCameraIcon className="w-6 h-6 text-gray-400"/></div>
-                                    </td>
                                     <td className="px-6 py-4 font-medium text-gray-900">{task.livestream_name}<br/><span className="text-xs text-gray-500 font-normal">{task.entity}</span></td>
                                     <td className="px-6 py-4">{task.host_name}</td>
                                     <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>

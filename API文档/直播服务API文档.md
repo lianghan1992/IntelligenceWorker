@@ -146,6 +146,7 @@ curl -X GET "http://127.0.0.1:7657/livestream/public_tasks?page=1&limit=10&sort_
       "start_time": "2025-10-21T14:00:00Z",
       "status": "recording",
       "host_name": "主播名称",
+      "livestream_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD...",
       "summary_report": null
     }
   ],
