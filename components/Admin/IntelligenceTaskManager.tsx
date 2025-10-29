@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { IntelligenceTask } from '../../types';
 import { getIntelligenceTasks } from '../../api';
@@ -53,15 +52,16 @@ export const IntelligenceTaskManager: React.FC = () => {
             const response = await getIntelligenceTasks(params);
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
-                setPagination({
+                setPagination(prev => ({
+                    ...prev,
                     page: response.page,
-                    limit: response.limit,
                     total: response.total,
-                    totalPages: Math.ceil(response.total / response.limit) || 1,
-                });
+                    // Use `prev.limit` for calculation to prevent state corruption if API response lacks `limit`
+                    totalPages: Math.ceil(response.total / prev.limit) || 1,
+                }));
             } else {
                 setTasks([]);
-                setPagination({ page: 1, limit: 15, total: 0, totalPages: 1 });
+                setPagination(prev => ({ ...prev, page: 1, total: 0, totalPages: 1 }));
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : '获取采集任务失败');
