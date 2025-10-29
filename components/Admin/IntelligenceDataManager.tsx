@@ -65,16 +65,22 @@ export const IntelligenceDataManager: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const { publish_date_start, publish_date_end, ...restSearchParams } = searchParams;
+            const { publish_date_start, publish_date_end, source_names, query_text, similarity_threshold } = searchParams;
+            const isSemanticSearch = query_text.trim() !== '';
+
             const params: any = {
-                ...restSearchParams,
-                query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
+                query_text: isSemanticSearch ? query_text : '*',
                 page: pagination.page,
                 limit: pagination.limit,
             };
 
+            if (isSemanticSearch) {
+                params.similarity_threshold = similarity_threshold;
+            }
+
             if (publish_date_start) params.publish_date_start = publish_date_start;
             if (publish_date_end) params.publish_date_end = publish_date_end;
+            if (source_names && source_names.length > 0) params.source_names = source_names;
 
             const response = await searchArticlesFiltered(params);
             setArticles(response.items || []);
@@ -115,18 +121,23 @@ export const IntelligenceDataManager: React.FC = () => {
 
         setIsExporting(true);
         try {
-            const { publish_date_start, publish_date_end, ...restSearchParams } = searchParams;
-            // Fetch all articles matching the current filter
+            const { publish_date_start, publish_date_end, source_names, query_text, similarity_threshold } = searchParams;
+            const isSemanticSearch = query_text.trim() !== '';
+
             const exportParams: any = {
-                ...restSearchParams,
-                query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
+                query_text: isSemanticSearch ? query_text : '*',
                 page: 1,
-                limit: 10000, // Set a large limit to fetch all data
+                limit: 10000,
             };
+
+            if (isSemanticSearch) {
+                exportParams.similarity_threshold = similarity_threshold;
+            }
 
             if (publish_date_start) exportParams.publish_date_start = publish_date_start;
             if (publish_date_end) exportParams.publish_date_end = publish_date_end;
-
+            if (source_names && source_names.length > 0) exportParams.source_names = source_names;
+            
             const response = await searchArticlesFiltered(exportParams);
             const allArticles = response.items || [];
 
