@@ -11,6 +11,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
 import { LogDisplayModal } from './LogDisplayModal';
 import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
+import { ReanalyzeOptionsModal } from './ReanalyzeOptionsModal';
 
 
 // --- Internal Components ---
@@ -66,7 +67,8 @@ export const LivestreamTaskManager: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
-    const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop' | 'reanalyze'} | null>(null);
+    const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop'} | null>(null);
+    const [taskToReanalyze, setTaskToReanalyze] = useState<LivestreamTask | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [logModalTask, setLogModalTask] = useState<LivestreamTask | null>(null);
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
@@ -145,7 +147,7 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
 
-    const handleAction = (task: LivestreamTask, action: 'delete' | 'start' | 'stop' | 'reanalyze') => {
+    const handleAction = (task: LivestreamTask, action: 'delete' | 'start' | 'stop') => {
         setTaskToAction({ task, action });
     };
 
@@ -163,7 +165,6 @@ export const LivestreamTaskManager: React.FC = () => {
                 case 'delete': await deleteLivestreamTask(task.id); break;
                 case 'start': await startListenTask(task.id); break;
                 case 'stop': await stopListenTask(task.id); break;
-                case 'reanalyze': await reanalyzeLivestreamTask(task.id); break;
             }
             await loadTasks(false);
         } catch (err) {
@@ -173,6 +174,26 @@ export const LivestreamTaskManager: React.FC = () => {
             setTaskToAction(null);
         }
     };
+
+    const handleConfirmReanalyze = async (stage?: string) => {
+        if (!taskToReanalyze) return;
+
+        setActionLoading(true);
+        setError(null);
+        try {
+            if (!taskToReanalyze.id) {
+                throw new Error("操作失败：任务ID不存在。");
+            }
+            await reanalyzeLivestreamTask(taskToReanalyze.id, stage);
+            await loadTasks(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : `重新分析失败`);
+        } finally {
+            setActionLoading(false);
+            setTaskToReanalyze(null);
+        }
+    };
+
 
     const handleViewReport = (task: LivestreamTask) => {
         if (task.status.toLowerCase() === 'completed' && task.summary_report) {
@@ -263,7 +284,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                             <button onClick={() => setLogModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">日志</button>
                                             <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                             {isReanalyzable && (
-                                                <button onClick={() => handleAction(task, 'reanalyze')} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
+                                                <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
                                             )}
                                             <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                         </div>
@@ -290,11 +311,19 @@ export const LivestreamTaskManager: React.FC = () => {
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
             {logModalTask && logModalTask.id && <LogDisplayModal taskId={logModalTask.id} taskName={logModalTask.livestream_name} onClose={() => setLogModalTask(null)} />}
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
+            {taskToReanalyze && (
+                <ReanalyzeOptionsModal
+                    task={taskToReanalyze}
+                    onClose={() => setTaskToReanalyze(null)}
+                    onConfirm={handleConfirmReanalyze}
+                    isLoading={actionLoading}
+                />
+            )}
             {taskToAction && (
                 <ConfirmationModal
-                    title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听', reanalyze: '重新分析' }[taskToAction.action]}任务`}
-                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听', reanalyze: '重新分析' }[taskToAction.action]} "${taskToAction.task.livestream_name}" 吗？`}
-                    confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止', reanalyze: '重新分析' }[taskToAction.action]}`}
+                    title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}
+                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]} "${taskToAction.task.livestream_name}" 吗？`}
+                    confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止' }[taskToAction.action]}`}
                     onConfirm={confirmAction}
                     onCancel={() => setTaskToAction(null)}
                     isLoading={actionLoading}

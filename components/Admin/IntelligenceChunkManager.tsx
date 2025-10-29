@@ -71,7 +71,7 @@ const buildApiPayload = (
 
 export const IntelligenceChunkManager: React.FC = () => {
     const [chunks, setChunks] = useState<SearchChunkResult[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total_chunks: 0, total_articles: 0 });
@@ -86,7 +86,6 @@ export const IntelligenceChunkManager: React.FC = () => {
     });
 
     const [debouncedQuery, setDebouncedQuery] = useState('');
-    const [hasInteracted, setHasInteracted] = useState(false);
 
     const [sources, setSources] = useState<SystemSource[]>([]);
     
@@ -96,7 +95,6 @@ export const IntelligenceChunkManager: React.FC = () => {
         const handler = setTimeout(() => {
              if (filters.query_text !== debouncedQuery) {
                 setDebouncedQuery(filters.query_text);
-                if (filters.query_text.trim() !== '') setHasInteracted(true);
             }
         }, 500);
         return () => clearTimeout(handler);
@@ -121,8 +119,6 @@ export const IntelligenceChunkManager: React.FC = () => {
     }, [searchParams]);
 
     const loadChunks = useCallback(async () => {
-        if (!hasInteracted) return;
-
         setIsLoading(true);
         setError(null);
         try {
@@ -140,7 +136,7 @@ export const IntelligenceChunkManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [searchParams, hasInteracted]);
+    }, [searchParams]);
 
     useEffect(() => {
         loadChunks();
@@ -152,7 +148,6 @@ export const IntelligenceChunkManager: React.FC = () => {
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        if (!hasInteracted) setHasInteracted(true);
         setFilters(prev => ({
             ...prev,
             [name]: e.target.type === 'range' ? parseFloat(value) : value,
@@ -160,7 +155,6 @@ export const IntelligenceChunkManager: React.FC = () => {
     };
     
     const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        if (!hasInteracted) setHasInteracted(true);
         setFilters(prev => ({ ...prev, source_names: e.target.value ? [e.target.value] : [] }));
     };
 
@@ -265,7 +259,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                         <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"/>
                     </div>
                     <div className="flex-shrink-0">
-                        <button onClick={handleExportCsv} disabled={isExporting || !hasInteracted} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
+                        <button onClick={handleExportCsv} disabled={isExporting || pagination.total_chunks === 0} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
                             <DownloadIcon className="w-4 h-4"/>
                             <span>{isExporting ? '导出中...' : '导出CSV'}</span>
                         </button>
@@ -288,9 +282,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {!hasInteracted ? (
-                             <tr><td colSpan={7} className="text-center py-10 text-gray-500">请输入关键词或选择筛选条件开始检索。</td></tr>
-                        ) : isLoading ? (
+                        {isLoading ? (
                             <tr><td colSpan={7}><Spinner /></td></tr>
                         ) : paginatedChunks.length === 0 ? (
                             <tr><td colSpan={7} className="text-center py-10 text-gray-500">未找到任何分段。</td></tr>
