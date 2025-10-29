@@ -3,7 +3,8 @@
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
 import { 
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
-    AllPrompts, SearchResult, IntelligenceTask 
+    AllPrompts, SearchResult, IntelligenceTask,
+   SearchChunksResponse, ExportChunksResponse
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -64,6 +65,20 @@ export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => 
         }));
     }, 1500));
 };
+
+// --- Chunk Search API ---
+export const searchChunks = (params: any): Promise<SearchChunksResponse> =>
+    apiFetch<SearchChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+
+export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
+    apiFetch<ExportChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks/export`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+
 
 // --- Prompts API ---
 export const getAllPrompts = (): Promise<AllPrompts> => apiFetch<AllPrompts>(`${INTELLIGENCE_SERVICE_PATH}/prompts`);

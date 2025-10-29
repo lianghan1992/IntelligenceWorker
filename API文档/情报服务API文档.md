@@ -62,12 +62,18 @@ curl -X POST http://127.0.0.1:7657/intelligence/points \
 }
 ```
 
-### 2.2. 获取情报点
+### 2.2. 获取情报点 (需认证)
 
 根据情报源名称，获取其下的所有情报点。
 
 -   **路径:** `/intelligence/points`
 -   **方法:** `GET`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求参数**
 
@@ -98,8 +104,231 @@ curl -X GET "http://127.0.0.1:7657/intelligence/points?source_name=%E7%9B%96%E4%
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
 
+### 2.11. 分段向量检索 (需认证)
+
+基于分段向量进行语义检索，支持多种过滤条件，适用于知识库应用场景。
+
+-   **路径:** `/intelligence/search/chunks`
+-   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+
+**请求说明**
+
+| 字段 | 类型 | 是否必须 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| `query_text` | string | 是 | - | 搜索关键词，用于语义相似度检索 |
+| `similarity_threshold` | number | 否 | 0.5 | 相似度得分阈值 (0.0-1.0) |
+| `top_k` | integer | 否 | 10 | 返回最相关的分段数量 (≥1) |
+| `point_ids` | array[string] | 否 | - | 按一个或多个情报点ID过滤 |
+| `source_names` | array[string] | 否 | - | 按一个或多个情报源名称过滤 |
+| `publish_date_start` | string | 否 | - | 发布日期范围的起始点 (格式: YYYY-MM-DD) |
+| `publish_date_end` | string | 否 | - | 发布日期范围的结束点 (格式: YYYY-MM-DD) |
+| `include_article_content` | boolean | 否 | false | 是否在结果中包含完整的文章内容 |
+| `chunk_size_filter` | string | 否 | - | 按分段大小过滤: 'short'(<200字符), 'medium'(200-800字符), 'long'(>800字符) |
+
+**使用场景 1：基础语义检索**
+
+**请求示例 (JSON)**
+```json
+{
+  "query_text": "比亚迪电池技术",
+  "similarity_threshold": 0.5,
+  "top_k": 5
+}
+```
+
+**使用场景 2：多条件过滤检索**
+
+**请求示例 (JSON)**
+```json
+{
+  "query_text": "特斯拉自动驾驶",
+  "similarity_threshold": 0.6,
+  "top_k": 10,
+  "source_names": ["盖世汽车"],
+  "publish_date_start": "2024-01-01",
+  "publish_date_end": "2024-12-31",
+  "chunk_size_filter": "medium",
+  "include_article_content": false
+}
+```
+
+**cURL请求示例**
+```bash
+curl -X POST http://127.0.0.1:7657/intelligence/search/chunks \
+-H "Content-Type: application/json" \
+-d '{
+  "query_text": "比亚迪电池技术",
+  "similarity_threshold": 0.5,
+  "top_k": 3,
+  "source_names": ["盖世汽车"],
+  "chunk_size_filter": "medium"
+}'
+```
+
+**返回说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total_chunks` | integer | 满足条件的分段总数 |
+| `total_articles` | integer | 涉及的文章总数 |
+| `results` | array | 分段结果对象列表 |
+
+**分段结果对象说明**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `article_id` | string | 文章ID |
+| `chunk_index` | integer | 分段在文章中的索引 |
+| `chunk_text` | string | 分段文本内容 |
+| `chunk_size` | integer | 分段字符数 |
+| `similarity_score` | number | 与查询的相似度得分 |
+| `article_title` | string | 文章标题 |
+| `article_url` | string | 文章原始URL |
+| `article_publish_date` | string | 文章发布日期 |
+| `source_name` | string | 情报源名称 |
+| `point_name` | string | 情报点名称 |
+| `article_summary` | string / null | 文章摘要 |
+| `article_keywords` | string / null | 文章关键词 |
+| `article_entities` | string / null | 文章实体信息 |
+| `article_content` | string / null | 完整文章内容 (仅当 `include_article_content=true` 时返回) |
+
 **返回示例 (200 OK)**
 ```json
+{
+  "total_chunks": 15,
+  "total_articles": 8,
+  "results": [
+    {
+      "article_id": "e5f6g7h8-i9j0-1234-5678-defabc345678",
+      "chunk_index": 2,
+      "chunk_text": "比亚迪刀片电池采用磷酸铁锂技术，具有高安全性、长寿命的特点。该电池通过了针刺试验，在极端条件下不起火不爆炸，为电动汽车的安全性提供了重要保障。",
+      "chunk_size": 78,
+      "similarity_score": 0.892,
+      "article_title": "比亚迪发布全新刀片电池技术解析",
+      "article_url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
+      "article_publish_date": "2025-10-10",
+      "source_name": "盖世汽车",
+      "point_name": "新能源",
+      "article_summary": "比亚迪发布全新刀片电池技术，在安全性和能量密度方面实现重大突破",
+      "article_keywords": "比亚迪,刀片电池,磷酸铁锂,电动汽车",
+      "article_entities": "比亚迪公司,刀片电池技术,磷酸铁锂电池",
+      "article_content": null
+    }
+  ]
+}
+```
+
+**错误响应**
+
+| 状态码 | 说明 |
+| :--- | :--- |
+| 400 | 请求参数错误 |
+| 500 | 服务器内部错误 |
+
+**错误示例 (400 Bad Request)**
+```json
+{
+  "detail": "query_text不能为空"
+}
+```
+
+**错误示例 (500 Internal Server Error)**
+```json
+{
+  "detail": "分段检索失败: 向量服务不可用"
+}
+```
+
+### 2.12. 分段向量检索结果导出 (需认证)
+
+将分段向量检索的结果导出为 CSV 文件，便于数据分析和处理。
+
+-   **路径:** `/intelligence/search/chunks/export`
+-   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
+| `Content-Type` | string | 是 | `application/json` |
+
+**请求说明**:
+| 字段 | 类型 | 是否必须 | 默认值 | 说明 |
+|------|------|----------|--------|------|
+| query_text | string | 是 | - | 查询文本，用于语义搜索 |
+| similarity_threshold | float | 否 | 0.5 | 相似度阈值 (0-1) |
+| top_k | int | 否 | 10 | 返回最相关的分段数量 (≥1) |
+| point_ids | array[string] | 否 | null | 指定情报点ID列表进行过滤 |
+| source_names | array[string] | 否 | null | 按情报源名称过滤 |
+| publish_date_start | string | 否 | null | 发布日期范围起始 (YYYY-MM-DD) |
+| publish_date_end | string | 否 | null | 发布日期范围结束 (YYYY-MM-DD) |
+| include_article_content | boolean | 否 | false | 是否包含完整文章内容 |
+| chunk_size_filter | string | 否 | null | 按分段大小过滤 ("short", "medium", "long") |
+
+**使用场景**:
+- **CSV导出**: 将检索结果导出为CSV格式，便于数据分析
+- **文章合并**: 同一文章的多个分段会合并为一条记录
+- **批量处理**: 适用于大量数据的批量导出和处理
+
+**cURL请求示例**:
+```bash
+curl -X POST "http://localhost:7657/intelligence/search/chunks/export" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query_text": "比亚迪电池技术",
+    "similarity_threshold": 0.5,
+    "source_names": ["盖世汽车"],
+    "publish_date_start": "2024-01-01",
+    "chunk_size_filter": "medium"
+  }'
+```
+
+**返回说明**:
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| total_articles | int | 匹配的文章总数 |
+| export_data | array | 导出数据列表 |
+
+**export_data数组中每个对象包含**:
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| article_title | string | 文章标题 |
+| article_publish_date | string | 文章发布日期 |
+| merged_content | string | 合并后的分段内容 |
+| article_url | string | 文章原始URL |
+| similarity_scores | array[float] | 各分段的相似度得分 |
+| chunk_count | int | 命中的分段数量 |
+
+**返回示例**:
+```json
+{
+  "total_articles": 2,
+  "export_data": [
+    {
+      "article_title": "比亚迪发布新一代刀片电池技术",
+      "article_publish_date": "2024-03-15",
+      "merged_content": "比亚迪正式发布了新一代刀片电池技术...\n\n该技术在安全性和能量密度方面都有显著提升...",
+      "article_url": "https://example.com/article1",
+      "similarity_scores": [0.85, 0.78],
+      "chunk_count": 2
+    }
+  ]
+}
+```
+
+**错误响应示例**:
+```json
+{
+  "detail": "Internal server error"
+}
+```
 [
   {
     "id": "b1c2d3e4-f5g6-7890-1234-abcdef123456",
@@ -294,12 +523,18 @@ curl -X GET http://127.0.0.1:7657/intelligence/tasks/stats
 }
 ```
 
-### 2.8. 查询已采集文章
+### 2.8. 查询已采集文章 (需认证)
 
 获取已采集的文章列表，支持分页和过滤。
 
 -   **路径:** `/intelligence/articles`
 -   **方法:** `GET`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求参数**
 
@@ -378,12 +613,18 @@ curl -X POST http://127.0.0.1:7657/intelligence/articles/backfill-summaries \
 }
 ```
 
-### 2.10. 语义搜索文章
+### 2.10. 语义搜索文章 (需认证)
 
 在指定情报点的文章中执行简单的语义搜索。
 
 -   **路径:** `/intelligence/search/articles`
 -   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求说明**
 
@@ -422,12 +663,18 @@ curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
 ]
 ```
 
-### 2.10. 组合筛选与语义搜索文章 (新!)
+### 2.10. 组合筛选与语义搜索文章 (需认证)
 
 在一个请求中同时传入语义搜索查询和结构化筛选条件，实现复杂的组合查询，并返回分页结果。
 
 -   **路径:** `/intelligence/search/articles_filtered`
 -   **方法:** `POST`
+
+**请求头**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
 
 **请求说明**
 

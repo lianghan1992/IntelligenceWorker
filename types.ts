@@ -78,6 +78,44 @@ export interface SearchResult extends InfoItem {
   similarity_score?: number;
 }
 
+export interface SearchChunkResult {
+  article_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  chunk_size: number;
+  similarity_score: number;
+  article_title: string;
+  article_url: string;
+  article_publish_date: string;
+  source_name: string;
+  point_name: string;
+  article_summary: string | null;
+  article_keywords: string | null;
+  article_entities: string | null;
+  article_content: string | null;
+}
+
+export interface SearchChunksResponse {
+    total_chunks: number;
+    total_articles: number;
+    results: SearchChunkResult[];
+}
+
+export interface ExportChunkData {
+    article_title: string;
+    article_publish_date: string;
+    merged_content: string;
+    article_url: string;
+    similarity_scores: number[];
+    chunk_count: number;
+}
+
+export interface ExportChunksResponse {
+    total_articles: number;
+    export_data: ExportChunkData[];
+}
+
+
 export interface ApiPoi {
     id: string;
     content: string;
