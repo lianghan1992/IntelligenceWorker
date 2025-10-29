@@ -16,10 +16,10 @@ const buildApiPayload = (
     limit: number
 ) => {
     const { query_text, source_names, publish_date_start, publish_date_end, similarity_threshold } = filters;
-    const isSemanticSearch = query_text && query_text.trim() !== '';
+    const isSemanticSearch = query_text && query_text.trim() !== '' && query_text.trim() !== '*';
 
     const payload: Record<string, any> = {
-        query_text: isSemanticSearch ? query_text.trim() : '*',
+        query_text: query_text.trim() || '*',
         page,
         limit,
     };
@@ -48,6 +48,7 @@ export const IntelligenceDataManager: React.FC = () => {
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [exportProgress, setExportProgress] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
     
@@ -139,32 +140,46 @@ export const IntelligenceDataManager: React.FC = () => {
     };
 
     const handleExportCsv = async () => {
-        if (pagination.total === 0) {
-            alert("没有可导出的数据。");
-            return;
-        }
-
         setIsExporting(true);
+        setExportProgress('正在准备...');
         setError(null);
+        
         try {
-            // For export, use the immediate filters state for responsiveness, not the debounced one.
-            const payload = buildApiPayload(filters, 1, 10000);
-            
-            const response = await searchArticlesFiltered(payload);
-            const allArticles = response.items || [];
+            // Step 1: Get total count
+            const initialPayload = buildApiPayload(filters, 1, 1);
+            const initialResponse = await searchArticlesFiltered(initialPayload);
+            const total = initialResponse.total;
 
-            if (allArticles.length === 0) {
-                alert("根据当前筛选条件，没有可导出的数据。");
+            if (total === 0) {
+                alert("没有可导出的数据。");
                 setIsExporting(false);
+                setExportProgress(null);
                 return;
             }
 
+            // Step 2: Fetch all data in pages
+            const EXPORT_PAGE_SIZE = 100;
+            const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE);
+            const allArticles: SearchResult[] = [];
+
+            for (let i = 1; i <= totalPages; i++) {
+                const fetchedCount = allArticles.length;
+                setExportProgress(`正在导出... (${fetchedCount}/${total})`);
+                
+                const pagePayload = buildApiPayload(filters, i, EXPORT_PAGE_SIZE);
+                const pageResponse = await searchArticlesFiltered(pagePayload);
+                if (pageResponse.items) {
+                    allArticles.push(...pageResponse.items);
+                }
+            }
+            
+            setExportProgress('正在生成文件...');
+
+            // Step 3: Generate CSV
             const headers = ['序号', '标题', '发布日期', '文章内容'];
             
             const escapeCsvField = (field: string | number | null | undefined): string => {
-                if (field === null || field === undefined) {
-                    return '""';
-                }
+                if (field === null || field === undefined) return '""';
                 const stringField = String(field);
                 if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
                     return `"${stringField.replace(/"/g, '""')}"`;
@@ -188,7 +203,6 @@ export const IntelligenceDataManager: React.FC = () => {
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
             link.setAttribute("download", `情报导出_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -197,11 +211,12 @@ export const IntelligenceDataManager: React.FC = () => {
             setError(err instanceof Error ? `导出失败: ${err.message}` : '导出失败，请重试。');
         } finally {
             setIsExporting(false);
+            setExportProgress(null);
         }
     };
 
     const totalPages = Math.ceil(pagination.total / pagination.limit);
-    const isSearchActive = filters.query_text.trim() !== '';
+    const isSearchActive = filters.query_text.trim() !== '' && filters.query_text.trim() !== '*';
 
     const handleRowClick = (articleId: string) => {
         setSelectedArticleId(prevId => (prevId === articleId ? null : articleId));
@@ -212,7 +227,7 @@ export const IntelligenceDataManager: React.FC = () => {
             <div className="p-4 bg-white rounded-lg border mb-4 space-y-4">
                 <div className="relative">
                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索，或留空查询全部" className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -241,9 +256,9 @@ export const IntelligenceDataManager: React.FC = () => {
                     </select>
                     <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <button onClick={handleExportCsv} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button onClick={handleExportCsv} disabled={isExporting} className="flex items-center justify-center gap-2 px-4 py-2 w-36 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed">
                         <DownloadIcon className="w-4 h-4"/>
-                        <span>{isExporting ? '正在导出...' : '导出CSV'}</span>
+                        <span>{isExporting ? exportProgress : '导出CSV'}</span>
                     </button>
                 </div>
                 {error && <div className="text-sm text-red-600 bg-red-100 p-2 rounded-md">{error}</div>}
