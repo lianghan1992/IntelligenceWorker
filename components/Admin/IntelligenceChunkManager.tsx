@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchChunkResult, SystemSource } from '../../types';
 import { searchChunks, getSources, exportChunks } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
@@ -6,12 +6,28 @@ import { SearchIcon, DownloadIcon } from '../icons';
 // A spinner component for loading states
 const Spinner: React.FC = () => (
     <div className="flex items-center justify-center py-10">
-        <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" xmlns="http://www.w.org/2000/svg" fill="none">
+        <svg className="animate-spin h-8 w-8 text-blue-600" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
     </div>
 );
+
+// Helper to decode base64 and handle UTF-8
+const decodeBase64Utf8 = (base64: string): string => {
+    try {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return new TextDecoder('utf-8').decode(bytes);
+    } catch (e) {
+        // console.warn("Failed to decode base64 string, returning as is.", base64, e);
+        return base64; // Return original string if it's not valid base64
+    }
+};
+
 
 // Helper to build API payload
 const buildApiPayload = (
@@ -48,7 +64,6 @@ const buildApiPayload = (
         payload.publish_date_end = publish_date_end;
     }
     
-    // As per API doc, include_article_content is needed for full content view
     payload.include_article_content = true;
 
     return payload;
@@ -111,8 +126,6 @@ export const IntelligenceChunkManager: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            // The searchChunks API does not support pagination. It uses `top_k`.
-            // We will fetch up to `top_k` results and paginate them on the client side.
             const payload = buildApiPayload(searchParams);
             const response = await searchChunks(payload);
             setChunks(response.results || []);
@@ -139,11 +152,16 @@ export const IntelligenceChunkManager: React.FC = () => {
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setHasInteracted(true);
+        if (!hasInteracted) setHasInteracted(true);
         setFilters(prev => ({
             ...prev,
             [name]: e.target.type === 'range' ? parseFloat(value) : value,
         }));
+    };
+    
+    const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (!hasInteracted) setHasInteracted(true);
+        setFilters(prev => ({ ...prev, source_names: e.target.value ? [e.target.value] : [] }));
     };
 
     const paginatedChunks = useMemo(() => {
@@ -165,7 +183,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                 return;
             }
             
-            const headers = ['原始标题', 'URL', '发布时间', '合并后的分段内容', '相似度', '情报源'];
+            const headers = ['原始标题', 'URL', '发布时间', '合并后的分段内容', '相似度'];
             const escapeCsvField = (field: any): string => {
                 if (field == null) return '""';
                 const stringField = String(field);
@@ -181,8 +199,6 @@ export const IntelligenceChunkManager: React.FC = () => {
                 item.article_publish_date,
                 item.merged_content,
                 item.similarity_scores.map(s => s.toFixed(3)).join('; '),
-                // Assuming source_name can be derived from the first chunk, though API doesn't provide it
-                '' 
             ]);
             
             let csvContent = "\uFEFF";
@@ -205,19 +221,23 @@ export const IntelligenceChunkManager: React.FC = () => {
     };
     
     const highlightQuery = (text: string) => {
-        if (!debouncedQuery) return text;
-        const parts = text.split(new RegExp(`(${debouncedQuery})`, 'gi'));
-        return (
-            <>
-                {parts.map((part, i) =>
-                    part.toLowerCase() === debouncedQuery.toLowerCase() ? (
-                        <mark key={i} className="bg-yellow-200 text-black">{part}</mark>
-                    ) : (
-                        part
-                    )
-                )}
-            </>
-        );
+        if (!debouncedQuery || !isSearchActive) return text;
+        try {
+            const parts = text.split(new RegExp(`(${debouncedQuery})`, 'gi'));
+            return (
+                <>
+                    {parts.map((part, i) =>
+                        part.toLowerCase() === debouncedQuery.toLowerCase() ? (
+                            <mark key={i} className="bg-yellow-200 text-black px-0.5 rounded-sm">{part}</mark>
+                        ) : (
+                            part
+                        )
+                    )}
+                </>
+            );
+        } catch (e) {
+            return text;
+        }
     };
 
     return (
@@ -234,7 +254,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                         <span className={`font-semibold text-sm w-10 text-center ${!isSearchActive ? 'text-gray-400' : 'text-blue-600'}`}>{filters.similarity_threshold.toFixed(2)}</span>
                     </div>
                     <div className="flex-shrink-0">
-                        <select name="source_names" value={filters.source_names[0] || ''} onChange={handleFilterChange} className="w-40 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="w-40 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">所有情报源</option>
                             {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
                         </select>
@@ -255,16 +275,16 @@ export const IntelligenceChunkManager: React.FC = () => {
             </div>
 
             <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
-                <table className="w-full text-sm text-left text-gray-500">
+                <table className="w-full table-fixed text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
-                            <th scope="col" className="px-6 py-3 w-px">序号</th>
-                            <th scope="col" className="px-6 py-3">原始标题</th>
-                            <th scope="col" className="px-6 py-3">URL</th>
-                            <th scope="col" className="px-6 py-3">发布时间</th>
-                            <th scope="col" className="px-6 py-3 w-2/5">分段内容</th>
-                            <th scope="col" className="px-6 py-3">相似度</th>
-                            <th scope="col" className="px-6 py-3">情报源</th>
+                            <th scope="col" className="px-6 py-3 w-16">序号</th>
+                            <th scope="col" className="px-6 py-3 w-64">原始标题</th>
+                            <th scope="col" className="px-6 py-3 w-28">URL</th>
+                            <th scope="col" className="px-6 py-3 w-32">发布时间</th>
+                            <th scope="col" className="px-6 py-3">分段内容</th>
+                            <th scope="col" className="px-6 py-3 w-36">相似度</th>
+                            <th scope="col" className="px-6 py-3 w-40">情报源</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -275,13 +295,15 @@ export const IntelligenceChunkManager: React.FC = () => {
                         ) : paginatedChunks.length === 0 ? (
                             <tr><td colSpan={7} className="text-center py-10 text-gray-500">未找到任何分段。</td></tr>
                         ) : (
-                            paginatedChunks.map((chunk, index) => (
+                            paginatedChunks.map((chunk, index) => {
+                                const decodedChunkText = decodeBase64Utf8(chunk.chunk_text);
+                                return (
                                 <tr key={`${chunk.article_id}-${chunk.chunk_index}`} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4 text-gray-500">{(pagination.page - 1) * pagination.limit + index + 1}</td>
-                                    <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={chunk.article_title}>{chunk.article_title}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900 truncate" title={chunk.article_title}>{chunk.article_title}</td>
                                     <td className="px-6 py-4"><a href={chunk.article_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">原文链接</a></td>
-                                    <td className="px-6 py-4">{new Date(chunk.article_publish_date).toLocaleDateString()}</td>
-                                    <td className="px-6 py-4 text-gray-800">{highlightQuery(chunk.chunk_text)}</td>
+                                    <td className="px-6 py-4">{chunk.article_publish_date ? new Date(chunk.article_publish_date).toLocaleDateString('zh-CN') : 'N/A'}</td>
+                                    <td className="px-6 py-4 text-gray-800 break-words" title={decodedChunkText}>{highlightQuery(decodedChunkText)}</td>
                                     <td className="px-6 py-4 font-semibold">
                                         <div className="flex items-center gap-2">
                                             <span>{chunk.similarity_score.toFixed(3)}</span>
@@ -292,7 +314,8 @@ export const IntelligenceChunkManager: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">{chunk.source_name}</td>
                                 </tr>
-                            ))
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
