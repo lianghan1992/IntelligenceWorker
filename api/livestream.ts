@@ -40,6 +40,11 @@ export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<
 export const startListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/start`, { method: 'POST' });
 export const stopListenTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/listen/stop`, { method: 'POST' });
 
+export const reanalyzeLivestreamTask = (taskId: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/re-analyze`, {
+        method: 'POST',
+    });
+
 export const getTaskLog = (taskId: string): Promise<{ log_content: string }> =>
     apiFetch<{ log_content: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/log`);
 

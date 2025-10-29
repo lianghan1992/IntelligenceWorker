@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LivestreamTask } from '../../types';
-import { getLivestreamTasks, deleteLivestreamTask, getLivestreamTasksStats, startListenTask, stopListenTask } from '../../api';
+import { getLivestreamTasks, deleteLivestreamTask, getLivestreamTasksStats, startListenTask, stopListenTask, reanalyzeLivestreamTask } from '../../api';
 import { AddEventModal } from './AddEventModal';
 import { AddHistoryEventModal } from './AddHistoryEventModal';
 import { 
@@ -66,7 +66,7 @@ export const LivestreamTaskManager: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
-    const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop'} | null>(null);
+    const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop' | 'reanalyze'} | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [logModalTask, setLogModalTask] = useState<LivestreamTask | null>(null);
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
@@ -145,7 +145,7 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
 
-    const handleAction = (task: LivestreamTask, action: 'delete' | 'start' | 'stop') => {
+    const handleAction = (task: LivestreamTask, action: 'delete' | 'start' | 'stop' | 'reanalyze') => {
         setTaskToAction({ task, action });
     };
 
@@ -163,6 +163,7 @@ export const LivestreamTaskManager: React.FC = () => {
                 case 'delete': await deleteLivestreamTask(task.id); break;
                 case 'start': await startListenTask(task.id); break;
                 case 'stop': await stopListenTask(task.id); break;
+                case 'reanalyze': await reanalyzeLivestreamTask(task.id); break;
             }
             await loadTasks(false);
         } catch (err) {
@@ -243,6 +244,7 @@ export const LivestreamTaskManager: React.FC = () => {
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
                                 const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
+                                const isReanalyzable = ['completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4 font-medium text-gray-900">{task.livestream_name}<br/><span className="text-xs text-gray-500 font-normal">{task.entity}</span></td>
@@ -260,6 +262,9 @@ export const LivestreamTaskManager: React.FC = () => {
                                             <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
                                             <button onClick={() => setLogModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">日志</button>
                                             <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
+                                            {isReanalyzable && (
+                                                <button onClick={() => handleAction(task, 'reanalyze')} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
+                                            )}
                                             <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                         </div>
                                     </td>
@@ -287,9 +292,9 @@ export const LivestreamTaskManager: React.FC = () => {
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskToAction && (
                 <ConfirmationModal
-                    title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}
-                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]} "${taskToAction.task.livestream_name}" 吗？`}
-                    confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止' }[taskToAction.action]}`}
+                    title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听', reanalyze: '重新分析' }[taskToAction.action]}任务`}
+                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听', reanalyze: '重新分析' }[taskToAction.action]} "${taskToAction.task.livestream_name}" 吗？`}
+                    confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止', reanalyze: '重新分析' }[taskToAction.action]}`}
                     onConfirm={confirmAction}
                     onCancel={() => setTaskToAction(null)}
                     isLoading={actionLoading}

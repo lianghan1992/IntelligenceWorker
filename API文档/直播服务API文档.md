@@ -2,6 +2,72 @@
 
 提供一个统一的API来管理直播任务的整个生命周期，从创建、录制到分析。所有接口均以 `/livestream` 为前缀，并需要Bearer Token认证。
 
+## 任务状态说明
+
+直播任务在整个生命周期中会经历以下状态，状态转换遵循严格的优先级规则：
+
+### 状态定义
+
+| 状态 | 英文名称 | 说明 | 触发条件 |
+| :--- | :--- | :--- | :--- |
+| 待处理 | `pending` | 任务已创建，等待开始监听 | 任务刚创建时的初始状态 |
+| 监听中 | `listening` | 正在监听直播，等待直播开始 | bililive-go开始监听但尚未录制 |
+| 录制中 | `recording` | 正在录制直播内容 | bililive-go检测到直播开始并开始录制 |
+| 处理中 | `processing` | 正在进行AI分析和处理 | 录制完成后开始分析，或手动触发分析 |
+| 已完成 | `completed` | 任务已完成，包含分析结果 | AI分析完成并生成总结报告 |
+| 失败 | `failed` | 任务执行失败 | 录制或分析过程中发生错误 |
+| 准备合并 | `ready_for_merge` | 视频片段准备合并 | 检测到多个视频文件需要合并 |
+| 准备分析 | `ready_for_analysis` | 准备开始AI分析 | 视频文件准备就绪，等待分析 |
+
+### 状态映射规则
+
+系统通过定时任务（每30秒）同步bililive-go的状态到本地数据库，映射规则如下：
+
+#### 优先级规则
+当bililive-go同时返回`listening=true`和`recording=true`时，系统优先显示`recording`状态，因为录制是更重要的状态。
+
+#### 具体映射逻辑
+```
+bililive-go状态 → 本地数据库状态
+recording=true → recording (最高优先级)
+listening=true (且recording=false) → listening
+listening=false 且 recording=false → 触发分析或标记完成
+```
+
+#### 状态转换流程
+```
+pending → listening → recording → processing → completed
+   ↓           ↓          ↓           ↓
+ failed     failed    failed     failed
+```
+
+### 特殊状态说明
+
+- **ready_for_merge**: 当检测到同一任务有多个视频文件时，系统会将状态设置为此状态，触发视频合并操作
+- **ready_for_analysis**: 视频文件准备完毕后，系统会将状态设置为此状态，等待AI分析开始
+
+### 状态同步机制
+
+1. **定时同步**: 系统每30秒自动同步一次状态
+2. **实时监控**: 监控bililive-go输出目录的文件变化
+3. **手动触发**: 可通过API手动触发状态同步
+
+### WebSocket通知
+
+所有状态变化都会通过WebSocket实时推送给前端，消息格式如下：
+
+```json
+{
+  "type": "task_status_update",
+  "data": {
+    "task_id": "任务ID",
+    "status": "新状态",
+    "livestream_name": "直播名称",
+    "updated_at": "更新时间"
+  }
+}
+```
+
 ## 1. 创建直播任务
 
 创建一个新的直播任务。此操作会在后台自动调用 `bililive-go` 来创建实际的录制任务，并将所有信息记录到数据库中。
@@ -93,7 +159,7 @@ curl -X GET "http://127.0.0.1:7657/livestream/tasks?page=1&limit=10&status=recor
       "url": "https://live.bilibili.com/12345",
       "livestream_name": "新车发布会",
       "start_time": "2025-10-21T14:00:00Z",
-      "status": "recording",
+      "status": "recording",  // 任务状态，详见上方"任务状态说明"章节  // 任务状态，详见上方"任务状态说明"章节
       "bililive_live_id": "abcdef1234567890",
       "host_name": "主播名称",
       "prompt_content": "完整的提示词内容...",
@@ -509,22 +575,51 @@ curl -X GET "http://127.0.0.1:7657/livestream/tasks/a1b2c3d4.../manuscript?forma
 **认证:** 需要Bearer Token
 
 **说明:**
-手动重新触发对一个指定任务的分析流程。该接口具有智能判断能力：
-- 如果任务目录中已经存在 `01_raw_manuscript.json` 文件，则只会重新执行AI总结步骤。
-- 如果原始稿件不存在，则会从头开始执行完整的视频分析流程（包括视频拼接、抽帧、OCR、总结等）。
+手动重新触发对一个指定任务的分析流程。该接口支持智能阶段检测和手动指定恢复阶段：
+
+**智能检测模式（默认）:**
+- 如果任务目录中已经存在 `01_raw_manuscript.json` 文件，则只会重新执行AI总结步骤
+- 如果存在候选文本目录且不为空，则从AI识别阶段开始
+- 如果存在文本检测结果且不为空，则从视觉去重阶段开始
+- 如果存在原始帧目录且不为空，则从文本检测阶段开始
+- 否则从视频抽帧阶段开始执行完整流程
+
+**手动指定模式:**
+通过请求体中的 `resume_from_stage` 参数可以手动指定从哪个阶段开始分析。系统会自动验证前置条件，如果指定阶段的前置条件不满足，会自动回溯到最早可执行的阶段。
 
 此功能在AI总结效果不佳、需要使用不同提示词重新总结，或早期分析步骤失败时非常有用。
 
 **路径参数:**
 - `task_id` (string, required): 需要重新分析的任务的唯一ID。
 
-**请求体:**
-- (无)
+**请求体 (JSON, 可选):**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `resume_from_stage` | string | 否 | 指定从哪个阶段开始分析。可选值：`frame_extraction`、`text_detection`、`visual_dedup`、`ai_recognition`、`ai_summary`。如果不提供，系统将自动检测最佳恢复点。 |
 
 **cURL请求示例**
+
+**示例1: 自动检测恢复阶段（默认模式）**
 ```bash
 curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/re-analyze \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**示例2: 手动指定从AI总结阶段开始**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/re-analyze \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"resume_from_stage": "ai_summary"}'
+```
+
+**示例3: 手动指定从文本检测阶段开始**
+```bash
+curl -X POST http://127.0.0.1:7657/livestream/tasks/a1b2c3d4-e5f6-7890-abcd-ef1234567890/re-analyze \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"resume_from_stage": "text_detection"}'
 ```
 
 **成功响应 (200 OK):**
