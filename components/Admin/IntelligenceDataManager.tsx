@@ -6,6 +6,7 @@ import { SearchIcon, DownloadIcon } from '../icons';
 export const IntelligenceDataManager: React.FC = () => {
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
     
@@ -101,46 +102,68 @@ export const IntelligenceDataManager: React.FC = () => {
         setFilters(prev => ({ ...prev, source_names: e.target.value ? [e.target.value] : [] }));
     };
 
-    const handleExportCsv = () => {
-        if (articles.length === 0) {
+    const handleExportCsv = async () => {
+        if (pagination.total === 0) {
             alert("没有可导出的数据。");
             return;
         }
-        const headers = ['序号', '标题', '发布日期', '文章内容'];
-        
-        const escapeCsvField = (field: string | number | null | undefined): string => {
-            if (field === null || field === undefined) {
-                return '""';
-            }
-            const stringField = String(field);
-            // Check if the field contains characters that need escaping
-            if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
-                // Escape double quotes by doubling them and wrap the whole field in double quotes
-                return `"${stringField.replace(/"/g, '""')}"`;
-            }
-            return stringField;
-        };
 
-        const rows = articles.map((article, index) => [
-            index + 1,
-            article.title,
-            article.publish_date ? new Date(article.publish_date).toLocaleDateString('zh-CN') : 'N/A',
-            article.content
-        ]);
-        
-        let csvContent = "\uFEFF"; // BOM for UTF-8
-        csvContent += headers.join(',') + '\r\n';
-        csvContent += rows.map(row => row.map(escapeCsvField).join(',')).join('\r\n');
-        
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", `情报导出_${new Date().toISOString().slice(0,10)}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        setIsExporting(true);
+        try {
+            // Fetch all articles matching the current filter
+            const exportParams = {
+                ...searchParams,
+                query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
+                page: 1,
+                limit: 10000, // Set a large limit to fetch all data
+            };
+            const response = await searchArticlesFiltered(exportParams);
+            const allArticles = response.items || [];
+
+            if (allArticles.length === 0) {
+                alert("没有可导出的数据。");
+                return;
+            }
+
+            const headers = ['序号', '标题', '发布日期', '文章内容'];
+            
+            const escapeCsvField = (field: string | number | null | undefined): string => {
+                if (field === null || field === undefined) {
+                    return '""';
+                }
+                const stringField = String(field);
+                if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+                    return `"${stringField.replace(/"/g, '""')}"`;
+                }
+                return stringField;
+            };
+
+            const rows = allArticles.map((article, index) => [
+                index + 1,
+                article.title,
+                article.publish_date ? new Date(article.publish_date).toLocaleDateString('zh-CN') : 'N/A',
+                article.content
+            ]);
+            
+            let csvContent = "\uFEFF"; // BOM for UTF-8
+            csvContent += headers.join(',') + '\r\n';
+            csvContent += rows.map(row => row.map(escapeCsvField).join(',')).join('\r\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `情报导出_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Export failed:", err);
+            alert("导出失败，请重试。");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const totalPages = Math.ceil(pagination.total / pagination.limit);
@@ -184,7 +207,10 @@ export const IntelligenceDataManager: React.FC = () => {
                     </select>
                     <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <button onClick={handleExportCsv} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition"><DownloadIcon className="w-4 h-4"/>导出CSV</button>
+                    <button onClick={handleExportCsv} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                        <DownloadIcon className="w-4 h-4"/>
+                        <span>{isExporting ? '正在导出...' : '导出CSV'}</span>
+                    </button>
                 </div>
             </div>
 
