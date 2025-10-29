@@ -3,6 +3,47 @@ import { InfoItem, SystemSource, SearchResult } from '../../types';
 import { searchArticlesFiltered, getSources } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
 
+// Centralized function to build a clean API payload
+const buildApiPayload = (
+    filters: {
+        query_text: string;
+        source_names: string[];
+        publish_date_start: string;
+        publish_date_end: string;
+        similarity_threshold: number;
+    },
+    page: number,
+    limit: number
+) => {
+    const { query_text, source_names, publish_date_start, publish_date_end, similarity_threshold } = filters;
+    const isSemanticSearch = query_text && query_text.trim() !== '';
+
+    const payload: Record<string, any> = {
+        query_text: isSemanticSearch ? query_text.trim() : '*',
+        page,
+        limit,
+    };
+
+    if (isSemanticSearch) {
+        payload.similarity_threshold = similarity_threshold;
+    }
+
+    if (source_names && source_names.length > 0) {
+        payload.source_names = source_names;
+    }
+
+    if (publish_date_start) {
+        payload.publish_date_start = publish_date_start;
+    }
+
+    if (publish_date_end) {
+        payload.publish_date_end = publish_date_end;
+    }
+
+    return payload;
+};
+
+
 export const IntelligenceDataManager: React.FC = () => {
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -65,28 +106,12 @@ export const IntelligenceDataManager: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const { publish_date_start, publish_date_end, source_names, query_text, similarity_threshold } = searchParams;
-            const isSemanticSearch = query_text.trim() !== '';
-
-            const params: any = {
-                query_text: isSemanticSearch ? query_text : '*',
-                page: pagination.page,
-                limit: pagination.limit,
-            };
-
-            if (isSemanticSearch) {
-                params.similarity_threshold = similarity_threshold;
-            }
-
-            if (publish_date_start) params.publish_date_start = publish_date_start;
-            if (publish_date_end) params.publish_date_end = publish_date_end;
-            if (source_names && source_names.length > 0) params.source_names = source_names;
-
-            const response = await searchArticlesFiltered(params);
+            const payload = buildApiPayload(searchParams, pagination.page, pagination.limit);
+            const response = await searchArticlesFiltered(payload);
             setArticles(response.items || []);
             setPagination(prev => ({...prev, total: response.total}));
         } catch (err) {
-            setError(err instanceof Error ? err.message : '获取文章失败');
+            setError(err instanceof Error ? `请求失败: ${err.message}` : '获取文章失败');
         } finally {
             setIsLoading(false);
         }
@@ -120,29 +145,17 @@ export const IntelligenceDataManager: React.FC = () => {
         }
 
         setIsExporting(true);
+        setError(null);
         try {
-            const { publish_date_start, publish_date_end, source_names, query_text, similarity_threshold } = searchParams;
-            const isSemanticSearch = query_text.trim() !== '';
-
-            const exportParams: any = {
-                query_text: isSemanticSearch ? query_text : '*',
-                page: 1,
-                limit: 10000,
-            };
-
-            if (isSemanticSearch) {
-                exportParams.similarity_threshold = similarity_threshold;
-            }
-
-            if (publish_date_start) exportParams.publish_date_start = publish_date_start;
-            if (publish_date_end) exportParams.publish_date_end = publish_date_end;
-            if (source_names && source_names.length > 0) exportParams.source_names = source_names;
+            // For export, use the immediate filters state for responsiveness, not the debounced one.
+            const payload = buildApiPayload(filters, 1, 10000);
             
-            const response = await searchArticlesFiltered(exportParams);
+            const response = await searchArticlesFiltered(payload);
             const allArticles = response.items || [];
 
             if (allArticles.length === 0) {
-                alert("没有可导出的数据。");
+                alert("根据当前筛选条件，没有可导出的数据。");
+                setIsExporting(false);
                 return;
             }
 
@@ -181,7 +194,7 @@ export const IntelligenceDataManager: React.FC = () => {
             document.body.removeChild(link);
         } catch (err) {
             console.error("Export failed:", err);
-            alert("导出失败，请重试。");
+            setError(err instanceof Error ? `导出失败: ${err.message}` : '导出失败，请重试。');
         } finally {
             setIsExporting(false);
         }
@@ -233,6 +246,7 @@ export const IntelligenceDataManager: React.FC = () => {
                         <span>{isExporting ? '正在导出...' : '导出CSV'}</span>
                     </button>
                 </div>
+                {error && <div className="text-sm text-red-600 bg-red-100 p-2 rounded-md">{error}</div>}
             </div>
 
             <div className="bg-white rounded-lg border overflow-x-auto flex-1">
@@ -248,7 +262,6 @@ export const IntelligenceDataManager: React.FC = () => {
                     </thead>
                     <tbody>
                         {isLoading ? (<tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>)
-                        : error ? (<tr><td colSpan={5} className="text-center py-10 text-red-500">{error}</td></tr>)
                         : articles.length === 0 ? (<tr><td colSpan={5} className="text-center py-10">未找到任何文章。</td></tr>)
                         : (articles.map(article => (
                             <Fragment key={article.id}>
