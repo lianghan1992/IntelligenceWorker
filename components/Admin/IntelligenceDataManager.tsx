@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
 import { InfoItem, SystemSource, SearchResult } from '../../types';
 import { searchArticlesFiltered, getSources } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
-import { IntelligenceArticleModal } from './IntelligenceArticleModal';
 
 export const IntelligenceDataManager: React.FC = () => {
     const [articles, setArticles] = useState<SearchResult[]>([]);
@@ -23,7 +22,7 @@ export const IntelligenceDataManager: React.FC = () => {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [debouncedThreshold, setDebouncedThreshold] = useState(0.5);
 
-    const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
+    const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
     const [sources, setSources] = useState<SystemSource[]>([]);
     
     // Debounce search query text
@@ -107,23 +106,37 @@ export const IntelligenceDataManager: React.FC = () => {
             alert("没有可导出的数据。");
             return;
         }
-        const headers = ['ID', 'Source', 'Point', 'Title', 'URL', 'Publish Date'];
-        const rows = articles.map(article => [
-            article.id,
-            `"${article.source_name.replace(/"/g, '""')}"`,
-            `"${article.point_name.replace(/"/g, '""')}"`,
-            `"${article.title.replace(/"/g, '""')}"`,
-            article.original_url,
-            article.publish_date
+        const headers = ['序号', '标题', '发布日期', '文章内容'];
+        
+        const escapeCsvField = (field: string | number | null | undefined): string => {
+            if (field === null || field === undefined) {
+                return '""';
+            }
+            const stringField = String(field);
+            // Check if the field contains characters that need escaping
+            if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+                // Escape double quotes by doubling them and wrap the whole field in double quotes
+                return `"${stringField.replace(/"/g, '""')}"`;
+            }
+            return stringField;
+        };
+
+        const rows = articles.map((article, index) => [
+            index + 1,
+            article.title,
+            article.publish_date ? new Date(article.publish_date).toLocaleDateString('zh-CN') : 'N/A',
+            article.content
         ]);
+        
         let csvContent = "\uFEFF"; // BOM for UTF-8
         csvContent += headers.join(',') + '\r\n';
-        csvContent += rows.map(r => r.join(',')).join('\r\n');
+        csvContent += rows.map(row => row.map(escapeCsvField).join(',')).join('\r\n');
+        
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
-        link.setAttribute("download", "intelligence_export.csv");
+        link.setAttribute("download", `情报导出_${new Date().toISOString().slice(0,10)}.csv`);
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -133,8 +146,11 @@ export const IntelligenceDataManager: React.FC = () => {
     const totalPages = Math.ceil(pagination.total / pagination.limit);
     const isSearchActive = filters.query_text.trim() !== '';
 
+    const handleRowClick = (articleId: string) => {
+        setSelectedArticleId(prevId => (prevId === articleId ? null : articleId));
+    };
+
     return (
-        <>
         <div className="h-full flex flex-col">
             <div className="p-4 bg-white rounded-lg border mb-4 space-y-4">
                 <div className="relative">
@@ -176,23 +192,44 @@ export const IntelligenceDataManager: React.FC = () => {
                  <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
-                            <th scope="col" className="px-6 py-3">标题</th>
-                            <th scope="col" className="px-6 py-3">来源/情报点</th>
+                            <th scope="col" className="px-6 py-3 w-2/5">标题</th>
+                            <th scope="col" className="px-6 py-3">情报源</th>
+                            <th scope="col" className="px-6 py-3">情报点</th>
                             <th scope="col" className="px-6 py-3">发布日期</th>
                             <th scope="col" className="px-6 py-3">相似度</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading ? (<tr><td colSpan={4} className="text-center py-10">加载中...</td></tr>)
-                        : error ? (<tr><td colSpan={4} className="text-center py-10 text-red-500">{error}</td></tr>)
-                        : articles.length === 0 ? (<tr><td colSpan={4} className="text-center py-10">未找到任何文章。</td></tr>)
+                        {isLoading ? (<tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>)
+                        : error ? (<tr><td colSpan={5} className="text-center py-10 text-red-500">{error}</td></tr>)
+                        : articles.length === 0 ? (<tr><td colSpan={5} className="text-center py-10">未找到任何文章。</td></tr>)
                         : (articles.map(article => (
-                            <tr key={article.id} className="bg-white border-b hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedArticle(article)}>
-                                <td className="px-6 py-4 font-medium text-gray-900 max-w-md truncate">{article.title}</td>
-                                <td className="px-6 py-4">{article.source_name} / {article.point_name}</td>
-                                <td className="px-6 py-4">{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN')}</td>
-                                <td className="px-6 py-4">{article.similarity_score ? article.similarity_score.toFixed(3) : '-'}</td>
-                            </tr>
+                            <Fragment key={article.id}>
+                                <tr className={`border-b hover:bg-gray-50 cursor-pointer ${selectedArticleId === article.id ? 'bg-blue-50' : ''}`} onClick={() => handleRowClick(article.id)}>
+                                    <td className="px-6 py-4 font-medium text-gray-900">{article.title}</td>
+                                    <td className="px-6 py-4">{article.source_name}</td>
+                                    <td className="px-6 py-4">{article.point_name}</td>
+                                    <td className="px-6 py-4">{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN')}</td>
+                                    <td className="px-6 py-4">{article.similarity_score ? article.similarity_score.toFixed(3) : '-'}</td>
+                                </tr>
+                                {selectedArticleId === article.id && (
+                                    <tr className="bg-gray-50">
+                                        <td colSpan={5} className="p-4">
+                                            <div className="bg-white border rounded-lg p-4">
+                                                <h4 className="font-semibold text-gray-800 mb-2">文章内容预览</h4>
+                                                <div className="whitespace-pre-wrap text-xs text-gray-600 leading-relaxed max-h-40 overflow-y-auto p-3 bg-gray-100 rounded-md">
+                                                    {article.content}
+                                                </div>
+                                                <div className="mt-3">
+                                                    <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs font-semibold">
+                                                        查看原文 &rarr;
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </Fragment>
                         )))}
                     </tbody>
                  </table>
@@ -207,7 +244,5 @@ export const IntelligenceDataManager: React.FC = () => {
                 </div>
             </div>
         </div>
-        {selectedArticle && <IntelligenceArticleModal article={selectedArticle} onClose={() => setSelectedArticle(null)} />}
-        </>
     );
 };
