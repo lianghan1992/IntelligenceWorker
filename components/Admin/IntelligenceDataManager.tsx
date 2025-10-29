@@ -65,12 +65,17 @@ export const IntelligenceDataManager: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const params = {
-                ...searchParams,
+            const { publish_date_start, publish_date_end, ...restSearchParams } = searchParams;
+            const params: any = {
+                ...restSearchParams,
                 query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
                 page: pagination.page,
                 limit: pagination.limit,
             };
+
+            if (publish_date_start) params.publish_date_start = publish_date_start;
+            if (publish_date_end) params.publish_date_end = publish_date_end;
+
             const response = await searchArticlesFiltered(params);
             setArticles(response.items || []);
             setPagination(prev => ({...prev, total: response.total}));
@@ -110,13 +115,18 @@ export const IntelligenceDataManager: React.FC = () => {
 
         setIsExporting(true);
         try {
+            const { publish_date_start, publish_date_end, ...restSearchParams } = searchParams;
             // Fetch all articles matching the current filter
-            const exportParams = {
-                ...searchParams,
+            const exportParams: any = {
+                ...restSearchParams,
                 query_text: searchParams.query_text.trim() === '' ? '*' : searchParams.query_text,
                 page: 1,
                 limit: 10000, // Set a large limit to fetch all data
             };
+
+            if (publish_date_start) exportParams.publish_date_start = publish_date_start;
+            if (publish_date_end) exportParams.publish_date_end = publish_date_end;
+
             const response = await searchArticlesFiltered(exportParams);
             const allArticles = response.items || [];
 
