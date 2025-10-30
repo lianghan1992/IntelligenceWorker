@@ -23,7 +23,7 @@ const decodeBase64Utf8 = (base64: string): string => {
         }
         return new TextDecoder('utf-8').decode(bytes);
     } catch (e) {
-        // It might not be base64, return as is.
+        // If it's not valid base64, return as is. This handles cases where data might be plain text.
         return base64;
     }
 };
@@ -74,7 +74,7 @@ export const IntelligenceChunkManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [pagination, setPagination] = useState({ page: 1, limit: 20, total_chunks: 0, total_articles: 0 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total_chunks: 0, total_articles: 0 });
 
     const [filters, setFilters] = useState({
         query_text: '',
@@ -85,7 +85,6 @@ export const IntelligenceChunkManager: React.FC = () => {
         top_k: 200
     });
     
-    // This state holds the filters that are actually submitted for search
     const [submittedFilters, setSubmittedFilters] = useState(filters);
 
     const [sources, setSources] = useState<SystemSource[]>([]);
@@ -104,7 +103,6 @@ export const IntelligenceChunkManager: React.FC = () => {
             const response = await searchChunks(payload);
             const results = response.results || [];
             
-            // Conditional sorting
             if (isSearchActive) {
                 results.sort((a, b) => b.similarity_score - a.similarity_score);
             } else {
@@ -118,7 +116,7 @@ export const IntelligenceChunkManager: React.FC = () => {
             setChunks(results);
             setPagination(prev => ({ 
                 ...prev, 
-                page: 1, // Reset page on new data
+                page: 1,
                 total_chunks: response.total_chunks, 
                 total_articles: response.total_articles 
             }));
@@ -139,6 +137,7 @@ export const IntelligenceChunkManager: React.FC = () => {
     }, []);
     
     const handleSearch = () => {
+        setPagination(p => ({ ...p, page: 1 }));
         setSubmittedFilters(filters);
     };
 
@@ -193,7 +192,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                 item.article_title,
                 item.article_url,
                 item.article_publish_date,
-                item.merged_content,
+                decodeBase64Utf8(item.merged_content),
                 item.similarity_scores.map(s => s.toFixed(3)).join('; '),
             ]);
             
@@ -239,40 +238,38 @@ export const IntelligenceChunkManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="p-4 bg-white rounded-lg border mb-4 space-y-3">
-                <div className="flex items-center gap-x-4">
-                    <div className="relative flex-grow">
+            <div className="p-4 bg-white rounded-lg border mb-4">
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-2">
+                    <div className="relative flex-grow sm:flex-grow-0" style={{minWidth: '250px'}}>
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                     </div>
-                    <button onClick={handleSearch} disabled={isLoading} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
-                        检索
-                    </button>
-                    <button onClick={handleExportCsv} disabled={isExporting || chunks.length === 0} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
-                        <DownloadIcon className="w-4 h-4"/>
-                        <span>{isExporting ? '导出中...' : '导出CSV'}</span>
-                    </button>
-                </div>
-                <div className="flex items-center gap-4">
-                     <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
                         <label htmlFor="top_k" className="text-sm font-medium whitespace-nowrap text-gray-700">Top K:</label>
-                        <input type="number" id="top_k" name="top_k" value={filters.top_k} onChange={handleFilterChange} className="w-24 bg-white border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input type="number" id="top_k" name="top_k" value={filters.top_k} onChange={handleFilterChange} className="w-20 bg-white border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div className="flex items-center gap-2">
                         <label htmlFor="similarity_threshold" className={`text-sm font-medium whitespace-nowrap ${!isSearchActive ? 'text-gray-400' : 'text-gray-700'}`}>相似度:</label>
-                        <input type="range" id="similarity_threshold" name="similarity_threshold" min="0" max="1" step="0.01" value={filters.similarity_threshold} onChange={handleFilterChange} disabled={!isSearchActive} className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"/>
+                        <input type="range" id="similarity_threshold" name="similarity_threshold" min="0" max="1" step="0.01" value={filters.similarity_threshold} onChange={handleFilterChange} disabled={!isSearchActive} className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"/>
                         <span className={`font-semibold text-sm w-10 text-center ${!isSearchActive ? 'text-gray-400' : 'text-blue-600'}`}>{filters.similarity_threshold.toFixed(2)}</span>
                     </div>
-                     <div className="flex-shrink-0">
-                        <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="w-40 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">所有情报源</option>
-                            {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
-                        </select>
-                    </div>
+                    <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">所有情报源</option>
+                        {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
+                    </select>
                     <div className="flex items-center gap-1">
-                        <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"/>
+                        <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                         <span className="text-gray-500">-</span>
-                        <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"/>
+                        <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                        <button onClick={handleSearch} disabled={isLoading} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
+                            检索
+                        </button>
+                        <button onClick={handleExportCsv} disabled={isExporting || chunks.length === 0} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
+                            <DownloadIcon className="w-4 h-4"/>
+                            <span>{isExporting ? '导出中...' : '导出CSV'}</span>
+                        </button>
                     </div>
                 </div>
                 {error && <div className="mt-2 text-sm text-red-600 bg-red-100 p-2 rounded-md">{error}</div>}
@@ -309,7 +306,7 @@ export const IntelligenceChunkManager: React.FC = () => {
                                     <td className="px-6 py-4 font-semibold">
                                         <div className="flex items-center gap-2">
                                             <span>{chunk.similarity_score ? chunk.similarity_score.toFixed(3) : '-'}</span>
-                                            {chunk.similarity_score && (
+                                            {chunk.similarity_score > 0 && (
                                                 <div className="w-16 bg-gray-200 rounded-full h-1.5">
                                                     <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${chunk.similarity_score * 100}%` }}></div>
                                                 </div>

@@ -37,8 +37,13 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
                     data_table: 'cdash_data_technology'
                 }
             );
-            // FIX: Add type assertion to ensure correct type inference for `findings` state.
-            setFindings((response.data as VehicleTechnologyFinding[]) || []);
+{/* @v-fix start */}
+            if (response && Array.isArray(response.data)) {
+                setFindings(response.data as VehicleTechnologyFinding[]);
+            } else {
+                setFindings([]);
+            }
+{/* @v-fix end */}
         } catch (e: any) {
             setError(e.message || '加载技术情报失败');
         } finally {

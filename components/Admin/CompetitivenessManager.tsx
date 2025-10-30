@@ -579,7 +579,6 @@ const ModuleManager: React.FC = () => {
     );
 };
 
-// --- FIX: Add DataQueryView component ---
 // --- Data Query View ---
 const DataQueryView: React.FC = () => {
     const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: 10 });
@@ -627,18 +626,21 @@ const DataQueryView: React.FC = () => {
             <div className="space-y-4 p-4 bg-white rounded-lg border mb-4">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数据表</label>
-                    {/* FIX: Cast e.target to HTMLInputElement */}
-                    <input value={params.data_table} onChange={e => setParams({...params, data_table: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix start */}
+                    <input value={params.data_table} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, data_table: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix end */}
                 </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">实体类型 (逗号分隔)</label>
-                    {/* FIX: Cast e.target to HTMLInputElement */}
-                    <input value={params.entity_types} onChange={e => setParams({...params, entity_types: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix start */}
+                    <input value={params.entity_types} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, entity_types: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix end */}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数量限制</label>
-                    {/* FIX: Cast e.target to HTMLInputElement */}
-                    <input value={params.limit} onChange={e => setParams({...params, limit: Number((e.target as HTMLInputElement).value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix start */}
+                    <input value={params.limit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, limit: Number(e.target.value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+{/* @v-fix end */}
                 </div>
                 <button onClick={() => handleQuery(1)} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
                     {isLoading ? '查询中...' : '查询'}
