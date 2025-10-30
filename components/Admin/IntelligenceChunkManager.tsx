@@ -23,8 +23,8 @@ const decodeBase64Utf8 = (base64: string): string => {
         }
         return new TextDecoder('utf-8').decode(bytes);
     } catch (e) {
-        // console.warn("Failed to decode base64 string, returning as is.", base64, e);
-        return base64; // Return original string if it's not valid base64
+        // It might not be base64, return as is.
+        return base64;
     }
 };
 
@@ -82,51 +82,43 @@ export const IntelligenceChunkManager: React.FC = () => {
         publish_date_start: '',
         publish_date_end: '',
         similarity_threshold: 0.5,
-        top_k: 50
+        top_k: 200
     });
-
-    const [debouncedQuery, setDebouncedQuery] = useState('');
+    
+    // This state holds the filters that are actually submitted for search
+    const [submittedFilters, setSubmittedFilters] = useState(filters);
 
     const [sources, setSources] = useState<SystemSource[]>([]);
     
-    const isSearchActive = useMemo(() => debouncedQuery.trim() !== '' && debouncedQuery.trim() !== '*', [debouncedQuery]);
+    const isSearchActive = useMemo(() => {
+        const query = submittedFilters.query_text.trim();
+        return query !== '' && query !== '*';
+    }, [submittedFilters.query_text]);
 
-    useEffect(() => {
-        const handler = setTimeout(() => {
-             if (filters.query_text !== debouncedQuery) {
-                setDebouncedQuery(filters.query_text);
-            }
-        }, 500);
-        return () => clearTimeout(handler);
-    }, [filters.query_text, debouncedQuery]);
-    
-    const searchParams = useMemo(() => ({
-        query_text: debouncedQuery,
-        similarity_threshold: filters.similarity_threshold,
-        source_names: filters.source_names,
-        publish_date_start: filters.publish_date_start,
-        publish_date_end: filters.publish_date_end,
-        top_k: filters.top_k,
-    }), [debouncedQuery, filters]);
-    
-    const isInitialMount = React.useRef(true);
-    useEffect(() => {
-        if (!isInitialMount.current) {
-            setPagination(p => ({ ...p, page: 1 }));
-        } else {
-            isInitialMount.current = false;
-        }
-    }, [searchParams]);
 
     const loadChunks = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const payload = buildApiPayload(searchParams);
+            const payload = buildApiPayload(submittedFilters);
             const response = await searchChunks(payload);
-            setChunks(response.results || []);
+            const results = response.results || [];
+            
+            // Conditional sorting
+            if (isSearchActive) {
+                results.sort((a, b) => b.similarity_score - a.similarity_score);
+            } else {
+                results.sort((a, b) => {
+                    const dateA = a.article_publish_date ? new Date(a.article_publish_date).getTime() : 0;
+                    const dateB = b.article_publish_date ? new Date(b.article_publish_date).getTime() : 0;
+                    return dateB - dateA;
+                });
+            }
+
+            setChunks(results);
             setPagination(prev => ({ 
                 ...prev, 
+                page: 1, // Reset page on new data
                 total_chunks: response.total_chunks, 
                 total_articles: response.total_articles 
             }));
@@ -136,7 +128,7 @@ export const IntelligenceChunkManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [searchParams]);
+    }, [submittedFilters, isSearchActive]);
 
     useEffect(() => {
         loadChunks();
@@ -145,12 +137,22 @@ export const IntelligenceChunkManager: React.FC = () => {
     useEffect(() => {
         getSources().then(setSources).catch(() => setError("无法加载情报源列表"));
     }, []);
+    
+    const handleSearch = () => {
+        setSubmittedFilters(filters);
+    };
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
+        const { name, value, type } = e.target;
+        
+        let processedValue: string | number = value;
+        if (type === 'range' || type === 'number') {
+            processedValue = Number(value);
+        }
+
         setFilters(prev => ({
             ...prev,
-            [name]: e.target.type === 'range' ? parseFloat(value) : value,
+            [name]: processedValue,
         }));
     };
     
@@ -169,7 +171,7 @@ export const IntelligenceChunkManager: React.FC = () => {
         setIsExporting(true);
         setError(null);
         try {
-            const payload = buildApiPayload(filters);
+            const payload = buildApiPayload(submittedFilters);
             const response = await exportChunks(payload);
             
             if (!response.export_data || response.export_data.length === 0) {
@@ -215,13 +217,14 @@ export const IntelligenceChunkManager: React.FC = () => {
     };
     
     const highlightQuery = (text: string) => {
-        if (!debouncedQuery || !isSearchActive) return text;
+        const query = submittedFilters.query_text;
+        if (!query || !isSearchActive) return text;
         try {
-            const parts = text.split(new RegExp(`(${debouncedQuery})`, 'gi'));
+            const parts = text.split(new RegExp(`(${query})`, 'gi'));
             return (
                 <>
                     {parts.map((part, i) =>
-                        part.toLowerCase() === debouncedQuery.toLowerCase() ? (
+                        part.toLowerCase() === query.toLowerCase() ? (
                             <mark key={i} className="bg-yellow-200 text-black px-0.5 rounded-sm">{part}</mark>
                         ) : (
                             part
@@ -236,33 +239,40 @@ export const IntelligenceChunkManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col">
-            <div className="p-4 bg-white rounded-lg border mb-4">
+            <div className="p-4 bg-white rounded-lg border mb-4 space-y-3">
                 <div className="flex items-center gap-x-4">
                     <div className="relative flex-grow">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={handleSearch} disabled={isLoading} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
+                        检索
+                    </button>
+                    <button onClick={handleExportCsv} disabled={isExporting || chunks.length === 0} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
+                        <DownloadIcon className="w-4 h-4"/>
+                        <span>{isExporting ? '导出中...' : '导出CSV'}</span>
+                    </button>
+                </div>
+                <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-2">
+                        <label htmlFor="top_k" className="text-sm font-medium whitespace-nowrap text-gray-700">Top K:</label>
+                        <input type="number" id="top_k" name="top_k" value={filters.top_k} onChange={handleFilterChange} className="w-24 bg-white border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="flex items-center gap-2">
                         <label htmlFor="similarity_threshold" className={`text-sm font-medium whitespace-nowrap ${!isSearchActive ? 'text-gray-400' : 'text-gray-700'}`}>相似度:</label>
                         <input type="range" id="similarity_threshold" name="similarity_threshold" min="0" max="1" step="0.01" value={filters.similarity_threshold} onChange={handleFilterChange} disabled={!isSearchActive} className="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50"/>
                         <span className={`font-semibold text-sm w-10 text-center ${!isSearchActive ? 'text-gray-400' : 'text-blue-600'}`}>{filters.similarity_threshold.toFixed(2)}</span>
                     </div>
-                    <div className="flex-shrink-0">
+                     <div className="flex-shrink-0">
                         <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="w-40 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">所有情报源</option>
                             {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
                         </select>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="flex items-center gap-1">
                         <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"/>
                         <span className="text-gray-500">-</span>
                         <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"/>
-                    </div>
-                    <div className="flex-shrink-0">
-                        <button onClick={handleExportCsv} disabled={isExporting || pagination.total_chunks === 0} className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50">
-                            <DownloadIcon className="w-4 h-4"/>
-                            <span>{isExporting ? '导出中...' : '导出CSV'}</span>
-                        </button>
                     </div>
                 </div>
                 {error && <div className="mt-2 text-sm text-red-600 bg-red-100 p-2 rounded-md">{error}</div>}
@@ -298,10 +308,12 @@ export const IntelligenceChunkManager: React.FC = () => {
                                     <td className="px-6 py-4 text-gray-800 break-words" title={decodedChunkText}>{highlightQuery(decodedChunkText)}</td>
                                     <td className="px-6 py-4 font-semibold">
                                         <div className="flex items-center gap-2">
-                                            <span>{chunk.similarity_score.toFixed(3)}</span>
-                                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                                                <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${chunk.similarity_score * 100}%` }}></div>
-                                            </div>
+                                            <span>{chunk.similarity_score ? chunk.similarity_score.toFixed(3) : '-'}</span>
+                                            {chunk.similarity_score && (
+                                                <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                                                    <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${chunk.similarity_score * 100}%` }}></div>
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">{chunk.source_name}</td>

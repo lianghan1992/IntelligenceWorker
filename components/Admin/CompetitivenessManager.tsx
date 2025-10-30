@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus } from '../../types';
 import { 
@@ -626,15 +627,18 @@ const DataQueryView: React.FC = () => {
             <div className="space-y-4 p-4 bg-white rounded-lg border mb-4">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数据表</label>
-                    <input value={params.data_table} onChange={e => setParams({...params, data_table: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Cast e.target to HTMLInputElement */}
+                    <input value={params.data_table} onChange={e => setParams({...params, data_table: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">实体类型 (逗号分隔)</label>
-                    <input value={params.entity_types} onChange={e => setParams({...params, entity_types: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Cast e.target to HTMLInputElement */}
+                    <input value={params.entity_types} onChange={e => setParams({...params, entity_types: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数量限制</label>
-                    <input value={params.limit} onChange={e => setParams({...params, limit: Number(e.target.value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Cast e.target to HTMLInputElement */}
+                    <input value={params.limit} onChange={e => setParams({...params, limit: Number((e.target as HTMLInputElement).value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                 <button onClick={() => handleQuery(1)} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
                     {isLoading ? '查询中...' : '查询'}

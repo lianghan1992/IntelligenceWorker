@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts, mockAIAnalyses, mockTechDimensionAnalyses, mockBrandAnalyses } from './data';
@@ -331,11 +332,12 @@ export const TechDashboard: React.FC = () => {
             case 'supply_chain':
                 return (
                     <div className="flex gap-4">
-                        <select value={selections.type} onChange={e => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {/* FIX: Cast e.target to HTMLSelectElement */}
+                        <select value={selections.type} onChange={e => setSelections({ type: (e.target as HTMLSelectElement).value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="supplier">供应商</option>
                             <option value="platform">整车平台</option>
                         </select>
-                        <select value={selections.value} onChange={e => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select value={selections.value} onChange={e => handleSelectChange('value', (e.target as HTMLSelectElement).value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">-- 请选择 --</option>
                             {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
                         </select>

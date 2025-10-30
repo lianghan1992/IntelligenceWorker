@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
 import { VehicleTechnologyFinding } from '../../types';

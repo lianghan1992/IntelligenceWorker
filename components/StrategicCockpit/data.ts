@@ -1,3 +1,5 @@
+
+import React from 'react';
 import { StrategicLookKey } from '../../types';
 import { LightBulbIcon, UsersIcon, EyeIcon, TrendingUpIcon, RssIcon } from '../icons';
 
@@ -10,6 +12,7 @@ export interface SubCategory {
 export interface Category {
     key: StrategicLookKey | 'all';
     label: string;
+    // FIX: Add React import to use React.FC
     icon: React.FC<any>;
     description: string;
     hasSettings: boolean;
