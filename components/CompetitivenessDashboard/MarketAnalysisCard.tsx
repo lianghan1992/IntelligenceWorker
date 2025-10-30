@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
-import { MarketAnalysisFinding } from '../../types';
+import { MarketAnalysisFinding, DataQueryResponse } from '../../types';
 import { EyeIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -40,20 +40,19 @@ export const MarketAnalysisCard: React.FC<MarketAnalysisCardProps> = ({ selected
         setIsLoading(true);
         setError('');
         try {
+            // FIX: Cast the response to the specific DataQueryResponse type
             const response = await queryData(
                 { limit: 100 },
                 {
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_market'
                 }
-            );
-{/* @v-fix start */}
+            ) as DataQueryResponse<MarketAnalysisFinding>;
             if (response && Array.isArray(response.data)) {
-                setFindings(response.data as MarketAnalysisFinding[]);
+                setFindings(response.data);
             } else {
                 setFindings([]);
             }
-{/* @v-fix end */}
         } catch (e: any) {
             setError(e.message || '加载市场分析情报失败');
         } finally {

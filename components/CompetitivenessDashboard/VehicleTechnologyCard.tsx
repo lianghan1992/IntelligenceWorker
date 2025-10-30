@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
-import { VehicleTechnologyFinding } from '../../types';
+import { VehicleTechnologyFinding, DataQueryResponse } from '../../types';
 import { BrainIcon, ClockIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -30,20 +30,19 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
         setIsLoading(true);
         setError('');
         try {
+            // FIX: Cast the response to the specific DataQueryResponse type
             const response = await queryData(
                 { limit: 100 }, // Query params
                 { // Body
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_technology'
                 }
-            );
-{/* @v-fix start */}
+            ) as DataQueryResponse<VehicleTechnologyFinding>;
             if (response && Array.isArray(response.data)) {
-                setFindings(response.data as VehicleTechnologyFinding[]);
+                setFindings(response.data);
             } else {
                 setFindings([]);
             }
-{/* @v-fix end */}
         } catch (e: any) {
             setError(e.message || '加载技术情报失败');
         } finally {
