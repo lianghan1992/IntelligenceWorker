@@ -34,7 +34,7 @@ export interface PlanDetails {
 
 // --- Views ---
 export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
-export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness';
+export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html';
 
 // --- Intelligence & Subscriptions ---
 export interface Subscription {
@@ -216,6 +216,30 @@ export interface IntelligenceTask {
     task_type: string;
     payload: string | null;
 }
+
+// --- Document Processing Service ---
+export interface DocumentTask {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_size: number;
+  file_format: string;
+  total_pages: number;
+  processed_pages: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaginatedDocumentsResponse {
+    documents: DocumentTask[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+}
+
 
 // --- Strategic Cockpit ---
 export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';

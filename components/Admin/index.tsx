@@ -3,14 +3,16 @@ import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManager } from './UserManager';
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon } from '../icons';
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
+import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户管理', icon: UsersIcon },
     { view: 'events', label: '发布会管理', icon: VideoCameraIcon },
     { view: 'intelligence', label: '情报管理', icon: RssIcon },
     { view: 'competitiveness', label: '竞争力管理', icon: BrainIcon },
+    { view: 'markdown2html', label: 'Markdown转HTML', icon: DocumentTextIcon },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -26,6 +28,8 @@ export const AdminPage: React.FC = () => {
                 return <IntelligenceDashboard />;
             case 'competitiveness':
                 return <CompetitivenessManager />;
+            case 'markdown2html':
+                return <MarkdownToHtmlManager />;
             default:
                 return <UserManager />;
         }

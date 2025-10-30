@@ -1,0 +1,225 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { DocumentTask, PaginatedDocumentsResponse } from '../../types';
+import { getDocuments, uploadDocument, deleteDocument, regenerateHtml, downloadHtml } from '../../api';
+import {
+    PlusIcon, RefreshIcon, DownloadIcon, TrashIcon, SparklesIcon,
+    ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CheckIcon, ClockIcon, CloseIcon
+} from '../icons';
+import { ConfirmationModal } from './ConfirmationModal';
+
+const Spinner: React.FC = () => (
+    <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const getStatusBadge = (status: DocumentTask['status']) => {
+    switch (status) {
+        case 'completed': return { text: '已完成', className: 'bg-green-100 text-green-800' };
+        case 'processing': return { text: '处理中', className: 'bg-blue-100 text-blue-800 animate-pulse' };
+        case 'pending': return { text: '排队中', className: 'bg-yellow-100 text-yellow-800' };
+        case 'failed': return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
+        default: return { text: '未知', className: 'bg-gray-100 text-gray-800' };
+    }
+};
+
+const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+export const MarkdownToHtmlManager: React.FC = () => {
+    const [tasks, setTasks] = useState<DocumentTask[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    
+    const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, total_pages: 1 });
+    const [sort, setSort] = useState({ sort_by: 'created_at', sort_order: 'desc' });
+    
+    const [taskToAction, setTaskToAction] = useState<{ task: DocumentTask, action: 'delete' | 'regenerate' | 'download' } | null>(null);
+    const [actionLoading, setActionLoading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const loadTasks = useCallback(async (showLoading = true) => {
+        if (showLoading) setIsLoading(true);
+        setError(null);
+        try {
+            const params = {
+                page: pagination.page,
+                page_size: pagination.page_size,
+                sort_by: sort.sort_by,
+                sort_order: sort.sort_order,
+            };
+            const response = await getDocuments(params);
+            setTasks(response.documents || []);
+            setPagination(prev => ({ ...prev, total: response.total, total_pages: response.total_pages }));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '获取任务列表失败');
+        } finally {
+            if (showLoading) setIsLoading(false);
+        }
+    }, [pagination.page, pagination.page_size, sort]);
+
+    useEffect(() => {
+        loadTasks();
+    }, [loadTasks]);
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsUploading(true);
+        setError(null);
+        try {
+            await uploadDocument(file);
+            await loadTasks(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '上传失败');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+    
+    const handleDownload = async (task: DocumentTask) => {
+        setActionLoading(true);
+        try {
+            const blob = await downloadHtml(task.id);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${task.original_filename.split('.')[0]}.html`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '下载失败');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const confirmAction = async () => {
+        if (!taskToAction) return;
+
+        setActionLoading(true);
+        setError(null);
+        const { task, action } = taskToAction;
+
+        try {
+            switch (action) {
+                case 'delete':
+                    await deleteDocument(task.id);
+                    break;
+                case 'regenerate':
+                    await regenerateHtml(task.id);
+                    break;
+            }
+            await loadTasks(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '操作失败');
+        } finally {
+            setActionLoading(false);
+            setTaskToAction(null);
+        }
+    };
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage > 0 && newPage <= pagination.total_pages) {
+            setPagination(prev => ({ ...prev, page: newPage }));
+        }
+    };
+
+    return (
+        <div className="p-6 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">Markdown转HTML任务管理</h1>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => loadTasks()} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.md,.txt,.docx" className="hidden" />
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
+                        {isUploading ? <Spinner /> : <PlusIcon className="w-4 h-4" />}
+                        <span>{isUploading ? '上传中...' : '上传文档'}</span>
+                    </button>
+                </div>
+            </div>
+
+            {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
+            
+            <div className="bg-white rounded-lg border overflow-x-auto flex-1">
+                 <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3">文件名</th>
+                            <th className="px-6 py-3">状态</th>
+                            <th className="px-6 py-3">文件大小</th>
+                            <th className="px-6 py-3">页数</th>
+                            <th className="px-6 py-3">创建时间</th>
+                            <th className="px-6 py-3">更新时间</th>
+                            <th className="px-6 py-3 text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {isLoading ? (
+                            <tr><td colSpan={7} className="text-center py-10"><Spinner /></td></tr>
+                        ) : tasks.length === 0 ? (
+                            <tr><td colSpan={7} className="text-center py-10">未找到任何任务。</td></tr>
+                        ) : (
+                            tasks.map(task => {
+                                const statusBadge = getStatusBadge(task.status);
+                                return (
+                                <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={task.original_filename}>{task.original_filename}</td>
+                                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
+                                    <td className="px-6 py-4">{formatBytes(task.file_size)}</td>
+                                    <td className="px-6 py-4">{task.total_pages}</td>
+                                    <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                            <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || actionLoading} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
+                                            <button onClick={() => setTaskToAction({task, action: 'regenerate'})} disabled={actionLoading} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50">重新生成</button>
+                                            <button onClick={() => setTaskToAction({task, action: 'delete'})} disabled={actionLoading} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                 </table>
+            </div>
+
+            <div className="flex justify-between items-center mt-4 text-sm">
+                <span className="text-gray-600">共 {pagination.total} 条</span>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronLeftIcon className="w-4 h-4" /></button>
+                    <span>第 {pagination.page} / {pagination.total_pages} 页</span>
+                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.total_pages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronRightIcon className="w-4 h-4" /></button>
+                </div>
+            </div>
+
+            {taskToAction && (taskToAction.action === 'delete' || taskToAction.action === 'regenerate') && (
+                 <ConfirmationModal
+                    title={`确认${taskToAction.action === 'delete' ? '删除' : '重新生成'}`}
+                    message={`您确定要${taskToAction.action === 'delete' ? '删除' : '重新生成'} "${taskToAction.task.original_filename}" 的任务吗？`}
+                    confirmText={`确认${taskToAction.action === 'delete' ? '删除' : '生成'}`}
+                    onConfirm={confirmAction}
+                    onCancel={() => setTaskToAction(null)}
+                    isLoading={actionLoading}
+                />
+            )}
+        </div>
+    );
+};
