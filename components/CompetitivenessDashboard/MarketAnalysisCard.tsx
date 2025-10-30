@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
 import { MarketAnalysisFinding, DataQueryResponse } from '../../types';
@@ -40,14 +41,14 @@ export const MarketAnalysisCard: React.FC<MarketAnalysisCardProps> = ({ selected
         setIsLoading(true);
         setError('');
         try {
-            // FIX: Cast the response to the specific DataQueryResponse type
-            const response = await queryData(
+            // FIX: Use generic type parameter for queryData for type safety.
+            const response = await queryData<MarketAnalysisFinding>(
                 { limit: 100 },
                 {
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_market'
                 }
-            ) as DataQueryResponse<MarketAnalysisFinding>;
+            );
             if (response && Array.isArray(response.data)) {
                 setFindings(response.data);
             } else {

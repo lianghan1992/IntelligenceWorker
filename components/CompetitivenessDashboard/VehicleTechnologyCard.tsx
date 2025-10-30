@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
 import { VehicleTechnologyFinding, DataQueryResponse } from '../../types';
@@ -30,14 +31,14 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
         setIsLoading(true);
         setError('');
         try {
-            // FIX: Cast the response to the specific DataQueryResponse type
-            const response = await queryData(
+            // FIX: Use generic type parameter for queryData for type safety.
+            const response = await queryData<VehicleTechnologyFinding>(
                 { limit: 100 }, // Query params
                 { // Body
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_technology'
                 }
-            ) as DataQueryResponse<VehicleTechnologyFinding>;
+            );
             if (response && Array.isArray(response.data)) {
                 setFindings(response.data);
             } else {

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, DataQueryResponse } from '../../types';
 import { 
@@ -582,7 +581,6 @@ const ModuleManager: React.FC = () => {
 // --- Data Query View ---
 const DataQueryView: React.FC = () => {
     const [params, setParams] = useState({ data_table: 'cdash_data_technology', entity_types: 'car_brand', limit: 10 });
-    // FIX: Strongly type the results state
     const [results, setResults] = useState<DataQueryResponse<any> | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -601,7 +599,8 @@ const DataQueryView: React.FC = () => {
                 limit: params.limit,
                 offset: (newPage - 1) * params.limit
             };
-            const data = await queryData(queryParams, queryBody);
+            // FIX: Use generic parameter for queryData to ensure type safety.
+            const data = await queryData<any>(queryParams, queryBody);
             setResults(data);
         } catch (e: any) {
             setError(e.message || '查询失败');
@@ -611,15 +610,16 @@ const DataQueryView: React.FC = () => {
     }, [params]);
 
     const headers = useMemo(() => {
-        // FIX: Add a type guard to ensure the item is an object before getting keys
-        if (results?.data?.length > 0 && typeof results.data[0] === 'object' && results.data[0] !== null) {
-            return Object.keys(results.data[0]);
+        if (results && results.data && results.data.length > 0) {
+            const firstItem = results.data[0];
+            if (typeof firstItem === 'object' && firstItem !== null) {
+                return Object.keys(firstItem);
+            }
         }
         return [];
     }, [results]);
 
     const totalPages = useMemo(() => {
-        // FIX: With strong types, this calculation is now safe.
         if (!results || !results.limit) return 1;
         return Math.ceil(results.total / results.limit) || 1;
     }, [results]);
@@ -629,15 +629,18 @@ const DataQueryView: React.FC = () => {
             <div className="space-y-4 p-4 bg-white rounded-lg border mb-4">
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数据表</label>
-                    <input value={params.data_table} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, data_table: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Added explicit cast to e.target to resolve TypeScript error. */}
+                    <input value={params.data_table} onChange={e => setParams({...params, data_table: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">实体类型 (逗号分隔)</label>
-                    <input value={params.entity_types} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, entity_types: e.target.value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Added explicit cast to e.target to resolve TypeScript error. */}
+                    <input value={params.entity_types} onChange={e => setParams({...params, entity_types: (e.target as HTMLInputElement).value})} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">数量限制</label>
-                    <input value={params.limit} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setParams({...params, limit: Number(e.target.value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                    {/* FIX: Added explicit cast to e.target to resolve TypeScript error. */}
+                    <input value={params.limit} onChange={e => setParams({...params, limit: Number((e.target as HTMLInputElement).value)})} type="number" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                 </div>
                 <button onClick={() => handleQuery(1)} disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg disabled:bg-blue-300">
                     {isLoading ? '查询中...' : '查询'}

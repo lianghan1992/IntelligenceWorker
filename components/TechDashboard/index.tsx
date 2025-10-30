@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { VehicleTechSpec, SpecDetail, ComparisonMode, NewTechForecast } from '../../types';
 import { techDimensions, mockVehicleSpecs, mockSuppliers, mockPlatforms, mockTechForecasts, mockAIAnalyses, mockTechDimensionAnalyses, mockBrandAnalyses } from './data';
@@ -298,7 +299,7 @@ export const TechDashboard: React.FC = () => {
                 return (
                     <div className="flex items-center gap-2">
                         {Object.keys(selections).map((key, i) => (
-                             <select key={key} value={selections[key] || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange(key, e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                             <select key={key} value={selections[key] || ''} onChange={(e) => handleSelectChange(key, (e.target as HTMLSelectElement).value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 {mockVehicleSpecs.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                              </select>
                         ))}
@@ -309,20 +310,20 @@ export const TechDashboard: React.FC = () => {
                 const modelsOfBrand = mockVehicleSpecs.filter(v => v.brand === selections.brand);
                 return (
                     <div className="flex gap-4">
-                        <select value={selections.brand} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelections({ brand: e.target.value, models: []})} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <select value={selections.brand} onChange={(e) => setSelections({ brand: (e.target as HTMLSelectElement).value, models: []})} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
-                         <select multiple value={selections.models} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('models', Array.from(e.target.selectedOptions, option => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                         <select multiple value={selections.models} onChange={(e) => handleSelectChange('models', Array.from(e.target.selectedOptions, option => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             {modelsOfBrand.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                         </select>
                     </div>
                 );
             case 'evolution':
-                return <select value={selections.model} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('model', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                return <select value={selections.model} onChange={(e) => handleSelectChange('model', (e.target as HTMLSelectElement).value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {uniqueModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>;
             case 'tech':
-                return <select value={selections.tech} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('tech', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                return <select value={selections.tech} onChange={(e) => handleSelectChange('tech', (e.target as HTMLSelectElement).value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     {techDimensions.map(cat => (
                         <optgroup key={cat.key} label={cat.label}>
                             {cat.subDimensions.map(sub => <option key={`${cat.key}.${sub.key}`} value={`${cat.key}.${sub.key}`}>{sub.label}</option>)}
@@ -333,12 +334,14 @@ export const TechDashboard: React.FC = () => {
                 return (
                     <div className="flex gap-4">
                         {/* FIX: Provide a default value for selections.type to ensure the component is controlled */}
-                        <select value={selections.type || 'supplier'} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelections({ type: e.target.value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {/* FIX: Added explicit cast to e.target to resolve TypeScript error. */}
+                        <select value={selections.type || 'supplier'} onChange={(e) => setSelections({ type: (e.target as HTMLSelectElement).value, value: '' })} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="supplier">供应商</option>
                             <option value="platform">整车平台</option>
                         </select>
                         {/* FIX: Provide a default value for selections.value to ensure the component is controlled */}
-                        <select value={selections.value || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('value', e.target.value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {/* FIX: Added explicit cast to e.target to resolve TypeScript error. */}
+                        <select value={selections.value || ''} onChange={(e) => handleSelectChange('value', (e.target as HTMLSelectElement).value)} className="w-full max-w-xs bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">-- 请选择 --</option>
                             {(selections.type === 'supplier' ? mockSuppliers : mockPlatforms).map(item => <option key={item} value={item}>{item}</option>)}
                         </select>

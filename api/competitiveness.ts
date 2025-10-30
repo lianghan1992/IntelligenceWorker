@@ -67,10 +67,11 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 
 
 // --- Data Query ---
-export const queryData = (params: any, queryBody: any): Promise<DataQueryResponse<any>> => {
+// FIX: Made queryData generic to allow type-safe responses.
+export const queryData = <T>(params: any, queryBody: any): Promise<DataQueryResponse<T>> => {
     const query = createApiQuery(params);
     // Per API doc, this endpoint does not use a trailing slash.
-    return apiFetch<DataQueryResponse<any>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
+    return apiFetch<DataQueryResponse<T>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
     });
