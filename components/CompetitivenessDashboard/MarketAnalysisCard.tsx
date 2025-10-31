@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { queryData } from '../../api';
 import { MarketAnalysisFinding, DataQueryResponse } from '../../types';

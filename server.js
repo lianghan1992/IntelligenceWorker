@@ -23,6 +23,9 @@ const apiTarget = 'http://127.0.0.1:7657';
 app.use('/api', createProxyMiddleware({
   target: apiTarget,
   changeOrigin: true,
+  pathRewrite: {
+    '^/api': '', // 移除路径中的 /api 前缀
+  },
   logLevel: 'debug',
   onProxyReq: (proxyReq, req, res) => {
     // 关键修复：确保将原始请求的协议（http或https）通过 X-Forwarded-Proto 头传递给后端。
