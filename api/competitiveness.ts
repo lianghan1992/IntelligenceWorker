@@ -5,16 +5,6 @@ import {
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
-// This response type is specific to the getEntities endpoint as per the new API doc.
-interface PaginatedEntitiesResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  size: number;
-  pages?: number;
-}
-
-
 // --- Entity Management ---
 export const getEntities = (params: { page?: number; size?: number; [key: string]: any }): Promise<PaginatedEntitiesResponse<CompetitivenessEntity>> => {
     const query = createApiQuery(params);
