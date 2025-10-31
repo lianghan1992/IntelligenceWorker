@@ -39,8 +39,8 @@ export const MarketAnalysisCard: React.FC<MarketAnalysisCardProps> = ({ selected
         setIsLoading(true);
         setError('');
         try {
-            // FIX: Use generic type parameter for queryData for type safety.
-            const response = await queryData<MarketAnalysisFinding>(
+            // FIX: Explicitly type the response to ensure correct type inference downstream.
+            const response: DataQueryResponse<MarketAnalysisFinding> = await queryData<MarketAnalysisFinding>(
                 { limit: 100 },
                 {
                     entity_ids: selectedEntityIds,
