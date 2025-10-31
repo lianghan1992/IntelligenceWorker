@@ -1,7 +1,7 @@
 import { COMPETITIVENESS_SERVICE_PATH } from '../config';
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
-    DataQueryResponse 
+    DataQueryResponse, PaginatedEntitiesResponse 
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -68,7 +68,7 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
 
 // --- Data Query ---
 // FIX: Made queryData generic to allow type-safe responses.
-export const queryData = <T>(params: any, queryBody: any): Promise<DataQueryResponse<T>> => {
+export const queryData = <T,>(params: any, queryBody: any): Promise<DataQueryResponse<T>> => {
     const query = createApiQuery(params);
     // Per API doc, this endpoint does not use a trailing slash.
     return apiFetch<DataQueryResponse<T>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {

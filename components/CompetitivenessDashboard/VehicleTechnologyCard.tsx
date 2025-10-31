@@ -30,7 +30,7 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
         setError('');
         try {
             // FIX: Explicitly type the response to ensure correct type inference downstream.
-            const response: DataQueryResponse<VehicleTechnologyFinding> = await queryData<VehicleTechnologyFinding>(
+            const response = await queryData<VehicleTechnologyFinding>(
                 { limit: 100 }, // Query params
                 { // Body
                     entity_ids: selectedEntityIds,

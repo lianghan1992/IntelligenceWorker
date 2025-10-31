@@ -39,7 +39,7 @@ export const MarkdownToHtmlManager: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     
-    const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, total_pages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, totalPages: 1 });
     const [sort, setSort] = useState({ sort_by: 'created_at', sort_order: 'desc' });
     
     const [taskToAction, setTaskToAction] = useState<{ task: DocumentTask, action: 'delete' | 'regenerate' | 'download' } | null>(null);
@@ -57,8 +57,8 @@ export const MarkdownToHtmlManager: React.FC = () => {
                 sort_order: sort.sort_order,
             };
             const response = await getDocuments(params);
-            setTasks(response.documents || []);
-            setPagination(prev => ({ ...prev, total: response.total, total_pages: response.total_pages }));
+            setTasks(response.items || []);
+            setPagination(prev => ({ ...prev, total: response.total, totalPages: response.totalPages }));
         } catch (err) {
             setError(err instanceof Error ? err.message : '获取任务列表失败');
         } finally {
@@ -134,7 +134,7 @@ export const MarkdownToHtmlManager: React.FC = () => {
     };
 
     const handlePageChange = (newPage: number) => {
-        if (newPage > 0 && newPage <= pagination.total_pages) {
+        if (newPage > 0 && newPage <= pagination.totalPages) {
             setPagination(prev => ({ ...prev, page: newPage }));
         }
     };
@@ -205,8 +205,8 @@ export const MarkdownToHtmlManager: React.FC = () => {
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 <div className="flex items-center gap-2">
                     <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronLeftIcon className="w-4 h-4" /></button>
-                    <span>第 {pagination.page} / {pagination.total_pages} 页</span>
-                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.total_pages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronRightIcon className="w-4 h-4" /></button>
+                    <span>第 {pagination.page} / {pagination.totalPages} 页</span>
+                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronRightIcon className="w-4 h-4" /></button>
                 </div>
             </div>
 

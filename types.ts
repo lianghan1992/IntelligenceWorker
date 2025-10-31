@@ -1,136 +1,198 @@
-// types.ts
-
 // --- General ---
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
   page: number;
   limit: number;
   totalPages?: number;
-  size?: number; // for competitiveness API
-  pages?: number; // for competitiveness API
 }
 
+// Special for Competitiveness entities endpoint
+export interface PaginatedEntitiesResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  pages?: number;
+}
+
+
+// --- App Navigation ---
+
+export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
+export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html';
+
+
 // --- User & Auth ---
+
 export interface User {
+  id: string;
+  username: string;
+  email: string;
+  plan_name?: string;
+}
+
+export interface UserListItem {
   id: string;
   username: string;
   email: string;
   plan_name: string;
   status: 'active' | 'disabled';
+  source_subscription_count: number;
+  poi_count: number;
+  created_at: string;
+}
+
+export interface UserForAdminUpdate {
+  username: string;
+  email: string;
+  plan_name: 'free' | 'premium';
+  status: 'active' | 'disabled';
+}
+
+export interface ApiPoi {
+  id: string;
+  content: string;
+  keywords: string;
+}
+
+export interface UserProfileDetails {
+  intelligence_sources: { items: SystemSource[] };
+  points_of_interest: { items: ApiPoi[] };
 }
 
 export interface Plan {
-    name: string;
-    price: number;
-    max_sources: number;
-    max_pois: number;
+  name: string;
+  price: number;
+  max_sources?: number;
+  max_pois?: number;
 }
 
 export interface PlanDetails {
-    free: Plan;
-    premium: Plan;
+  free: Plan;
+  premium: Plan;
 }
 
-// --- Views ---
-export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
-export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html';
 
-// --- Intelligence & Subscriptions ---
+// --- Intelligence & Data ---
+
 export interface Subscription {
   id: string;
-  user_id: string;
   source_name: string;
   point_name: string;
   point_url: string;
   cron_schedule: string;
-  is_active: 0 | 1;
-  created_at: string;
-  updated_at: string;
-  last_triggered_at: string | null;
   url_prompt_key: string;
   summary_prompt_key: string;
+  is_active: 0 | 1;
+  last_triggered_at: string | null;
+  created_at: string;
 }
 
 export interface SystemSource {
   id: string;
   source_name: string;
-  description: string | null;
   points_count: number;
-  created_at: string;
-  updated_at: string;
 }
 
 export interface InfoItem {
   id: string;
-  source_name: string;
-  point_name: string;
-  point_id: string;
   title: string;
   content: string;
   original_url: string;
+  source_name: string;
+  point_name: string;
+  point_id: string;
   publish_date: string | null;
   created_at: string;
-  updated_at: string;
+  similarity_score?: number;
 }
 
-export interface SearchResult extends InfoItem {
-  similarity_score?: number;
+export type SearchResult = InfoItem; // It's used as an alias
+
+export interface Prompt {
+  name: string;
+  content: string;
+}
+
+export interface AllPrompts {
+  url_extraction_prompts: { [key: string]: Prompt };
+  content_summary_prompts: { [key: string]: Prompt };
+}
+
+export interface IntelligenceTask {
+  id: string;
+  source_name: string;
+  point_name: string;
+  created_at: string;
+  status: string;
+  task_type: string;
+  payload: string | null;
 }
 
 export interface SearchChunkResult {
   article_id: string;
-  chunk_index: number;
-  chunk_text: string;
-  chunk_size: number;
-  similarity_score: number;
   article_title: string;
   article_url: string;
-  article_publish_date: string;
+  article_publish_date: string | null;
   source_name: string;
-  point_name: string;
-  article_summary: string | null;
-  article_keywords: string | null;
-  article_entities: string | null;
-  article_content: string | null;
+  chunk_index: number;
+  chunk_text: string;
+  similarity_score: number;
 }
 
 export interface SearchChunksResponse {
-    total_chunks: number;
-    total_articles: number;
-    results: SearchChunkResult[];
+  results: SearchChunkResult[];
+  total_chunks: number;
+  total_articles: number;
 }
 
 export interface ExportChunkData {
     article_title: string;
+    article_url: string;
     article_publish_date: string;
     merged_content: string;
-    article_url: string;
     similarity_scores: number[];
-    chunk_count: number;
 }
 
 export interface ExportChunksResponse {
-    total_articles: number;
-    export_data: ExportChunkData[];
+  export_data: ExportChunkData[];
 }
 
 
-export interface ApiPoi {
-    id: string;
-    content: string;
-    keywords: string;
+// --- Livestream / Events ---
+
+export interface LivestreamTask {
+  id: string;
+  url: string;
+  livestream_name: string;
+  host_name: string;
+  entity: string;
+  start_time: string;
+  status: string;
+  summary_report: string | null;
+  livestream_image: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-// --- Deep Dives & Recommendations ---
+export interface LivestreamPrompt {
+  name: string;
+  content: string;
+}
+
+
+// --- UI / Content Types ---
+
 export interface DeepDive {
   id: string;
+  imageUrl: string;
   title: string;
   summary: string;
   author: string;
   date: string;
   tags: string[];
-  imageUrl: string;
   category: {
     primary: string;
     secondary: string;
@@ -138,33 +200,11 @@ export interface DeepDive {
 }
 
 export interface RecommendedSubscription {
-    id: string;
-    name: string;
-    description: string;
-    subscribers: number;
+  id: string;
+  name: string;
+  description: string;
 }
 
-// --- Industry Events (Livestream) ---
-export interface LivestreamTask {
-  id?: string;
-  url: string;
-  livestream_name: string;
-  entity?: string;
-  host_name: string;
-  start_time: string;
-  status: 'pending' | 'listening' | 'recording' | 'processing' | 'completed' | 'failed';
-  summary_report: string | null;
-  livestream_image?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LivestreamPrompt {
-    name: string;
-    content: string;
-}
-
-// --- Report Generator ---
 export interface Slide {
   id: string;
   title: string;
@@ -172,99 +212,18 @@ export interface Slide {
   status: 'queued' | 'generating' | 'done';
 }
 
-// --- Admin ---
-export interface UserListItem {
-    id: string;
-    username: string;
-    email: string;
-    plan_name: '免费版' | '高级版';
-    status: 'active' | 'disabled';
-    source_subscription_count: number;
-    poi_count: number;
-    created_at: string;
-}
-
-export interface UserForAdminUpdate {
-    username: string;
-    email: string;
-    plan_name: 'free' | 'premium';
-    status: 'active' | 'disabled';
-}
-
-export interface UserProfileDetails {
-    intelligence_sources: { items: SystemSource[] };
-    points_of_interest: { items: ApiPoi[] };
-}
-
-export interface Prompt {
-    name: string;
-    content: string;
-    description?: string;
-}
-
-export interface AllPrompts {
-    url_extraction_prompts: { [key: string]: Prompt };
-    content_summary_prompts: { [key: string]: Prompt };
-}
-
-export interface IntelligenceTask {
-    id: string;
-    source_name: string;
-    point_name: string;
-    created_at: string;
-    status: 'processing' | 'completed' | 'failed' | 'pending' | 'pending_jina';
-    task_type: string;
-    payload: string | null;
-}
-
-// --- Document Processing Service ---
-export interface DocumentTask {
-  id: string;
-  filename: string;
-  original_filename: string;
-  file_size: number;
-  file_format: string;
-  total_pages: number;
-  processed_pages: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  error_message: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PaginatedDocumentsResponse {
-    documents: DocumentTask[];
-    total: number;
-    page: number;
-    page_size: number;
-    total_pages: number;
-}
-
 
 // --- Strategic Cockpit ---
+
 export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
 
-// --- Competitiveness Dashboard & Tech ---
+
+// --- Tech & Competitiveness Dashboard ---
+
 export interface SpecDetail {
-    value: string;
-    supplier?: string;
-    details?: any;
-}
-
-export type SpecValue = string | SpecDetail | null;
-
-export interface VehicleTechSpec {
-    id: string;
-    name: string;
-    brand: string;
-    model: string;
-    year: number;
-    platform: string;
-    specs: {
-        [categoryKey: string]: {
-            [subDimensionKey: string]: SpecValue;
-        }
-    };
+  value: string;
+  supplier?: string;
+  details?: Record<string, any>;
 }
 
 export interface TechDimension {
@@ -276,6 +235,20 @@ export interface TechDimensionCategory {
     key: string;
     label: string;
     subDimensions: TechDimension[];
+}
+
+export interface VehicleTechSpec {
+    id: string;
+    name: string;
+    brand: string;
+    model: string;
+    year: number;
+    platform: string;
+    specs: {
+        [categoryKey: string]: {
+            [subDimensionKey: string]: string | SpecDetail | null;
+        };
+    };
 }
 
 export type ComparisonMode = 'forecast' | 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain';
@@ -294,71 +267,47 @@ export interface NewTechForecast {
     sourceUrl: string;
 }
 
-// --- Competitiveness Backend ---
 export interface CompetitivenessEntity {
-    id: string;
-    name: string;
-    entity_type: string;
-    aliases: string[];
-    description: string | null;
-    metadata: Record<string, any>;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
+  id: string;
+  name: string;
+  entity_type: string;
+  aliases: string[];
+  description: string | null;
+  metadata: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CompetitivenessModule {
-    id: string;
-    module_name: string;
-    module_key: string;
-    target_entity_types: string[];
-    final_data_table: string;
-    description: string | null;
-    extraction_fields: Record<string, any>;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface BackfillJob {
-    id: string;
-    name: string;
-    description: string | null;
-    start_date: string;
-    end_date: string;
-    status: 'pending' | 'running' | 'paused' | 'completed' | 'failed';
-    created_at: string;
-    updated_at: string;
-}
-
-export interface SystemStatus {
-    status: string;
-    database_status: string;
-    uptime: string;
-    version: string;
-    statistics: {
-        active_modules: number;
-        total_entities: number;
-        processing_queue_size: number;
-    };
+  id: string;
+  module_name: string;
+  module_key: string;
+  target_entity_types: string[];
+  final_data_table: string;
+  description: string | null;
+  extraction_fields: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DataQueryResponse<T> {
-    data: T[];
-    total: number;
-    limit: number;
-    offset: number;
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface VehicleTechnologyFinding {
     id: string;
     entity_id: string;
     entity_name: string;
-    technology_name: string | null;
-    application_area: string | null;
-    maturity_level: string | null;
-    event_date: string | null;
-    created_at: string;
+    technology_name: string;
+    application_area: string;
+    maturity_level: string;
+    event_date: string;
+    source_id: string;
     updated_at: string;
 }
 
@@ -369,7 +318,49 @@ export interface MarketAnalysisFinding {
     revenue: number | null;
     growth_rate: number | null;
     market_share: number | null;
-    event_date: string | null;
-    created_at: string;
+    event_date: string;
     updated_at: string;
+}
+
+// --- Admin ---
+
+export interface BackfillJob {
+  id: string;
+  name: string;
+  description: string | null;
+  start_date: string;
+  end_date: string;
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SystemStatus {
+  status: string;
+  database_status: string;
+  version: string;
+  uptime: string;
+  statistics: {
+    total_entities: number;
+    active_modules: number;
+    processing_queue_size: number;
+  };
+}
+
+export interface DocumentTask {
+  id: string;
+  original_filename: string;
+  file_size: number;
+  total_pages: number;
+  status: 'completed' | 'processing' | 'pending' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaginatedDocumentsResponse {
+    items: DocumentTask[];
+    total: number;
+    page: number;
+    page_size: number;
+    totalPages: number;
 }
