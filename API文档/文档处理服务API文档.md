@@ -1,6 +1,6 @@
 # 文档处理服务 (Document Processing Service) API 文档
 
-提供完整的文档上传、处理、转换和管理功能。支持PDF文档的智能解析、Markdown转换、HTML美化生成等功能。所有接口均以 `/document_processing` 为前缀，并需要Bearer Token认证。
+提供完整的文档上传、处理、转换和管理功能。支持PDF文档的智能解析、Markdown转换、HTML美化生成等功能。所有接口均以 `/api/document-processing` 为前缀，并需要Bearer Token认证。
 
 ## 文档状态说明
 
@@ -26,7 +26,7 @@ uploaded → processing → completed
 
 上传PDF文档进行智能解析和处理。
 
--   **路径:** `/document_processing/upload`
+-   **路径:** `/api/document-processing/upload`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 -   **Content-Type:** `multipart/form-data`
@@ -39,7 +39,7 @@ uploaded → processing → completed
 
 **cURL请求示例**
 ```bash
-curl -X POST http://127.0.0.1:7657/document_processing/upload \
+curl -X POST http://localhost:7657/api/document-processing/upload \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -F "file=@/path/to/document.pdf"
 ```
@@ -63,7 +63,7 @@ curl -X POST http://127.0.0.1:7657/document_processing/upload \
 
 获取系统中所有文档的列表，支持分页、状态筛选、关键词搜索和排序。
 
--   **路径:** `/document_processing/documents`
+-   **路径:** `/api/document-processing/documents`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -84,7 +84,7 @@ curl -X POST http://127.0.0.1:7657/document_processing/upload \
 **cURL请求示例**
 ```bash
 # 获取第一页，每页10个，状态为completed，并按创建时间降序排序
-curl -X GET "http://127.0.0.1:7657/document_processing/documents?page=1&page_size=10&status=completed&sort_by=created_at&sort_order=desc" \
+curl -X GET "http://localhost:7657/api/document-processing/documents?page=1&page_size=10&status=completed&sort_by=created_at&sort_order=desc" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -120,7 +120,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents?page=1&page_siz
 
 获取指定文档的详细信息，包括所有页面信息。
 
--   **路径:** `/document_processing/documents/{document_id}`
+-   **路径:** `/api/document-processing/documents/{document_id}`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -132,7 +132,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents?page=1&page_siz
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -174,7 +174,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 删除指定文档及其相关文件。
 
--   **路径:** `/document_processing/documents/{document_id}`
+-   **路径:** `/api/document-processing/documents/{document_id}`
 -   **方法:** `DELETE`
 -   **认证:** 需要Bearer Token
 
@@ -186,7 +186,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 **cURL请求示例**
 ```bash
-curl -X DELETE "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+curl -X DELETE "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -201,13 +201,50 @@ curl -X DELETE "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f
 }
 ```
 
-## 5. 文档统计
+## 5. 获取文档内容
 
-### 获取文档统计信息
+获取文档的Markdown格式内容。
+
+-   **路径:** `/api/document-processing/documents/{document_id}/content`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `document_id` | string | 文档ID |
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `format` | string | `markdown` | 返回格式 (markdown, html) |
+
+**cURL请求示例**
+```bash
+curl -X GET "http://localhost:7657/api/document-processing/documents/{document_id}/content?format=markdown" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+
+返回文档内容。
+
+```json
+{
+  "document_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "format": "markdown",
+  "content": "# 文档标题\n\n文档内容...",
+  "message": "获取文档内容成功"
+}
+```
+
+## 6. 获取文档统计信息
 
 获取文档的多维度统计信息，包括按状态、格式、日期的分布统计。
 
--   **路径:** `/document_processing/documents/statistics`
+-   **路径:** `/api/document-processing/documents/statistics`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -220,7 +257,7 @@ curl -X DELETE "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/statistics?date_from=2024-01-01&date_to=2024-01-31" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/statistics?date_from=2024-01-01&date_to=2024-01-31" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -252,13 +289,13 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/statistics?date
 }
 ```
 
-## 6. HTML 生成与管理
+## 7. HTML 生成与管理
 
 ### 生成HTML文件
 
 为指定文档生成HTML格式的美化报告。
 
--   **路径:** `/document_processing/documents/{document_id}/generate-html`
+-   **路径:** `/api/document-processing/documents/{document_id}/generate-html`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 
@@ -270,7 +307,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/statistics?date
 
 **cURL请求示例**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/generate-html" \
+curl -X POST "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/generate-html" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -290,7 +327,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 重新生成HTML文件，可选择删除旧文件和指定模板样式。
 
--   **路径:** `/document_processing/documents/{document_id}/regenerate-html`
+-   **路径:** `/api/document-processing/documents/{document_id}/regenerate-html`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 -   **Content-Type:** `application/json`
@@ -310,7 +347,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 **cURL请求示例**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/regenerate-html" \
+curl -X POST "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/regenerate-html" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
@@ -336,7 +373,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 下载生成的HTML文件。
 
--   **路径:** `/document_processing/documents/{document_id}/html`
+-   **路径:** `/api/document-processing/documents/{document_id}/html`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -348,7 +385,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/html" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/html" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -o "document.html"
 ```
@@ -361,7 +398,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 生成HTML预览，不保存文件。
 
--   **路径:** `/document_processing/documents/{document_id}/preview-html`
+-   **路径:** `/api/document-processing/documents/{document_id}/preview-html`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 
@@ -379,7 +416,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 **cURL请求示例**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/preview-html?template_style=default" \
+curl -X POST "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/preview-html?template_style=default" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -396,19 +433,19 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 }
 ```
 
-## 7. 模板管理
+## 8. 模板管理
 
 ### 获取模板列表
 
 获取可用的HTML模板列表。
 
--   **路径:** `/document_processing/templates`
+-   **路径:** `/api/document-processing/templates`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/templates" \
+curl -X GET "http://localhost:7657/api/document-processing/templates" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -434,13 +471,13 @@ curl -X GET "http://127.0.0.1:7657/document_processing/templates" \
 }
 ```
 
-## 8. 批量操作
+## 9. 批量操作
 
 ### 批量操作文档
 
 对多个文档执行批量操作。
 
--   **路径:** `/document_processing/batch-operations`
+-   **路径:** `/api/document-processing/batch-operations`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 -   **Content-Type:** `application/json`
@@ -459,7 +496,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/templates" \
 
 **cURL请求示例**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/batch-operations" \
+curl -X POST "http://localhost:7657/api/document-processing/batch-operations" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
@@ -484,13 +521,13 @@ curl -X POST "http://127.0.0.1:7657/document_processing/batch-operations" \
 }
 ```
 
-## 9. 导出功能
+## 10. 导出功能
 
 ### 创建导出任务
 
 创建文档页面导出任务。
 
--   **路径:** `/document_processing/documents/{document_id}/export`
+-   **路径:** `/api/document-processing/documents/{document_id}/export`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 -   **Content-Type:** `application/json`
@@ -510,7 +547,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/batch-operations" \
 
 **cURL请求示例**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/export" \
+curl -X POST "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/export" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -H "Content-Type: application/json" \
 -d '{
@@ -538,7 +575,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 获取导出任务的状态和进度。
 
--   **路径:** `/document_processing/export-tasks/{task_id}`
+-   **路径:** `/api/document-processing/export-tasks/{task_id}`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -550,7 +587,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e6-7890-abcd-ef1234567890" \
+curl -X GET "http://localhost:7657/api/document-processing/export-tasks/t1a2b3c4-d5e6-7890-abcd-ef1234567890" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -577,7 +614,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e
 
 下载导出的文件。
 
--   **路径:** `/document_processing/export-tasks/{task_id}/download`
+-   **路径:** `/api/document-processing/export-tasks/{task_id}/download`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -589,7 +626,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e6-7890-abcd-ef1234567890/download" \
+curl -X GET "http://localhost:7657/api/document-processing/export-tasks/t1a2b3c4-d5e6-7890-abcd-ef1234567890/download" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -o "exported_file.pdf"
 ```
@@ -602,7 +639,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e
 
 获取导出任务历史记录。
 
--   **路径:** `/document_processing/export-history`
+-   **路径:** `/api/document-processing/export-history`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -615,7 +652,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-tasks/t1a2b3c4-d5e
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/export-history?page=1&limit=10" \
+curl -X GET "http://localhost:7657/api/document-processing/export-history?page=1&limit=10" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -646,13 +683,13 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-history?page=1&lim
 }
 ```
 
-## 10. 页面内容
+## 11. 页面内容
 
 ### 获取页面内容
 
 获取文档指定页面的内容。
 
--   **路径:** `/document_processing/documents/{document_id}/pages/{page_number}`
+-   **路径:** `/api/document-processing/documents/{document_id}/pages/{page_number}`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -665,7 +702,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/export-history?page=1&lim
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/pages/1" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/pages/1" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -685,7 +722,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 下载文档的Markdown格式文件。
 
--   **路径:** `/document_processing/documents/{document_id}/download-markdown`
+-   **路径:** `/api/document-processing/documents/{document_id}/download-markdown`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
@@ -697,7 +734,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/download-markdown" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/a1b2c3d4-e5f6-7890-abcd-ef1234567890/download-markdown" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
 -o "document.md"
 ```
@@ -706,19 +743,19 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/a1b2c3d4-e5f6-7
 
 返回Markdown文件流 (text/markdown)
 
-## 11. 系统功能
+## 12. 系统功能
 
 ### 健康检查
 
 检查服务健康状态。
 
--   **路径:** `/document_processing/health`
+-   **路径:** `/api/document-processing/health`
 -   **方法:** `GET`
 -   **认证:** 无需认证
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/health"
+curl -X GET "http://localhost:7657/api/document-processing/health"
 ```
 
 **返回示例 (200 OK)**
@@ -737,13 +774,13 @@ curl -X GET "http://127.0.0.1:7657/document_processing/health"
 
 获取文档处理的统计信息。
 
--   **路径:** `/document_processing/processing-stats`
+-   **路径:** `/api/document-processing/processing-stats`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
 **cURL请求示例**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/processing-stats" \
+curl -X GET "http://localhost:7657/api/document-processing/processing-stats" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -793,26 +830,26 @@ curl -X GET "http://127.0.0.1:7657/document_processing/processing-stats" \
 
 1. **上传文档**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/upload" \
+curl -X POST "http://localhost:7657/api/document-processing/upload" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -F "file=@document.pdf"
 ```
 
 2. **查询处理状态**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/DOCUMENT_ID" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 3. **生成HTML报告**
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/documents/DOCUMENT_ID/generate-html" \
+curl -X POST "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID/generate-html" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 4. **下载HTML文件**
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/documents/DOCUMENT_ID/html" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID/html" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -o report.html
 ```
@@ -820,7 +857,7 @@ curl -X GET "http://127.0.0.1:7657/document_processing/documents/DOCUMENT_ID/htm
 ### 批量操作示例
 
 ```bash
-curl -X POST "http://127.0.0.1:7657/document_processing/batch-operations" \
+curl -X POST "http://localhost:7657/api/document-processing/batch-operations" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -832,7 +869,7 @@ curl -X POST "http://127.0.0.1:7657/document_processing/batch-operations" \
 ### 获取统计信息
 
 ```bash
-curl -X GET "http://127.0.0.1:7657/document_processing/statistics?date_from=2024-01-01&date_to=2024-01-31" \
+curl -X GET "http://localhost:7657/api/document-processing/documents/statistics?date_from=2024-01-01&date_to=2024-01-31" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 

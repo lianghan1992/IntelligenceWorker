@@ -23,4 +23,4 @@ export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
 export const COMPETITIVENESS_SERVICE_PATH = `${API_BASE_URL}/competitiveness`;
 
 // Full path for the document processing service
-export const DOCUMENT_PROCESSING_SERVICE_PATH = `${API_BASE_URL}/document_processing`;
+export const DOCUMENT_PROCESSING_SERVICE_PATH = `${API_BASE_URL}/document-processing`;
