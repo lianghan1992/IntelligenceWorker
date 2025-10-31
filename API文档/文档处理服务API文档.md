@@ -7,7 +7,7 @@
 ## 基础信息
 
 - **服务名称**: Document Processing Service
-- **基础URL**: `/api/document-processing`
+- **基础URL**: `/documents`
 - **版本**: v1.0
 - **认证方式**: Bearer Token
 
@@ -104,15 +104,14 @@
 - **响应示例**:
 ```json
 {
-  "message": "文档删除成功",
-  "document_id": "uuid"
+  "detail": "删除功能正在开发中"
 }
 ```
 
 ### 2. 文档统计
 
 #### 2.1 获取文档统计信息
-- **接口**: `GET /statistics`
+- **接口**: `GET /documents/statistics`
 - **描述**: 获取文档的多维度统计信息
 - **查询参数**:
   - `date_from`: 统计开始日期 (可选)
@@ -204,7 +203,7 @@
 ### 4. 模板管理
 
 #### 4.1 获取模板列表
-- **接口**: `GET /templates`
+- **接口**: `GET /documents/templates`
 - **描述**: 获取可用的HTML模板列表
 - **响应示例**:
 ```json
@@ -228,7 +227,7 @@
 ### 5. 批量操作
 
 #### 5.1 批量操作文档
-- **接口**: `POST /batch-operations`
+- **接口**: `POST /documents/batch-operations`
 - **描述**: 对多个文档执行批量操作
 - **请求体**:
 ```json
@@ -261,11 +260,12 @@
 - **描述**: 创建文档页面导出任务
 - **路径参数**:
   - `document_id`: 文档ID
+- **查询参数**:
+  - `page_number`: 页码 (可选，如果未指定，则导出所有页面)
 - **请求体**:
 ```json
 {
-  "export_type": "pdf",
-  "page_number": 1
+  "export_type": "pdf"
 }
 ```
 - **响应示例**:
@@ -309,7 +309,7 @@
 - **响应**: 文件流
 
 #### 6.4 获取导出历史
-- **接口**: `GET /export-history`
+- **接口**: `GET /documents/export-history`
 - **描述**: 获取导出任务历史记录
 - **查询参数**:
   - `page`: 页码 (默认: 1)
@@ -356,7 +356,7 @@
 ```
 
 #### 7.2 下载Markdown文件
-- **接口**: `GET /documents/{document_id}/download-markdown`
+- **接口**: `GET /documents/{document_id}/markdown`
 - **描述**: 下载文档的Markdown格式文件
 - **路径参数**:
   - `document_id`: 文档ID
@@ -365,7 +365,7 @@
 ### 8. 系统功能
 
 #### 8.1 健康检查
-- **接口**: `GET /health`
+- **接口**: `GET /health-check`
 - **描述**: 检查服务健康状态
 - **响应示例**:
 ```json
@@ -376,20 +376,7 @@
 }
 ```
 
-#### 8.2 获取处理统计
-- **接口**: `GET /processing-stats`
-- **描述**: 获取文档处理的统计信息
-- **响应示例**:
-```json
-{
-  "total_documents": 150,
-  "completed_documents": 120,
-  "processing_documents": 20,
-  "failed_documents": 10,
-  "total_pages": 1500,
-  "average_processing_time": 30.5
-}
-```
+
 
 ## 错误码说明
 
@@ -422,26 +409,26 @@
 
 1. **上传文档**
 ```bash
-curl -X POST "http://localhost:7657/api/document-processing/upload" \
+curl -X POST "http://localhost:7657/documents/upload" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -F "file=@document.pdf"
 ```
 
 2. **查询处理状态**
 ```bash
-curl -X GET "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID" \
+curl -X GET "http://localhost:7657/documents/{document_id}" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 3. **生成HTML报告**
 ```bash
-curl -X POST "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID/generate-html" \
+curl -X POST "http://localhost:7657/documents/{document_id}/generate-html" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 4. **下载HTML文件**
 ```bash
-curl -X GET "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID/download-html" \
+curl -X GET "http://localhost:7657/documents/{document_id}/download-html" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -o report.html
 ```
@@ -449,7 +436,7 @@ curl -X GET "http://localhost:7657/api/document-processing/documents/DOCUMENT_ID
 ### 批量操作示例
 
 ```bash
-curl -X POST "http://localhost:7657/api/document-processing/batch-operations" \
+curl -X POST "http://localhost:7657/documents/batch-operations" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -461,7 +448,7 @@ curl -X POST "http://localhost:7657/api/document-processing/batch-operations" \
 ### 获取统计信息
 
 ```bash
-curl -X GET "http://localhost:7657/api/document-processing/statistics?date_from=2024-01-01&date_to=2024-01-31" \
+curl -X GET "http://localhost:7657/documents/statistics?date_from=2024-01-01&date_to=2024-01-31" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
