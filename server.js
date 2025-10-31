@@ -19,13 +19,10 @@ app.use(cors());
 // --- 代理设置 ---
 const apiTarget = 'http://127.0.0.1:7657';
 
-// 代理所有 /api 请求到后端，并移除 /api 前缀
+// 代理所有 /api 请求到后端
 app.use('/api', createProxyMiddleware({
   target: apiTarget,
   changeOrigin: true,
-  pathRewrite: {
-    '^/api': '', // 移除 /api 前缀
-  },
   logLevel: 'debug',
   onProxyReq: (proxyReq, req, res) => {
     // 关键修复：确保将原始请求的协议（http或https）通过 X-Forwarded-Proto 头传递给后端。
