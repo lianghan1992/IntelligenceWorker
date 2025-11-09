@@ -7,8 +7,8 @@ import {
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
-const Spinner: React.FC = () => (
-    <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
+    <svg className={`animate-spin ${small ? 'h-4 w-4' : 'h-5 w-5'} text-gray-500`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -42,7 +42,8 @@ export const MarkdownToHtmlManager: React.FC = () => {
     const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, totalPages: 1 });
     const [sort, setSort] = useState({ sort_by: 'created_at', sort_order: 'desc' });
     
-    const [taskToAction, setTaskToAction] = useState<{ task: DocumentTask, action: 'delete' | 'regenerate' | 'download' } | null>(null);
+    const [taskToDelete, setTaskToDelete] = useState<DocumentTask | null>(null);
+    const [regeneratingTaskId, setRegeneratingTaskId] = useState<string | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -108,28 +109,36 @@ export const MarkdownToHtmlManager: React.FC = () => {
         }
     };
 
-    const confirmAction = async () => {
-        if (!taskToAction) return;
+    const handleRegenerate = async (task: DocumentTask) => {
+        if (regeneratingTaskId) return; // Prevent multiple clicks
+        setRegeneratingTaskId(task.id);
+        setError(null);
+        try {
+            await regenerateHtml(task.id);
+            // Wait a moment for the backend to update status, then refresh.
+            setTimeout(async () => {
+                await loadTasks(false);
+                setRegeneratingTaskId(null); // Set to null after refresh
+            }, 1000);
+        } catch (err) {
+            setError(err instanceof Error ? `重新生成 "${task.original_filename}" 失败: ${err.message}` : '操作失败');
+            setRegeneratingTaskId(null); // Also reset on error
+        }
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!taskToDelete) return;
 
         setActionLoading(true);
         setError(null);
-        const { task, action } = taskToAction;
-
         try {
-            switch (action) {
-                case 'delete':
-                    await deleteDocument(task.id);
-                    break;
-                case 'regenerate':
-                    await regenerateHtml(task.id);
-                    break;
-            }
+            await deleteDocument(taskToDelete.id);
             await loadTasks(false);
         } catch (err) {
-            setError(err instanceof Error ? err.message : '操作失败');
+            setError(err instanceof Error ? err.message : '删除失败');
         } finally {
             setActionLoading(false);
-            setTaskToAction(null);
+            setTaskToDelete(null);
         }
     };
 
@@ -178,6 +187,7 @@ export const MarkdownToHtmlManager: React.FC = () => {
                         ) : (
                             tasks.map(task => {
                                 const statusBadge = getStatusBadge(task.status);
+                                const isAnyActionInProgress = actionLoading || !!regeneratingTaskId;
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                     <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={task.original_filename}>{task.original_filename}</td>
@@ -188,9 +198,11 @@ export const MarkdownToHtmlManager: React.FC = () => {
                                     <td className="px-6 py-4">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
                                     <td className="px-6 py-4 text-center">
                                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                            <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || actionLoading} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
-                                            <button onClick={() => setTaskToAction({task, action: 'regenerate'})} disabled={actionLoading} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50">重新生成</button>
-                                            <button onClick={() => setTaskToAction({task, action: 'delete'})} disabled={actionLoading} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
+                                            <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
+                                            <button onClick={() => handleRegenerate(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-20">
+                                                {regeneratingTaskId === task.id ? <Spinner small /> : '重新生成'}
+                                            </button>
+                                            <button onClick={() => setTaskToDelete(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -210,13 +222,13 @@ export const MarkdownToHtmlManager: React.FC = () => {
                 </div>
             </div>
 
-            {taskToAction && (taskToAction.action === 'delete' || taskToAction.action === 'regenerate') && (
+            {taskToDelete && (
                  <ConfirmationModal
-                    title={`确认${taskToAction.action === 'delete' ? '删除' : '重新生成'}`}
-                    message={`您确定要${taskToAction.action === 'delete' ? '删除' : '重新生成'} "${taskToAction.task.original_filename}" 的任务吗？`}
-                    confirmText={`确认${taskToAction.action === 'delete' ? '删除' : '生成'}`}
-                    onConfirm={confirmAction}
-                    onCancel={() => setTaskToAction(null)}
+                    title="确认删除"
+                    message={`您确定要删除 "${taskToDelete.original_filename}" 的任务吗？`}
+                    confirmText="确认删除"
+                    onConfirm={handleDeleteConfirm}
+                    onCancel={() => setTaskToDelete(null)}
                     isLoading={actionLoading}
                 />
             )}
