@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ChevronUpDownIcon } from '../icons';
-import { createIntelligencePoint, getAllPrompts, deleteIntelligencePoints } from '../../api';
-import { AllPrompts, Prompt, Subscription, SystemSource } from '../../types';
+import { createIntelligencePoint, deleteIntelligencePoints } from '../../api';
+import { Subscription, SystemSource } from '../../types';
 
 interface IntelligencePointModalProps {
     onClose: () => void;
@@ -16,10 +16,6 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
-
-const promptToArray = (promptCollection: { [key: string]: Prompt }): { key: string, name: string }[] => {
-    return Object.entries(promptCollection).map(([key, value]) => ({ key, name: value.name }));
-};
 
 const cronOptions = [
     { label: '每30分钟', value: '*/30 * * * *' },
@@ -38,10 +34,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         point_name: '',
         point_url: '',
         cron_schedule: '0 */6 * * *', // Default
-        url_prompt_key: 'default_list_parser',
-        summary_prompt_key: 'default_summary'
     });
-    const [prompts, setPrompts] = useState<AllPrompts | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [isCronDropdownOpen, setIsCronDropdownOpen] = useState(false);
@@ -54,8 +47,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 point_name: pointToEdit.point_name,
                 point_url: pointToEdit.point_url,
                 cron_schedule: pointToEdit.cron_schedule,
-                url_prompt_key: pointToEdit.url_prompt_key,
-                summary_prompt_key: pointToEdit.summary_prompt_key,
             });
         }
     }, [pointToEdit]);
@@ -71,18 +62,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     }, []);
 
     const isFormValid = formData.source_name.trim() && formData.point_name.trim() && formData.point_url.trim() && formData.cron_schedule.trim();
-
-    useEffect(() => {
-        const fetchPrompts = async () => {
-            try {
-                const fetchedPrompts = await getAllPrompts();
-                setPrompts(fetchedPrompts);
-            } catch (err: any) {
-                setError("无法加载提示词列表: " + err.message);
-            }
-        };
-        fetchPrompts();
-    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -115,8 +94,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         }
     };
     
-    const urlExtractionPrompts = prompts ? promptToArray(prompts.url_extraction_prompts) : [];
-    const contentSummaryPrompts = prompts ? promptToArray(prompts.content_summary_prompts) : [];
     const mode = pointToEdit ? '修改' : '添加';
     const currentCronLabel = cronOptions.find(opt => opt.value === formData.cron_schedule)?.label || formData.cron_schedule;
 
@@ -171,18 +148,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                 </ul>
                             )}
                         </div>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">URL提取提示词</label>
-                        <select name="url_prompt_key" value={formData.url_prompt_key} onChange={handleChange} disabled={!prompts || isLoading} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            {urlExtractionPrompts.map(p => <option key={p.key} value={p.key}>{p.name}</option>)}
-                        </select>
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">内容总结提示词</label>
-                        <select name="summary_prompt_key" value={formData.summary_prompt_key} onChange={handleChange} disabled={!prompts || isLoading} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                           {contentSummaryPrompts.map(p => <option key={p.key} value={p.key}>{p.name}</option>)}
-                        </select>
                     </div>
                 </div>
 

@@ -83,8 +83,6 @@ export interface Subscription {
   point_name: string;
   point_url: string;
   cron_schedule: string;
-  url_prompt_key: string;
-  summary_prompt_key: string;
   is_active: 0 | 1;
   last_triggered_at: string | null;
   created_at: string;
@@ -110,16 +108,6 @@ export interface InfoItem {
 }
 
 export type SearchResult = InfoItem; // It's used as an alias
-
-export interface Prompt {
-  name: string;
-  content: string;
-}
-
-export interface AllPrompts {
-  url_extraction_prompts: { [key: string]: Prompt };
-  content_summary_prompts: { [key: string]: Prompt };
-}
 
 export interface IntelligenceTask {
   id: string;

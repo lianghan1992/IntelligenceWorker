@@ -3,7 +3,7 @@
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
 import { 
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
-    AllPrompts, SearchResult, IntelligenceTask,
+    SearchResult, IntelligenceTask,
    SearchChunksResponse, ExportChunksResponse
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
@@ -79,9 +79,6 @@ export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
         body: JSON.stringify(params),
     });
 
-
-// --- Prompts API ---
-export const getAllPrompts = (): Promise<AllPrompts> => apiFetch<AllPrompts>(`${INTELLIGENCE_SERVICE_PATH}/prompts`);
 
 // --- Intelligence Tasks (formerly Crawler Tasks) API ---
 export const getIntelligenceTasks = (params: any): Promise<PaginatedResponse<IntelligenceTask>> => {
