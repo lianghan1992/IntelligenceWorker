@@ -1,11 +1,12 @@
-import { COMPETITIVENESS_SERVICE_PATH } from '../config';
+import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } from '../config';
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
-    DataQueryResponse, PaginatedEntitiesResponse 
+    DataQueryResponse, PaginatedEntitiesResponse, PaginatedResponse, KnowledgeBaseItem,
+    KnowledgeBaseDetail, KnowledgeBaseMeta
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
-// --- Entity Management ---
+// --- (LEGACY) Entity Management ---
 export const getEntities = (params: { page?: number; size?: number; [key: string]: any }): Promise<PaginatedEntitiesResponse<CompetitivenessEntity>> => {
     const query = createApiQuery(params);
     // Per API doc, this endpoint uses a trailing slash. e.g., /entities/?page=1&size=10
@@ -30,7 +31,7 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
         method: 'DELETE',
     });
 
-// --- Module Management ---
+// --- (LEGACY) Module Management ---
 export const getModules = (params: any): Promise<CompetitivenessModule[]> => {
     const query = createApiQuery(params);
     // Per API doc, this endpoint does not use a trailing slash and returns an array.
@@ -56,26 +57,22 @@ export const deleteModule = (id: string): Promise<{ message: string }> =>
     });
 
 
-// --- Data Query ---
-// FIX: Made queryData generic to allow type-safe responses.
+// --- (LEGACY) Data Query ---
 export const queryData = <T,>(params: any, queryBody: any): Promise<DataQueryResponse<T>> => {
     const query = createApiQuery(params);
-    // Per API doc, this endpoint does not use a trailing slash.
     return apiFetch<DataQueryResponse<T>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
         method: 'POST',
         body: JSON.stringify(queryBody),
     });
 }
 
-// --- Backfill Job Management ---
+// --- (LEGACY) Backfill Job Management ---
 export const getBackfillJobs = (params: any): Promise<BackfillJob[]> => {
     const query = createApiQuery(params);
-    // Per API doc, this endpoint does not use a trailing slash.
     return apiFetch<BackfillJob[]>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs${query}`);
 }
 
 export const createBackfillJob = (data: any): Promise<BackfillJob> =>
-    // Per API doc, this endpoint does not use a trailing slash.
     apiFetch<BackfillJob>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -91,9 +88,70 @@ export const getBackfillJobStatus = (jobId: string): Promise<any> =>
     apiFetch<any>(`${COMPETITIVENESS_SERVICE_PATH}/backfill/jobs/${jobId}/status`);
 
 
-// --- System Monitoring ---
+// --- (LEGACY) System Monitoring ---
 export const getSystemStatus = (): Promise<SystemStatus> =>
     apiFetch<SystemStatus>(`${COMPETITIVENESS_SERVICE_PATH}/system/status`);
 
 export const getSystemHealth = (): Promise<{ status: string }> =>
     apiFetch<{ status: string }>(`${COMPETITIVENESS_SERVICE_PATH}/system/health`);
+
+
+// --- NEW KNOWLEDGE BASE APIs ---
+export const getKnowledgeBase = (params: any): Promise<PaginatedResponse<KnowledgeBaseItem>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<KnowledgeBaseItem>>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base${query}`);
+};
+
+export const getKnowledgeBaseDetail = (id: number): Promise<KnowledgeBaseDetail> => {
+    return apiFetch<KnowledgeBaseDetail>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/${id}`);
+};
+
+export const getKnowledgeBaseMeta = (): Promise<KnowledgeBaseMeta> => {
+    return apiFetch<KnowledgeBaseMeta>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/meta`);
+};
+
+export const exportKnowledgeBase = async (params: any): Promise<void> => {
+    // This cannot use apiFetch because it's a file download
+    const query = createApiQuery(params);
+    const url = `${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/export${query}`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    try {
+        const response = await fetch(url, { headers });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+            throw new Error(errorData.message || '导出失败');
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        
+        // Extract filename from content-disposition header if available
+        const disposition = response.headers.get('content-disposition');
+        let filename = `knowledge_base_export_${new Date().toISOString().slice(0,10)}.csv`;
+        if (disposition && disposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) { 
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+        
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+
+    } catch (error) {
+        console.error("Export failed:", error);
+        throw error; // Re-throw to be caught by the component
+    }
+};

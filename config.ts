@@ -19,8 +19,11 @@ export const INTELLIGENCE_SERVICE_PATH = `${API_BASE_URL}/crawler`;
 // Full path for livestream analysis service
 export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
 
-// Full path for competitiveness dashboard service
+// Full path for competitiveness dashboard service (Legacy admin endpoints)
 export const COMPETITIVENESS_SERVICE_PATH = `${API_BASE_URL}/competitiveness`;
+
+// Full path for NEW competitiveness analysis service (Knowledge Base)
+export const COMPETITIVENESS_ANALYSIS_SERVICE_PATH = `${API_BASE_URL}/competitiveness_analysis`;
 
 // Full path for the document processing service
 export const DOCUMENT_PROCESSING_SERVICE_PATH = `${API_BASE_URL}/document-processing`;

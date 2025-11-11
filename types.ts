@@ -208,23 +208,21 @@ export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
 
 // --- Tech & Competitiveness Dashboard ---
 
+// ** DEPRECATED ** - Kept for compatibility with other components if needed
 export interface SpecDetail {
   value: string;
   supplier?: string;
   details?: Record<string, any>;
 }
-
 export interface TechDimension {
     key: string;
     label: string;
 }
-
 export interface TechDimensionCategory {
     key: string;
     label: string;
     subDimensions: TechDimension[];
 }
-
 export interface VehicleTechSpec {
     id: string;
     name: string;
@@ -238,9 +236,7 @@ export interface VehicleTechSpec {
         };
     };
 }
-
 export type ComparisonMode = 'forecast' | 'competitor' | 'brand' | 'evolution' | 'tech' | 'supply_chain';
-
 export interface NewTechForecast {
     id: string;
     brand: string;
@@ -254,6 +250,53 @@ export interface NewTechForecast {
     sourceArticle: string;
     sourceUrl: string;
 }
+// ** END DEPRECATED **
+
+
+// --- New Competitiveness Knowledge Base ---
+
+export interface KnowledgeBaseItem {
+  id: number;
+  car_brand: string;
+  tech_dimension: string;
+  sub_tech_dimension: string;
+  current_reliability_score: number;
+  source_article_count: number;
+  last_updated_at: string;
+  consolidated_tech_preview: {
+    name: string;
+    description: string;
+    reliability: number;
+    publish_date: string;
+  };
+}
+
+export interface TechDetailHistoryItem {
+  name: string;
+  description: string;
+  reliability: number;
+  publish_date: string;
+}
+
+export interface KnowledgeBaseDetail {
+  id: number;
+  car_brand: string;
+  tech_dimension: string;
+  sub_tech_dimension: string;
+  unique_aggregation_key: string;
+  consolidated_tech_details: TechDetailHistoryItem[];
+  current_reliability_score: number;
+  source_article_ids: string[];
+  created_at: string;
+  last_updated_at: string;
+}
+
+export interface KnowledgeBaseMeta {
+  car_brands: string[];
+  tech_dimensions: Record<string, string[]>;
+}
+
+// --- Admin (Competitiveness) ---
 
 export interface CompetitivenessEntity {
   id: string;
