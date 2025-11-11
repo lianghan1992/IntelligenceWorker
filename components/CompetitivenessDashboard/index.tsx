@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseMeta, KnowledgeBaseDetail } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseMeta, getKnowledgeBaseDetail, exportKnowledgeBase } from '../../api';
-import { BrainIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ChevronUpDownIcon, ClockIcon, DocumentTextIcon, CheckIcon } from '../icons';
+import { RefreshIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ChevronUpDownIcon, ClockIcon, DocumentTextIcon, CheckIcon } from '../icons';
 
 // --- Custom Hooks ---
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -17,14 +17,158 @@ const useDebounce = <T,>(value: T, delay: number): T => {
     return debouncedValue;
 };
 
+const useClickOutside = (ref: React.RefObject<HTMLElement>, handler: (event: MouseEvent | TouchEvent) => void) => {
+    useEffect(() => {
+        const listener = (event: MouseEvent | TouchEvent) => {
+            if (!ref.current || ref.current.contains(event.target as Node)) {
+                return;
+            }
+            handler(event);
+        };
+        document.addEventListener('mousedown', listener);
+        document.addEventListener('touchstart', listener);
+        return () => {
+            document.removeEventListener('mousedown', listener);
+            document.removeEventListener('touchstart', listener);
+        };
+    }, [ref, handler]);
+};
+
+
 // --- Sub-Components ---
+
+const MultiSelectDropdown: React.FC<{
+    options: string[];
+    selected: string[];
+    onChange: (selected: string[]) => void;
+    placeholder: string;
+}> = ({ options, selected, onChange, placeholder }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    useClickOutside(dropdownRef, () => setIsOpen(false));
+
+    const handleToggle = (option: string) => {
+        const newSelected = selected.includes(option)
+            ? selected.filter(item => item !== option)
+            : [...selected, option];
+        onChange(newSelected);
+    };
+
+    return (
+        <div className="relative w-full" ref={dropdownRef}>
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 text-left flex justify-between items-center"
+            >
+                <span className="truncate">{selected.length > 0 ? `${placeholder} (${selected.length})` : placeholder}</span>
+                <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+                <div className="absolute z-10 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {options.map(option => (
+                        <label key={option} className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={selected.includes(option)}
+                                onChange={() => handleToggle(option)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="ml-3 text-sm text-gray-700">{option}</span>
+                        </label>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const FilterPanel: React.FC<{
+    meta: KnowledgeBaseMeta | null;
+    filters: any;
+    setFilters: React.Dispatch<React.SetStateAction<any>>;
+    onExport: () => void;
+    isExporting: boolean;
+}> = ({ meta, filters, setFilters, onExport, isExporting }) => {
+
+    const handleFilterChange = (key: string, value: any) => {
+        const newFilters = { ...filters, [key]: value };
+        // Reset sub-dimension if main dimension changes
+        if (key === 'tech_dimension') {
+            newFilters.sub_tech_dimension = '';
+        }
+        setFilters(newFilters);
+    };
+
+    const resetFilters = () => {
+        setFilters({
+            car_brand: [],
+            tech_dimension: '',
+            sub_tech_dimension: '',
+            min_reliability: 0,
+            search: '',
+        });
+    };
+
+    return (
+        <header className="space-y-4 p-4 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200/80 shadow-sm mb-6 sticky top-0 z-20">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">汽车品牌</label>
+                    <MultiSelectDropdown
+                        options={meta?.car_brands || []}
+                        selected={filters.car_brand}
+                        onChange={value => handleFilterChange('car_brand', value)}
+                        placeholder="选择品牌"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">技术领域</label>
+                    <select value={filters.tech_dimension} onChange={e => handleFilterChange('tech_dimension', e.target.value)} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">全部</option>
+                        {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">子领域</label>
+                    <select value={filters.sub_tech_dimension} onChange={e => handleFilterChange('sub_tech_dimension', e.target.value)} disabled={!filters.tech_dimension} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 disabled:bg-gray-100">
+                        <option value="">全部</option>
+                        {filters.tech_dimension && meta?.tech_dimensions[filters.tech_dimension]?.map(sd => <option key={sd} value={sd}>{sd}</option>)}
+                    </select>
+                </div>
+            </div>
+            <div className="flex items-center gap-4 flex-wrap">
+                <div className="relative flex-grow min-w-[200px]">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input type="text" value={filters.search} onChange={e => handleFilterChange('search', e.target.value)} placeholder="在技术详情中搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
+                </div>
+                <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">可靠度 &ge;</label>
+                    <input type="range" min="0" max="100" value={filters.min_reliability} onChange={e => handleFilterChange('min_reliability', Number(e.target.value))} className="w-32 cursor-pointer" />
+                    <span className="font-semibold text-sm text-blue-600 w-8 text-center">{filters.min_reliability}</span>
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                     <button onClick={resetFilters} className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                        重置筛选
+                    </button>
+                    <button onClick={onExport} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-green-700 transition disabled:bg-green-300">
+                        <DownloadIcon className="w-4 h-4" />
+                        <span>{isExporting ? '导出中...' : '导出 CSV'}</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+    );
+};
+
+
 const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ kbId, onClose }) => {
     const [detail, setDetail] = useState<KnowledgeBaseDetail | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (!kbId) return;
+        if (kbId === null) return;
         const fetchDetail = async () => {
             setIsLoading(true);
             setError('');
@@ -41,11 +185,13 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
     }, [kbId]);
     
     return (
-        <div className={`fixed inset-0 z-40 transition-all duration-300 ${kbId ? 'bg-black/40' : 'bg-transparent pointer-events-none'}`} onClick={onClose}>
+        <div className={`fixed inset-0 z-40 transition-opacity duration-300 ${kbId !== null ? 'bg-black/40' : 'bg-transparent pointer-events-none'}`} onClick={onClose}>
             <div 
-                className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${kbId ? 'translate-x-0' : 'translate-x-full'}`}
+                className={`fixed top-0 right-0 h-full w-full max-w-2xl bg-white shadow-2xl transform transition-transform duration-300 ease-in-out ${kbId !== null ? 'translate-x-0' : 'translate-x-full'}`}
                 onClick={e => e.stopPropagation()}
             >
+                {isLoading && <div className="flex items-center justify-center h-full text-gray-500">正在加载详情...</div>}
+                {error && <div className="flex items-center justify-center h-full text-red-500 p-6">{error}</div>}
                 {detail && (
                     <div className="flex flex-col h-full">
                         <header className="p-5 border-b flex justify-between items-start">
@@ -76,21 +222,19 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
                                 ))}
                             </div>
                             <h3 className="font-semibold text-gray-800 mt-6 mb-4">信源文章ID列表</h3>
-                            <div className="bg-white p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2">
+                            <div className="bg-white p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 max-h-48 overflow-y-auto">
                                 {detail.source_article_ids.map(id => <p key={id} className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{id}</p>)}
                             </div>
                         </main>
                     </div>
                 )}
-                {isLoading && <div className="flex items-center justify-center h-full text-gray-500">正在加载详情...</div>}
-                {error && <div className="flex items-center justify-center h-full text-red-500 p-6">{error}</div>}
             </div>
         </div>
     );
 };
 
 const SortableHeader: React.FC<{ column: string; label: string; sortConfig: { sort_by: string; order: 'asc' | 'desc' }; onSort: (column: string) => void; }> = ({ column, label, sortConfig, onSort }) => (
-    <th scope="col" className="px-6 py-3 cursor-pointer" onClick={() => onSort(column)}>
+    <th scope="col" className="px-6 py-3 cursor-pointer select-none" onClick={() => onSort(column)}>
         <div className="flex items-center gap-1.5">
             {label}
             {sortConfig.sort_by === column 
@@ -101,6 +245,7 @@ const SortableHeader: React.FC<{ column: string; label: string; sortConfig: { so
     </th>
 );
 
+// --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
     const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
     const [meta, setMeta] = useState<KnowledgeBaseMeta | null>(null);
@@ -121,23 +266,26 @@ export const CompetitivenessDashboard: React.FC = () => {
     
     const [selectedKbId, setSelectedKbId] = useState<number | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    
+    const isInitialMount = useRef(true);
 
     const queryParams = useMemo(() => {
-        return {
+        const params: any = {
             page: pagination.page,
             limit: pagination.limit,
             sort_by: sort.sort_by,
             order: sort.order,
-            car_brand: filters.car_brand,
-            tech_dimension: filters.tech_dimension || undefined,
-            sub_tech_dimension: filters.sub_tech_dimension || undefined,
-            min_reliability: filters.min_reliability > 0 ? filters.min_reliability : undefined,
-            search: debouncedSearch || undefined,
         };
+        if (filters.car_brand.length > 0) params.car_brand = filters.car_brand;
+        if (filters.tech_dimension) params.tech_dimension = filters.tech_dimension;
+        if (filters.sub_tech_dimension) params.sub_tech_dimension = filters.sub_tech_dimension;
+        if (filters.min_reliability > 0) params.min_reliability = filters.min_reliability;
+        if (debouncedSearch) params.search = debouncedSearch;
+        return params;
     }, [pagination, sort, filters, debouncedSearch]);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
+    const fetchData = useCallback(async (isInitial = false) => {
+        if (!isInitial) setIsLoading(true);
         setError('');
         try {
             const response = await getKnowledgeBase(queryParams);
@@ -146,21 +294,41 @@ export const CompetitivenessDashboard: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }
-    }, [queryParams]);
+    }, [queryParams, isLoading]);
 
     useEffect(() => {
-        getKnowledgeBaseMeta().then(setMeta).catch(() => setError('加载筛选元数据失败'));
-    }, []);
-    
+        const loadInitialData = async () => {
+            setIsLoading(true);
+            try {
+                await getKnowledgeBaseMeta().then(setMeta);
+                fetchData(true);
+            } catch (err: any) {
+                setError(err.message || '初始化加载失败');
+                setIsLoading(false);
+            }
+        };
+        loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); 
+
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-    
-    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            return;
+        }
         setPagination(p => ({...p, page: 1}));
-    }, [filters, debouncedSearch, sort]);
+        fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSearch, filters.car_brand, filters.tech_dimension, filters.sub_tech_dimension, filters.min_reliability, sort]);
+
+    useEffect(() => {
+        if (!isInitialMount.current) {
+            fetchData();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pagination.page]);
 
     const handleSort = (column: string) => {
         setSort(prev => ({
@@ -171,6 +339,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     
     const handleExport = async () => {
         setIsExporting(true);
+        setError('');
         try {
             await exportKnowledgeBase({ ...queryParams, page: undefined, limit: undefined });
         } catch(err: any) {
@@ -184,55 +353,21 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     return (
         <>
-            <div className="p-6 bg-gray-50/70 h-full overflow-y-auto flex flex-col">
-                <header className="space-y-4 p-4 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200/80 shadow-sm mb-6 sticky top-0 z-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Car Brand Multi-Select */}
-                        <div className="lg:col-span-2">
-                             <label className="block text-sm font-medium text-gray-700 mb-1">汽车品牌</label>
-                             <select multiple value={filters.car_brand} onChange={e => setFilters(f => ({...f, car_brand: Array.from(e.target.selectedOptions, o => o.value)}))} className="w-full h-24 bg-white border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                        </div>
-                        {/* Tech Dimension Selects */}
-                        <div>
-                             <label className="block text-sm font-medium text-gray-700 mb-1">技术领域</label>
-                             <select value={filters.tech_dimension} onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value, sub_tech_dimension: ''}))} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3">
-                                 <option value="">全部</option>
-                                 {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">子领域</label>
-                            <select value={filters.sub_tech_dimension} onChange={e => setFilters(f => ({...f, sub_tech_dimension: e.target.value}))} disabled={!filters.tech_dimension} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 disabled:bg-gray-100">
-                                <option value="">全部</option>
-                                {filters.tech_dimension && meta?.tech_dimensions[filters.tech_dimension]?.map(sd => <option key={sd} value={sd}>{sd}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                     <div className="flex items-center gap-4 flex-wrap">
-                        {/* Search Input */}
-                        <div className="relative flex-grow">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input type="text" value={filters.search} onChange={e => setFilters(f => ({...f, search: e.target.value}))} placeholder="在技术详情中搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
-                        </div>
-                        {/* Reliability Slider */}
-                        <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
-                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">可靠度 &ge;</label>
-                            <input type="range" min="0" max="100" value={filters.min_reliability} onChange={e => setFilters(f => ({...f, min_reliability: Number(e.target.value)}))} className="w-32" />
-                            <span className="font-semibold text-sm text-blue-600 w-8 text-center">{filters.min_reliability}</span>
-                        </div>
-                        <button onClick={handleExport} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-green-700 transition disabled:bg-green-300">
-                            <DownloadIcon className="w-4 h-4"/>
-                            <span>{isExporting ? '导出中...' : '导出 CSV'}</span>
-                        </button>
-                    </div>
-                </header>
+            <div className="p-4 sm:p-6 bg-gray-50/70 h-full overflow-y-auto flex flex-col">
+                <FilterPanel 
+                    meta={meta}
+                    filters={filters}
+                    setFilters={setFilters}
+                    onExport={handleExport}
+                    isExporting={isExporting}
+                />
                 
+                {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
+
                 <main className="flex-1 bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
                     <div className="overflow-x-auto flex-1">
                         <table className="w-full text-sm text-left text-gray-500">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 sticky top-0">
+                            <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 sticky top-0 z-10">
                                 <tr>
                                     <SortableHeader column="car_brand" label="汽车品牌" sortConfig={sort} onSort={handleSort} />
                                     <th scope="col" className="px-6 py-3">技术领域</th>
@@ -244,11 +379,9 @@ export const CompetitivenessDashboard: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-gray-200">
                                 {isLoading ? (
-                                    <tr><td colSpan={6} className="text-center py-10">加载中...</td></tr>
-                                ) : error ? (
-                                    <tr><td colSpan={6} className="text-center py-10 text-red-500">{error}</td></tr>
+                                    <tr><td colSpan={6} className="text-center py-10 text-gray-500">加载中...</td></tr>
                                 ) : kbItems.length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-10">未找到匹配的情报。</td></tr>
+                                    <tr><td colSpan={6} className="text-center py-10 text-gray-500">未找到匹配的情报。</td></tr>
                                 ) : kbItems.map(item => (
                                     <tr key={item.id} onClick={() => setSelectedKbId(item.id)} className="hover:bg-gray-50 cursor-pointer">
                                         <td className="px-6 py-4 font-semibold text-gray-900">{item.car_brand}</td>
