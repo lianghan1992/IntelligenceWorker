@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseMeta, KnowledgeBaseDetail } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseMeta, getKnowledgeBaseDetail, exportKnowledgeBase } from '../../api';
-import { RefreshIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ChevronUpDownIcon, ClockIcon, DocumentTextIcon, CheckIcon, QuestionMarkCircleIcon, CheckCircleIcon } from '../icons';
+import { RefreshIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ClockIcon, DocumentTextIcon, CheckIcon, QuestionMarkCircleIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, TrendingUpIcon, EyeIcon } from '../icons';
 
 // --- Custom Hooks ---
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -49,6 +49,15 @@ const getReliabilityInfo = (score: number) => {
         default:
             return { text: '未知', color: 'gray', Icon: QuestionMarkCircleIcon };
     }
+};
+
+const techDimensionIcons: { [key: string]: React.FC<any> } = {
+    '智能驾驶': BrainIcon,
+    '智能座舱': UsersIcon,
+    '智能网联': EyeIcon,
+    '智能底盘': TrendingUpIcon,
+    '智能动力': LightBulbIcon,
+    '智能车身': CheckCircleIcon
 };
 
 
@@ -273,18 +282,6 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
     );
 };
 
-const SortableHeader: React.FC<{ column: string; label: string; sortConfig: { sort_by: string; order: 'asc' | 'desc' }; onSort: (column: string) => void; className?: string; }> = ({ column, label, sortConfig, onSort, className = "px-6 py-3" }) => (
-    <th scope="col" className={`${className} cursor-pointer select-none`} onClick={() => onSort(column)}>
-        <div className="flex items-center gap-1.5">
-            {label}
-            {sortConfig.sort_by === column 
-                ? <ChevronDownIcon className={`w-4 h-4 transition-transform ${sortConfig.order === 'asc' ? 'rotate-180' : ''}`} />
-                : <ChevronUpDownIcon className="w-4 h-4 text-gray-400" />
-            }
-        </div>
-    </th>
-);
-
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
     const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
@@ -307,6 +304,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     
     const [selectedKbId, setSelectedKbId] = useState<number | null>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
     
     const isInitialMount = useRef(true);
 
@@ -343,8 +341,13 @@ export const CompetitivenessDashboard: React.FC = () => {
         const loadInitialData = async () => {
             setIsLoading(true);
             try {
-                await getKnowledgeBaseMeta().then(setMeta);
+                const metaData = await getKnowledgeBaseMeta();
+                setMeta(metaData);
                 await fetchData(true);
+                // Expand the first brand by default
+                if(metaData.car_brands.length > 0) {
+                    setExpandedBrands(new Set([metaData.car_brands[0]]));
+                }
             } catch (err: any) {
                 setError(err.message || '初始化加载失败');
             } finally {
@@ -371,6 +374,8 @@ export const CompetitivenessDashboard: React.FC = () => {
     }, [queryParams]);
 
     const groupedData = useMemo(() => {
+        // FIX: The reduce function was creating an incorrect data structure.
+        // It should build a nested record object, not an object with `items` and `totalSources` properties.
         return kbItems.reduce((acc, item) => {
             const { car_brand, tech_dimension, sub_tech_dimension } = item;
             if (!acc[car_brand]) {
@@ -388,13 +393,6 @@ export const CompetitivenessDashboard: React.FC = () => {
     }, [kbItems]);
 
 
-    const handleSort = (column: string) => {
-        setSort(prev => ({
-            sort_by: column,
-            order: prev.sort_by === column && prev.order === 'desc' ? 'asc' : 'desc'
-        }));
-    };
-    
     const handleExport = async () => {
         setIsExporting(true);
         setError('');
@@ -406,15 +404,27 @@ export const CompetitivenessDashboard: React.FC = () => {
             setIsExporting(false);
         }
     }
+    
+    const toggleBrandExpansion = (brand: string) => {
+        setExpandedBrands(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(brand)) {
+                newSet.delete(brand);
+            } else {
+                newSet.add(brand);
+            }
+            return newSet;
+        });
+    };
 
     const totalPages = Math.ceil(pagination.total / pagination.limit) || 1;
     
     const badgeColors: { [key: string]: string } = {
-        green: 'bg-green-100 text-green-800',
-        blue: 'bg-blue-100 text-blue-800',
-        amber: 'bg-amber-100 text-amber-800',
-        red: 'bg-red-100 text-red-800',
-        gray: 'bg-gray-100 text-gray-800',
+        green: 'bg-green-100 text-green-800 border-green-200',
+        blue: 'bg-blue-100 text-blue-800 border-blue-200',
+        amber: 'bg-amber-100 text-amber-800 border-amber-200',
+        red: 'bg-red-100 text-red-800 border-red-200',
+        gray: 'bg-gray-100 text-gray-800 border-gray-200',
     };
 
     return (
@@ -430,88 +440,76 @@ export const CompetitivenessDashboard: React.FC = () => {
                 
                 {error && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
 
-                <main className="flex-1 bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden flex flex-col">
-                    <div className="overflow-x-auto flex-1">
-                        <table className="w-full text-sm text-left text-gray-500">
-                            <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 sticky top-0 z-10">
-                                <tr>
-                                    <SortableHeader column="car_brand" label="车企" sortConfig={sort} onSort={handleSort} className="px-4 py-3 w-40" />
-                                    <th scope="col" className="px-4 py-3 w-40">技术领域</th>
-                                    <th scope="col" className="px-4 py-3 w-40">子领域</th>
-                                    <th scope="col" className="px-4 py-3">技术点详情</th>
-                                    <th scope="col" className="px-4 py-3 w-28 text-center">信源总数</th>
-                                    <SortableHeader column="last_updated_at" label="最后更新" sortConfig={sort} onSort={handleSort} className="px-6 py-3 w-40" />
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white">
-                                {isLoading ? (
-                                    <tr><td colSpan={6} className="text-center py-10 text-gray-500">加载中...</td></tr>
-                                ) : Object.keys(groupedData).length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-10 text-gray-500">未找到匹配的情报。</td></tr>
-                                ) : (
-                                    Object.entries(groupedData).flatMap(([brand, primaryDims]) => {
-                                        const brandRowCount = Object.values(primaryDims).reduce((sum, secondaryDims) => sum + Object.keys(secondaryDims).length, 0);
-                                        let isFirstRowOfBrand = true;
-
-                                        return Object.entries(primaryDims).flatMap(([primaryDim, secondaryDims]) => {
-                                            const primaryDimRowCount = Object.keys(secondaryDims).length;
-                                            let isFirstRowOfPrimary = true;
-
-                                            return Object.entries(secondaryDims).map(([secondaryDim, items]) => {
-                                                // items is an array of KnowledgeBaseItem, but due to the nature of the API, it often contains one item
-                                                // which is itself an aggregation. This logic handles both single and multiple items per group.
-                                                const totalSources = items.reduce((sum, item) => sum + item.source_article_count, 0);
-                                                const lastUpdated = new Date(Math.max(...items.map(item => new Date(item.last_updated_at).getTime())));
-                                                
-                                                const rowContent = (
-                                                    <tr key={`${brand}-${primaryDim}-${secondaryDim}`} className="border-t border-gray-200">
-                                                        {isFirstRowOfBrand && (
-                                                            <td rowSpan={brandRowCount} className="px-4 py-4 font-bold text-gray-800 align-top bg-gray-50/70 border-r border-gray-200">
-                                                                {brand}
-                                                            </td>
-                                                        )}
-                                                        {isFirstRowOfPrimary && (
-                                                            <td rowSpan={primaryDimRowCount} className="px-4 py-4 font-semibold text-gray-700 align-top bg-gray-50/70 border-r border-gray-200">
-                                                                {primaryDim}
-                                                            </td>
-                                                        )}
-                                                        <td className="px-4 py-4 font-medium text-gray-600 align-top border-r border-gray-200">{secondaryDim}</td>
-                                                        <td className="px-4 py-4 align-top border-r border-gray-200">
-                                                            <div className="space-y-2">
-                                                                {items.map(item => {
-                                                                    const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                                                    return (
-                                                                        <div key={item.id} onClick={() => setSelectedKbId(item.id)} className="p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer border border-transparent hover:border-blue-200 transition-all">
-                                                                            <div className="flex justify-between items-start">
-                                                                                <p className="font-semibold text-gray-800 pr-2">{item.consolidated_tech_preview.name}</p>
-                                                                                <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
-                                                                                    <reliabilityInfo.Icon className="w-3 h-3" />
-                                                                                    {reliabilityInfo.text}
-                                                                                </span>
-                                                                            </div>
-                                                                            <p className="text-xs text-gray-500 mt-1">{item.consolidated_tech_preview.description}</p>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-4 text-center align-top font-medium text-gray-800 border-r border-gray-200">{totalSources}</td>
-                                                        <td className="px-4 py-4 align-top">{lastUpdated.toLocaleDateString()}</td>
-                                                    </tr>
+                <main className="flex-1 space-y-4">
+                    {isLoading ? (
+                         <div className="text-center py-20 text-gray-500">加载中...</div>
+                    ) : Object.keys(groupedData).length === 0 ? (
+                         <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">未找到匹配的情报。</div>
+                    ) : (
+                        Object.entries(groupedData).map(([brand, primaryDims]) => {
+                            const isExpanded = expandedBrands.has(brand);
+                            const totalTechPoints = Object.values(primaryDims).flatMap(Object.values).flat().length;
+                            return (
+                                <div key={brand} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-300">
+                                    <button onClick={() => toggleBrandExpansion(brand)} className="w-full flex justify-between items-center p-4 hover:bg-gray-50/70">
+                                        <div className="flex items-center gap-4">
+                                            <h2 className="font-bold text-lg text-gray-900">{brand}</h2>
+                                            <span className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-full">{totalTechPoints} 条情报</span>
+                                        </div>
+                                        <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isExpanded && (
+                                        <div className="p-4 border-t border-gray-100 space-y-4 animate-in fade-in-0 duration-300">
+                                            {Object.entries(primaryDims).map(([primaryDim, secondaryDims]) => {
+                                                const Icon = techDimensionIcons[primaryDim] || BrainIcon;
+                                                return (
+                                                    <div key={primaryDim}>
+                                                        <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                                                            <Icon className="w-5 h-5 text-gray-500" />
+                                                            {primaryDim}
+                                                        </h3>
+                                                        <div className="space-y-2 pl-7">
+                                                            {Object.entries(secondaryDims).map(([secondaryDim, items]) => (
+                                                                <div key={secondaryDim} className="grid grid-cols-[150px_1fr] items-start gap-3 py-2 border-t border-gray-100 first:border-t-0">
+                                                                    <p className="font-medium text-gray-600 text-sm pt-1">{secondaryDim}</p>
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        {items.map(item => {
+                                                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                                            return (
+                                                                                <div 
+                                                                                    key={item.id} 
+                                                                                    onClick={() => setSelectedKbId(item.id)}
+                                                                                    className="group cursor-pointer bg-white border border-gray-200 rounded-lg p-2 flex-grow min-w-[200px] hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200"
+                                                                                >
+                                                                                    <p className="font-semibold text-gray-800 text-sm">{item.consolidated_tech_preview.name}</p>
+                                                                                    <div className="flex items-center justify-between mt-1.5 text-xs">
+                                                                                        <span className={`px-2 py-0.5 font-medium rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
+                                                                                            <reliabilityInfo.Icon className="w-3 h-3" />
+                                                                                            {reliabilityInfo.text}
+                                                                                        </span>
+                                                                                        <span className="text-gray-400 flex items-center gap-1">
+                                                                                            <DocumentTextIcon className="w-3 h-3" />
+                                                                                            {item.source_article_count}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
                                                 );
-                                                
-                                                isFirstRowOfBrand = false;
-                                                isFirstRowOfPrimary = false;
-                                                return rowContent;
-                                            });
-                                        });
-                                    })
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
                      {pagination.total > 0 && !isLoading && (
-                        <div className="flex-shrink-0 p-3 border-t flex justify-between items-center text-sm">
+                        <div className="flex-shrink-0 p-3 flex justify-between items-center text-sm mt-4">
                             <span className="text-gray-600">共 {pagination.total} 条</span>
                             <div className="flex items-center gap-2">
                                 <button onClick={() => setPagination(p => ({...p, page: p.page - 1}))} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
