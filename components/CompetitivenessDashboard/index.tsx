@@ -48,7 +48,11 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
                 const data = await getKnowledgeBaseDetail(kbId);
                 setDetail(data);
                 if (data.source_article_ids && data.source_article_ids.length > 0) {
-                    const articlesResponse = await searchArticlesFiltered({ article_ids: data.source_article_ids });
+                    const articlesResponse = await searchArticlesFiltered({ 
+                        article_ids: data.source_article_ids,
+                        query_text: '*', // Add query_text to prevent 422 error
+                        limit: data.source_article_ids.length // Limit to the number of IDs
+                    });
                     setArticles(articlesResponse.items || []);
                 } else {
                     setArticles([]);
@@ -158,7 +162,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
-            setIsLoading(false);
+            if (showLoading) setIsLoading(false);
         }
     }, [pagination.page, pagination.limit]);
 
