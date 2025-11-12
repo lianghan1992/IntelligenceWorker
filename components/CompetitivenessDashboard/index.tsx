@@ -334,9 +334,9 @@ export const CompetitivenessDashboard: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
-            if (isInitial || isLoading) setIsLoading(false);
+            setIsLoading(false);
         }
-    }, [queryParams, isLoading]);
+    }, [queryParams]);
 
     useEffect(() => {
         const loadInitialData = async () => {
