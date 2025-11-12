@@ -218,6 +218,7 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
         blue: 'bg-blue-100 text-blue-800',
         amber: 'bg-amber-100 text-amber-800',
         red: 'bg-red-100 text-red-800',
+        gray: 'bg-gray-100 text-gray-800'
     };
     
     return (
@@ -369,6 +370,20 @@ export const CompetitivenessDashboard: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [queryParams]);
 
+    const groupedData = useMemo(() => {
+        return kbItems.reduce((acc, item) => {
+            const { tech_dimension, sub_tech_dimension } = item;
+            if (!acc[tech_dimension]) {
+                acc[tech_dimension] = {};
+            }
+            if (!acc[tech_dimension][sub_tech_dimension]) {
+                acc[tech_dimension][sub_tech_dimension] = [];
+            }
+            acc[tech_dimension][sub_tech_dimension].push(item);
+            return acc;
+        }, {} as Record<string, Record<string, KnowledgeBaseItem[]>>);
+    }, [kbItems]);
+
 
     const handleSort = (column: string) => {
         setSort(prev => ({
@@ -396,6 +411,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         blue: 'bg-blue-100 text-blue-800',
         amber: 'bg-amber-100 text-amber-800',
         red: 'bg-red-100 text-red-800',
+        gray: 'bg-gray-100 text-gray-800',
     };
 
     return (
@@ -416,39 +432,72 @@ export const CompetitivenessDashboard: React.FC = () => {
                         <table className="w-full text-sm text-left text-gray-500">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 sticky top-0 z-10">
                                 <tr>
-                                    <SortableHeader column="car_brand" label="汽车品牌" sortConfig={sort} onSort={handleSort} />
-                                    <th scope="col" className="px-6 py-3">技术领域</th>
-                                    <th scope="col" className="px-6 py-3">关键技术点</th>
-                                    <SortableHeader column="current_reliability_score" label="可靠度" sortConfig={sort} onSort={handleSort} />
-                                    <th scope="col" className="px-6 py-3">信源数量</th>
+                                    <th scope="col" className="px-4 py-3 w-40">技术领域</th>
+                                    <th scope="col" className="px-4 py-3 w-40">子领域</th>
+                                    <th scope="col" className="px-4 py-3 w-48">涉及品牌</th>
+                                    <th scope="col" className="px-4 py-3">技术点详情</th>
+                                    <th scope="col" className="px-4 py-3 w-28 text-center">信源总数</th>
                                     <SortableHeader column="last_updated_at" label="最后更新" sortConfig={sort} onSort={handleSort} />
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-200">
+                            <tbody className="bg-white">
                                 {isLoading ? (
                                     <tr><td colSpan={6} className="text-center py-10 text-gray-500">加载中...</td></tr>
-                                ) : kbItems.length === 0 ? (
+                                ) : Object.keys(groupedData).length === 0 ? (
                                     <tr><td colSpan={6} className="text-center py-10 text-gray-500">未找到匹配的情报。</td></tr>
-                                ) : kbItems.map(item => {
-                                    const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                    return (
-                                    <tr key={item.id} onClick={() => setSelectedKbId(item.id)} className="hover:bg-gray-50 cursor-pointer">
-                                        <td className="px-6 py-4 font-semibold text-gray-900">{item.car_brand}</td>
-                                        <td className="px-6 py-4">{item.tech_dimension} &gt; {item.sub_tech_dimension}</td>
-                                        <td className="px-6 py-4">
-                                            <p className="font-semibold text-gray-800">{item.consolidated_tech_preview.name}</p>
-                                            <p className="text-xs text-gray-500 truncate max-w-xs">{item.consolidated_tech_preview.description}</p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full flex items-center gap-1.5 w-max ${badgeColors[reliabilityInfo.color]}`}>
-                                                <reliabilityInfo.Icon className="w-3.5 h-3.5" />
-                                                {reliabilityInfo.text}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-center">{item.source_article_count}</td>
-                                        <td className="px-6 py-4">{new Date(item.last_updated_at).toLocaleDateString()}</td>
-                                    </tr>
-                                )})}
+                                ) : (
+                                    Object.entries(groupedData).flatMap(([primaryDim, secondaryDims]) => {
+                                        const primaryDimRowCount = Object.keys(secondaryDims).length;
+                                        let isFirstRowOfPrimary = true;
+
+                                        return Object.entries(secondaryDims).map(([secondaryDim, items]) => {
+                                            const uniqueBrands = [...new Set(items.map(item => item.car_brand))];
+                                            const totalSources = items.reduce((sum, item) => sum + item.source_article_count, 0);
+                                            const lastUpdated = new Date(Math.max(...items.map(item => new Date(item.last_updated_at).getTime())));
+                                            
+                                            const rowContent = (
+                                                <tr key={`${primaryDim}-${secondaryDim}`} className="border-t border-gray-200">
+                                                    {isFirstRowOfPrimary && (
+                                                        <td rowSpan={primaryDimRowCount} className="px-4 py-4 font-bold text-gray-800 align-top bg-gray-50/70 border-r border-gray-200">
+                                                            {primaryDim}
+                                                        </td>
+                                                    )}
+                                                    <td className="px-4 py-4 font-semibold text-gray-700 align-top border-r border-gray-200">{secondaryDim}</td>
+                                                    <td className="px-4 py-4 align-top border-r border-gray-200">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {uniqueBrands.map(brand => (
+                                                                <span key={brand} className="px-2 py-0.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-full">{brand}</span>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 align-top border-r border-gray-200">
+                                                        <div className="space-y-2">
+                                                            {items.map(item => {
+                                                                const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                                return (
+                                                                    <div key={item.id} onClick={() => setSelectedKbId(item.id)} className="p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer border border-transparent hover:border-blue-200 transition-all">
+                                                                        <div className="flex justify-between items-start">
+                                                                            <p className="font-semibold text-gray-800 pr-2">{item.consolidated_tech_preview.name}</p>
+                                                                            <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
+                                                                                <reliabilityInfo.Icon className="w-3 h-3" />
+                                                                                {reliabilityInfo.text}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-500 mt-1">{item.consolidated_tech_preview.description}</p>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-center align-top font-medium text-gray-800 border-r border-gray-200">{totalSources}</td>
+                                                    <td className="px-4 py-4 align-top">{lastUpdated.toLocaleDateString()}</td>
+                                                </tr>
+                                            );
+                                            isFirstRowOfPrimary = false;
+                                            return rowContent;
+                                        });
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
