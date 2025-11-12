@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseMeta, KnowledgeBaseDetail } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseMeta, getKnowledgeBaseDetail, exportKnowledgeBase } from '../../api';
-import { RefreshIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ChevronUpDownIcon, ClockIcon, DocumentTextIcon, CheckIcon } from '../icons';
+import { RefreshIcon, ChevronDownIcon, CloseIcon, SearchIcon, DownloadIcon, ChevronUpDownIcon, ClockIcon, DocumentTextIcon, CheckIcon, QuestionMarkCircleIcon, CheckCircleIcon } from '../icons';
 
 // --- Custom Hooks ---
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -32,6 +32,23 @@ const useClickOutside = (ref: React.RefObject<HTMLElement>, handler: (event: Mou
             document.removeEventListener('touchstart', listener);
         };
     }, [ref, handler]);
+};
+
+
+// --- Helper Functions & Constants ---
+const getReliabilityInfo = (score: number) => {
+    switch (Math.round(score)) {
+        case 4:
+            return { text: '官方证实', color: 'green', Icon: CheckCircleIcon };
+        case 3:
+            return { text: '可信度高', color: 'blue', Icon: CheckIcon };
+        case 2:
+            return { text: '疑似传言', color: 'amber', Icon: QuestionMarkCircleIcon };
+        case 1:
+            return { text: '已经辟谣', color: 'red', Icon: CloseIcon };
+        default:
+            return { text: '未知', color: 'gray', Icon: QuestionMarkCircleIcon };
+    }
 };
 
 
@@ -105,10 +122,12 @@ const FilterPanel: React.FC<{
             car_brand: [],
             tech_dimension: '',
             sub_tech_dimension: '',
-            min_reliability: 0,
+            min_reliability: 1,
             search: '',
         });
     };
+    
+    const reliabilityInfo = getReliabilityInfo(filters.min_reliability);
 
     return (
         <header className="space-y-4 p-4 bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200/80 shadow-sm mb-6 sticky top-0 z-20">
@@ -137,25 +156,35 @@ const FilterPanel: React.FC<{
                     </select>
                 </div>
             </div>
-            <div className="flex items-center gap-4 flex-wrap">
-                <div className="relative flex-grow min-w-[200px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                 <div className="relative">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input type="text" value={filters.search} onChange={e => handleFilterChange('search', e.target.value)} placeholder="在技术详情中搜索..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
                 </div>
-                <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
-                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">可靠度 &ge;</label>
-                    <input type="range" min="0" max="100" value={filters.min_reliability} onChange={e => handleFilterChange('min_reliability', Number(e.target.value))} className="w-32 cursor-pointer" />
-                    <span className="font-semibold text-sm text-blue-600 w-8 text-center">{filters.min_reliability}</span>
-                </div>
-                <div className="flex items-center gap-2 ml-auto">
-                     <button onClick={resetFilters} className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
-                        重置筛选
-                    </button>
-                    <button onClick={onExport} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-green-700 transition disabled:bg-green-300">
-                        <DownloadIcon className="w-4 h-4" />
-                        <span>{isExporting ? '导出中...' : '导出 CSV'}</span>
-                    </button>
-                </div>
+                 <div className="flex items-center gap-4">
+                    <div className="flex-grow">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">可靠度 &ge;</label>
+                            <input type="range" min="1" max="4" value={filters.min_reliability} onChange={e => handleFilterChange('min_reliability', Number(e.target.value))} className="w-full cursor-pointer" />
+                            <span className={`font-semibold text-sm w-24 text-center text-${reliabilityInfo.color}-600`}>{reliabilityInfo.text}</span>
+                        </div>
+                        <div className="w-full flex mt-1 h-1.5 rounded-full overflow-hidden">
+                            <div className="w-1/4 bg-red-300"></div>
+                            <div className="w-1/4 bg-amber-300"></div>
+                            <div className="w-1/4 bg-blue-300"></div>
+                            <div className="w-1/4 bg-green-300"></div>
+                        </div>
+                    </div>
+                     <div className="flex items-center gap-2">
+                         <button onClick={resetFilters} className="px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
+                            重置
+                        </button>
+                        <button onClick={onExport} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-green-700 transition disabled:bg-green-300">
+                            <DownloadIcon className="w-4 h-4" />
+                            <span>{isExporting ? '导出中...' : '导出'}</span>
+                        </button>
+                    </div>
+                 </div>
             </div>
         </header>
     );
@@ -184,6 +213,13 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
         fetchDetail();
     }, [kbId]);
     
+    const badgeColors: { [key: string]: string } = {
+        green: 'bg-green-100 text-green-800',
+        blue: 'bg-blue-100 text-blue-800',
+        amber: 'bg-amber-100 text-amber-800',
+        red: 'bg-red-100 text-red-800',
+    };
+    
     return (
         <div className={`fixed inset-0 z-40 transition-opacity duration-300 ${kbId !== null ? 'bg-black/40' : 'bg-transparent pointer-events-none'}`} onClick={onClose}>
             <div 
@@ -204,22 +240,25 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
                         <main className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
                             <h3 className="font-semibold text-gray-800 mb-4">技术演进时间线</h3>
                             <div className="space-y-4">
-                                {detail.consolidated_tech_details.map((item, index) => (
-                                    <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
-                                        <div className="flex justify-between items-center text-sm mb-2">
-                                            <p className="font-semibold text-blue-700">{item.name}</p>
-                                            <div className="flex items-center gap-2 text-gray-500">
-                                                <CheckIcon className="w-4 h-4 text-green-500" />
-                                                <span className="font-medium">可靠度: {item.reliability}</span>
+                                {detail.consolidated_tech_details.map((item, index) => {
+                                    const reliabilityInfo = getReliabilityInfo(item.reliability);
+                                    return (
+                                        <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
+                                            <div className="flex justify-between items-center text-sm mb-2">
+                                                <p className="font-semibold text-blue-700">{item.name}</p>
+                                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
+                                                    <reliabilityInfo.Icon className="w-3 h-3" />
+                                                    {reliabilityInfo.text}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                                            <div className="text-xs text-gray-400 flex items-center gap-1.5">
+                                                <ClockIcon className="w-3.5 h-3.5" />
+                                                <span>情报日期: {new Date(item.publish_date).toLocaleDateString()}</span>
                                             </div>
                                         </div>
-                                        <p className="text-sm text-gray-600 mb-3">{item.description}</p>
-                                        <div className="text-xs text-gray-400 flex items-center gap-1.5">
-                                            <ClockIcon className="w-3.5 h-3.5" />
-                                            <span>情报日期: {new Date(item.publish_date).toLocaleDateString()}</span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                             <h3 className="font-semibold text-gray-800 mt-6 mb-4">信源文章ID列表</h3>
                             <div className="bg-white p-4 rounded-lg border border-gray-200 text-sm text-gray-700 space-y-2 max-h-48 overflow-y-auto">
@@ -256,10 +295,11 @@ export const CompetitivenessDashboard: React.FC = () => {
         car_brand: [] as string[],
         tech_dimension: '',
         sub_tech_dimension: '',
-        min_reliability: 0,
+        min_reliability: 1,
         search: '',
     });
     const debouncedSearch = useDebounce(filters.search, 500);
+    const debouncedReliability = useDebounce(filters.min_reliability, 500);
 
     const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
     const [sort, setSort] = useState<{ sort_by: string; order: 'asc' | 'desc' }>({ sort_by: 'last_updated_at', order: 'desc' });
@@ -279,10 +319,10 @@ export const CompetitivenessDashboard: React.FC = () => {
         if (filters.car_brand.length > 0) params.car_brand = filters.car_brand;
         if (filters.tech_dimension) params.tech_dimension = filters.tech_dimension;
         if (filters.sub_tech_dimension) params.sub_tech_dimension = filters.sub_tech_dimension;
-        if (filters.min_reliability > 0) params.min_reliability = filters.min_reliability;
+        if (debouncedReliability > 1) params.min_reliability = debouncedReliability;
         if (debouncedSearch) params.search = debouncedSearch;
         return params;
-    }, [pagination, sort, filters, debouncedSearch]);
+    }, [pagination.page, pagination.limit, sort, filters.car_brand, filters.tech_dimension, filters.sub_tech_dimension, debouncedReliability, debouncedSearch]);
 
     const fetchData = useCallback(async (isInitial = false) => {
         if (!isInitial) setIsLoading(true);
@@ -294,7 +334,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
-            if (isLoading) setIsLoading(false);
+            if (isInitial || isLoading) setIsLoading(false);
         }
     }, [queryParams, isLoading]);
 
@@ -303,10 +343,11 @@ export const CompetitivenessDashboard: React.FC = () => {
             setIsLoading(true);
             try {
                 await getKnowledgeBaseMeta().then(setMeta);
-                fetchData(true);
+                await fetchData(true);
             } catch (err: any) {
                 setError(err.message || '初始化加载失败');
-                setIsLoading(false);
+            } finally {
+                 setIsLoading(false);
             }
         };
         loadInitialData();
@@ -319,16 +360,15 @@ export const CompetitivenessDashboard: React.FC = () => {
             return;
         }
         setPagination(p => ({...p, page: 1}));
-        fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch, filters.car_brand, filters.tech_dimension, filters.sub_tech_dimension, filters.min_reliability, sort]);
+    }, [debouncedSearch, filters.car_brand, filters.tech_dimension, filters.sub_tech_dimension, debouncedReliability, sort]);
 
     useEffect(() => {
         if (!isInitialMount.current) {
             fetchData();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pagination.page]);
+    }, [queryParams]);
+
 
     const handleSort = (column: string) => {
         setSort(prev => ({
@@ -350,6 +390,13 @@ export const CompetitivenessDashboard: React.FC = () => {
     }
 
     const totalPages = Math.ceil(pagination.total / pagination.limit) || 1;
+    
+    const badgeColors: { [key: string]: string } = {
+        green: 'bg-green-100 text-green-800',
+        blue: 'bg-blue-100 text-blue-800',
+        amber: 'bg-amber-100 text-amber-800',
+        red: 'bg-red-100 text-red-800',
+    };
 
     return (
         <>
@@ -382,7 +429,9 @@ export const CompetitivenessDashboard: React.FC = () => {
                                     <tr><td colSpan={6} className="text-center py-10 text-gray-500">加载中...</td></tr>
                                 ) : kbItems.length === 0 ? (
                                     <tr><td colSpan={6} className="text-center py-10 text-gray-500">未找到匹配的情报。</td></tr>
-                                ) : kbItems.map(item => (
+                                ) : kbItems.map(item => {
+                                    const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                    return (
                                     <tr key={item.id} onClick={() => setSelectedKbId(item.id)} className="hover:bg-gray-50 cursor-pointer">
                                         <td className="px-6 py-4 font-semibold text-gray-900">{item.car_brand}</td>
                                         <td className="px-6 py-4">{item.tech_dimension} &gt; {item.sub_tech_dimension}</td>
@@ -391,15 +440,15 @@ export const CompetitivenessDashboard: React.FC = () => {
                                             <p className="text-xs text-gray-500 truncate max-w-xs">{item.consolidated_tech_preview.description}</p>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-20 bg-gray-200 rounded-full h-1.5"><div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${item.current_reliability_score}%` }}></div></div>
-                                                <span className="font-semibold text-blue-700">{item.current_reliability_score}</span>
-                                            </div>
+                                             <span className={`px-2.5 py-1 text-xs font-semibold rounded-full flex items-center gap-1.5 w-max ${badgeColors[reliabilityInfo.color]}`}>
+                                                <reliabilityInfo.Icon className="w-3.5 h-3.5" />
+                                                {reliabilityInfo.text}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4 text-center">{item.source_article_count}</td>
                                         <td className="px-6 py-4">{new Date(item.last_updated_at).toLocaleDateString()}</td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     </div>
