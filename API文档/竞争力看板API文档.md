@@ -122,6 +122,28 @@ curl -X GET http://127.0.0.1:7657/competitiveness_analysis/results/a1b2c3d4-e5f6
 ]
 ```
 
+### 1.4 获取原始文章内容
+
+获取指定文章的完整原始内容。
+
+- **路径**: `/articles/{article_id}/raw`
+- **方法**: `GET`
+- **认证**: 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/competitiveness_analysis/articles/a1b2c3d4-e5f6-7890-abcd-ef1234567890/raw \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+{
+  "article_id": "文章的UUID",
+  "content": "文章的完整原始内容..."
+}
+```
+
 ---
 
 ## 2. 知识库 API
