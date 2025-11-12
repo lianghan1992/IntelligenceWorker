@@ -25,7 +25,13 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
 
 
 // --- Sub-Component: DetailPanel ---
-const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ kbId, onClose }) => {
+interface DetailPanelProps {
+    kbId: number | null;
+    onClose: () => void;
+    allBrands: string[];
+}
+
+const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose, allBrands }) => {
     const [detail, setDetail] = useState<KnowledgeBaseDetail | null>(null);
     const [articles, setArticles] = useState<SearchResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +62,9 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
                         limit: data.source_article_ids.length
                     });
                     if (isCancelled) return;
+                    
                     setArticles(articlesResponse.items || []);
+
                 } else {
                     setArticles([]);
                 }
@@ -69,7 +77,7 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
         fetchDetail();
         
         return () => { isCancelled = true; };
-    }, [kbId]);
+    }, [kbId, allBrands]);
 
     const sortedTechDetails = useMemo(() => {
         if (!detail) return [];
@@ -303,7 +311,7 @@ export const CompetitivenessDashboard: React.FC = () => {
             </div>
             {/* Right Panel */}
             <main className="w-3/5 flex-shrink-0 h-full min-w-0">
-                <DetailPanel kbId={selectedKbId} onClose={() => setSelectedKbId(null)} />
+                <DetailPanel kbId={selectedKbId} onClose={() => setSelectedKbId(null)} allBrands={brands} />
             </main>
         </div>
     );

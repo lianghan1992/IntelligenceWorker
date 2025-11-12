@@ -122,28 +122,6 @@ curl -X GET http://127.0.0.1:7657/competitiveness_analysis/results/a1b2c3d4-e5f6
 ]
 ```
 
-### 1.4 获取原始文章内容
-
-获取指定文章的完整原始内容。
-
-- **路径**: `/articles/{article_id}/raw`
-- **方法**: `GET`
-- **认证**: 需要Bearer Token
-
-**cURL请求示例**
-```bash
-curl -X GET http://127.0.0.1:7657/competitiveness_analysis/articles/a1b2c3d4-e5f6-7890-abcd-ef1234567890/raw \
--H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "article_id": "文章的UUID",
-  "content": "文章的完整原始内容..."
-}
-```
-
 ---
 
 ## 2. 知识库 API
@@ -318,6 +296,94 @@ curl -X GET "http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/expor
 
 ---
 
+### 2.5 溯源：获取知识库条目的来源文章列表（不含初筛记录）
+
+获取某知识库条目的来源文章基本信息列表，用于前端展示“该技术点来源于哪些文章”。
+
+-   **路径:** `/knowledge_base/{kb_id}/articles`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**cURL请求示例**
+```bash
+curl -X GET http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/articles \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "id": "uuid-123",
+    "original_url": "http://example.com/news/123",
+    "publish_date": "2023-09-10",
+    "created_at": "2023-09-11 10:00:00"
+  },
+  {
+    "id": "uuid-456",
+    "original_url": "http://example.com/news/456",
+    "publish_date": "2023-09-12",
+    "created_at": "2023-09-13 11:30:00"
+  }
+]
+```
+
+### 2.6 溯源：获取知识库条目的来源文章（可附带初筛记录）
+
+返回来源文章列表，并可选择附带属于该知识库维度的初筛记录，用于深入溯源（例如在前端展开查看该文章下的具体提取点）。
+
+-   **路径:** `/knowledge_base/{kb_id}/sources`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `with_records` | boolean | `false` | 是否返回该维度下的初筛记录 |
+| `min_reliability` | integer | (无) | 仅返回可靠性分数不低于该阈值的初筛记录 |
+| `article_id` | string | (无) | 仅返回指定文章的溯源信息 |
+
+**cURL请求示例**
+```bash
+# 返回来源文章并附带初筛记录，可靠性≥70
+curl -X GET "http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/sources?with_records=true&min_reliability=70" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+**返回示例 (200 OK)**
+```json
+[
+  {
+    "id": "uuid-123",
+    "original_url": "http://example.com/news/123",
+    "publish_date": "2023-09-10",
+    "created_at": "2023-09-11 10:00:00",
+    "stage1_records": [
+      {
+        "id": "et-1",
+        "article_id": "uuid-123",
+        "article_url": "http://example.com/news/123",
+        "car_brand": "特斯拉",
+        "car_model": "Model Y",
+        "tech_dimension": "智能座舱",
+        "sub_tech_dimension": "车载信息娱乐系统",
+        "tech_name": "MCU-Z芯片",
+        "tech_description": "性能强大的车载计算平台...",
+        "reliability": 85,
+        "info_source": "发布会",
+        "publish_date": "2023-09-10",
+        "created_at": "2023-09-11 10:02:00",
+        "processed_at": "2023-09-12T09:00:00Z",
+        "is_processed": true
+      }
+    ]
+  }
+]
+```
+
+---
+
 ## 3. 其他
 
 ### 3.1 获取服务配置信息
@@ -342,3 +408,12 @@ curl -X GET http://127.0.0.1:7657/competitiveness_analysis/settings \
   "log_level": "INFO"
 }
 ```
+
+---
+
+## 4. 进一步改进建议（已支持/可选）
+
+- 溯源预览增强：在`/knowledge_base`列表返回中增加每条的`source_article_count`（已支持），前端可加“查看来源”按钮跳至`/knowledge_base/{kb_id}/articles`或`/sources`。
+- 可靠性阈值：在`/knowledge_base`列表筛选参数中已支持`min_reliability`，与溯源接口的`min_reliability`参数保持一致的语义。
+- 关键词溯源：前端根据`search`参数命中条目后，调用`sources?with_records=true`即可查看命中详情对应的文章与片段。
+- CSV导出扩展：当前导出支持自定义列。若需包含`source_article_ids`，可在导出列中加入该字段；或前端在导出后根据`kb_id`调用`sources`补充溯源信息。
