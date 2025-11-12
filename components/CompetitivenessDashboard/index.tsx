@@ -273,8 +273,8 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
     );
 };
 
-const SortableHeader: React.FC<{ column: string; label: string; sortConfig: { sort_by: string; order: 'asc' | 'desc' }; onSort: (column: string) => void; }> = ({ column, label, sortConfig, onSort }) => (
-    <th scope="col" className="px-6 py-3 cursor-pointer select-none" onClick={() => onSort(column)}>
+const SortableHeader: React.FC<{ column: string; label: string; sortConfig: { sort_by: string; order: 'asc' | 'desc' }; onSort: (column: string) => void; className?: string; }> = ({ column, label, sortConfig, onSort, className = "px-6 py-3" }) => (
+    <th scope="col" className={`${className} cursor-pointer select-none`} onClick={() => onSort(column)}>
         <div className="flex items-center gap-1.5">
             {label}
             {sortConfig.sort_by === column 
@@ -372,16 +372,19 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     const groupedData = useMemo(() => {
         return kbItems.reduce((acc, item) => {
-            const { tech_dimension, sub_tech_dimension } = item;
-            if (!acc[tech_dimension]) {
-                acc[tech_dimension] = {};
+            const { car_brand, tech_dimension, sub_tech_dimension } = item;
+            if (!acc[car_brand]) {
+                acc[car_brand] = {};
             }
-            if (!acc[tech_dimension][sub_tech_dimension]) {
-                acc[tech_dimension][sub_tech_dimension] = [];
+            if (!acc[car_brand][tech_dimension]) {
+                acc[car_brand][tech_dimension] = {};
             }
-            acc[tech_dimension][sub_tech_dimension].push(item);
+            if (!acc[car_brand][tech_dimension][sub_tech_dimension]) {
+                acc[car_brand][tech_dimension][sub_tech_dimension] = [];
+            }
+            acc[car_brand][tech_dimension][sub_tech_dimension].push(item);
             return acc;
-        }, {} as Record<string, Record<string, KnowledgeBaseItem[]>>);
+        }, {} as Record<string, Record<string, Record<string, KnowledgeBaseItem[]>>>);
     }, [kbItems]);
 
 
@@ -432,12 +435,12 @@ export const CompetitivenessDashboard: React.FC = () => {
                         <table className="w-full text-sm text-left text-gray-500">
                             <thead className="text-xs text-gray-700 uppercase bg-gray-50/80 sticky top-0 z-10">
                                 <tr>
+                                    <SortableHeader column="car_brand" label="车企" sortConfig={sort} onSort={handleSort} className="px-4 py-3 w-40" />
                                     <th scope="col" className="px-4 py-3 w-40">技术领域</th>
                                     <th scope="col" className="px-4 py-3 w-40">子领域</th>
-                                    <th scope="col" className="px-4 py-3 w-48">涉及品牌</th>
                                     <th scope="col" className="px-4 py-3">技术点详情</th>
                                     <th scope="col" className="px-4 py-3 w-28 text-center">信源总数</th>
-                                    <SortableHeader column="last_updated_at" label="最后更新" sortConfig={sort} onSort={handleSort} />
+                                    <SortableHeader column="last_updated_at" label="最后更新" sortConfig={sort} onSort={handleSort} className="px-6 py-3 w-40" />
                                 </tr>
                             </thead>
                             <tbody className="bg-white">
@@ -446,55 +449,61 @@ export const CompetitivenessDashboard: React.FC = () => {
                                 ) : Object.keys(groupedData).length === 0 ? (
                                     <tr><td colSpan={6} className="text-center py-10 text-gray-500">未找到匹配的情报。</td></tr>
                                 ) : (
-                                    Object.entries(groupedData).flatMap(([primaryDim, secondaryDims]) => {
-                                        const primaryDimRowCount = Object.keys(secondaryDims).length;
-                                        let isFirstRowOfPrimary = true;
+                                    Object.entries(groupedData).flatMap(([brand, primaryDims]) => {
+                                        const brandRowCount = Object.values(primaryDims).reduce((sum, secondaryDims) => sum + Object.keys(secondaryDims).length, 0);
+                                        let isFirstRowOfBrand = true;
 
-                                        return Object.entries(secondaryDims).map(([secondaryDim, items]) => {
-                                            const uniqueBrands = [...new Set(items.map(item => item.car_brand))];
-                                            const totalSources = items.reduce((sum, item) => sum + item.source_article_count, 0);
-                                            const lastUpdated = new Date(Math.max(...items.map(item => new Date(item.last_updated_at).getTime())));
-                                            
-                                            const rowContent = (
-                                                <tr key={`${primaryDim}-${secondaryDim}`} className="border-t border-gray-200">
-                                                    {isFirstRowOfPrimary && (
-                                                        <td rowSpan={primaryDimRowCount} className="px-4 py-4 font-bold text-gray-800 align-top bg-gray-50/70 border-r border-gray-200">
-                                                            {primaryDim}
-                                                        </td>
-                                                    )}
-                                                    <td className="px-4 py-4 font-semibold text-gray-700 align-top border-r border-gray-200">{secondaryDim}</td>
-                                                    <td className="px-4 py-4 align-top border-r border-gray-200">
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {uniqueBrands.map(brand => (
-                                                                <span key={brand} className="px-2 py-0.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-full">{brand}</span>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 align-top border-r border-gray-200">
-                                                        <div className="space-y-2">
-                                                            {items.map(item => {
-                                                                const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                                                return (
-                                                                    <div key={item.id} onClick={() => setSelectedKbId(item.id)} className="p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer border border-transparent hover:border-blue-200 transition-all">
-                                                                        <div className="flex justify-between items-start">
-                                                                            <p className="font-semibold text-gray-800 pr-2">{item.consolidated_tech_preview.name}</p>
-                                                                            <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
-                                                                                <reliabilityInfo.Icon className="w-3 h-3" />
-                                                                                {reliabilityInfo.text}
-                                                                            </span>
+                                        return Object.entries(primaryDims).flatMap(([primaryDim, secondaryDims]) => {
+                                            const primaryDimRowCount = Object.keys(secondaryDims).length;
+                                            let isFirstRowOfPrimary = true;
+
+                                            return Object.entries(secondaryDims).map(([secondaryDim, items]) => {
+                                                // items is an array of KnowledgeBaseItem, but due to the nature of the API, it often contains one item
+                                                // which is itself an aggregation. This logic handles both single and multiple items per group.
+                                                const totalSources = items.reduce((sum, item) => sum + item.source_article_count, 0);
+                                                const lastUpdated = new Date(Math.max(...items.map(item => new Date(item.last_updated_at).getTime())));
+                                                
+                                                const rowContent = (
+                                                    <tr key={`${brand}-${primaryDim}-${secondaryDim}`} className="border-t border-gray-200">
+                                                        {isFirstRowOfBrand && (
+                                                            <td rowSpan={brandRowCount} className="px-4 py-4 font-bold text-gray-800 align-top bg-gray-50/70 border-r border-gray-200">
+                                                                {brand}
+                                                            </td>
+                                                        )}
+                                                        {isFirstRowOfPrimary && (
+                                                            <td rowSpan={primaryDimRowCount} className="px-4 py-4 font-semibold text-gray-700 align-top bg-gray-50/70 border-r border-gray-200">
+                                                                {primaryDim}
+                                                            </td>
+                                                        )}
+                                                        <td className="px-4 py-4 font-medium text-gray-600 align-top border-r border-gray-200">{secondaryDim}</td>
+                                                        <td className="px-4 py-4 align-top border-r border-gray-200">
+                                                            <div className="space-y-2">
+                                                                {items.map(item => {
+                                                                    const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                                    return (
+                                                                        <div key={item.id} onClick={() => setSelectedKbId(item.id)} className="p-2 rounded-lg hover:bg-blue-50/50 cursor-pointer border border-transparent hover:border-blue-200 transition-all">
+                                                                            <div className="flex justify-between items-start">
+                                                                                <p className="font-semibold text-gray-800 pr-2">{item.consolidated_tech_preview.name}</p>
+                                                                                <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
+                                                                                    <reliabilityInfo.Icon className="w-3 h-3" />
+                                                                                    {reliabilityInfo.text}
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className="text-xs text-gray-500 mt-1">{item.consolidated_tech_preview.description}</p>
                                                                         </div>
-                                                                        <p className="text-xs text-gray-500 mt-1">{item.consolidated_tech_preview.description}</p>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-center align-top font-medium text-gray-800 border-r border-gray-200">{totalSources}</td>
-                                                    <td className="px-4 py-4 align-top">{lastUpdated.toLocaleDateString()}</td>
-                                                </tr>
-                                            );
-                                            isFirstRowOfPrimary = false;
-                                            return rowContent;
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-4 text-center align-top font-medium text-gray-800 border-r border-gray-200">{totalSources}</td>
+                                                        <td className="px-4 py-4 align-top">{lastUpdated.toLocaleDateString()}</td>
+                                                    </tr>
+                                                );
+                                                
+                                                isFirstRowOfBrand = false;
+                                                isFirstRowOfPrimary = false;
+                                                return rowContent;
+                                            });
                                         });
                                     })
                                 )}
