@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseDetail, SearchResult } from '../../types';
-import { getKnowledgeBase, getKnowledgeBaseDetail } from '../../api/competitiveness';
+import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta } from '../../api/competitiveness';
 import { searchArticlesFiltered } from '../../api/intelligence';
 import { 
-    RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, TrendingUpIcon, EyeIcon, ClockIcon, ArrowRightIcon
+    RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, TrendingUpIcon, EyeIcon, ClockIcon
 } from '../icons';
 
 // --- Helper Functions & Constants ---
 const getReliabilityInfo = (score: number) => {
-    const roundedScore = Math.floor(score); // Use floor to be conservative
+    const roundedScore = Math.floor(score);
     if (roundedScore >= 4) return { text: '官方证实', color: 'green', Icon: CheckCircleIcon };
     if (roundedScore === 3) return { text: '可信度高', color: 'blue', Icon: CheckCircleIcon };
     if (roundedScore === 2) return { text: '疑似传言', color: 'amber', Icon: DocumentTextIcon };
@@ -20,7 +20,6 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '智能驾驶': BrainIcon, '智能座舱': UsersIcon, '智能网联': EyeIcon,
     '智能底盘': TrendingUpIcon, '智能动力': LightBulbIcon, '智能车身': CheckCircleIcon,
     '轻量化': BrainIcon, '极致能耗': LightBulbIcon, 'AI技术': BrainIcon,
-    // FIX: Removed duplicate key '智能动力' to resolve object literal error.
     '智能安全': CheckCircleIcon, '智能车灯': EyeIcon,
 };
 
@@ -39,6 +38,7 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
             setArticles([]);
             return;
         }
+        let isCancelled = false;
         const fetchDetail = async () => {
             setIsLoading(true);
             setError('');
@@ -46,24 +46,29 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
 
             try {
                 const data = await getKnowledgeBaseDetail(kbId);
+                if (isCancelled) return;
+
                 setDetail(data);
                 if (data.source_article_ids && data.source_article_ids.length > 0) {
                     const articlesResponse = await searchArticlesFiltered({ 
                         article_ids: data.source_article_ids,
-                        query_text: '*', // Add query_text to prevent 422 error
-                        limit: data.source_article_ids.length // Limit to the number of IDs
+                        query_text: '*',
+                        limit: data.source_article_ids.length
                     });
+                    if (isCancelled) return;
                     setArticles(articlesResponse.items || []);
                 } else {
                     setArticles([]);
                 }
             } catch (err: any) {
-                setError(err.message || '加载详情失败');
+                 if (!isCancelled) setError(err.message || '加载详情失败');
             } finally {
-                setIsLoading(false);
+                 if (!isCancelled) setIsLoading(false);
             }
         };
         fetchDetail();
+        
+        return () => { isCancelled = true; };
     }, [kbId]);
 
     const sortedTechDetails = useMemo(() => {
@@ -144,54 +149,77 @@ export const CompetitivenessDashboard: React.FC = () => {
     const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [pagination, setPagination] = useState({ page: 1, limit: 100, total: 0 });
     const [selectedKbId, setSelectedKbId] = useState<number | null>(null);
+    const [brands, setBrands] = useState<string[]>([]);
+    const [selectedBrand, setSelectedBrand] = useState<string>('比亚迪汽车');
+
+    useEffect(() => {
+        const fetchMeta = async () => {
+            try {
+                const meta = await getKnowledgeBaseMeta();
+                if (meta.car_brands && meta.car_brands.length > 0) {
+                    setBrands(meta.car_brands);
+                    if (!meta.car_brands.includes('比亚迪汽车')) {
+                        setSelectedBrand(meta.car_brands[0]);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch metadata", e);
+                setError("无法加载品牌列表");
+            }
+        };
+        fetchMeta();
+    }, []);
 
     const fetchData = useCallback(async (showLoading = true) => {
+        if (!selectedBrand) return;
         if (showLoading) setIsLoading(true);
         setError('');
         try {
             const response = await getKnowledgeBase({
-                page: pagination.page,
-                limit: pagination.limit,
+                limit: 500, // Fetch all items for the selected brand
+                car_brand: selectedBrand,
                 sort_by: 'last_updated_at',
                 order: 'desc',
             });
             setKbItems(response.items || []);
-            setPagination(prev => ({ ...prev, total: response.total }));
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit]);
+    }, [selectedBrand]);
 
     useEffect(() => {
         fetchData();
+        setSelectedKbId(null); // Clear selection when brand changes
     }, [fetchData]);
 
     const groupedData = useMemo(() => {
         return kbItems.reduce((acc, item) => {
-            const { car_brand, tech_dimension } = item;
-            if (!acc[car_brand]) acc[car_brand] = {};
-            if (!acc[car_brand][tech_dimension]) acc[car_brand][tech_dimension] = [];
-            acc[car_brand][tech_dimension].push(item);
+            const { tech_dimension } = item;
+            if (!acc[tech_dimension]) {
+                acc[tech_dimension] = [];
+            }
+            acc[tech_dimension].push(item);
             return acc;
-        }, {} as Record<string, Record<string, KnowledgeBaseItem[]>>);
+        }, {} as Record<string, KnowledgeBaseItem[]>);
     }, [kbItems]);
     
-    const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
+    const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
 
     useEffect(() => {
-        if (Object.keys(groupedData).length > 0 && expandedBrands.size === 0) {
-            setExpandedBrands(new Set(Object.keys(groupedData)));
+        if (Object.keys(groupedData).length > 0) {
+            setExpandedDims(new Set(Object.keys(groupedData)));
+        } else {
+            setExpandedDims(new Set());
         }
-    }, [groupedData, expandedBrands.size]);
+    }, [groupedData]);
 
-    const toggleBrandExpansion = (brand: string) => {
-        setExpandedBrands(prev => {
+    const toggleDimExpansion = (dim: string) => {
+        setExpandedDims(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(brand)) newSet.delete(brand); else newSet.add(brand);
+            if (newSet.has(dim)) newSet.delete(dim); else newSet.add(dim);
             return newSet;
         });
     };
@@ -201,57 +229,76 @@ export const CompetitivenessDashboard: React.FC = () => {
             {/* Left Panel */}
             <div className="w-2/5 flex-shrink-0 flex flex-col h-full min-w-0">
                 <header className="pb-4 flex justify-between items-center flex-shrink-0">
-                    <h1 className="text-2xl font-bold text-gray-800">竞争力看板</h1>
-                    <button onClick={() => fetchData()} className="p-2 bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                    </button>
+                    <div className="relative group">
+                        <select
+                            value={selectedBrand}
+                            onChange={e => setSelectedBrand(e.target.value)}
+                            className="text-2xl font-bold text-gray-800 bg-transparent focus:outline-none appearance-none cursor-pointer pr-8"
+                            disabled={brands.length === 0}
+                        >
+                            {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                        <ChevronDownIcon className="w-6 h-6 text-gray-600 absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-blue-600 transition-colors" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                         <span className="text-sm font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                            {kbItems.length} 条情报
+                        </span>
+                        <button onClick={() => fetchData()} className="p-2 bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                            <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
                 </header>
                 <div className="flex-1 overflow-y-auto space-y-4 pr-2 -mr-2">
                     {isLoading ? <div className="text-center py-20 text-gray-500">加载中...</div>
                     : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg">{error}</div>
-                    : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">无数据</div>
-                    : Object.entries(groupedData).map(([brand, dims]) => (
-                        <div key={brand} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                            <button onClick={() => toggleBrandExpansion(brand)} className="w-full flex justify-between items-center p-4 hover:bg-gray-50/70 transition-colors">
-                                <h2 className="font-bold text-lg text-gray-900 flex items-center gap-3">
-                                    <img src={`https://via.placeholder.com/24x24/eee/222?text=${brand.charAt(0)}`} alt={brand} className="rounded-full"/>
-                                    {brand}
+                    : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">该品牌暂无情报数据</div>
+                    : Object.entries(groupedData).map(([dim, items]) => {
+                        const groupedBySubDim = items.reduce((acc, item) => {
+                            const key = item.sub_tech_dimension || '其他';
+                            if (!acc[key]) acc[key] = [];
+                            acc[key].push(item);
+                            return acc;
+                        }, {} as Record<string, KnowledgeBaseItem[]>);
+
+                        const Icon = techDimensionIcons[dim] || BrainIcon;
+                        return (
+                        <div key={dim} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+                            <button onClick={() => toggleDimExpansion(dim)} className="w-full flex justify-between items-center p-4 hover:bg-gray-50/70 transition-colors">
+                                <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
+                                    <Icon className="w-5 h-5 text-gray-500" />
+                                    {dim}
                                 </h2>
-                                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedBrands.has(brand) ? 'rotate-180' : ''}`} />
+                                <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(dim) ? 'rotate-180' : ''}`} />
                             </button>
-                            {expandedBrands.has(brand) && (
+                            {expandedDims.has(dim) && (
                                 <div className="border-t border-gray-200/80 p-4 space-y-4">
-                                    {Object.entries(dims).map(([dim, items]) => {
-                                        const Icon = techDimensionIcons[dim] || BrainIcon;
-                                        return (
-                                            <div key={dim} className="flex items-start">
-                                                <div className="w-36 flex-shrink-0 flex items-center gap-2 pt-3.5">
-                                                    <Icon className="w-5 h-5 text-gray-500" />
-                                                    <h3 className="font-semibold text-gray-600 text-sm">{dim}</h3>
-                                                </div>
-                                                <div className="flex-grow grid grid-cols-2 gap-2">
-                                                    {items.map(item => {
-                                                        const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                                        const isActive = selectedKbId === item.id;
-                                                        return (
-                                                            <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-slate-50 border-slate-200/80 hover:shadow-sm hover:border-blue-300'}`}>
-                                                                <p className="font-medium text-slate-500 text-xs">{item.sub_tech_dimension}</p>
-                                                                <p className={`font-semibold text-gray-800 text-sm truncate mt-0.5 group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
-                                                                <div className="flex items-center justify-between mt-2">
-                                                                    <span className="text-gray-400 flex items-center gap-1 text-xs"><DocumentTextIcon className="w-3 h-3"/>{item.source_article_count}</span>
-                                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                    {Object.entries(groupedBySubDim).map(([subDim, subItems]) => (
+                                         <div key={subDim} className="flex items-start">
+                                            <div className="w-36 flex-shrink-0 pt-3.5">
+                                                <h3 className="font-semibold text-gray-600 text-sm">{subDim}</h3>
                                             </div>
-                                        );
-                                    })}
+                                            <div className="flex-grow grid grid-cols-2 gap-2">
+                                                {subItems.map(item => {
+                                                    const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                    const isActive = selectedKbId === item.id;
+                                                    return (
+                                                        <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-slate-50 border-slate-200/80 hover:shadow-sm hover:border-blue-300'}`}>
+                                                            <p className={`font-semibold text-gray-800 text-sm truncate mt-0.5 group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
+                                                            <div className="flex items-center justify-between mt-2">
+                                                                <span className="text-gray-400 flex items-center gap-1 text-xs"><DocumentTextIcon className="w-3 h-3"/>{item.source_article_count}</span>
+                                                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
-                    ))}
+                    )})}
                 </div>
             </div>
             {/* Right Panel */}
