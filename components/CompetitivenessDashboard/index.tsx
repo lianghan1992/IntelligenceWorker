@@ -221,6 +221,11 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
         };
         fetchDetail();
     }, [kbId]);
+
+    const sortedTechDetails = useMemo(() => {
+        if (!detail) return [];
+        return [...detail.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
+    }, [detail]);
     
     const badgeColors: { [key: string]: string } = {
         green: 'bg-green-100 text-green-800',
@@ -250,7 +255,7 @@ const DetailPanel: React.FC<{ kbId: number | null; onClose: () => void; }> = ({ 
                         <main className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
                             <h3 className="font-semibold text-gray-800 mb-4">技术演进时间线</h3>
                             <div className="space-y-4">
-                                {detail.consolidated_tech_details.map((item, index) => {
+                                {sortedTechDetails.map((item, index) => {
                                     const reliabilityInfo = getReliabilityInfo(item.reliability);
                                     return (
                                         <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
@@ -307,6 +312,14 @@ export const CompetitivenessDashboard: React.FC = () => {
     const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set());
     
     const isInitialMount = useRef(true);
+    
+    const badgeColors: { [key: string]: string } = {
+        green: 'bg-green-100 text-green-800 border-green-200',
+        blue: 'bg-blue-100 text-blue-800 border-blue-200',
+        amber: 'bg-amber-100 text-amber-800 border-amber-200',
+        red: 'bg-red-100 text-red-800 border-red-200',
+        gray: 'bg-gray-100 text-gray-800 border-gray-200',
+    };
 
     const queryParams = useMemo(() => {
         const params: any = {
@@ -374,8 +387,6 @@ export const CompetitivenessDashboard: React.FC = () => {
     }, [queryParams]);
 
     const groupedData = useMemo(() => {
-        // FIX: The reduce function was creating an incorrect data structure.
-        // It should build a nested record object, not an object with `items` and `totalSources` properties.
         return kbItems.reduce((acc, item) => {
             const { car_brand, tech_dimension, sub_tech_dimension } = item;
             if (!acc[car_brand]) {
@@ -419,14 +430,6 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     const totalPages = Math.ceil(pagination.total / pagination.limit) || 1;
     
-    const badgeColors: { [key: string]: string } = {
-        green: 'bg-green-100 text-green-800 border-green-200',
-        blue: 'bg-blue-100 text-blue-800 border-blue-200',
-        amber: 'bg-amber-100 text-amber-800 border-amber-200',
-        red: 'bg-red-100 text-red-800 border-red-200',
-        gray: 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-
     return (
         <>
             <div className="p-4 sm:p-6 bg-gray-50/70 h-full overflow-y-auto flex flex-col">
@@ -459,47 +462,47 @@ export const CompetitivenessDashboard: React.FC = () => {
                                         <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                                     </button>
                                     {isExpanded && (
-                                        <div className="p-4 border-t border-gray-100 space-y-4 animate-in fade-in-0 duration-300">
-                                            {Object.entries(primaryDims).map(([primaryDim, secondaryDims]) => {
+                                        <div className="border-t border-gray-200/80 animate-in fade-in-0 duration-300">
+                                            {Object.entries(primaryDims).map(([primaryDim, secondaryDims], index) => {
                                                 const Icon = techDimensionIcons[primaryDim] || BrainIcon;
                                                 return (
-                                                    <div key={primaryDim}>
-                                                        <h3 className="font-semibold text-gray-700 flex items-center gap-2 mb-2">
-                                                            <Icon className="w-5 h-5 text-gray-500" />
-                                                            {primaryDim}
-                                                        </h3>
-                                                        <div className="space-y-2 pl-7">
-                                                            {Object.entries(secondaryDims).map(([secondaryDim, items]) => (
-                                                                <div key={secondaryDim} className="grid grid-cols-[150px_1fr] items-start gap-3 py-2 border-t border-gray-100 first:border-t-0">
-                                                                    <p className="font-medium text-gray-600 text-sm pt-1">{secondaryDim}</p>
-                                                                    <div className="flex flex-wrap gap-2">
-                                                                        {items.map(item => {
-                                                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                                                            return (
-                                                                                <div 
-                                                                                    key={item.id} 
-                                                                                    onClick={() => setSelectedKbId(item.id)}
-                                                                                    className="group cursor-pointer bg-white border border-gray-200 rounded-lg p-2 flex-grow min-w-[200px] hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200"
-                                                                                >
-                                                                                    <p className="font-semibold text-gray-800 text-sm">{item.consolidated_tech_preview.name}</p>
-                                                                                    <div className="flex items-center justify-between mt-1.5 text-xs">
-                                                                                        <span className={`px-2 py-0.5 font-medium rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
-                                                                                            <reliabilityInfo.Icon className="w-3 h-3" />
-                                                                                            {reliabilityInfo.text}
-                                                                                        </span>
-                                                                                        <span className="text-gray-400 flex items-center gap-1">
-                                                                                            <DocumentTextIcon className="w-3 h-3" />
-                                                                                            {item.source_article_count}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
+                                                <div key={primaryDim} className={`flex items-start p-4 ${index > 0 ? 'border-t border-gray-100' : ''}`}>
+                                                    <div className="w-40 flex-shrink-0 flex items-center gap-2 pt-2">
+                                                    <Icon className="w-5 h-5 text-gray-500" />
+                                                    <h3 className="font-semibold text-gray-700">{primaryDim}</h3>
                                                     </div>
+                                                    <div className="flex-grow space-y-3">
+                                                    {Object.entries(secondaryDims).map(([secondaryDim, items]) => (
+                                                        <div key={secondaryDim} className="flex items-start gap-4">
+                                                        <p className="w-32 text-right flex-shrink-0 font-medium text-gray-500 text-sm pt-2.5">{secondaryDim}</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {items.map(item => {
+                                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                            return (
+                                                                <div
+                                                                key={item.id}
+                                                                onClick={() => setSelectedKbId(item.id)}
+                                                                className="group cursor-pointer bg-slate-50 border border-slate-200/80 rounded-lg px-3 py-2 w-full max-w-[240px] hover:shadow-md hover:bg-white hover:border-blue-300 hover:-translate-y-0.5 transition-all duration-200"
+                                                                >
+                                                                <p className="font-semibold text-gray-800 text-sm truncate group-hover:text-blue-600" title={item.consolidated_tech_preview.name}>{item.consolidated_tech_preview.name}</p>
+                                                                <div className="flex items-center justify-between mt-1.5 text-xs">
+                                                                    <span className={`px-2 py-0.5 font-medium rounded-full flex items-center gap-1 ${badgeColors[reliabilityInfo.color]}`}>
+                                                                        <reliabilityInfo.Icon className="w-3 h-3" />
+                                                                        {reliabilityInfo.text}
+                                                                    </span>
+                                                                    <span className="text-gray-400 flex items-center gap-1">
+                                                                        <DocumentTextIcon className="w-3 h-3" />
+                                                                        {item.source_article_count}
+                                                                    </span>
+                                                                </div>
+                                                                </div>
+                                                            );
+                                                            })}
+                                                        </div>
+                                                        </div>
+                                                    ))}
+                                                    </div>
+                                                </div>
                                                 );
                                             })}
                                         </div>
