@@ -1,932 +1,149 @@
-## 2. 情报服务 (Intelligence Service)
+# 爬虫服务 API 文档
 
-所有接口均以 `/intelligence` 为前缀。
+说明：本文件基于 `services/crawler/router.py` 的实际实现，遵循 `services/intelligence/API_Documentation.md` 的字段风格进行整理，供前后端及集成方使用。
 
-### 2.1. 创建情报点 (需认证)
+## 基础信息
+- 服务模块：`crawler`
+- 认证：所有接口默认需要认证；使用项目统一的认证机制（参考主服务）。
 
-创建一个新的情报采集点。
+## 接口列表
 
--   **路径:** `/intelligence/points`
--   **方法:** `POST`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `source_name` | string | 是 | 情报源名称，如 "盖世汽车" |
-| `point_name` | string | 是 | 具体情报点名称，如 "行业资讯" |
-| `point_url` | string | 是 | 要采集的列表页URL |
-| `cron_schedule` | string | 是 | CRON调度表达式，如 "0 */2 * * *" |
-| `url_prompt_key` | string | 否 | URL提取提示词Key。默认 `default_list_parser` |
-| `summary_prompt_key`| string | 否 | 内容总结提示词Key。默认 `default_summary` |
-
-**请求示例 (JSON)**
-```json
-{
-  "source_name": "盖世汽车",
-  "point_name": "行业资讯",
-  "point_url": "https://auto.gasgoo.com/news/C-101",
-  "cron_schedule": "0 */2 * * *",
-  "url_prompt_key": "news_site_style_a",
-  "summary_prompt_key": "financial_report_summary"
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X POST http://127.0.0.1:7657/intelligence/points \
--H "Content-Type: application/json" \
--H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." \
--d 
-{
-  "source_name": "盖世汽车",
-  "point_name": "行业资讯",
-  "point_url": "https://auto.gasgoo.com/news/C-101",
-  "cron_schedule": "0 */2 * * *",
-  "url_prompt_key": "news_site_style_a",
-  "summary_prompt_key": "financial_report_summary"
-}
-```
-
-**返回示例 (201 Created)**
-```json
-{
-  "message": "Intelligence point created successfully",
-  "point_id": "b1c2d3e4-f5g6-7890-1234-abcdef123456"
-}
-```
-
-### 2.2. 获取情报点 (需认证)
-
-根据情报源名称，获取其下的所有情报点。
-
--   **路径:** `/intelligence/points`
--   **方法:** `GET`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求参数**
-
-| 参数 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `source_name` | string | 是 | 要查询的情报源名称 |
-
-**cURL请求示例**
-```bash
-# 注意URL编码
-curl -X GET "http://127.0.0.1:7657/intelligence/points?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6"
-```
-
-**返回说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | string | 情报点ID |
-| `source_id` | string | 所属情报源ID |
-| `source_name` | string | 所属情报源名称 |
-| `point_name` | string | 情报点名称 |
-| `point_url` | string | 情报点URL |
-| `cron_schedule` | string | CRON调度表达式 |
-| `is_active` | boolean | 是否激活 |
-| `last_triggered_at`| string / null | 上次触发时间 |
-| `url_prompt_key` | string | URL提取提示词Key |
-| `summary_prompt_key`| string | 内容总结提示词Key |
-| `created_at` | string | 创建时间 |
-| `updated_at` | string | 更新时间 |
-
-### 2.11. 分段向量检索 (需认证)
-
-基于分段向量进行语义检索，支持多种过滤条件，适用于知识库应用场景。
-
--   **路径:** `/intelligence/search/chunks`
--   **方法:** `POST`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| `query_text` | string | 是 | - | 搜索关键词，用于语义相似度检索 |
-| `similarity_threshold` | number | 否 | 0.5 | 相似度得分阈值 (0.0-1.0) |
-| `top_k` | integer | 否 | 10 | 返回最相关的分段数量 (≥1) |
-| `point_ids` | array[string] | 否 | - | 按一个或多个情报点ID过滤 |
-| `source_names` | array[string] | 否 | - | 按一个或多个情报源名称过滤 |
-| `publish_date_start` | string | 否 | - | 发布日期范围的起始点 (格式: YYYY-MM-DD) |
-| `publish_date_end` | string | 否 | - | 发布日期范围的结束点 (格式: YYYY-MM-DD) |
-| `include_article_content` | boolean | 否 | false | 是否在结果中包含完整的文章内容 |
-| `chunk_size_filter` | string | 否 | - | 按分段大小过滤: 'short'(<200字符), 'medium'(200-800字符), 'long'(>800字符) |
-
-**使用场景 1：基础语义检索**
-
-**请求示例 (JSON)**
-```json
-{
-  "query_text": "比亚迪电池技术",
-  "similarity_threshold": 0.5,
-  "top_k": 5
-}
-```
-
-**使用场景 2：多条件过滤检索**
-
-**请求示例 (JSON)**
-```json
-{
-  "query_text": "特斯拉自动驾驶",
-  "similarity_threshold": 0.6,
-  "top_k": 10,
-  "source_names": ["盖世汽车"],
-  "publish_date_start": "2024-01-01",
-  "publish_date_end": "2024-12-31",
-  "chunk_size_filter": "medium",
-  "include_article_content": false
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X POST http://127.0.0.1:7657/intelligence/search/chunks \
--H "Content-Type: application/json" \
--d '{
-  "query_text": "比亚迪电池技术",
-  "similarity_threshold": 0.5,
-  "top_k": 3,
-  "source_names": ["盖世汽车"],
-  "chunk_size_filter": "medium"
-}'
-```
-
-**返回说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `total_chunks` | integer | 满足条件的分段总数 |
-| `total_articles` | integer | 涉及的文章总数 |
-| `results` | array | 分段结果对象列表 |
-
-**分段结果对象说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `article_id` | string | 文章ID |
-| `chunk_index` | integer | 分段在文章中的索引 |
-| `chunk_text` | string | 分段文本内容 |
-| `chunk_size` | integer | 分段字符数 |
-| `similarity_score` | number | 与查询的相似度得分 |
-| `article_title` | string | 文章标题 |
-| `article_url` | string | 文章原始URL |
-| `article_publish_date` | string | 文章发布日期 |
-| `source_name` | string | 情报源名称 |
-| `point_name` | string | 情报点名称 |
-| `article_summary` | string / null | 文章摘要 |
-| `article_keywords` | string / null | 文章关键词 |
-| `article_entities` | string / null | 文章实体信息 |
-| `article_content` | string / null | 完整文章内容 (仅当 `include_article_content=true` 时返回) |
-
-**返回示例 (200 OK)**
-```json
-{
-  "total_chunks": 15,
-  "total_articles": 8,
-  "results": [
+### 获取任务统计
+- 路径：`/crawler/tasks/stats`
+- 方法：`GET`
+- 请求：无额外体参数
+- 响应：
+  - `200`：
+    ```json
     {
-      "article_id": "e5f6g7h8-i9j0-1234-5678-defabc345678",
-      "chunk_index": 2,
-      "chunk_text": "比亚迪刀片电池采用磷酸铁锂技术，具有高安全性、长寿命的特点。该电池通过了针刺试验，在极端条件下不起火不爆炸，为电动汽车的安全性提供了重要保障。",
-      "chunk_size": 78,
-      "similarity_score": 0.892,
-      "article_title": "比亚迪发布全新刀片电池技术解析",
-      "article_url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
-      "article_publish_date": "2025-10-10",
-      "source_name": "盖世汽车",
-      "point_name": "新能源",
-      "article_summary": "比亚迪发布全新刀片电池技术，在安全性和能量密度方面实现重大突破",
-      "article_keywords": "比亚迪,刀片电池,磷酸铁锂,电动汽车",
-      "article_entities": "比亚迪公司,刀片电池技术,磷酸铁锂电池",
-      "article_content": null
+      "sources": 12,
+      "points": 34,
+      "active_points": 28,
+      "articles": 1024,
+      "vectors": 40960,
+      "schedules_active": 18
     }
-  ]
-}
-```
+    ```
 
-**错误响应**
-
-| 状态码 | 说明 |
-| :--- | :--- |
-| 400 | 请求参数错误 |
-| 500 | 服务器内部错误 |
-
-**错误示例 (400 Bad Request)**
-```json
-{
-  "detail": "query_text不能为空"
-}
-```
-
-**错误示例 (500 Internal Server Error)**
-```json
-{
-  "detail": "分段检索失败: 向量服务不可用"
-}
-```
-
-### 2.12. 分段向量检索结果导出 (需认证)
-
-将分段向量检索的结果导出为 CSV 文件，便于数据分析和处理。
-
--   **路径:** `/intelligence/search/chunks/export`
--   **方法:** `POST`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-| `Content-Type` | string | 是 | `application/json` |
-
-**请求说明**:
-| 字段 | 类型 | 是否必须 | 默认值 | 说明 |
-|------|------|----------|--------|------|
-| query_text | string | 是 | - | 查询文本，用于语义搜索 |
-| similarity_threshold | float | 否 | 0.5 | 相似度阈值 (0-1) |
-| top_k | int | 否 | 10 | 返回最相关的分段数量 (≥1) |
-| point_ids | array[string] | 否 | null | 指定情报点ID列表进行过滤 |
-| source_names | array[string] | 否 | null | 按情报源名称过滤 |
-| publish_date_start | string | 否 | null | 发布日期范围起始 (YYYY-MM-DD) |
-| publish_date_end | string | 否 | null | 发布日期范围结束 (YYYY-MM-DD) |
-| include_article_content | boolean | 否 | false | 是否包含完整文章内容 |
-| chunk_size_filter | string | 否 | null | 按分段大小过滤 ("short", "medium", "long") |
-
-**使用场景**:
-- **CSV导出**: 将检索结果导出为CSV格式，便于数据分析
-- **文章合并**: 同一文章的多个分段会合并为一条记录
-- **批量处理**: 适用于大量数据的批量导出和处理
-
-**cURL请求示例**:
-```bash
-curl -X POST "http://localhost:7657/intelligence/search/chunks/export" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query_text": "比亚迪电池技术",
-    "similarity_threshold": 0.5,
-    "source_names": ["盖世汽车"],
-    "publish_date_start": "2024-01-01",
-    "chunk_size_filter": "medium"
-  }'
-```
-
-**返回说明**:
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| total_articles | int | 匹配的文章总数 |
-| export_data | array | 导出数据列表 |
-
-**export_data数组中每个对象包含**:
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| article_title | string | 文章标题 |
-| article_publish_date | string | 文章发布日期 |
-| merged_content | string | 合并后的分段内容 |
-| article_url | string | 文章原始URL |
-| similarity_scores | array[float] | 各分段的相似度得分 |
-| chunk_count | int | 命中的分段数量 |
-
-**返回示例**:
-```json
-{
-  "total_articles": 2,
-  "export_data": [
-    {
-      "article_title": "比亚迪发布新一代刀片电池技术",
-      "article_publish_date": "2024-03-15",
-      "merged_content": "比亚迪正式发布了新一代刀片电池技术...\n\n该技术在安全性和能量密度方面都有显著提升...",
-      "article_url": "https://example.com/article1",
-      "similarity_scores": [0.85, 0.78],
-      "chunk_count": 2
-    }
-  ]
-}
-```
-
-**错误响应示例**:
-```json
-{
-  "detail": "Internal server error"
-}
-```
-[
+### 文章检索（分页）
+- 路径：`/crawler/articles`
+- 方法：`POST`
+- 请求：
+  ```json
   {
-    "id": "b1c2d3e4-f5g6-7890-1234-abcdef123456",
-    "source_id": "c2d3e4f5-g6h7-8901-2345-bcdefa123456",
-    "source_name": "盖世汽车",
-    "point_name": "行业资讯",
-    "point_url": "https://auto.gasgoo.com/news/C-101",
-    "cron_schedule": "0 */2 * * *",
-    "is_active": 1,
-    "last_triggered_at": null,
-    "url_prompt_key": "news_site_style_a",
-    "summary_prompt_key": "financial_report_summary",
-    "created_at": "2025-10-10T11:00:00.000Z",
-    "updated_at": "2025-10-10T11:00:00.000Z"
+    "filters": {
+      "point_ids": [1, 2],
+      "source_names": ["盖世汽车"],
+      "publish_date_start": "2024-01-01T00:00:00",
+      "publish_date_end": "2024-12-31T23:59:59",
+      "min_influence_score": 0.2,
+      "sentiment": ["positive", "neutral", "negative"]
+    },
+    "page": 1,
+    "limit": 20
   }
-]
-```
+  ```
+- 响应：
+  - `200`：
+    ```json
+    {
+      "items": [
+        {
+          "id": 1001,
+          "point_id": 2,
+          "source_name": "盖世汽车",
+          "title": "示例标题",
+          "original_url": "https://example.com/article/1001",
+          "publish_date": "2024-04-12T08:30:00",
+          "created_at": "2024-04-12T08:31:00",
+          "summary": "可选的自动摘要",
+          "sentiment": "neutral",
+          "influence_score": 0.35
+        }
+      ],
+      "total": 1234
+    }
+    ```
 
-### 2.3. 删除情报点 (需认证)
-
-根据ID列表批量删除情报点。
-
--   **路径:** `/intelligence/points`
--   **方法:** `DELETE`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `point_ids` | array[string] | 是 | 要删除的情报点ID列表 |
-
-**请求示例 (JSON)**
-```json
-{
-  "point_ids": [
-    "b1c2d3e4-f5g6-7890-1234-abcdef123456"
-  ]
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X DELETE http://127.0.0.1:7657/intelligence/points \
--H "Content-Type: application/json" \
--H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYTFiMm..." \
--d 
-{
-  "point_ids": [
-    "b1c2d3e4-f5g6-7890-1234-abcdef123456"
-  ]
-}
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "Successfully deleted 1 intelligence point(s)."
-}
-```
-
-### 2.4. 获取所有情报源
-
-获取系统中的所有顶级情报源及其包含的情报点数量。
-
--   **路径:** `/intelligence/sources`
--   **方法:** `GET`
-
-**cURL请求示例**
-```bash
-curl -X GET http://127.0.0.1:7657/intelligence/sources
-```
-
-**返回说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `id` | string | 情报源ID |
-| `source_name` | string | 情报源名称 |
-| `points_count` | integer | 该情报源下的情报点数量 |
-
-**返回示例 (200 OK)**
-```json
-[
+### 语义搜索（向量检索）
+- 路径：`/crawler/search/semantic`
+- 方法：`POST`
+- 请求：
+  ```json
   {
-    "id": "c2d3e4f5-g6h7-8901-2345-bcdefa123456",
-    "source_name": "盖世汽车",
-    "points_count": 5
+    "query": "电池热管理",
+    "top_k": 10,
+    "min_score": 0.2
   }
-]
-```
-
-### 2.5. 删除情报源
-
-删除一个情报源及其下所有关联的情报点。
-
--   **路径:** `/intelligence/sources/{source_name}`
--   **方法:** `DELETE`
-
-**cURL请求示例**
-```bash
-# 注意URL编码
-curl -X DELETE "http://127.0.0.1:7657/intelligence/sources/%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6"
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "Source '盖世汽车' and its 5 associated points were deleted."
-}
-```
-
-### 2.6. 查询处理任务
-
-获取处理任务列表，支持分页和过滤。
-
--   **路径:** `/intelligence/tasks`
--   **方法:** `GET`
-
-**请求参数**
-
-| 参数 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `source_name` | string | 否 | 按情报源名称过滤 |
-| `point_name` | string | 否 | 按情报点名称过滤 |
-| `status` | string | 否 | 按任务状态过滤 |
-| `page` | integer | 否 | 页码，默认1 |
-| `limit` | integer | 否 | 每页数量，默认20 |
-
-**cURL请求示例**
-```bash
-curl -X GET "http://127.0.0.1:7657/intelligence/tasks?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6&status=completed&page=1&limit=5"
-```
-
-**返回说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `total` | integer | 任务总数 |
-| `page` | integer | 当前页码 |
-| `limit` | integer | 每页数量 |
-| `items` | array | 任务对象列表 |
-
-**返回示例 (200 OK)**
-```json
-{
-  "total": 100,
-  "page": 1,
-  "limit": 5,
-  "items": [
+  ```
+- 响应：
+  - `200`：
+    ```json
     {
-      "id": "f6g7h8i9-j0k1-2345-6789-efabcd456789",
-      "point_id": "b1c2d3e4-f5g6-7890-1234-abcdef123456",
-      "source_name": "盖世汽车",
-      "point_name": "行业资讯",
-      "task_type": "scrape",
-      "url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
-      "status": "completed",
-      "payload": null,
-      "created_at": "2025-10-10T13:05:00.000Z",
-      "updated_at": "2025-10-10T13:06:00.000Z"
+      "items": [
+        {
+          "article_id": 1001,
+          "content_chunk": "与查询语义相近的文本片段",
+          "score": 0.82
+        }
+      ]
     }
-  ]
-}
-```
+    ```
 
-### 2.7. 获取任务统计
-
-获取采集任务队列中各种状态的任务数量统计。
-
--   **路径:** `/intelligence/tasks/stats`
--   **方法:** `GET`
-
-**cURL请求示例**
-```bash
-curl -X GET http://127.0.0.1:7657/intelligence/tasks/stats
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "completed": 1342,
-  "processing": 43,
-  "failed": 12,
-  "pending_jina": 10,
-  "total": 1407
-}
-```
-
-### 2.8. 查询已采集文章 (需认证)
-
-获取已采集的文章列表，支持分页和过滤。
-
--   **路径:** `/intelligence/articles`
--   **方法:** `GET`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求参数**
-
-| 参数 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `source_name` | string | 否 | 按情报源名称过滤 |
-| `point_name` | string | 否 | 按情报点名称过滤 |
-| `point_ids` | array[string] | 否 | 按一个或多个情报点ID过滤 |
-| `publish_date_start` | string | 否 | 发布日期范围的起始点 (格式: YYYY-MM-DD) |
-| `publish_date_end` | string | 否 | 发布日期范围的结束点 (格式: YYYY-MM-DD) |
-| `page` | integer | 否 | 页码，默认1 |
-| `limit` | integer | 否 | 每页数量，默认20 |
-
-> **⚠️ 使用限制**
-> 当使用 `point_ids` 参数进行筛选且ID数量过多（例如超过50个）时，可能会导致URL过长而请求失败。在这种情况下，强烈建议使用更强大和稳健的 `POST /intelligence/search/articles_filtered` 接口。
-
-**cURL请求示例**
-```bash
-curl -X GET "http://127.0.0.1:7657/intelligence/articles?source_name=%E7%9B%96%E4%B8%96%E6%B1%BD%E8%BD%A6&page=1&limit=5"
-```
-
-**返回说明**
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `total` | integer | 文章总数 |
-| `page` | integer | 当前页码 |
-| `limit` | integer | 每页数量 |
-| `items` | array | 文章对象列表 |
-
-**返回示例 (200 OK)**
-```json
-{
-  "total": 50,
-  "page": 1,
-  "limit": 5,
-  "items": [
-    {
-      "id": "e5f6g7h8-i9j0-1234-5678-defabc345678",
-      "point_id": "b1c2d3e4-f5g6-7890-1234-abcdef123456",
-      "source_name": "盖世汽车",
-      "point_name": "行业资讯",
-      "title": "比亚迪发布全新刀片电池，续航突破1000公里",
-      "original_url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
-      "publish_date": "2025-10-10",
-      "content": "文章内容...",
-      "created_at": "2025-10-10T13:10:00.000Z",
-      "summary": "本文介绍了比亚迪最新发布的刀片电池技术，该技术将电动汽车的续航里程提升至1000公里以上，对新能源汽车市场将产生重要影响。",
-      "keywords": "比亚迪,刀片电池,新能源汽车,续航里程",
-      "influence_score": 8,
-      "sentiment": "positive",
-      "entities": "[\"比亚迪\", \"刀片电池\"]"
-    }
-  ]
-}
-```
-
-### 2.9. 追溯生成历史文章摘要 (后台任务)
-
-启动一个后台任务，为数据库中所有当前 `summary` 字段为空的文章，调用AI模型生成摘要并补全数据。
-
--   **路径:** `/intelligence/articles/backfill-summaries`
--   **方法:** `POST`
--   **认证:** 需要Bearer Token
-
-**cURL请求示例**
-```bash
-curl -X POST http://127.0.0.1:7657/intelligence/articles/backfill-summaries \
--H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-**返回示例 (202 Accepted)**
-```json
-{
-  "message": "Summary backfill task started successfully. It will run in the background."
-}
-```
-
-### 2.10. 语义搜索文章 (需认证)
-
-在指定情报点的文章中执行简单的语义搜索。
-
--   **路径:** `/intelligence/search/articles`
--   **方法:** `POST`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `query_text` | string | 是 | 用于搜索的自然语言文本 |
-| `point_ids` | array[string] | 是 | 限定搜索范围的情报点ID列表 |
-
-**请求参数**
-
-| 参数 | 类型 | 是否必须 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| `top_k` | integer | 否 | 5 | 返回最相关的结果数量 |
-
-**cURL请求示例**
-```bash
-curl -X POST "http://127.0.0.1:7657/intelligence/search/articles?top_k=3" \
--H "Content-Type: application/json" \
--d 
-{
-  "query_text": "比亚迪电池技术",
-  "point_ids": ["b1c2d3e4-f5g6-7890-1234-abcdef123456"]
-}
-```
-
-**返回示例 (200 OK)**
-```json
-[
+### 组合筛选 + 语义搜索
+- 路径：`/crawler/search/combined`
+- 方法：`POST`
+- 请求：
+  ```json
   {
-    "id": "e5f6g7h8-i9j0-1234-5678-defabc345678",
-    "title": "比亚迪发布全新刀片电池，续航突破1000公里",
-    "original_url": "https://auto.gasgoo.com/news/202510/10I70370370.shtml",
-    "publish_date": "2025-10-10",
-    "similarity_score": 0.912
+    "filters": {
+      "point_ids": [1, 2],
+      "source_names": ["盖世汽车"],
+      "publish_date_start": "2024-01-01T00:00:00",
+      "publish_date_end": "2024-12-31T23:59:59",
+      "min_influence_score": 0.2,
+      "sentiment": ["positive", "neutral"]
+    },
+    "query": "智能驾驶域控制器",
+    "top_k": 10,
+    "min_score": 0.25
   }
-]
-```
+  ```
+- 响应：
+  - `200`：同语义搜索，返回满足结构化筛选条件后的向量检索结果。
 
-### 2.10. 组合筛选与语义搜索文章 (需认证)
-
-在一个请求中同时传入语义搜索查询和结构化筛选条件，实现复杂的组合查询，并返回分页结果。
-
--   **路径:** `/intelligence/search/articles_filtered`
--   **方法:** `POST`
-
-**请求头**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `Authorization` | string | 是 | `Bearer <accessToken>` 格式的 JWT 令牌 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 默认值 | 说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| `query_text` | string | 是 | - | **[验证规则]** 搜索关键词，不能为空字符串，至少需要一个字符。 |
-| `similarity_threshold` | number | 否 | 0.5 | 相似度得分阈值 (0.0-1.0) |
-| `point_ids` | array[string] | 否 | - | 按一个或多个情报点ID过滤 |
-| `source_names` | array[string] | 否 | - | 按一个或多个情报源名称过滤 |
-| `publish_date_start` | string | 否 | - | 发布日期范围的起始点 (格式: YYYY-MM-DD) |
-| `publish_date_end` | string | 否 | - | 发布日期范围的结束点 (格式: YYYY-MM-DD) |
-| `page` | integer | 否 | 1 | 页码 |
-| `limit` | integer | 否 | 20 | 每页数量 |
-
-**使用场景 1：关键词搜索与筛选**
-
-**请求示例 (JSON)**
-```json
-{
-  "query_text": "特斯拉最新技术动态",
-  "similarity_threshold": 0.5,
-  "source_names": ["盖世汽车"],
-  "publish_date_start": "2023-10-01",
-  "page": 1,
-  "limit": 5
-}
-```
-
-**使用场景 2：仅筛选，不进行语义搜索**
-
-当您不需要进行关键词搜索，只想根据 `point_ids` 或其他条件筛选文章时（例如：获取用户订阅的所有情报点的最新文章），`query_text` 字段必须传递一个通配符，例如星号 `*`。
-
-**请求示例 (JSON)**
-```json
-{
-  "query_text": "*",
-  "point_ids": ["b1c2d3e4-f5g6-7890-1234-abcdef123456", "another-point-id"],
-  "page": 1,
-  "limit": 20
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X POST http://127.0.0.1:7657/intelligence/search/articles_filtered \
--H "Content-Type: application/json" \
--d 
-{
-  "query_text": "特斯拉最新技术动态",
-  "similarity_threshold": 0.5,
-  "source_names": ["盖世汽车"],
-  "publish_date_start": "2023-10-01",
-  "page": 1,
-  "limit": 5
-}
-```
-
-**返回说明**
-
-返回结构与 `/intelligence/articles` 接口类似，但 `items` 列表中的每个文章对象都额外包含 `similarity_score` 字段。
-
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `total` | integer | 满足所有条件的文章总数 |
-| `page` | integer | 当前页码 |
-| `limit` | integer | 每页数量 |
-| `items` | array | 文章结果对象列表 |
-
-**返回示例 (200 OK)**
-```json
-{
-  "total": 15,
-  "page": 1,
-  "limit": 5,
-  "items": [
+### 情报信息流（分页）
+- 路径：`/crawler/feed`
+- 方法：`POST`
+- 请求：
+  ```json
+  {
+    "filters": {
+      "point_ids": [1, 2],
+      "source_names": ["盖世汽车"],
+      "publish_date_start": "2024-01-01T00:00:00",
+      "publish_date_end": "2024-12-31T23:59:59",
+      "min_influence_score": 0.2,
+      "sentiment": ["neutral"]
+    },
+    "page": 1,
+    "limit": 20
+  }
+  ```
+- 响应：
+  - `200`：
+    ```json
     {
-      "id": "g7h8i9j0-k1l2-3456-7890-fabcde567890",
-      "point_id": "b1c2d3e4-f5g6-7890-1234-abcdef123456",
-      "source_name": "盖世汽车",
-      "point_name": "行业资讯",
-      "title": "特斯拉FSD V12进入中国市场测试",
-      "original_url": "https://auto.gasgoo.com/news/202310/08I70370350.shtml",
-      "publish_date": "2023-10-08",
-      "content": "文章内容...",
-      "created_at": "2023-10-08T14:00:00.000Z",
-      "similarity_score": 0.899
+      "items": [CollectedArticlePublic],
+      "total": 1234
     }
-  ]
-}
-```
+    ```
 
-### 2.11. 提示词 (Prompts) 使用说明
+## 说明与约束
+- 分页参数：`page` 从 1 开始，`limit` 建议不超过 50。
+- 时间字段：遵循 ISO 8601 格式，示例 `YYYY-MM-DDTHH:mm:ss`。
+- 认证失败返回 `401`；参数校验失败返回 `422`。
+- 语义搜索由模块内置的向量引擎提供，底层可选择本地或 ZhipuAI 嵌入模型，取决于 `services/crawler/.env` 配置。
 
-在情报服务中，**提示词 (Prompts)** 是预定义或用户自定义的指令模板，用于指导大型语言模型 (LLM) 执行特定的文本处理任务。它们是实现灵活和可配置情报采集与分析的关键。
-
-主要有两种类型的提示词：
-
-1.  **URL 提取提示词 (`url_extraction_prompts`)**:
-    *   **用途**: 当系统从一个情报点 (例如一个新闻列表页) 抓取 HTML 内容后，需要从中识别并提取出具体的文章链接时使用。
-    *   **工作原理**: 这些提示词会提供给 LLM，指导它如何解析 HTML 结构，找到并返回符合特定模式 (如新闻标题链接) 的 URL 列表。
-    *   **示例**: `default_list_parser` 是一个通用的 URL 提取提示词，而您可以创建更具体的提示词来适应不同网站的 HTML 结构。
-
-2.  **内容总结提示词 (`content_summary_prompts`)**:
-    *   **用途**: 当系统成功采集到一篇文章的完整内容后，需要对文章进行摘要、提取关键信息或生成结构化数据时使用。
-    *   **工作原理**: 这些提示词会提供给 LLM，指导它如何阅读文章内容，并根据预设的指令 (如“总结文章主旨”、“提取核心观点”) 生成简洁、准确的输出。
-    *   **示例**: `default_summary` 是一个通用的文章摘要提示词，您也可以创建专门用于提取特定领域信息 (如财务报告关键数据) 的提示词。
-
-前端开发者在创建或更新情报点时，可以通过 `url_prompt_key` 和 `summary_prompt_key` 字段指定要使用的提示词。这些 Key 对应着 `GET /intelligence/prompts` 接口返回的提示词配置中的键名。通过选择不同的提示词，可以灵活地调整情报采集和处理的行为，以适应不同的数据源和分析需求。
-
----
-
-
-### 2.11. 获取所有提示词
-
-返回 `prompts.json` 文件中的所有内容。
-
--   **路径:** `/intelligence/prompts`
--   **方法:** `GET`
-
-**cURL请求示例**
-```bash
-curl -X GET http://127.0.0.1:7657/intelligence/prompts
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "url_extraction_prompts": {
-    "default_list_parser": {
-      "name": "默认列表解析器",
-      "description": "一个通用的、稳健的URL列表提取器。",
-      "prompt": "..."
-    }
-  },
-  "content_summary_prompts": {
-    "default_summary": {
-      "name": "默认摘要生成器",
-      "description": "一个通用的、稳健的文章摘要生成器。",
-      "prompt": "..."
-    }
-  }
-}
-```
-
-### 2.12. 创建新提示词
-
-在指定的类型下创建一个新的提示词。
-
--   **路径:** `/intelligence/prompts/{prompt_type}/{prompt_key}`
--   **方法:** `POST`
-
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `prompt_type` | string | 必须是 `url_extraction_prompts` 或 `content_summary_prompts` |
-| `prompt_key` | string | 新提示词的唯一标识符 |
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `name` | string | 是 | 提示词的显示名称 |
-| `description`| string | 是 | 提示词功能的简短描述 |
-| `prompt` | string | 是 | 完整的提示词内容 |
-
-**请求示例 (JSON)**
-```json
-{
-  "name": "财经新闻解析器",
-  "description": "专门用于解析财经网站文章列表页。",
-  "prompt": "请从以下HTML中提取所有新闻文章的URL..."
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X POST http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/custom_parser_1 \
--H "Content-Type: application/json" \
--d 
-{
-  "name": "财经新闻解析器",
-  "description": "专门用于解析财经网站文章列表页。",
-  "prompt": "请从以下HTML中提取所有新闻文章的URL..."
-}
-```
-
-**返回示例 (201- Created)**
-```json
-{
-  "message": "Prompt created successfully."
-}
-```
-
-### 2.13. 更新提示词
-
-更新一个现有提示词的名称、描述或内容。
-
--   **路径:** `/intelligence/prompts/{prompt_type}/{prompt_key}`
--   **方法:** `PUT`
-
-**请求说明**
-
-| 字段 | 类型 | 是否必须 | 说明 |
-| :--- | :--- | :--- | :--- |
-| `name` | string | 否 | 新的显示名称 |
-| `description`| string | 否 | 新的描述 |
-| `prompt` | string | 否 | 新的提示词内容 |
-
-**请求示例 (JSON)**
-```json
-{
-  "name": "更新-财经新闻解析器"
-}
-```
-
-**cURL请求示例**
-```bash
-curl -X PUT http://127.0.0.1:7657/intelligence/prompts/url_extraction_prompts/custom_parser_1 \
--H "Content-Type: application/json" \
--d 
-{
-  "name": "更新-财经新闻解析器"
-}
-```
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "Prompt updated successfully."
-}
-```
-
-### 2.16. 删除提示词
-
-删除一个指定的提示词（默认提示词无法删除）。
-
--   **路径:** `/intelligence/prompts/{prompt_type}/{prompt_key}`
--   **方法:** `DELETE`
-
-**路径参数**
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `prompt_type` | string | 提示词类型 |
-| `prompt_key` | string | 提示词键名 |
-
-**返回示例 (200 OK)**
-```json
-{
-  "message": "Prompt deleted successfully."
-}
-```
-
----
+## 版本
+- v1.0.0（与当前代码一致）
