@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
+import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability } from '../../api/competitiveness';
 import { 
     RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
@@ -31,10 +31,10 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
 
 // --- Skeleton Components ---
 const DetailPanelSkeleton: React.FC = () => (
-    <div className="animate-pulse">
+    <div className="animate-pulse h-full">
         <header className="p-5 border-b border-gray-200">
-            <div className="h-5 w-1/2 bg-gray-200 rounded"></div>
-            <div className="h-8 w-1/3 bg-gray-200 rounded mt-2"></div>
+            <div className="h-4 w-1/3 bg-gray-200 rounded"></div>
+            <div className="h-7 w-1/2 bg-gray-200 rounded mt-2"></div>
         </header>
         <main className="p-6 space-y-8">
             <div className="h-6 w-1/4 bg-gray-200 rounded"></div>
@@ -52,10 +52,10 @@ const DetailPanelSkeleton: React.FC = () => (
 const TimelineItem: React.FC<{ item: TechDetailHistoryItem; isLast: boolean; onTrace: (techName: string) => void; isTracing: boolean; isActive: boolean; }> = ({ item, isLast, onTrace, isTracing, isActive }) => {
     const reliabilityInfo = getReliabilityInfo(item.reliability);
     return (
-        <div className="relative pl-8">
-            <div className={`absolute -left-[5px] top-1 w-3 h-3 bg-white border-2 rounded-full z-10 ${isActive ? `border-${reliabilityInfo.color}-500 ring-4 ring-${reliabilityInfo.color}-200` : `border-${reliabilityInfo.color}-500`}`}></div>
+        <div className="relative pl-8 group">
+            <div className={`absolute -left-[7px] top-1 w-4 h-4 bg-white border-2 rounded-full z-10 transition-all ${isActive ? `border-${reliabilityInfo.color}-500 ring-4 ring-${reliabilityInfo.color}-200` : `border-slate-300 group-hover:border-${reliabilityInfo.color}-400`}`}></div>
             {!isLast && <div className={`absolute -left-px top-2 h-full w-0.5 bg-slate-200`}></div>}
-            <div className={`p-4 rounded-xl border shadow-sm transition-all duration-300 ${isActive ? `bg-blue-50/50 border-blue-300` : `bg-white border-gray-200/80 hover:shadow-md`}`}>
+            <div className={`p-4 rounded-xl border shadow-sm transition-all duration-300 ${isActive ? `bg-white border-blue-400 shadow-lg` : `bg-white border-gray-200/80 hover:shadow-md hover:border-gray-300`}`}>
                 <div className="flex justify-between items-center text-sm mb-2">
                     <p className="font-bold text-blue-700">{item.name}</p>
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
@@ -63,7 +63,7 @@ const TimelineItem: React.FC<{ item: TechDetailHistoryItem; isLast: boolean; onT
                         {reliabilityInfo.text}
                     </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
                 <div className="mt-4 flex justify-between items-center">
                     <div className="text-xs text-gray-400 flex items-center gap-1.5">
                         <ClockIcon className="w-3.5 h-3.5" />
@@ -71,10 +71,10 @@ const TimelineItem: React.FC<{ item: TechDetailHistoryItem; isLast: boolean; onT
                     </div>
                     <button
                         onClick={() => onTrace(item.name)}
-                        disabled={isTracing}
-                        className="px-3 py-1.5 text-xs font-semibold bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                        disabled={isTracing && isActive}
+                        className="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md hover:bg-blue-100 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-wait"
                     >
-                        {isTracing ? '溯源中...' : '溯源证据'}
+                        {isTracing && isActive ? '溯源中...' : '溯源证据'}
                     </button>
                 </div>
             </div>
@@ -82,33 +82,24 @@ const TimelineItem: React.FC<{ item: TechDetailHistoryItem; isLast: boolean; onT
     );
 };
 
-const SourceArticle: React.FC<{ source: SourceArticleWithRecords }> = ({ source }) => (
-    <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
-        <a href={source.original_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 hover:underline block truncate text-base">
-            {source.title}
-        </a>
-        <p className="text-xs text-slate-500 mt-1">{new Date(source.publish_date).toLocaleDateString()}</p>
-        {source.stage1_records && source.stage1_records.length > 0 && (
-            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                {source.stage1_records.map(record => {
-                    const reliabilityInfo = getReliabilityInfo(record.reliability);
-                    return (
-                        <div key={record.id} className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/80">
-                            <div className="flex justify-between items-center text-sm mb-1.5">
-                                <p className="font-semibold text-gray-800">{record.tech_name}</p>
-                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
-                                    <reliabilityInfo.Icon className="w-3 h-3" />
-                                    {reliabilityInfo.text}
-                                </span>
-                            </div>
-                            <p className="text-xs text-gray-600">{record.tech_description}</p>
-                        </div>
-                    );
-                })}
+const SourceArticle: React.FC<{ record: ExtractedTechnologyRecord, article: {id: string; title: string; original_url: string; publish_date: string} }> = ({ record, article }) => {
+    const reliabilityInfo = getReliabilityInfo(record.reliability);
+    return (
+         <div className="p-4 bg-slate-50/70 rounded-lg border border-slate-200/80">
+            <div className="flex justify-between items-center text-sm mb-1.5">
+                <p className="font-semibold text-gray-800">{record.tech_name}</p>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
+                    <reliabilityInfo.Icon className="w-3 h-3" />
+                    {reliabilityInfo.text}
+                </span>
             </div>
-        )}
-    </div>
-);
+            <p className="text-sm text-gray-600 leading-relaxed">{record.tech_description}</p>
+             <div className="mt-3 text-xs text-slate-500 border-t border-slate-200 pt-2">
+                出自: <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">{article.title}</a>
+            </div>
+        </div>
+    )
+}
 
 
 interface DetailPanelProps {
@@ -122,48 +113,14 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
     const [error, setError] = useState('');
     const contentRef = React.useRef<HTMLDivElement>(null);
     
-    // State for new precise traceability
     const [traceabilityData, setTraceabilityData] = useState<KnowledgeBaseTraceability | null>(null);
     const [isTracing, setIsTracing] = useState(false);
     const [tracingError, setTracingError] = useState('');
     const [tracingForTech, setTracingForTech] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (kbId === null) {
-            setDetail(null);
-            setTraceabilityData(null);
-            setTracingForTech(null);
-            return;
-        }
-        let isCancelled = false;
-        const fetchDetail = async () => {
-            setIsLoading(true);
-            setError('');
-            setTraceabilityData(null);
-            setTracingForTech(null);
-            if (contentRef.current) contentRef.current.scrollTop = 0;
-
-            try {
-                const detailData = await getKnowledgeBaseDetail(kbId);
-                if (isCancelled) return;
-                setDetail(detailData);
-            } catch (err: any) {
-                 if (!isCancelled) setError(err.message || '加载详情失败');
-            } finally {
-                 if (!isCancelled) setIsLoading(false);
-            }
-        };
-        fetchDetail();
-        
-        return () => { isCancelled = true; };
-    }, [kbId]);
-
+    
     const handleTrace = useCallback(async (techName: string) => {
         if (!kbId) return;
-        
-        if (tracingForTech === techName && traceabilityData) {
-            return; // Don't re-fetch if already showing
-        }
+        if (tracingForTech === techName && traceabilityData) return;
 
         setIsTracing(true);
         setTracingError('');
@@ -180,11 +137,58 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
         }
     }, [kbId, tracingForTech, traceabilityData]);
 
+    useEffect(() => {
+        if (kbId === null) {
+            setDetail(null);
+            setTraceabilityData(null);
+            setTracingForTech(null);
+            return;
+        }
+        let isCancelled = false;
+        const fetchDetailAndTrace = async () => {
+            setIsLoading(true);
+            setError('');
+            setTraceabilityData(null);
+            setTracingForTech(null);
+            if (contentRef.current) contentRef.current.scrollTop = 0;
+
+            try {
+                const detailData = await getKnowledgeBaseDetail(kbId);
+                if (isCancelled) return;
+                setDetail(detailData);
+
+                const sorted = [...detailData.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
+                if (sorted.length > 0) {
+                    await handleTrace(sorted[0].name);
+                }
+
+            } catch (err: any) {
+                 if (!isCancelled) setError(err.message || '加载详情失败');
+            } finally {
+                 if (!isCancelled) setIsLoading(false);
+            }
+        };
+        fetchDetailAndTrace();
+        
+        return () => { isCancelled = true; };
+    }, [kbId, handleTrace]);
+
 
     const sortedTechDetails = useMemo(() => {
         if (!detail) return [];
         return [...detail.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
     }, [detail]);
+
+    const traceabilityMap = useMemo(() => {
+        if (!traceabilityData) return { articles: {}, records: [] };
+        const articles = traceabilityData.source_articles.reduce((acc, article) => {
+            acc[article.id] = article;
+            return acc;
+        }, {} as Record<string, typeof traceabilityData.source_articles[0]>);
+        
+        const records = traceabilityData.stage1_records;
+        return { articles, records };
+    }, [traceabilityData]);
     
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm relative">
@@ -216,7 +220,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
                                             item={item} 
                                             isLast={index === sortedTechDetails.length - 1} 
                                             onTrace={handleTrace}
-                                            isTracing={isTracing && tracingForTech === item.name}
+                                            isTracing={isTracing}
                                             isActive={tracingForTech === item.name}
                                         />
                                     ))}
@@ -227,20 +231,17 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
                                         <h3 className="font-semibold text-gray-800 text-lg mb-4">信源证据链: “{tracingForTech}”</h3>
                                         {isTracing ? <DetailPanelSkeleton /> :
                                         tracingError ? <div className="text-center text-red-500 p-6 bg-red-50 rounded-lg">{tracingError}</div> :
-                                        traceabilityData && (
+                                        traceabilityMap.records.length > 0 ? (
                                             <div className="space-y-4">
-                                                {traceabilityData.source_articles.length > 0 
-                                                    ? traceabilityData.source_articles.map(article => {
-                                                        const relatedRecords = traceabilityData.stage1_records.filter(r => r.article_id === article.id);
-                                                        const sourceWithRecords: SourceArticleWithRecords = {...article, stage1_records: relatedRecords};
-                                                        return <SourceArticle key={article.id} source={sourceWithRecords} />
-                                                    }) 
-                                                    : <p className="text-sm text-center text-gray-500 py-6 bg-gray-100 rounded-lg">未找到相关的信源证据</p>}
+                                               {traceabilityMap.records.map(record => {
+                                                   const article = traceabilityMap.articles[record.article_id];
+                                                   if (!article) return null;
+                                                   return <SourceArticle key={record.id} record={record} article={article} />
+                                               })}
                                             </div>
-                                        )}
+                                        ) : <p className="text-sm text-center text-gray-500 py-6 bg-gray-100 rounded-lg">未找到相关的信源证据</p>}
                                     </div>
                                 )}
-
                             </div>
                         )}
                     </div>
@@ -301,7 +302,7 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-        setSelectedKbId(null); // Clear selection on filter change
+        setSelectedKbId(null);
     }, [fetchData]);
 
     const groupedData = useMemo(() => {
@@ -315,7 +316,15 @@ export const CompetitivenessDashboard: React.FC = () => {
     
     const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
     useEffect(() => setExpandedDims(new Set(Object.keys(groupedData))), [groupedData]);
-    const toggleDimExpansion = (dim: string) => setExpandedDims(p => (p.has(dim) ? new Set([...p].filter(x => x !== dim)) : new Set([...p, dim])));
+    const toggleDimExpansion = (dim: string) => setExpandedDims(p => {
+        const newSet = new Set(p);
+        if (newSet.has(dim)) {
+            newSet.delete(dim);
+        } else {
+            newSet.add(dim);
+        }
+        return newSet;
+    });
 
     return (
         <div className="h-full bg-slate-100 text-gray-800 p-6 flex flex-col">
@@ -327,30 +336,28 @@ export const CompetitivenessDashboard: React.FC = () => {
                     </button>
                 </div>
                 {/* Filters */}
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <MultiSelectDropdown
-                            label="汽车品牌"
-                            options={meta?.car_brands || []}
-                            selected={filters.car_brand}
-                            onChange={v => setFilters(f => ({...f, car_brand: v}))}
-                        />
-                        <MultiSelectDropdown
-                            label="技术领域"
-                            options={meta ? Object.keys(meta.tech_dimensions) : []}
-                            selected={filters.tech_dimension}
-                            onChange={v => setFilters(f => ({...f, tech_dimension: v}))}
-                        />
-                    </div>
-                    <div className="relative">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="在结果中搜索技术点..." className="w-full text-sm bg-slate-50 border border-gray-200 rounded-lg py-2.5 pl-9 pr-4 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <div className="bg-white rounded-xl p-3 shadow-sm border border-slate-200/80 flex items-center gap-3">
+                    <MultiSelectDropdown
+                        label="品牌"
+                        options={meta?.car_brands || []}
+                        selected={filters.car_brand}
+                        onChange={v => setFilters(f => ({...f, car_brand: v}))}
+                    />
+                    <MultiSelectDropdown
+                        label="技术领域"
+                        options={meta ? Object.keys(meta.tech_dimensions) : []}
+                        selected={filters.tech_dimension}
+                        onChange={v => setFilters(f => ({...f, tech_dimension: v}))}
+                    />
+                    <div className="relative flex-grow">
+                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full text-sm bg-slate-50 border border-gray-200 rounded-lg py-2.5 pl-9 pr-4 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     </div>
                 </div>
             </header>
             <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
                 {/* Left Panel */}
-                <div className="col-span-4 lg:col-span-3 flex flex-col h-full min-w-0">
+                <div className="col-span-5 lg:col-span-4 flex flex-col h-full min-w-0">
                     <div className="flex-1 overflow-y-auto space-y-3 pr-2 -mr-2">
                         {isLoading ? <div className="text-center py-20 text-gray-500">加载中...</div>
                         : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg p-4">{error}</div>
@@ -359,7 +366,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                             const Icon = techDimensionIcons[dim] || BrainIcon;
                             return (
                             <div key={dim} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                                <button onClick={() => toggleDimExpansion(dim)} className="w-full flex justify-between items-center p-4 hover:bg-gray-50/70 transition-colors">
+                                <button onClick={() => toggleDimExpansion(dim)} className="w-full flex justify-between items-center p-4 bg-slate-50/50 hover:bg-slate-100/70 transition-colors">
                                     <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
                                         <Icon className="w-5 h-5 text-gray-500" />
                                         {dim} ({items.length})
@@ -377,7 +384,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                                                         <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
                                                         <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
                                                     </div>
-                                                    <div className="flex items-center justify-between mt-1">
+                                                    <div className="flex items-center justify-between mt-1.5">
                                                         <span className="text-gray-500 text-xs">{item.sub_tech_dimension}</span>
                                                         <span className="text-gray-400 flex items-center gap-1 text-xs"><DocumentTextIcon className="w-3 h-3"/>{item.source_article_count}</span>
                                                     </div>
@@ -391,7 +398,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                     </div>
                 </div>
                 {/* Right Panel */}
-                <main className="col-span-8 lg:col-span-9 h-full min-w-0">
+                <main className="col-span-7 lg:col-span-8 h-full min-w-0">
                     <DetailPanel kbId={selectedKbId} onClose={() => setSelectedKbId(null)} />
                 </main>
             </div>
@@ -420,21 +427,23 @@ const MultiSelectDropdown: React.FC<{label: string, options: string[], selected:
     }
     
     return (
-        <div className="relative text-sm" ref={ref}>
+        <div className="relative text-sm w-56" ref={ref}>
             <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center bg-slate-50 border border-gray-200 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <span className="text-gray-700 truncate">{label}: {selected.length ? selected.join(', ') : '全部'}</span>
+                <span className="text-gray-700 truncate">
+                    {label}: {selected.length > 0 ? `${selected.length}个已选` : '全部'}
+                </span>
                 <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div className="absolute z-20 top-full mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                     <div className="flex items-center p-2 hover:bg-gray-100 cursor-pointer" onClick={() => onChange([])}>
-                        <span className="ml-2 font-semibold text-blue-600">清空选择</span>
-                    </div>
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto p-2">
+                     <div className="p-2">
+                        <button className="text-xs text-blue-600 hover:underline font-semibold" onClick={() => onChange([])}>清空选择</button>
+                     </div>
                     {options.map(option => (
-                        <div key={option} onClick={() => handleSelect(option)} className="flex items-center p-2 hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" checked={selected.includes(option)} readOnly className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                        <label key={option} className="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+                            <input type="checkbox" checked={selected.includes(option)} onChange={() => handleSelect(option)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                             <span className="ml-2 text-gray-700">{option}</span>
-                        </div>
+                        </label>
                     ))}
                 </div>
             )}
