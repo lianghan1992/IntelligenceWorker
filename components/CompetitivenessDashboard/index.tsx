@@ -130,11 +130,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
     const { timelineItems, articleMap } = useMemo(() => {
         if (!traceData) return { timelineItems: [], articleMap: new Map() };
 
-        const sortedItems = [...traceData.stage1_records].sort((a, b) => 
+        const sortedItems = [...(traceData.stage1_records || [])].sort((a, b) => 
             new Date(a.publish_date).getTime() - new Date(b.publish_date).getTime()
         );
         
-        const articles = new Map(traceData.source_articles.map(a => [a.id, a]));
+        const articles = new Map((traceData.source_articles || []).map(a => [a.id, a]));
 
         return { timelineItems: sortedItems, articleMap: articles };
     }, [traceData]);
@@ -358,7 +358,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                                                     <div key={techPoint.name + item.id} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
                                                         <div className="flex justify-between items-start gap-2">
                                                             <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
-                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {techPoint.source_article_ids.length}篇</span>
+                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {(techPoint.source_article_ids || []).length}篇</span>
                                                         </div>
                                                         <div className="flex justify-between items-center mt-1.5">
                                                             <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
