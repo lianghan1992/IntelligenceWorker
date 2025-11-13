@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord, SourceArticleWithRecords } from '../../types';
+import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability } from '../../api/competitiveness';
 import { 
     RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
@@ -32,46 +32,47 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
 // --- Skeleton Components ---
 const DetailPanelSkeleton: React.FC = () => (
     <div className="animate-pulse h-full">
-        <header className="p-5 border-b border-gray-200">
+        <header className="p-6 border-b border-gray-200">
             <div className="h-4 w-1/3 bg-gray-200 rounded"></div>
-            <div className="h-7 w-1/2 bg-gray-200 rounded mt-2"></div>
+            <div className="h-8 w-1/2 bg-gray-200 rounded mt-2"></div>
         </header>
         <main className="p-6 space-y-8">
             <div className="h-6 w-1/4 bg-gray-200 rounded"></div>
-            <div className="space-y-4">
-                <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
-                <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
+            <div className="space-y-6">
+                <div className="h-28 w-full bg-gray-100 rounded-xl"></div>
+                <div className="h-28 w-full bg-gray-100 rounded-xl"></div>
             </div>
         </main>
     </div>
 );
 
 // --- Sub-Component: DetailPanel ---
-const TimelineItem: React.FC<{ record: ExtractedTechnologyRecord; article: SourceArticleWithRecords; isLast: boolean; }> = ({ record, article, isLast }) => {
+const TimelineItem: React.FC<{ record: ExtractedTechnologyRecord; article: any; isLast: boolean; }> = ({ record, article, isLast }) => {
     const reliabilityInfo = getReliabilityInfo(record.reliability);
     return (
-        <div className="relative pl-8 group">
-            <div className={`absolute -left-[7px] top-1 w-4 h-4 bg-white border-2 rounded-full z-10 transition-all border-${reliabilityInfo.color}-400 ring-2 ring-${reliabilityInfo.color}-100`}></div>
-            {!isLast && <div className={`absolute -left-px top-2 h-full w-0.5 bg-slate-200`}></div>}
-            <div className={`p-4 rounded-xl border bg-white shadow-sm`}>
-                <div className="flex justify-between items-center text-sm mb-2">
-                    <p className="font-bold text-gray-800">{record.tech_name}</p>
-                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
-                        <reliabilityInfo.Icon className="w-3 h-3" />
+        <div className="relative pl-10 group">
+            <div className="absolute left-0 top-1.5 w-4 h-4 bg-white border-2 border-slate-300 rounded-full z-10 ring-4 ring-slate-50"></div>
+            {!isLast && <div className="absolute left-[7px] top-2 h-full w-0.5 bg-slate-200"></div>}
+
+            <div className="border border-gray-200/80 rounded-xl p-4 bg-white hover:shadow-lg transition-shadow duration-300">
+                <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-gray-900 flex-1 pr-4">{record.tech_name}</h4>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex items-center gap-1.5 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
+                        <reliabilityInfo.Icon className="w-3.5 h-3.5" />
                         {reliabilityInfo.text}
                     </span>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">{record.tech_description}</p>
-                <div className="mt-4 text-xs text-slate-500 border-t border-slate-200 pt-3">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-1.5">
-                            <ClockIcon className="w-3.5 h-3.5" />
-                            <span>情报日期: {new Date(record.publish_date).toLocaleDateString()}</span>
-                        </div>
-                         <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
+                <div className="mt-4 pt-3 border-t border-gray-200/80 flex justify-between items-center text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                        <ClockIcon className="w-3.5 h-3.5" />
+                        <span>情报日期: {new Date(record.publish_date).toLocaleDateString()}</span>
+                    </div>
+                    {article && (
+                         <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline max-w-[240px] truncate" title={article.title}>
                             来源: {article.title}
                         </a>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -148,19 +149,24 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
                 </div>
             ) : (
                 <>
-                    <header className="p-5 border-b border-gray-200 flex justify-between items-start flex-shrink-0">
-                        {traceData && (
+                    <header className="p-6 border-b border-gray-200 flex justify-between items-start flex-shrink-0">
+                        {isLoading ? (
+                            <div className="w-full">
+                                <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+                                <div className="h-8 bg-gray-200 rounded w-1/2 mt-2 animate-pulse"></div>
+                            </div>
+                        ) : traceData && (
                              <div>
-                                <p className="text-sm text-gray-500 font-medium">{traceData.tech_dimension} &gt; {traceData.sub_tech_dimension}</p>
-                                <h2 className="text-2xl font-bold text-gray-900 mt-1">{traceData.car_brand}</h2>
+                                <p className="text-sm text-gray-500 font-semibold">{traceData.tech_dimension} &gt; {traceData.sub_tech_dimension}</p>
+                                <h2 className="text-3xl font-bold text-gray-900 mt-1">{traceData.car_brand}</h2>
                             </div>
                         )}
-                        <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"><CloseIcon className="w-5 h-5" /></button>
+                        <button onClick={onClose} className="p-2 -mr-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"><CloseIcon className="w-6 h-6" /></button>
                     </header>
-                    <div ref={contentRef} className="flex-1 overflow-y-auto bg-slate-50/50">
+                    <div ref={contentRef} className="flex-1 overflow-y-auto bg-slate-50">
                         {isLoading ? <DetailPanelSkeleton /> : error ? <div className="text-center text-red-500 p-6">{error}</div> : traceData && (
                              <div className="p-6">
-                                <h3 className="font-semibold text-gray-800 text-lg mb-4">技术演进时间线: “{selectedTechName}”</h3>
+                                <h3 className="font-bold text-gray-800 text-xl mb-6">技术演进时间线: “{selectedTechName}”</h3>
                                 {timelineItems.length > 0 ? (
                                     <div className="space-y-6">
                                         {timelineItems.map((record, index) => {
@@ -177,7 +183,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
                                         })}
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-center text-gray-500 py-6 bg-gray-100 rounded-lg">未找到相关的演进记录</p>
+                                    <p className="text-sm text-center text-gray-500 py-8 bg-white border rounded-lg">未找到相关的演进记录。</p>
                                 )}
                             </div>
                         )}
@@ -350,13 +356,13 @@ export const CompetitivenessDashboard: React.FC = () => {
                                                 const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
                                                 return (
                                                     <div key={techPoint.name + item.id} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
-                                                        <div className="flex justify-between items-start">
+                                                        <div className="flex justify-between items-start gap-2">
                                                             <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
-                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {item.source_article_count}篇</span>
+                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {techPoint.source_article_ids.length}篇</span>
                                                         </div>
                                                         <div className="flex justify-between items-center mt-1.5">
                                                             <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
-                                                            <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
+                                                            <span className="text-xs text-gray-400">{techPoint.publish_date ? new Date(techPoint.publish_date).toLocaleDateString() : '无日期'}</span>
                                                         </div>
                                                     </div>
                                                 );
