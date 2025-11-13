@@ -121,8 +121,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace,
     
     const handleTrace = useCallback(async (techName: string) => {
         if (!kbId) return;
-        if (isTracing) return;
-
+        
         setIsTracing(true);
         setTracingError('');
         setTraceabilityData(null);
@@ -237,7 +236,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace,
                                 {tracingForTech && (
                                     <div className="mt-10 animate-in fade-in-0 duration-500">
                                         <h3 className="font-semibold text-gray-800 text-lg mb-4">信源证据链: “{tracingForTech}”</h3>
-                                        {isTracing ? <DetailPanelSkeleton /> :
+                                        {isTracing ? <div className="text-center py-10">加载溯源证据中...</div> :
                                         tracingError ? <div className="text-center text-red-500 p-6 bg-red-50 rounded-lg">{tracingError}</div> :
                                         traceabilityMap.records.length > 0 ? (
                                             <div className="space-y-4">
@@ -261,7 +260,10 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace,
 
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
-    const [kbItemsWithDetails, setKbItemsWithDetails] = useState<KnowledgeBaseDetail[]>([]);
+    const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
+    const [detailsCache, setDetailsCache] = useState<Record<number, KnowledgeBaseDetail>>({});
+    const [loadingDetails, setLoadingDetails] = useState<Set<number>>(new Set());
+    
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [selectedInfo, setSelectedInfo] = useState<{ kbId: number; techName: string } | null>(null);
@@ -276,7 +278,7 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     const [searchTerm, setSearchTerm] = useState('');
 
-     useEffect(() => {
+    useEffect(() => {
         const handler = setTimeout(() => {
             setFilters(f => ({ ...f, search: searchTerm }));
         }, 500);
@@ -300,12 +302,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                 sort_by: 'last_updated_at',
                 order: 'desc',
             });
-            
-            const detailPromises = (response.items || []).map(item => getKnowledgeBaseDetail(item.id));
-            const detailedItems = await Promise.all(detailPromises);
-
-            setKbItemsWithDetails(detailedItems);
-
+            setKbItems(response.items || []);
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
@@ -316,180 +313,148 @@ export const CompetitivenessDashboard: React.FC = () => {
     useEffect(() => {
         fetchData();
         setSelectedInfo(null);
+        setDetailsCache({});
     }, [fetchData]);
 
-    const groupedData = useMemo(() => {
-        const allTechPoints = kbItemsWithDetails.flatMap(parentItem => 
-            parentItem.consolidated_tech_details.map(techPoint => ({
-                techPoint,
-                parentItem,
-            }))
-        );
-
-        return allTechPoints.reduce((acc, { techPoint, parentItem }) => {
-            const { tech_dimension, sub_tech_dimension } = parentItem;
-            if (!acc[tech_dimension]) {
-                acc[tech_dimension] = {};
-            }
-            if (!acc[tech_dimension][sub_tech_dimension]) {
-                acc[tech_dimension][sub_tech_dimension] = [];
-            }
-            acc[tech_dimension][sub_tech_dimension].push({ techPoint, parentItem });
-            return acc;
-        }, {} as Record<string, Record<string, { techPoint: TechDetailHistoryItem; parentItem: KnowledgeBaseDetail }[]>>);
-    }, [kbItemsWithDetails]);
-    
-    const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
-    useEffect(() => setExpandedDims(new Set(Object.keys(groupedData))), [groupedData]);
-    const toggleDimExpansion = (dim: string) => setExpandedDims(p => {
-        const newSet = new Set(p);
-        if (newSet.has(dim)) {
-            newSet.delete(dim);
-        } else {
-            newSet.add(dim);
+    const fetchDetailForItem = useCallback(async (kbId: number) => {
+        if (detailsCache[kbId]) return;
+        setLoadingDetails(prev => new Set(prev).add(kbId));
+        try {
+            const detailData = await getKnowledgeBaseDetail(kbId);
+            setDetailsCache(prev => ({ ...prev, [kbId]: detailData }));
+        } catch (err) {
+            console.error(`Failed to load details for item ${kbId}`, err);
+        } finally {
+            setLoadingDetails(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(kbId);
+                return newSet;
+            });
         }
+    }, [detailsCache]);
+    
+    const groupedData = useMemo(() => {
+        return kbItems.reduce((acc, item) => {
+            const { tech_dimension } = item;
+            if (!acc[tech_dimension]) {
+                acc[tech_dimension] = [];
+            }
+            acc[tech_dimension].push(item);
+            return acc;
+        }, {} as Record<string, KnowledgeBaseItem[]>);
+    }, [kbItems]);
+    
+    const [expandedPrimaryDims, setExpandedPrimaryDims] = useState<Set<string>>(new Set());
+    const [expandedSubDims, setExpandedSubDims] = useState<Set<number>>(new Set());
+    
+    useEffect(() => setExpandedPrimaryDims(new Set(Object.keys(groupedData))), [groupedData]);
+    
+    const togglePrimaryDimExpansion = (dim: string) => setExpandedPrimaryDims(p => {
+        const newSet = new Set(p);
+        if (newSet.has(dim)) newSet.delete(dim); else newSet.add(dim);
         return newSet;
     });
-
-    const countTechPointsInDim = (subDimGroups: Record<string, any[]>) => {
-        return Object.values(subDimGroups).reduce((sum, items) => sum + items.length, 0);
-    };
+    
+    const toggleSubDimExpansion = useCallback((kbId: number) => {
+        setExpandedSubDims(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(kbId)) {
+                newSet.delete(kbId);
+            } else {
+                newSet.add(kbId);
+                if (!detailsCache[kbId]) {
+                    fetchDetailForItem(kbId);
+                }
+            }
+            return newSet;
+        });
+    }, [detailsCache, fetchDetailForItem]);
 
     return (
-        <div className="h-full bg-slate-100 text-gray-800 p-6 flex flex-col">
-            <header className="pb-4 space-y-4 flex-shrink-0">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-900">竞争力看板</h1>
-                    <button onClick={() => fetchData()} className="p-2 bg-white border border-slate-200/80 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                        <RefreshIcon className={`w-5 h-5 text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
-                    </button>
-                </div>
-                {/* Filters */}
-                <div className="bg-white rounded-xl p-3 shadow-sm border border-slate-200/80 flex items-center gap-3">
-                    <MultiSelectDropdown
-                        label="品牌"
-                        options={meta?.car_brands || []}
-                        selected={filters.car_brand}
-                        onChange={v => setFilters(f => ({...f, car_brand: v}))}
-                    />
-                    <MultiSelectDropdown
-                        label="技术领域"
-                        options={meta ? Object.keys(meta.tech_dimensions) : []}
-                        selected={filters.tech_dimension}
-                        onChange={v => setFilters(f => ({...f, tech_dimension: v}))}
-                    />
-                    <div className="relative flex-grow">
-                        <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                        <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full text-sm bg-slate-50 border border-gray-200 rounded-lg py-2.5 pl-9 pr-4 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-                    </div>
-                </div>
-            </header>
-            <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
-                {/* Left Panel */}
-                <div className="col-span-5 lg:col-span-4 flex flex-col h-full min-w-0">
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 -mr-2">
-                        {isLoading ? <div className="text-center py-20 text-gray-500">加载中...</div>
-                        : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg p-4">{error}</div>
-                        : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">没有符合条件的情报</div>
-                        : Object.entries(groupedData).map(([primaryDim, subDimGroups]) => {
-                            const Icon = techDimensionIcons[primaryDim] || BrainIcon;
+        <div className="h-full flex gap-6 p-6 bg-slate-100/50">
+            {/* Left Panel */}
+            <aside className="w-[480px] flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                <header className="p-4 border-b border-gray-200 flex-shrink-0">
+                     <h1 className="text-2xl font-bold text-gray-800 mb-4 px-2">竞争力看板</h1>
+                     <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* Brand Filter */}
+                            <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value ? [e.target.value] : []}))} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">全部品牌</option>
+                                {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                            {/* Tech Dimension Filter */}
+                            <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value ? [e.target.value] : []}))} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">全部技术领域</option>
+                                {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </div>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full bg-gray-100 border-transparent rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
+                        </div>
+                     </div>
+                </header>
+                <div className="flex-1 overflow-y-auto p-2">
+                    {isLoading ? <div className="text-center p-10 text-gray-500">加载中...</div> : error ? <div className="p-4 text-red-500">{error}</div> : Object.keys(groupedData).length === 0 ? <div className="text-center p-10 text-gray-500">没有符合条件的情报</div> : (
+                        <div className="space-y-2">
+                        {Object.entries(groupedData).map(([dim, items]) => {
+                            const Icon = techDimensionIcons[dim] || BrainIcon;
+                            const isPrimaryExpanded = expandedPrimaryDims.has(dim);
                             return (
-                                <div key={primaryDim} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                                    <button onClick={() => toggleDimExpansion(primaryDim)} className="w-full flex justify-between items-center p-4 bg-slate-50/50 hover:bg-slate-100/70 transition-colors">
-                                        <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
+                                <div key={dim}>
+                                    <button onClick={() => togglePrimaryDimExpansion(dim)} className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-gray-100">
+                                        <div className="flex items-center gap-3">
                                             <Icon className="w-5 h-5 text-gray-500" />
-                                            {primaryDim} ({countTechPointsInDim(subDimGroups)})
-                                        </h2>
-                                        <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(primaryDim) ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    {expandedDims.has(primaryDim) && (
-                                        <div className="border-t border-gray-100">
-                                            {Object.entries(subDimGroups).map(([subDim, items]) => (
-                                                <div key={subDim} className="pt-2">
-                                                    <h3 className="px-4 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">{subDim}</h3>
-                                                    <div className="p-2 space-y-1">
-                                                        {items.map(({ techPoint, parentItem }) => {
-                                                            const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
-                                                            const isActive = selectedInfo?.kbId === parentItem.id && selectedInfo.techName === techPoint.name;
-                                                            return (
-                                                                <div key={`${parentItem.id}-${techPoint.name}`} onClick={() => setSelectedInfo({ kbId: parentItem.id, techName: techPoint.name })} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
-                                                                    <div className="flex justify-between items-start">
-                                                                        <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{techPoint.name}</p>
-                                                                        <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
-                                                                    </div>
-                                                                    <div className="flex items-center justify-end mt-1.5">
-                                                                        <span className="text-gray-400 flex items-center gap-1 text-xs">
-                                                                            <ClockIcon className="w-3 h-3"/>
-                                                                            {new Date(techPoint.publish_date).toLocaleDateString()}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                            <span className="font-semibold text-gray-800">{dim} ({items.length})</span>
                                         </div>
-                                    )}
+                                        <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isPrimaryExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isPrimaryExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
+                                        {items.map(item => {
+                                            const isSubExpanded = expandedSubDims.has(item.id);
+                                            return <div key={item.id}>
+                                                <button onClick={() => toggleSubDimExpansion(item.id)} className="w-full flex justify-between items-center p-2 rounded-md hover:bg-gray-100 text-left">
+                                                    <span className="font-medium text-sm text-gray-700">{item.sub_tech_dimension}</span>
+                                                    <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
+                                                </button>
+                                                {isSubExpanded && <div className="pl-4 py-1 space-y-1">
+                                                    {loadingDetails.has(item.id) ? <div className="text-xs text-center p-4">加载中...</div> :
+                                                    detailsCache[item.id]?.consolidated_tech_details.map(techPoint => {
+                                                        const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
+                                                        const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
+                                                        return (
+                                                            <div key={techPoint.name} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                                                                <div className="flex justify-between items-start">
+                                                                    <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
+                                                                    <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {techPoint.source_article_ids.length}篇</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center mt-1.5">
+                                                                    <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
+                                                                    <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>}
+                                            </div>
+                                        })}
+                                    </div>}
                                 </div>
                             )
                         })}
-                    </div>
+                        </div>
+                    )}
                 </div>
-                {/* Right Panel */}
-                <main className="col-span-7 lg:col-span-8 h-full min-w-0">
-                    <DetailPanel 
-                      kbId={selectedInfo?.kbId ?? null} 
-                      initialTechNameToTrace={selectedInfo?.techName ?? null}
-                      onClose={() => setSelectedInfo(null)} 
-                    />
-                </main>
-            </div>
+            </aside>
+            {/* Right Panel */}
+            <main className="flex-1 h-full min-w-0">
+                <DetailPanel 
+                    kbId={selectedInfo?.kbId || null}
+                    initialTechNameToTrace={selectedInfo?.techName || null}
+                    onClose={() => setSelectedInfo(null)}
+                />
+            </main>
         </div>
     );
 };
-
-// --- MultiSelectDropdown Component ---
-const MultiSelectDropdown: React.FC<{label: string, options: string[], selected: string[], onChange: (selected: string[]) => void}> = ({ label, options, selected, onChange }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (ref.current && !ref.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [ref]);
-
-    const handleSelect = (option: string) => {
-        const newSelected = selected.includes(option) ? selected.filter(s => s !== option) : [...selected, option];
-        onChange(newSelected);
-    }
-    
-    return (
-        <div className="relative text-sm w-56" ref={ref}>
-            <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center bg-slate-50 border border-gray-200 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <span className="text-gray-700 truncate">
-                    {label}: {selected.length > 0 ? `${selected.length}个已选` : '全部'}
-                </span>
-                <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {isOpen && (
-                <div className="absolute z-20 top-full mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto p-2">
-                     <div className="p-2">
-                        <button className="text-xs text-blue-600 hover:underline font-semibold" onClick={() => onChange([])}>清空选择</button>
-                     </div>
-                    {options.map(option => (
-                        <label key={option} className="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer">
-                            <input type="checkbox" checked={selected.includes(option)} onChange={() => handleSelect(option)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                            <span className="ml-2 text-gray-700">{option}</span>
-                        </label>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}

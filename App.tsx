@@ -90,36 +90,24 @@ const App: React.FC = () => {
         return <div className="flex items-center justify-center h-full text-gray-600">正在加载数据...</div>;
     }
 
-    // Views that manage their own internal scrolling
-    const viewsWithOwnScroll: View[] = ['cockpit', 'techboard', 'admin'];
-    if (viewsWithOwnScroll.includes(view)) {
-        switch (view) {
-            case 'cockpit': return <StrategicCockpit subscriptions={subscriptions} />;
-            case 'techboard': return <CompetitivenessDashboard />;
-            case 'admin': return <AdminPage />;
-        }
-    }
-
-    // All other views get a scrollable wrapper
-    let viewComponent;
     switch (view) {
       case 'dashboard':
-        viewComponent = <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
-        break;
+        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+      case 'cockpit':
+        return <StrategicCockpit subscriptions={subscriptions} />;
+      case 'techboard':
+        return <CompetitivenessDashboard />;
       case 'dives':
-        viewComponent = <DeepDives dives={deepDives} />;
-        break;
+        return <DeepDives dives={deepDives} />;
       case 'events':
-        viewComponent = <IndustryEvents />;
-        break;
+        return <IndustryEvents />;
       case 'ai':
-        viewComponent = <ReportGenerator />;
-        break;
+        return <ReportGenerator />;
+      case 'admin':
+        return <AdminPage />;
       default:
-        viewComponent = <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
     }
-
-    return <div className="h-full overflow-y-auto">{viewComponent}</div>;
   };
 
   return (
