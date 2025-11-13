@@ -287,7 +287,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
 
     return (
         <>
-            <div className="p-6 bg-gray-50/50 overflow-y-auto h-full">
+            <div className="p-6 bg-gray-50/50 min-h-full">
                 <div className="max-w-7xl mx-auto space-y-10">
                     <DailyBriefing 
                         user={user} 
