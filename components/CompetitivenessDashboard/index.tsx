@@ -104,10 +104,11 @@ const SourceArticle: React.FC<{ record: ExtractedTechnologyRecord, article: {id:
 
 interface DetailPanelProps {
     kbId: number | null;
+    initialTechNameToTrace: string | null;
     onClose: () => void;
 }
 
-const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
+const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace, onClose }) => {
     const [detail, setDetail] = useState<KnowledgeBaseDetail | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -120,6 +121,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
     
     const handleTrace = useCallback(async (techName: string) => {
         if (!kbId) return;
+        if (isTracing) return;
 
         setIsTracing(true);
         setTracingError('');
@@ -156,9 +158,16 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
                 if (isCancelled) return;
                 setDetail(detailData);
 
-                const sorted = [...detailData.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
-                if (sorted.length > 0) {
-                    await handleTrace(sorted[0].name);
+                let techNameToTrace = initialTechNameToTrace;
+                if (!techNameToTrace) {
+                    const sorted = [...detailData.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
+                    if (sorted.length > 0) {
+                        techNameToTrace = sorted[0].name;
+                    }
+                }
+
+                if (techNameToTrace) {
+                    await handleTrace(techNameToTrace);
                 }
 
             } catch (err: any) {
@@ -170,7 +179,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
         fetchDetailAndTrace();
         
         return () => { isCancelled = true; };
-    }, [kbId, handleTrace]);
+    }, [kbId, initialTechNameToTrace, handleTrace]);
 
 
     const sortedTechDetails = useMemo(() => {
@@ -252,11 +261,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
 
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
-    const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
+    const [kbItemsWithDetails, setKbItemsWithDetails] = useState<KnowledgeBaseDetail[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [selectedKbId, setSelectedKbId] = useState<number | null>(null);
-    
+    const [selectedInfo, setSelectedInfo] = useState<{ kbId: number; techName: string } | null>(null);
+
     const [meta, setMeta] = useState<KnowledgeBaseMeta | null>(null);
     const [filters, setFilters] = useState<{
         car_brand: string[];
@@ -291,7 +300,12 @@ export const CompetitivenessDashboard: React.FC = () => {
                 sort_by: 'last_updated_at',
                 order: 'desc',
             });
-            setKbItems(response.items || []);
+            
+            const detailPromises = (response.items || []).map(item => getKnowledgeBaseDetail(item.id));
+            const detailedItems = await Promise.all(detailPromises);
+
+            setKbItemsWithDetails(detailedItems);
+
         } catch (err: any) {
             setError(err.message || '加载知识库失败');
         } finally {
@@ -301,22 +315,29 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-        setSelectedKbId(null);
+        setSelectedInfo(null);
     }, [fetchData]);
 
     const groupedData = useMemo(() => {
-        return kbItems.reduce((acc, item) => {
-            const { tech_dimension, sub_tech_dimension } = item;
+        const allTechPoints = kbItemsWithDetails.flatMap(parentItem => 
+            parentItem.consolidated_tech_details.map(techPoint => ({
+                techPoint,
+                parentItem,
+            }))
+        );
+
+        return allTechPoints.reduce((acc, { techPoint, parentItem }) => {
+            const { tech_dimension, sub_tech_dimension } = parentItem;
             if (!acc[tech_dimension]) {
                 acc[tech_dimension] = {};
             }
             if (!acc[tech_dimension][sub_tech_dimension]) {
                 acc[tech_dimension][sub_tech_dimension] = [];
             }
-            acc[tech_dimension][sub_tech_dimension].push(item);
+            acc[tech_dimension][sub_tech_dimension].push({ techPoint, parentItem });
             return acc;
-        }, {} as Record<string, Record<string, KnowledgeBaseItem[]>>);
-    }, [kbItems]);
+        }, {} as Record<string, Record<string, { techPoint: TechDetailHistoryItem; parentItem: KnowledgeBaseDetail }[]>>);
+    }, [kbItemsWithDetails]);
     
     const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
     useEffect(() => setExpandedDims(new Set(Object.keys(groupedData))), [groupedData]);
@@ -329,6 +350,10 @@ export const CompetitivenessDashboard: React.FC = () => {
         }
         return newSet;
     });
+
+    const countTechPointsInDim = (subDimGroups: Record<string, any[]>) => {
+        return Object.values(subDimGroups).reduce((sum, items) => sum + items.length, 0);
+    };
 
     return (
         <div className="h-full bg-slate-100 text-gray-800 p-6 flex flex-col">
@@ -373,7 +398,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                                     <button onClick={() => toggleDimExpansion(primaryDim)} className="w-full flex justify-between items-center p-4 bg-slate-50/50 hover:bg-slate-100/70 transition-colors">
                                         <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
                                             <Icon className="w-5 h-5 text-gray-500" />
-                                            {primaryDim} ({Object.values(subDimGroups).flat().length})
+                                            {primaryDim} ({countTechPointsInDim(subDimGroups)})
                                         </h2>
                                         <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(primaryDim) ? 'rotate-180' : ''}`} />
                                     </button>
@@ -383,19 +408,19 @@ export const CompetitivenessDashboard: React.FC = () => {
                                                 <div key={subDim} className="pt-2">
                                                     <h3 className="px-4 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">{subDim}</h3>
                                                     <div className="p-2 space-y-1">
-                                                        {items.map(item => {
-                                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                                            const isActive = selectedKbId === item.id;
+                                                        {items.map(({ techPoint, parentItem }) => {
+                                                            const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
+                                                            const isActive = selectedInfo?.kbId === parentItem.id && selectedInfo.techName === techPoint.name;
                                                             return (
-                                                                <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
+                                                                <div key={`${parentItem.id}-${techPoint.name}`} onClick={() => setSelectedInfo({ kbId: parentItem.id, techName: techPoint.name })} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
                                                                     <div className="flex justify-between items-start">
-                                                                        <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
+                                                                        <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{techPoint.name}</p>
                                                                         <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
                                                                     </div>
                                                                     <div className="flex items-center justify-end mt-1.5">
                                                                         <span className="text-gray-400 flex items-center gap-1 text-xs">
                                                                             <ClockIcon className="w-3 h-3"/>
-                                                                            {new Date(item.last_updated_at).toLocaleDateString()}
+                                                                            {new Date(techPoint.publish_date).toLocaleDateString()}
                                                                         </span>
                                                                     </div>
                                                                 </div>
@@ -413,7 +438,11 @@ export const CompetitivenessDashboard: React.FC = () => {
                 </div>
                 {/* Right Panel */}
                 <main className="col-span-7 lg:col-span-8 h-full min-w-0">
-                    <DetailPanel kbId={selectedKbId} onClose={() => setSelectedKbId(null)} />
+                    <DetailPanel 
+                      kbId={selectedInfo?.kbId ?? null} 
+                      initialTechNameToTrace={selectedInfo?.techName ?? null}
+                      onClose={() => setSelectedInfo(null)} 
+                    />
                 </main>
             </div>
         </div>
