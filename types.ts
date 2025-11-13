@@ -276,6 +276,8 @@ export interface TechDetailHistoryItem {
   description: string;
   reliability: number;
   publish_date: string;
+  source_stage1_ids: string[];
+  source_article_ids: string[];
 }
 
 export interface KnowledgeBaseDetail {
@@ -298,6 +300,7 @@ export interface KnowledgeBaseMeta {
 
 export interface ExtractedTechnologyRecord {
   id: number;
+  article_id: string; // Added from docs for mapping
   tech_name: string;
   tech_description: string;
   reliability: number;
@@ -311,6 +314,24 @@ export interface SourceArticleWithRecords {
   publish_date: string;
   content?: string;
   stage1_records: ExtractedTechnologyRecord[];
+}
+
+export interface KnowledgeBaseTraceability {
+  kb_id: number;
+  car_brand: string;
+  tech_dimension: string;
+  sub_tech_dimension: string;
+  unique_aggregation_key: string;
+  current_reliability_score: number;
+  aggregated_tech: TechDetailHistoryItem[];
+  stage1_records: ExtractedTechnologyRecord[];
+  source_articles: {
+    id: string;
+    title: string;
+    original_url: string;
+    publish_date: string;
+    content?: string;
+  }[];
 }
 
 
