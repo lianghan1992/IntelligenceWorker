@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
+import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord, SourceArticleWithRecords } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability } from '../../api/competitiveness';
 import { 
     RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
@@ -42,160 +42,101 @@ const DetailPanelSkeleton: React.FC = () => (
                 <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
                 <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
             </div>
-            <div className="h-6 w-1/3 bg-gray-200 rounded mt-6"></div>
-            <div className="h-32 w-full bg-gray-200 rounded-xl"></div>
         </main>
     </div>
 );
 
 // --- Sub-Component: DetailPanel ---
-const TimelineItem: React.FC<{ item: TechDetailHistoryItem; isLast: boolean; onTrace: (techName: string) => void; isTracing: boolean; isActive: boolean; }> = ({ item, isLast, onTrace, isTracing, isActive }) => {
-    const reliabilityInfo = getReliabilityInfo(item.reliability);
+const TimelineItem: React.FC<{ record: ExtractedTechnologyRecord; article: SourceArticleWithRecords; isLast: boolean; }> = ({ record, article, isLast }) => {
+    const reliabilityInfo = getReliabilityInfo(record.reliability);
     return (
         <div className="relative pl-8 group">
-            <div className={`absolute -left-[7px] top-1 w-4 h-4 bg-white border-2 rounded-full z-10 transition-all ${isActive ? `border-${reliabilityInfo.color}-500 ring-4 ring-${reliabilityInfo.color}-200` : `border-slate-300 group-hover:border-${reliabilityInfo.color}-400`}`}></div>
+            <div className={`absolute -left-[7px] top-1 w-4 h-4 bg-white border-2 rounded-full z-10 transition-all border-${reliabilityInfo.color}-400 ring-2 ring-${reliabilityInfo.color}-100`}></div>
             {!isLast && <div className={`absolute -left-px top-2 h-full w-0.5 bg-slate-200`}></div>}
-            <div className={`p-4 rounded-xl border shadow-sm transition-all duration-300 ${isActive ? `bg-white border-blue-400 shadow-lg` : `bg-white border-gray-200/80 hover:shadow-md hover:border-gray-300`}`}>
+            <div className={`p-4 rounded-xl border bg-white shadow-sm`}>
                 <div className="flex justify-between items-center text-sm mb-2">
-                    <p className="font-bold text-blue-700">{item.name}</p>
+                    <p className="font-bold text-gray-800">{record.tech_name}</p>
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
                         <reliabilityInfo.Icon className="w-3 h-3" />
                         {reliabilityInfo.text}
                     </span>
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
-                <div className="mt-4 flex justify-between items-center">
-                    <div className="text-xs text-gray-400 flex items-center gap-1.5">
-                        <ClockIcon className="w-3.5 h-3.5" />
-                        <span>情报日期: {new Date(item.publish_date).toLocaleDateString()}</span>
+                <p className="text-sm text-gray-600 leading-relaxed">{record.tech_description}</p>
+                <div className="mt-4 text-xs text-slate-500 border-t border-slate-200 pt-3">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                            <ClockIcon className="w-3.5 h-3.5" />
+                            <span>情报日期: {new Date(record.publish_date).toLocaleDateString()}</span>
+                        </div>
+                         <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
+                            来源: {article.title}
+                        </a>
                     </div>
-                    <button
-                        onClick={() => onTrace(item.name)}
-                        disabled={isTracing && isActive}
-                        className="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-md hover:bg-blue-100 hover:text-blue-800 transition-colors disabled:opacity-50 disabled:cursor-wait"
-                    >
-                        {isTracing && isActive ? '溯源中...' : '溯源证据'}
-                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-const SourceArticle: React.FC<{ record: ExtractedTechnologyRecord, article: {id: string; title: string; original_url: string; publish_date: string} }> = ({ record, article }) => {
-    const reliabilityInfo = getReliabilityInfo(record.reliability);
-    return (
-         <div className="p-4 bg-slate-50/70 rounded-lg border border-slate-200/80">
-            <div className="flex justify-between items-center text-sm mb-1.5">
-                <p className="font-semibold text-gray-800">{record.tech_name}</p>
-                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
-                    <reliabilityInfo.Icon className="w-3 h-3" />
-                    {reliabilityInfo.text}
-                </span>
-            </div>
-            <p className="text-sm text-gray-600 leading-relaxed">{record.tech_description}</p>
-             <div className="mt-3 text-xs text-slate-500 border-t border-slate-200 pt-2">
-                出自: <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">{article.title}</a>
-            </div>
-        </div>
-    )
-}
-
 
 interface DetailPanelProps {
     kbId: number | null;
-    initialTechNameToTrace: string | null;
+    selectedTechName: string | null;
     onClose: () => void;
 }
 
-const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace, onClose }) => {
-    const [detail, setDetail] = useState<KnowledgeBaseDetail | null>(null);
+const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClose }) => {
+    const [traceData, setTraceData] = useState<KnowledgeBaseTraceability | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const contentRef = React.useRef<HTMLDivElement>(null);
     
-    const [traceabilityData, setTraceabilityData] = useState<KnowledgeBaseTraceability | null>(null);
-    const [isTracing, setIsTracing] = useState(false);
-    const [tracingError, setTracingError] = useState('');
-    const [tracingForTech, setTracingForTech] = useState<string | null>(null);
-    
-    const handleTrace = useCallback(async (techName: string) => {
-        if (!kbId) return;
-        
-        setIsTracing(true);
-        setTracingError('');
-        setTraceabilityData(null);
-        setTracingForTech(techName);
-
-        try {
-            const traceData = await getKnowledgeBaseTraceability(kbId, techName);
-            setTraceabilityData(traceData);
-        } catch (err: any) {
-            setTracingError(err.message || '溯源失败');
-        } finally {
-            setIsTracing(false);
-        }
-    }, [kbId]);
-
     useEffect(() => {
-        if (kbId === null) {
-            setDetail(null);
-            setTraceabilityData(null);
-            setTracingForTech(null);
+        if (!kbId || !selectedTechName) {
+            setTraceData(null);
             return;
         }
+
         let isCancelled = false;
-        const fetchDetailAndTrace = async () => {
+        const fetchTraceability = async () => {
             setIsLoading(true);
             setError('');
-            setTraceabilityData(null);
-            setTracingForTech(null);
+            setTraceData(null);
             if (contentRef.current) contentRef.current.scrollTop = 0;
 
             try {
-                const detailData = await getKnowledgeBaseDetail(kbId);
-                if (isCancelled) return;
-                setDetail(detailData);
-
-                let techNameToTrace = initialTechNameToTrace;
-                if (!techNameToTrace) {
-                    const sorted = [...detailData.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
-                    if (sorted.length > 0) {
-                        techNameToTrace = sorted[0].name;
-                    }
+                const data = await getKnowledgeBaseTraceability(kbId, selectedTechName);
+                if (!isCancelled) {
+                    setTraceData(data);
                 }
-
-                if (techNameToTrace) {
-                    await handleTrace(techNameToTrace);
-                }
-
             } catch (err: any) {
-                 if (!isCancelled) setError(err.message || '加载详情失败');
+                if (!isCancelled) {
+                    setError(err.message || '加载溯源数据失败');
+                }
             } finally {
-                 if (!isCancelled) setIsLoading(false);
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
             }
         };
-        fetchDetailAndTrace();
+
+        fetchTraceability();
         
         return () => { isCancelled = true; };
-    }, [kbId, initialTechNameToTrace, handleTrace]);
+    }, [kbId, selectedTechName]);
 
 
-    const sortedTechDetails = useMemo(() => {
-        if (!detail) return [];
-        return [...detail.consolidated_tech_details].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
-    }, [detail]);
+    const { timelineItems, articleMap } = useMemo(() => {
+        if (!traceData) return { timelineItems: [], articleMap: new Map() };
 
-    const traceabilityMap = useMemo(() => {
-        if (!traceabilityData) return { articles: {}, records: [] };
-        const articles = traceabilityData.source_articles.reduce((acc, article) => {
-            acc[article.id] = article;
-            return acc;
-        }, {} as Record<string, typeof traceabilityData.source_articles[0]>);
+        const sortedItems = [...traceData.stage1_records].sort((a, b) => 
+            new Date(a.publish_date).getTime() - new Date(b.publish_date).getTime()
+        );
         
-        const records = traceabilityData.stage1_records;
-        return { articles, records };
-    }, [traceabilityData]);
+        const articles = new Map(traceData.source_articles.map(a => [a.id, a]));
+
+        return { timelineItems: sortedItems, articleMap: articles };
+    }, [traceData]);
     
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm relative">
@@ -208,46 +149,35 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, initialTechNameToTrace,
             ) : (
                 <>
                     <header className="p-5 border-b border-gray-200 flex justify-between items-start flex-shrink-0">
-                        {detail && (
+                        {traceData && (
                              <div>
-                                <p className="text-sm text-gray-500 font-medium">{detail.tech_dimension} &gt; {detail.sub_tech_dimension}</p>
-                                <h2 className="text-2xl font-bold text-gray-900 mt-1">{detail.car_brand}</h2>
+                                <p className="text-sm text-gray-500 font-medium">{traceData.tech_dimension} &gt; {traceData.sub_tech_dimension}</p>
+                                <h2 className="text-2xl font-bold text-gray-900 mt-1">{traceData.car_brand}</h2>
                             </div>
                         )}
                         <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"><CloseIcon className="w-5 h-5" /></button>
                     </header>
                     <div ref={contentRef} className="flex-1 overflow-y-auto bg-slate-50/50">
-                        {isLoading ? <DetailPanelSkeleton /> : error ? <div className="text-center text-red-500 p-6">{error}</div> : detail && (
+                        {isLoading ? <DetailPanelSkeleton /> : error ? <div className="text-center text-red-500 p-6">{error}</div> : traceData && (
                              <div className="p-6">
-                                <h3 className="font-semibold text-gray-800 text-lg mb-4">技术演进时间线</h3>
-                                <div className="space-y-6">
-                                    {sortedTechDetails.map((item, index) => (
-                                        <TimelineItem 
-                                            key={index} 
-                                            item={item} 
-                                            isLast={index === sortedTechDetails.length - 1} 
-                                            onTrace={handleTrace}
-                                            isTracing={isTracing}
-                                            isActive={tracingForTech === item.name}
-                                        />
-                                    ))}
-                                </div>
-                                
-                                {tracingForTech && (
-                                    <div className="mt-10 animate-in fade-in-0 duration-500">
-                                        <h3 className="font-semibold text-gray-800 text-lg mb-4">信源证据链: “{tracingForTech}”</h3>
-                                        {isTracing ? <div className="text-center py-10">加载溯源证据中...</div> :
-                                        tracingError ? <div className="text-center text-red-500 p-6 bg-red-50 rounded-lg">{tracingError}</div> :
-                                        traceabilityMap.records.length > 0 ? (
-                                            <div className="space-y-4">
-                                               {traceabilityMap.records.map(record => {
-                                                   const article = traceabilityMap.articles[record.article_id];
-                                                   if (!article) return null;
-                                                   return <SourceArticle key={record.id} record={record} article={article} />
-                                               })}
-                                            </div>
-                                        ) : <p className="text-sm text-center text-gray-500 py-6 bg-gray-100 rounded-lg">未找到相关的信源证据</p>}
+                                <h3 className="font-semibold text-gray-800 text-lg mb-4">技术演进时间线: “{selectedTechName}”</h3>
+                                {timelineItems.length > 0 ? (
+                                    <div className="space-y-6">
+                                        {timelineItems.map((record, index) => {
+                                            const article = articleMap.get(record.article_id);
+                                            if (!article) return null;
+                                            return (
+                                                <TimelineItem 
+                                                    key={record.id} 
+                                                    record={record}
+                                                    article={article}
+                                                    isLast={index === timelineItems.length - 1} 
+                                                />
+                                            )
+                                        })}
                                     </div>
+                                ) : (
+                                    <p className="text-sm text-center text-gray-500 py-6 bg-gray-100 rounded-lg">未找到相关的演进记录</p>
                                 )}
                             </div>
                         )}
@@ -403,29 +333,38 @@ export const CompetitivenessDashboard: React.FC = () => {
                         {isPrimaryExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
                             {items.map(item => {
                                 const isSubExpanded = expandedSubDims.has(item.id);
+                                const detail = detailsCache[item.id];
+                                const techPoints = detail?.consolidated_tech_details;
+
                                 return <div key={item.id}>
                                     <button onClick={() => toggleSubDimExpansion(item.id)} className="w-full flex justify-between items-center p-2 rounded-md hover:bg-gray-100 text-left">
                                         <span className="font-medium text-sm text-gray-700">{item.sub_tech_dimension}</span>
                                         <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
                                     </button>
                                     {isSubExpanded && <div className="pl-4 py-1 space-y-1">
-                                        {loadingDetails.has(item.id) ? <div className="text-xs text-center p-4 text-gray-500">加载中...</div> :
-                                        detailsCache[item.id]?.consolidated_tech_details?.map(techPoint => {
-                                            const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
-                                            const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
-                                            return (
-                                                <div key={techPoint.name} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
-                                                    <div className="flex justify-between items-start">
-                                                        <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
-                                                        <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {item.source_article_count}篇</span>
+                                        {loadingDetails.has(item.id) ? (
+                                            <div className="text-xs text-center p-4 text-gray-500">加载中...</div>
+                                        ) : (
+                                            techPoints && techPoints.map(techPoint => {
+                                                const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
+                                                const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
+                                                return (
+                                                    <div key={techPoint.name + item.id} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                                                        <div className="flex justify-between items-start">
+                                                            <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
+                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {item.source_article_count}篇</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center mt-1.5">
+                                                            <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
+                                                            <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex justify-between items-center mt-1.5">
-                                                        <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
-                                                        <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })
+                                        )}
+                                        {!loadingDetails.has(item.id) && !techPoints && (
+                                            <div className="text-xs text-center p-4 text-gray-500">无数据或加载失败</div>
+                                        )}
                                     </div>}
                                 </div>
                             })}
@@ -470,7 +409,7 @@ export const CompetitivenessDashboard: React.FC = () => {
             <main className="flex-1 h-full min-w-0">
                 <DetailPanel 
                     kbId={selectedInfo?.kbId || null}
-                    initialTechNameToTrace={selectedInfo?.techName || null}
+                    selectedTechName={selectedInfo?.techName || null}
                     onClose={() => setSelectedInfo(null)}
                 />
             </main>
