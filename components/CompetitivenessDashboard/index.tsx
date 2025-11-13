@@ -120,7 +120,6 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
     
     const handleTrace = useCallback(async (techName: string) => {
         if (!kbId) return;
-        if (tracingForTech === techName && traceabilityData) return;
 
         setIsTracing(true);
         setTracingError('');
@@ -135,7 +134,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
         } finally {
             setIsTracing(false);
         }
-    }, [kbId, tracingForTech, traceabilityData]);
+    }, [kbId]);
 
     useEffect(() => {
         if (kbId === null) {
