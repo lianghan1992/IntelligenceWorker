@@ -264,7 +264,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     const [detailsCache, setDetailsCache] = useState<Record<number, KnowledgeBaseDetail>>({});
     const [loadingDetails, setLoadingDetails] = useState<Set<number>>(new Set());
     
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [selectedInfo, setSelectedInfo] = useState<{ kbId: number; techName: string } | null>(null);
 
@@ -289,7 +289,17 @@ export const CompetitivenessDashboard: React.FC = () => {
         getKnowledgeBaseMeta().then(setMeta).catch(e => console.error("Failed to fetch meta", e));
     }, []);
 
+    const hasActiveFilters = useMemo(() => {
+        return filters.car_brand.length > 0 || filters.tech_dimension.length > 0 || filters.search.trim() !== '';
+    }, [filters]);
+
     const fetchData = useCallback(async (showLoading = true) => {
+        if (!hasActiveFilters) {
+            setKbItems([]);
+            if (showLoading) setIsLoading(false);
+            return;
+        }
+
         if (showLoading) setIsLoading(true);
         setError('');
         try {
@@ -308,7 +318,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [filters]);
+    }, [filters, hasActiveFilters]);
 
     useEffect(() => {
         fetchData();
@@ -317,7 +327,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     }, [fetchData]);
 
     const fetchDetailForItem = useCallback(async (kbId: number) => {
-        if (detailsCache[kbId]) return;
+        if (detailsCache[kbId] || loadingDetails.has(kbId)) return;
         setLoadingDetails(prev => new Set(prev).add(kbId));
         try {
             const detailData = await getKnowledgeBaseDetail(kbId);
@@ -331,7 +341,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                 return newSet;
             });
         }
-    }, [detailsCache]);
+    }, [detailsCache, loadingDetails]);
     
     const groupedData = useMemo(() => {
         return kbItems.reduce((acc, item) => {
@@ -370,10 +380,67 @@ export const CompetitivenessDashboard: React.FC = () => {
         });
     }, [detailsCache, fetchDetailForItem]);
 
+    const renderLeftPanelContent = () => {
+        if (isLoading) return <div className="text-center p-10 text-gray-500">加载中...</div>;
+        if (error) return <div className="p-4 text-red-500">{error}</div>;
+        if (!hasActiveFilters) return <div className="text-center p-10 text-gray-500">请选择品牌或技术领域开始探索。</div>;
+        if (Object.keys(groupedData).length === 0) return <div className="text-center p-10 text-gray-500">没有符合条件的情报</div>;
+        
+        return (
+            <div className="space-y-2">
+            {Object.entries(groupedData).map(([dim, items]) => {
+                const Icon = techDimensionIcons[dim] || BrainIcon;
+                const isPrimaryExpanded = expandedPrimaryDims.has(dim);
+                return (
+                    <div key={dim}>
+                        <button onClick={() => togglePrimaryDimExpansion(dim)} className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-gray-100">
+                            <div className="flex items-center gap-3">
+                                <Icon className="w-5 h-5 text-gray-500" />
+                                <span className="font-semibold text-gray-800">{dim} ({items.length})</span>
+                            </div>
+                            <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isPrimaryExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isPrimaryExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
+                            {items.map(item => {
+                                const isSubExpanded = expandedSubDims.has(item.id);
+                                return <div key={item.id}>
+                                    <button onClick={() => toggleSubDimExpansion(item.id)} className="w-full flex justify-between items-center p-2 rounded-md hover:bg-gray-100 text-left">
+                                        <span className="font-medium text-sm text-gray-700">{item.sub_tech_dimension}</span>
+                                        <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isSubExpanded && <div className="pl-4 py-1 space-y-1">
+                                        {loadingDetails.has(item.id) ? <div className="text-xs text-center p-4 text-gray-500">加载中...</div> :
+                                        detailsCache[item.id]?.consolidated_tech_details?.map(techPoint => {
+                                            const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
+                                            const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
+                                            return (
+                                                <div key={techPoint.name} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                                                    <div className="flex justify-between items-start">
+                                                        <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
+                                                        <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {item.source_article_count}篇</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center mt-1.5">
+                                                        <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
+                                                        <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>}
+                                </div>
+                            })}
+                        </div>}
+                    </div>
+                )
+            })}
+            </div>
+        );
+    };
+
     return (
-        <div className="h-full flex gap-6 p-6 bg-slate-100/50">
+        <div className="h-full grid grid-cols-[480px_1fr] gap-6 p-6 bg-slate-100/50">
             {/* Left Panel */}
-            <aside className="w-[480px] flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+            <aside className="w-full flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm">
                 <header className="p-4 border-b border-gray-200 flex-shrink-0">
                      <h1 className="text-2xl font-bold text-gray-800 mb-4 px-2">竞争力看板</h1>
                      <div className="space-y-3">
@@ -396,55 +463,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                      </div>
                 </header>
                 <div className="flex-1 overflow-y-auto p-2">
-                    {isLoading ? <div className="text-center p-10 text-gray-500">加载中...</div> : error ? <div className="p-4 text-red-500">{error}</div> : Object.keys(groupedData).length === 0 ? <div className="text-center p-10 text-gray-500">没有符合条件的情报</div> : (
-                        <div className="space-y-2">
-                        {Object.entries(groupedData).map(([dim, items]) => {
-                            const Icon = techDimensionIcons[dim] || BrainIcon;
-                            const isPrimaryExpanded = expandedPrimaryDims.has(dim);
-                            return (
-                                <div key={dim}>
-                                    <button onClick={() => togglePrimaryDimExpansion(dim)} className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-gray-100">
-                                        <div className="flex items-center gap-3">
-                                            <Icon className="w-5 h-5 text-gray-500" />
-                                            <span className="font-semibold text-gray-800">{dim} ({items.length})</span>
-                                        </div>
-                                        <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isPrimaryExpanded ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    {isPrimaryExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
-                                        {items.map(item => {
-                                            const isSubExpanded = expandedSubDims.has(item.id);
-                                            return <div key={item.id}>
-                                                <button onClick={() => toggleSubDimExpansion(item.id)} className="w-full flex justify-between items-center p-2 rounded-md hover:bg-gray-100 text-left">
-                                                    <span className="font-medium text-sm text-gray-700">{item.sub_tech_dimension}</span>
-                                                    <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
-                                                </button>
-                                                {isSubExpanded && <div className="pl-4 py-1 space-y-1">
-                                                    {loadingDetails.has(item.id) ? <div className="text-xs text-center p-4">加载中...</div> :
-                                                    detailsCache[item.id]?.consolidated_tech_details.map(techPoint => {
-                                                        const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
-                                                        const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
-                                                        return (
-                                                            <div key={techPoint.name} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
-                                                                <div className="flex justify-between items-start">
-                                                                    <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
-                                                                    <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {techPoint.source_article_ids.length}篇</span>
-                                                                </div>
-                                                                <div className="flex justify-between items-center mt-1.5">
-                                                                    <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
-                                                                    <span className="text-xs text-gray-400">{new Date(item.last_updated_at).toLocaleDateString()}</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>}
-                                            </div>
-                                        })}
-                                    </div>}
-                                </div>
-                            )
-                        })}
-                        </div>
-                    )}
+                    {renderLeftPanelContent()}
                 </div>
             </aside>
             {/* Right Panel */}
