@@ -26,7 +26,7 @@ const getReliabilityInfo = (score: number) => {
 const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '智能驾驶': BrainIcon, '智能座舱': UsersIcon, '智能网联': EyeIcon,
     '智能底盘': TrendingUpIcon, '智能动力': LightBulbIcon, '智能车身': CheckCircleIcon,
-    '三电系统': LightBulbIcon,
+    '三电系统': LightBulbIcon, 'AI技术': BrainIcon
 };
 
 // --- Skeleton Components ---
@@ -368,7 +368,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                                                 );
                                             })
                                         )}
-                                        {!loadingDetails.has(item.id) && !techPoints && (
+                                        {!loadingDetails.has(item.id) && (!techPoints || techPoints.length === 0) && (
                                             <div className="text-xs text-center p-4 text-gray-500">无数据或加载失败</div>
                                         )}
                                     </div>}
