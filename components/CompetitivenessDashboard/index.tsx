@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords } from '../../types';
+import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords, TechDetailHistoryItem } from '../../types';
 import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseSources } from '../../api/competitiveness';
 import { 
     RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
-    TrendingUpIcon, EyeIcon, ClockIcon, SearchIcon, CheckIcon
+    TrendingUpIcon, EyeIcon, ClockIcon, SearchIcon, CheckIcon, QuestionMarkCircleIcon
 } from '../icons';
 
 // --- Helper Functions & Constants ---
 const getReliabilityInfo = (score: number) => {
     if (score >= 80) return { text: '官方证实', color: 'green', Icon: CheckCircleIcon };
-    if (score >= 60) return { text: '可信度高', color: 'blue', Icon: DocumentTextIcon };
-    if (score >= 40) return { text: '疑似传闻', color: 'amber', Icon: DocumentTextIcon };
-    return { text: '有待核实', color: 'gray', Icon: DocumentTextIcon };
+    if (score >= 60) return { text: '可信度高', color: 'blue', Icon: CheckIcon };
+    if (score >= 40) return { text: '疑似传闻', color: 'amber', Icon: QuestionMarkCircleIcon };
+    return { text: '已经辟谣', color: 'red', Icon: CloseIcon }; // Scores < 40
 };
+
 
 const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '智能驾驶': BrainIcon, '智能座舱': UsersIcon, '智能网联': EyeIcon,
@@ -20,8 +21,79 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '三电系统': LightBulbIcon,
 };
 
+// --- Skeleton Components ---
+const DetailPanelSkeleton: React.FC = () => (
+    <div className="animate-pulse">
+        <header className="p-5 border-b border-gray-200">
+            <div className="h-5 w-1/2 bg-gray-200 rounded"></div>
+            <div className="h-8 w-1/3 bg-gray-200 rounded mt-2"></div>
+        </header>
+        <main className="p-6 space-y-8">
+            <div className="h-6 w-1/4 bg-gray-200 rounded"></div>
+            <div className="space-y-4">
+                <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
+                <div className="h-24 w-full bg-gray-200 rounded-xl"></div>
+            </div>
+            <div className="h-6 w-1/3 bg-gray-200 rounded mt-6"></div>
+            <div className="h-32 w-full bg-gray-200 rounded-xl"></div>
+        </main>
+    </div>
+);
 
 // --- Sub-Component: DetailPanel ---
+const TimelineItem: React.FC<{ item: TechDetailHistoryItem }> = ({ item }) => {
+    const reliabilityInfo = getReliabilityInfo(item.reliability);
+    return (
+        <div className="relative pl-8">
+            <div className={`absolute -left-[5px] top-1 w-3 h-3 bg-white border-2 border-${reliabilityInfo.color}-500 rounded-full`}></div>
+            <div className={`absolute -left-px top-2 h-full w-0.5 bg-slate-200`}></div>
+            <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm transition-shadow hover:shadow-md">
+                <div className="flex justify-between items-center text-sm mb-2">
+                    <p className="font-bold text-blue-700">{item.name}</p>
+                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
+                        <reliabilityInfo.Icon className="w-3 h-3" />
+                        {reliabilityInfo.text}
+                    </span>
+                </div>
+                <p className="text-sm text-gray-600 mb-3">{item.description}</p>
+                <div className="text-xs text-gray-400 flex items-center gap-1.5">
+                    <ClockIcon className="w-3.5 h-3.5" />
+                    <span>情报日期: {new Date(item.publish_date).toLocaleDateString()}</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SourceArticle: React.FC<{ source: SourceArticleWithRecords }> = ({ source }) => (
+    <div className="bg-white p-4 rounded-xl border border-gray-200/80 shadow-sm">
+        <a href={source.original_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 hover:underline block truncate text-base">
+            {source.title}
+        </a>
+        <p className="text-xs text-slate-500 mt-1">{new Date(source.publish_date).toLocaleDateString()}</p>
+        {source.stage1_records && source.stage1_records.length > 0 && (
+            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                {source.stage1_records.map(record => {
+                    const reliabilityInfo = getReliabilityInfo(record.reliability);
+                    return (
+                        <div key={record.id} className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/80">
+                            <div className="flex justify-between items-center text-sm mb-1.5">
+                                <p className="font-semibold text-gray-800">{record.tech_name}</p>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
+                                    <reliabilityInfo.Icon className="w-3 h-3" />
+                                    {reliabilityInfo.text} ({record.reliability})
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-600">{record.tech_description}</p>
+                        </div>
+                    );
+                })}
+            </div>
+        )}
+    </div>
+);
+
+
 interface DetailPanelProps {
     kbId: number | null;
     onClose: () => void;
@@ -71,7 +143,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
     }, [detail]);
     
     return (
-        <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm relative">
+        <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200/80 shadow-sm relative">
             {kbId === null ? (
                 <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8">
                     <svg className="w-16 h-16 text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -81,72 +153,32 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, onClose }) => {
             ) : (
                 <>
                     <header className="p-5 border-b border-gray-200 flex justify-between items-start flex-shrink-0">
-                        {detail ? (
-                            <div>
+                        {detail && (
+                             <div>
                                 <p className="text-sm text-gray-500 font-medium">{detail.tech_dimension} &gt; {detail.sub_tech_dimension}</p>
                                 <h2 className="text-2xl font-bold text-gray-900 mt-1">{detail.car_brand}</h2>
                             </div>
-                        ) : <div className="h-[58px]"></div>}
+                        )}
                         <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"><CloseIcon className="w-5 h-5" /></button>
                     </header>
-                     <main ref={contentRef} className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-                        {isLoading && <div className="text-center text-gray-500 pt-10">正在加载详情...</div>}
-                        {error && <div className="text-center text-red-500 p-6">{error}</div>}
-                        {detail && (
-                            <>
+                    <div ref={contentRef} className="flex-1 overflow-y-auto bg-slate-50/50">
+                        {isLoading ? <DetailPanelSkeleton /> : error ? <div className="text-center text-red-500 p-6">{error}</div> : detail && (
+                             <div className="p-6">
                                 <h3 className="font-semibold text-gray-800 text-lg mb-4">技术演进时间线</h3>
-                                <div className="relative pl-6 border-l-2 border-slate-200 space-y-6">
-                                    {sortedTechDetails.map((item, index) => {
-                                        const reliabilityInfo = getReliabilityInfo(item.reliability);
-                                        return (
-                                            <div key={index} className="relative">
-                                                <div className={`absolute -left-[35px] top-1 w-5 h-5 bg-white border-4 border-${reliabilityInfo.color}-500 rounded-full`}></div>
-                                                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                                    <div className="flex justify-between items-center text-sm mb-2">
-                                                        <p className="font-bold text-blue-700">{item.name}</p>
-                                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
-                                                            <reliabilityInfo.Icon className="w-3 h-3" />
-                                                            {reliabilityInfo.text}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 mb-3">{item.description}</p>
-                                                    <div className="text-xs text-gray-400 flex items-center gap-1.5">
-                                                        <ClockIcon className="w-3.5 h-3.5" />
-                                                        <span>情报日期: {new Date(item.publish_date).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                <div className="space-y-6">
+                                    {sortedTechDetails.map((item, index) => (
+                                        <TimelineItem key={index} item={item} />
+                                    ))}
                                 </div>
-                                <h3 className="font-semibold text-gray-800 text-lg mt-8 mb-4">信源证据链</h3>
+                                <h3 className="font-semibold text-gray-800 text-lg mt-10 mb-4">信源证据链</h3>
                                 <div className="space-y-4">
-                                    {sources.length > 0 ? sources.map(source => (
-                                        <div key={source.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                            <a href={source.original_url} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 hover:underline block truncate">{source.title}</a>
-                                            <p className="text-xs text-slate-500 mt-1">{new Date(source.publish_date).toLocaleDateString()}</p>
-                                            <div className="mt-3 space-y-2 border-t pt-3">
-                                                {source.stage1_records.map(record => {
-                                                     const reliabilityInfo = getReliabilityInfo(record.reliability);
-                                                    return(
-                                                    <div key={record.id} className="p-3 bg-slate-50 rounded-lg border">
-                                                        <div className="flex justify-between items-center text-sm mb-1.5">
-                                                             <p className="font-semibold text-gray-800">{record.tech_name}</p>
-                                                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}>
-                                                                <reliabilityInfo.Icon className="w-3 h-3" />
-                                                                {reliabilityInfo.text}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-xs text-gray-600">{record.tech_description}</p>
-                                                    </div>
-                                                )})}
-                                            </div>
-                                        </div>
-                                    )) : <p className="text-sm text-center text-gray-500 py-6">未找到相关的信源证据</p>}
+                                    {sources.length > 0 
+                                        ? sources.map(source => <SourceArticle key={source.id} source={source} />) 
+                                        : <p className="text-sm text-center text-gray-500 py-6">未找到相关的信源证据</p>}
                                 </div>
-                            </>
+                            </div>
                         )}
-                    </main>
+                    </div>
                 </>
              )}
         </div>
@@ -187,8 +219,8 @@ export const CompetitivenessDashboard: React.FC = () => {
         try {
             const response = await getKnowledgeBase({
                 limit: 500,
-                car_brand: filters.car_brand,
-                tech_dimension: filters.tech_dimension,
+                car_brand: filters.car_brand.length > 0 ? filters.car_brand : undefined,
+                tech_dimension: filters.tech_dimension.length > 0 ? filters.tech_dimension : undefined,
                 min_reliability: filters.min_reliability,
                 search: filters.search || undefined,
                 sort_by: 'last_updated_at',
@@ -221,19 +253,19 @@ export const CompetitivenessDashboard: React.FC = () => {
     const toggleDimExpansion = (dim: string) => setExpandedDims(p => (p.has(dim) ? new Set([...p].filter(x => x !== dim)) : new Set([...p, dim])));
 
     return (
-        <div className="h-full flex gap-6 p-6 bg-slate-50 text-gray-800">
+        <div className="h-full grid grid-cols-12 gap-6 p-6 bg-slate-100 text-gray-800">
             {/* Left Panel */}
-            <div className="w-2/5 flex-shrink-0 flex flex-col h-full min-w-0">
+            <div className="col-span-4 flex flex-col h-full min-w-0">
                 <header className="pb-4 space-y-4 flex-shrink-0">
                     <div className="flex justify-between items-center">
-                        <h1 className="text-2xl font-bold text-gray-800">竞争力看板</h1>
-                        <button onClick={() => fetchData()} className="p-2 bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                            <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                        <h1 className="text-3xl font-bold text-gray-900">竞争力看板</h1>
+                        <button onClick={() => fetchData()} className="p-2 bg-white border border-slate-200/80 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                            <RefreshIcon className={`w-5 h-5 text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
                         </button>
                     </div>
                     {/* Filters */}
-                    <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
                              <MultiSelectDropdown
                                 label="汽车品牌"
                                 options={meta?.car_brands || []}
@@ -249,14 +281,14 @@ export const CompetitivenessDashboard: React.FC = () => {
                         </div>
                         <div className="relative">
                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full text-sm bg-white border border-gray-200 rounded-lg py-2 pl-9 pr-4 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="在结果中搜索技术点..." className="w-full text-sm bg-slate-50 border border-gray-200 rounded-lg py-2.5 pl-9 pr-4 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         </div>
                     </div>
                 </header>
-                <div className="flex-1 overflow-y-auto space-y-4 pr-2 -mr-2">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 -mr-2">
                     {isLoading ? <div className="text-center py-20 text-gray-500">加载中...</div>
-                    : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg">{error}</div>
-                    : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">没有找到符合条件的情报</div>
+                    : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg p-4">{error}</div>
+                    : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">没有符合条件的情报</div>
                     : Object.entries(groupedData).map(([dim, items]) => {
                         const Icon = techDimensionIcons[dim] || BrainIcon;
                         return (
@@ -269,14 +301,14 @@ export const CompetitivenessDashboard: React.FC = () => {
                                 <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(dim) ? 'rotate-180' : ''}`} />
                             </button>
                             {expandedDims.has(dim) && (
-                                <div className="border-t border-gray-200/80 p-2 space-y-1">
+                                <div className="border-t border-gray-100 p-2 space-y-1">
                                     {items.map(item => {
                                         const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
                                         const isActive = selectedKbId === item.id;
                                         return (
-                                            <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-md' : 'border-transparent hover:bg-slate-50'}`}>
+                                            <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
                                                 <div className="flex justify-between items-start">
-                                                    <p className={`flex-1 font-semibold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
+                                                    <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
                                                     <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
                                                 </div>
                                                 <div className="flex items-center justify-between mt-1">
@@ -293,7 +325,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                 </div>
             </div>
             {/* Right Panel */}
-            <main className="w-3/5 flex-shrink-0 h-full min-w-0">
+            <main className="col-span-8 h-full min-w-0">
                 <DetailPanel kbId={selectedKbId} onClose={() => setSelectedKbId(null)} />
             </main>
         </div>
@@ -322,12 +354,15 @@ const MultiSelectDropdown: React.FC<{label: string, options: string[], selected:
     
     return (
         <div className="relative text-sm" ref={ref}>
-            <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center bg-white border border-gray-200 rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center bg-slate-50 border border-gray-200 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-blue-500">
                 <span className="text-gray-700 truncate">{label}: {selected.length ? selected.join(', ') : '全部'}</span>
                 <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
-                <div className="absolute z-10 top-full mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-20 top-full mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                     <div className="flex items-center p-2 hover:bg-gray-100 cursor-pointer" onClick={() => onChange([])}>
+                        <span className="ml-2 font-semibold text-blue-600">清空选择</span>
+                    </div>
                     {options.map(option => (
                         <div key={option} onClick={() => handleSelect(option)} className="flex items-center p-2 hover:bg-gray-100 cursor-pointer">
                             <input type="checkbox" checked={selected.includes(option)} readOnly className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
