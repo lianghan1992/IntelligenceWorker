@@ -296,6 +296,24 @@ export interface KnowledgeBaseMeta {
   tech_dimensions: Record<string, string[]>;
 }
 
+export interface ExtractedTechnologyRecord {
+  id: number;
+  tech_name: string;
+  tech_description: string;
+  reliability: number;
+  publish_date: string;
+}
+
+export interface SourceArticleWithRecords {
+  id: string;
+  title: string;
+  original_url: string;
+  publish_date: string;
+  content?: string;
+  stage1_records: ExtractedTechnologyRecord[];
+}
+
+
 // --- Admin (Competitiveness) ---
 
 export interface CompetitivenessEntity {

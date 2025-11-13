@@ -2,7 +2,7 @@ import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } f
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
     DataQueryResponse, PaginatedEntitiesResponse, PaginatedResponse, KnowledgeBaseItem,
-    KnowledgeBaseDetail, KnowledgeBaseMeta
+    KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -108,6 +108,11 @@ export const getKnowledgeBaseDetail = (id: number): Promise<KnowledgeBaseDetail>
 
 export const getKnowledgeBaseMeta = (): Promise<KnowledgeBaseMeta> => {
     return apiFetch<KnowledgeBaseMeta>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/meta`);
+};
+
+export const getKnowledgeBaseSources = (id: number, params: any): Promise<SourceArticleWithRecords[]> => {
+    const query = createApiQuery({ ...params, with_records: true });
+    return apiFetch<SourceArticleWithRecords[]>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/${id}/sources${query}`);
 };
 
 export const exportKnowledgeBase = async (params: any): Promise<void> => {

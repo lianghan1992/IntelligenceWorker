@@ -343,11 +343,17 @@ curl -X GET http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/ar
 | `with_records` | boolean | `false` | 是否返回该维度下的初筛记录 |
 | `min_reliability` | integer | (无) | 仅返回可靠性分数不低于该阈值的初筛记录 |
 | `article_id` | string | (无) | 仅返回指定文章的溯源信息 |
+| `include_content` | boolean | `true` | 是否在返回中包含文章正文内容 |
+| `tech_name` | string | (无) | 仅返回包含该技术名称（模糊匹配）的文章与片段 |
 
 **cURL请求示例**
 ```bash
 # 返回来源文章并附带初筛记录，可靠性≥70
 curl -X GET "http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/sources?with_records=true&min_reliability=70" \
+-H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+
+# 指定技术名称进行溯源（如：灯光拣选系统），并返回正文
+curl -X GET "http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/sources?with_records=true&min_reliability=70&tech_name=%E7%81%AF%E5%85%89%E6%8B%A4%E9%80%89%E7%B3%BB%E7%BB%9F&include_content=true" \
 -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -356,9 +362,11 @@ curl -X GET "http://127.0.0.1:7657/competitiveness_analysis/knowledge_base/101/s
 [
   {
     "id": "uuid-123",
+    "title": "比亚迪发布会：智慧内饰灯光拣选系统详解",
     "original_url": "http://example.com/news/123",
     "publish_date": "2023-09-10",
     "created_at": "2023-09-11 10:00:00",
+    "content": "......全文内容......",
     "stage1_records": [
       {
         "id": "et-1",
