@@ -38,10 +38,29 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
 }
 
 export const createApiQuery = (params: any): string => {
-    // Filter out null, undefined, or empty string values from the parameters
-    const filteredParams = Object.fromEntries(
-        Object.entries(params).filter(([_, v]) => v !== null && v !== undefined && v !== '')
-    );
-    const queryString = new URLSearchParams(filteredParams as Record<string, string>).toString();
+    const searchParams = new URLSearchParams();
+
+    for (const key in params) {
+        if (Object.prototype.hasOwnProperty.call(params, key)) {
+            const value = params[key];
+
+            // Skip null, undefined, and empty strings
+            if (value === null || value === undefined || value === '') {
+                continue;
+            }
+
+            if (Array.isArray(value)) {
+                // For arrays, append each item if the array is not empty
+                if (value.length > 0) {
+                    value.forEach(item => searchParams.append(key, String(item)));
+                }
+            } else {
+                // For other types, just append
+                searchParams.append(key, String(value));
+            }
+        }
+    }
+
+    const queryString = searchParams.toString();
     return queryString ? `?${queryString}` : '';
-}
+};
