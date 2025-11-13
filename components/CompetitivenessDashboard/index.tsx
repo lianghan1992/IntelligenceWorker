@@ -263,7 +263,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         tech_dimension: string[];
         min_reliability: number;
         search: string;
-    }>({ car_brand: ['比亚迪'], tech_dimension: [], min_reliability: 0, search: '' });
+    }>({ car_brand: [], tech_dimension: [], min_reliability: 0, search: '' });
 
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -306,11 +306,16 @@ export const CompetitivenessDashboard: React.FC = () => {
 
     const groupedData = useMemo(() => {
         return kbItems.reduce((acc, item) => {
-            const { tech_dimension } = item;
-            if (!acc[tech_dimension]) acc[tech_dimension] = [];
-            acc[tech_dimension].push(item);
+            const { tech_dimension, sub_tech_dimension } = item;
+            if (!acc[tech_dimension]) {
+                acc[tech_dimension] = {};
+            }
+            if (!acc[tech_dimension][sub_tech_dimension]) {
+                acc[tech_dimension][sub_tech_dimension] = [];
+            }
+            acc[tech_dimension][sub_tech_dimension].push(item);
             return acc;
-        }, {} as Record<string, KnowledgeBaseItem[]>);
+        }, {} as Record<string, Record<string, KnowledgeBaseItem[]>>);
     }, [kbItems]);
     
     const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
@@ -361,39 +366,49 @@ export const CompetitivenessDashboard: React.FC = () => {
                         {isLoading ? <div className="text-center py-20 text-gray-500">加载中...</div>
                         : error ? <div className="text-center py-20 text-red-500 bg-red-50 rounded-lg p-4">{error}</div>
                         : Object.keys(groupedData).length === 0 ? <div className="text-center py-20 text-gray-500 bg-white rounded-lg border">没有符合条件的情报</div>
-                        : Object.entries(groupedData).map(([dim, items]) => {
-                            const Icon = techDimensionIcons[dim] || BrainIcon;
+                        : Object.entries(groupedData).map(([primaryDim, subDimGroups]) => {
+                            const Icon = techDimensionIcons[primaryDim] || BrainIcon;
                             return (
-                            <div key={dim} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
-                                <button onClick={() => toggleDimExpansion(dim)} className="w-full flex justify-between items-center p-4 bg-slate-50/50 hover:bg-slate-100/70 transition-colors">
-                                    <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
-                                        <Icon className="w-5 h-5 text-gray-500" />
-                                        {dim} ({items.length})
-                                    </h2>
-                                    <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(dim) ? 'rotate-180' : ''}`} />
-                                </button>
-                                {expandedDims.has(dim) && (
-                                    <div className="border-t border-gray-100 p-2 space-y-1">
-                                        {items.map(item => {
-                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
-                                            const isActive = selectedKbId === item.id;
-                                            return (
-                                                <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
-                                                    <div className="flex justify-between items-start">
-                                                        <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
-                                                        <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between mt-1.5">
-                                                        <span className="text-gray-500 text-xs">{item.sub_tech_dimension}</span>
-                                                        <span className="text-gray-400 flex items-center gap-1 text-xs"><DocumentTextIcon className="w-3 h-3"/>{item.source_article_count}</span>
+                                <div key={primaryDim} className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+                                    <button onClick={() => toggleDimExpansion(primaryDim)} className="w-full flex justify-between items-center p-4 bg-slate-50/50 hover:bg-slate-100/70 transition-colors">
+                                        <h2 className="font-bold text-base text-gray-900 flex items-center gap-3">
+                                            <Icon className="w-5 h-5 text-gray-500" />
+                                            {primaryDim} ({Object.values(subDimGroups).flat().length})
+                                        </h2>
+                                        <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform ${expandedDims.has(primaryDim) ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {expandedDims.has(primaryDim) && (
+                                        <div className="border-t border-gray-100">
+                                            {Object.entries(subDimGroups).map(([subDim, items]) => (
+                                                <div key={subDim} className="pt-2">
+                                                    <h3 className="px-4 pt-1 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">{subDim}</h3>
+                                                    <div className="p-2 space-y-1">
+                                                        {items.map(item => {
+                                                            const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                                            const isActive = selectedKbId === item.id;
+                                                            return (
+                                                                <div key={item.id} onClick={() => setSelectedKbId(item.id)} className={`group cursor-pointer p-3 rounded-lg border-2 transition-all duration-200 ${isActive ? 'bg-blue-50 border-blue-500 shadow-inner' : 'border-transparent hover:bg-slate-50/70'}`}>
+                                                                    <div className="flex justify-between items-start">
+                                                                        <p className={`flex-1 font-bold text-gray-800 text-sm truncate group-hover:text-blue-600 ${isActive && 'text-blue-700'}`}>{item.consolidated_tech_preview.name}</p>
+                                                                        <span className={`ml-2 flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full flex items-center gap-1 bg-${reliabilityInfo.color}-100 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3"/>{reliabilityInfo.text}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-end mt-1.5">
+                                                                        <span className="text-gray-400 flex items-center gap-1 text-xs">
+                                                                            <ClockIcon className="w-3 h-3"/>
+                                                                            {new Date(item.last_updated_at).toLocaleDateString()}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        )})}
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
                 {/* Right Panel */}

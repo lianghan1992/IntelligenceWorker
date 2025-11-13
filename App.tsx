@@ -89,24 +89,37 @@ const App: React.FC = () => {
     if (isLoading) {
         return <div className="flex items-center justify-center h-full text-gray-600">正在加载数据...</div>;
     }
+
+    // Views that manage their own internal scrolling
+    const viewsWithOwnScroll: View[] = ['cockpit', 'techboard', 'admin'];
+    if (viewsWithOwnScroll.includes(view)) {
+        switch (view) {
+            case 'cockpit': return <StrategicCockpit subscriptions={subscriptions} />;
+            case 'techboard': return <CompetitivenessDashboard />;
+            case 'admin': return <AdminPage />;
+        }
+    }
+
+    // All other views get a scrollable wrapper
+    let viewComponent;
     switch (view) {
       case 'dashboard':
-        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
-      case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} />;
-      case 'techboard':
-        return <CompetitivenessDashboard />;
+        viewComponent = <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+        break;
       case 'dives':
-        return <DeepDives dives={deepDives} />;
+        viewComponent = <DeepDives dives={deepDives} />;
+        break;
       case 'events':
-        return <IndustryEvents />;
+        viewComponent = <IndustryEvents />;
+        break;
       case 'ai':
-        return <ReportGenerator />;
-      case 'admin':
-        return <AdminPage />;
+        viewComponent = <ReportGenerator />;
+        break;
       default:
-        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+        viewComponent = <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
     }
+
+    return <div className="h-full overflow-y-auto">{viewComponent}</div>;
   };
 
   return (
@@ -117,7 +130,7 @@ const App: React.FC = () => {
             onNavigate={handleNavigate}
             onUpgrade={() => setShowPricingModal(true)}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 min-h-0">
           {renderView()}
         </main>
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
