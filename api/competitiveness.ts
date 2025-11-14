@@ -170,3 +170,53 @@ export const exportKnowledgeBase = async (params: any): Promise<void> => {
         throw error; // Re-throw to be caught by the component
     }
 };
+
+
+// --- NEW DASHBOARD APIs ---
+
+export interface DashboardOverview {
+    processed_article_count: number;
+    stage1_total: number;
+    kb_total: number;
+    kb_last_updated_at: string;
+    kb_reliability_avg: number;
+}
+
+export interface DashboardTrendItem {
+    date: string;
+    count: number;
+}
+
+export interface DashboardDistributionItem {
+    name: string;
+    count: number;
+}
+
+export interface DashboardQuality {
+    reliability_distribution: { reliability: number; count: number; percentage: number }[];
+    low_reliability_top: { name: string; car_brand: string; tech_dimension: string; reliability: number }[];
+}
+
+export const getDashboardOverview = (): Promise<DashboardOverview> => {
+    return apiFetch<DashboardOverview>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/overview`);
+};
+
+export const getDashboardTrends = (params: any): Promise<{ series: DashboardTrendItem[] }> => {
+    const query = createApiQuery(params);
+    return apiFetch<{ series: DashboardTrendItem[] }>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/trends${query}`);
+};
+
+export const getDashboardDistributionBrand = (params: any): Promise<{ items: DashboardDistributionItem[] }> => {
+    const query = createApiQuery(params);
+    return apiFetch<{ items: DashboardDistributionItem[] }>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/distribution/brand${query}`);
+};
+
+export const getDashboardDistributionTechDimension = (params: any): Promise<{ items: DashboardDistributionItem[] }> => {
+    const query = createApiQuery(params);
+    return apiFetch<{ items: DashboardDistributionItem[] }>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/distribution/tech_dimension${query}`);
+};
+
+export const getDashboardQuality = (params: any): Promise<DashboardQuality> => {
+    const query = createApiQuery(params);
+    return apiFetch<DashboardQuality>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/quality${query}`);
+};

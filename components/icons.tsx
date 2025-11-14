@@ -273,23 +273,22 @@ export const ViewGridIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
     </Icon>
 );
 
-// FIX: Added missing ShieldExclamationIcon. Using ExclamationTriangleIcon from heroicons-v2 for visual representation.
 export const ShieldExclamationIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <Icon {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+  <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M10 1.5c-4.68 0-8.5 3.82-8.5 8.5s3.82 8.5 8.5 8.5 8.5-3.82 8.5-8.5-3.82-8.5-8.5-8.5zM9 13.5a1 1 0 112 0 1 1 0 01-2 0zm0-7a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
   </Icon>
 );
 
-// FIX: Added missing ShieldCheckIcon from heroicons-v2.
 export const ShieldCheckIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <Icon {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286Zm0 13.036h.008v.008H12v-.008Z" />
+  <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+    <path d="M10 2a.75.75 0 01.75.75v.512c.38.08.748.192 1.105.334 1.132.455 2.01.993 2.68 1.56.67.566 1.12 1.183 1.373 1.772.062.146.115.293.16.442V13.5a.75.75 0 01-1.5 0V8.22a4.973 4.973 0 00-.702-2.315 4.88 4.88 0 00-1.44-1.63c-.596-.45-1.34-.84-2.158-1.11V3.75A.75.75 0 0110 3z" />
+    <path d="M3.004 8.22a.75.75 0 01-1.5 0V6.75A.75.75 0 012.25 6c.38-.08.748-.192 1.105-.334 1.132-.455 2.01-.993 2.68-1.56.67-.566 1.12-1.183 1.373-1.772C7.47 2.186 7.524 2.04 7.568 1.892V13.5a.75.75 0 01-1.5 0V8.22z" />
+    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.23-10.42a.75.75 0 10-1.06-1.06L7.49 8.196a.75.75 0 000 1.06l1.22 1.22a.75.75 0 001.06 0l2.75-2.75a.75.75 0 000-1.06l-1.22-1.22z" clipRule="evenodd" />
   </Icon>
 );
 
-// FIX: Added missing AnnotationIcon. Using ChatBubbleLeftEllipsisIcon from heroicons-v2 for visual representation.
 export const AnnotationIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <Icon {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.794 9 8.25Z" />
+  <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" clipRule="evenodd" />
   </Icon>
 );

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, TechDetailHistoryItem, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
-import { getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability } from '../../api/competitiveness';
+import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
+import { 
+    getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability,
+    getDashboardOverview, getDashboardDistributionBrand, getDashboardDistributionTechDimension, getDashboardQuality,
+    DashboardOverview, DashboardDistributionItem, DashboardQuality
+} from '../../api/competitiveness';
+import { LazyLoadModule } from '../Dashboard/LazyLoadModule';
 import { 
     RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
     TrendingUpIcon, EyeIcon, ClockIcon, SearchIcon, ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon
@@ -9,19 +14,13 @@ import {
 // --- Helper Functions & Constants ---
 const getReliabilityInfo = (score: number) => {
     switch (score) {
-        case 4:
-            return { text: '官方证实', color: 'green', Icon: CheckCircleIcon };
-        case 3:
-            return { text: '可信度高', color: 'blue', Icon: ShieldCheckIcon };
-        case 2:
-            return { text: '疑似传闻', color: 'amber', Icon: AnnotationIcon };
-        case 1:
-            return { text: '已经辟谣', color: 'red', Icon: ShieldExclamationIcon };
-        default:
-            return { text: '未知', color: 'gray', Icon: QuestionMarkCircleIcon };
+        case 4: return { text: '官方证实', color: 'green', Icon: CheckCircleIcon };
+        case 3: return { text: '可信度高', color: 'blue', Icon: ShieldCheckIcon };
+        case 2: return { text: '疑似传闻', color: 'amber', Icon: AnnotationIcon };
+        case 1: return { text: '已经辟谣', color: 'red', Icon: ShieldExclamationIcon };
+        default: return { text: '未知', color: 'gray', Icon: QuestionMarkCircleIcon };
     }
 };
-
 
 const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '智能驾驶': BrainIcon, '智能座舱': UsersIcon, '智能网联': EyeIcon,
@@ -29,9 +28,10 @@ const techDimensionIcons: { [key: string]: React.FC<any> } = {
     '三电系统': LightBulbIcon, 'AI技术': BrainIcon
 };
 
+
 // --- Skeleton Components ---
 const DetailPanelSkeleton: React.FC = () => (
-    <div className="animate-pulse h-full">
+    <div className="animate-pulse h-full flex flex-col">
         <header className="p-6 border-b border-gray-200">
             <div className="h-4 w-1/3 bg-gray-200 rounded"></div>
             <div className="h-8 w-1/2 bg-gray-200 rounded mt-2"></div>
@@ -46,12 +46,105 @@ const DetailPanelSkeleton: React.FC = () => (
     </div>
 );
 
-// --- Sub-Component: DetailPanel ---
+const DashboardSectionSkeleton: React.FC = () => (
+    <div className="animate-pulse space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {Array(4).fill(0).map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-xl"></div>)}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-64 bg-gray-200 rounded-xl"></div>
+            <div className="h-64 bg-gray-200 rounded-xl"></div>
+        </div>
+    </div>
+);
+
+
+// --- Dashboard Sub-Components ---
+const KpiCard: React.FC<{ title: string; value: string | number; description: string }> = ({ title, value, description }) => (
+    <div className="bg-white p-4 rounded-xl border border-gray-200/80">
+        <p className="text-sm text-gray-500 font-medium">{title}</p>
+        <p className="text-3xl font-bold text-gray-800 mt-2">{value}</p>
+        <p className="text-xs text-gray-400 mt-1">{description}</p>
+    </div>
+);
+
+const BarChartCard: React.FC<{ title: string; data: DashboardDistributionItem[] }> = ({ title, data }) => {
+    const maxCount = Math.max(...data.map(item => item.count), 0);
+    return (
+        <div className="bg-white p-4 rounded-xl border border-gray-200/80">
+            <h3 className="font-semibold text-gray-800 mb-4">{title}</h3>
+            <div className="space-y-3">
+                {data.map(item => (
+                    <div key={item.name} className="text-sm">
+                        <div className="flex justify-between mb-1">
+                            <span className="text-gray-600">{item.name}</span>
+                            <span className="font-medium text-gray-800">{item.count.toLocaleString()}</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(item.count / maxCount) * 100}%` }}></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+
+// --- Main Dashboard Section Component ---
+const DashboardSection: React.FC = () => {
+    const [overview, setOverview] = useState<DashboardOverview | null>(null);
+    const [brandDist, setBrandDist] = useState<DashboardDistributionItem[]>([]);
+    const [techDist, setTechDist] = useState<DashboardDistributionItem[]>([]);
+    const [quality, setQuality] = useState<DashboardQuality | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [overviewData, brandData, techData, qualityData] = await Promise.all([
+                    getDashboardOverview(),
+                    getDashboardDistributionBrand({ top_n: 5 }),
+                    getDashboardDistributionTechDimension({ top_n: 5 }),
+                    getDashboardQuality({ top_n: 5 })
+                ]);
+                setOverview(overviewData);
+                setBrandDist(brandData.items);
+                setTechDist(techData.items);
+                setQuality(qualityData);
+            } catch (error) {
+                console.error("Failed to load dashboard data:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    if (isLoading) return <DashboardSectionSkeleton />;
+
+    return (
+        <div className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <KpiCard title="知识库情报总数" value={overview?.kb_total.toLocaleString() ?? 'N/A'} description="已聚合的技术情报点" />
+                <KpiCard title="初筛情报总数" value={overview?.stage1_total.toLocaleString() ?? 'N/A'} description="从文章中提取的原始情报" />
+                <KpiCard title="已处理文章数" value={overview?.processed_article_count.toLocaleString() ?? 'N/A'} description="进入分析流程的文章总数" />
+                <KpiCard title="平均可靠性" value={overview?.kb_reliability_avg.toFixed(2) ?? 'N/A'} description="1-4分制，越高越可靠" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <BarChartCard title="品牌情报分布 (Top 5)" data={brandDist} />
+                <BarChartCard title="技术领域分布 (Top 5)" data={techDist} />
+            </div>
+        </div>
+    );
+};
+
+// --- Traceability Timeline Sub-Components ---
 const TimelineItem: React.FC<{ record: ExtractedTechnologyRecord; article: any; isLast: boolean; }> = ({ record, article, isLast }) => {
     const reliabilityInfo = getReliabilityInfo(record.reliability);
     return (
         <div className="relative pl-10 group">
-            <div className="absolute left-0 top-1.5 w-4 h-4 bg-white border-2 border-slate-300 rounded-full z-10 ring-4 ring-slate-50"></div>
+            <div className={`absolute left-0 top-1.5 w-4 h-4 bg-white border-2 border-slate-300 rounded-full z-10 ring-4 ring-slate-50`}></div>
             {!isLast && <div className="absolute left-[7px] top-2 h-full w-0.5 bg-slate-200"></div>}
 
             <div className="border border-gray-200/80 rounded-xl p-4 bg-white hover:shadow-lg transition-shadow duration-300">
@@ -79,7 +172,6 @@ const TimelineItem: React.FC<{ record: ExtractedTechnologyRecord; article: any; 
     );
 };
 
-
 interface DetailPanelProps {
     kbId: number | null;
     selectedTechName: string | null;
@@ -103,39 +195,26 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
             setIsLoading(true);
             setError('');
             setTraceData(null);
-            if (contentRef.current) contentRef.current.scrollTop = 0;
+            contentRef.current?.scrollTo(0, 0);
 
             try {
                 const data = await getKnowledgeBaseTraceability(kbId, selectedTechName);
-                if (!isCancelled) {
-                    setTraceData(data);
-                }
+                if (!isCancelled) setTraceData(data);
             } catch (err: any) {
-                if (!isCancelled) {
-                    setError(err.message || '加载溯源数据失败');
-                }
+                if (!isCancelled) setError(err.message || '加载溯源数据失败');
             } finally {
-                if (!isCancelled) {
-                    setIsLoading(false);
-                }
+                if (!isCancelled) setIsLoading(false);
             }
         };
 
         fetchTraceability();
-        
         return () => { isCancelled = true; };
     }, [kbId, selectedTechName]);
 
-
     const { timelineItems, articleMap } = useMemo(() => {
         if (!traceData) return { timelineItems: [], articleMap: new Map() };
-
-        const sortedItems = [...(traceData.stage1_records || [])].sort((a, b) => 
-            new Date(a.publish_date).getTime() - new Date(b.publish_date).getTime()
-        );
-        
+        const sortedItems = [...(traceData.stage1_records || [])].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
         const articles = new Map((traceData.source_articles || []).map(a => [a.id, a]));
-
         return { timelineItems: sortedItems, articleMap: articles };
     }, [traceData]);
     
@@ -151,9 +230,9 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
                 <>
                     <header className="p-6 border-b border-gray-200 flex justify-between items-start flex-shrink-0">
                         {isLoading ? (
-                            <div className="w-full">
-                                <div className="h-4 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                                <div className="h-8 bg-gray-200 rounded w-1/2 mt-2 animate-pulse"></div>
+                            <div className="w-full animate-pulse">
+                                <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                                <div className="h-8 bg-gray-200 rounded w-1/2 mt-2"></div>
                             </div>
                         ) : traceData && (
                              <div>
@@ -169,18 +248,14 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
                                 <h3 className="font-bold text-gray-800 text-xl mb-6">技术演进时间线: “{selectedTechName}”</h3>
                                 {timelineItems.length > 0 ? (
                                     <div className="space-y-6">
-                                        {timelineItems.map((record, index) => {
-                                            const article = articleMap.get(record.article_id);
-                                            if (!article) return null;
-                                            return (
-                                                <TimelineItem 
-                                                    key={record.id} 
-                                                    record={record}
-                                                    article={article}
-                                                    isLast={index === timelineItems.length - 1} 
-                                                />
-                                            )
-                                        })}
+                                        {timelineItems.map((record, index) => (
+                                            <TimelineItem 
+                                                key={record.id} 
+                                                record={record}
+                                                article={articleMap.get(record.article_id)}
+                                                isLast={index === timelineItems.length - 1} 
+                                            />
+                                        ))}
                                     </div>
                                 ) : (
                                     <p className="text-sm text-center text-gray-500 py-8 bg-white border rounded-lg">未找到相关的演进记录。</p>
@@ -197,27 +272,17 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
     const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
-    const [detailsCache, setDetailsCache] = useState<Record<number, KnowledgeBaseDetail>>({});
-    const [loadingDetails, setLoadingDetails] = useState<Set<number>>(new Set());
-    
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [selectedInfo, setSelectedInfo] = useState<{ kbId: number; techName: string } | null>(null);
 
     const [meta, setMeta] = useState<KnowledgeBaseMeta | null>(null);
-    const [filters, setFilters] = useState<{
-        car_brand: string[];
-        tech_dimension: string[];
-        min_reliability: number;
-        search: string;
-    }>({ car_brand: [], tech_dimension: [], min_reliability: 0, search: '' });
+    const [filters, setFilters] = useState<{ car_brand: string; tech_dimension: string; search: string; }>({ car_brand: '', tech_dimension: '', search: '' });
 
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        const handler = setTimeout(() => {
-            setFilters(f => ({ ...f, search: searchTerm }));
-        }, 500);
+        const handler = setTimeout(() => { setFilters(f => ({ ...f, search: searchTerm })); }, 500);
         return () => clearTimeout(handler);
     }, [searchTerm]);
 
@@ -225,9 +290,7 @@ export const CompetitivenessDashboard: React.FC = () => {
         getKnowledgeBaseMeta().then(setMeta).catch(e => console.error("Failed to fetch meta", e));
     }, []);
 
-    const hasActiveFilters = useMemo(() => {
-        return filters.car_brand.length > 0 || filters.tech_dimension.length > 0 || filters.search.trim() !== '';
-    }, [filters]);
+    const hasActiveFilters = useMemo(() => filters.car_brand || filters.tech_dimension || filters.search.trim() !== '', [filters]);
 
     const fetchData = useCallback(async (showLoading = true) => {
         if (!hasActiveFilters) {
@@ -235,18 +298,15 @@ export const CompetitivenessDashboard: React.FC = () => {
             if (showLoading) setIsLoading(false);
             return;
         }
-
         if (showLoading) setIsLoading(true);
         setError('');
         try {
             const response = await getKnowledgeBase({
-                limit: 500,
-                car_brand: filters.car_brand.length > 0 ? filters.car_brand : undefined,
-                tech_dimension: filters.tech_dimension.length > 0 ? filters.tech_dimension : undefined,
-                min_reliability: filters.min_reliability > 0 ? filters.min_reliability : undefined,
+                limit: 200,
+                car_brand: filters.car_brand ? [filters.car_brand] : undefined,
+                tech_dimension: filters.tech_dimension ? [filters.tech_dimension] : undefined,
                 search: filters.search || undefined,
-                sort_by: 'last_updated_at',
-                order: 'desc',
+                sort_by: 'last_updated_at', order: 'desc',
             });
             setKbItems(response.items || []);
         } catch (err: any) {
@@ -259,62 +319,23 @@ export const CompetitivenessDashboard: React.FC = () => {
     useEffect(() => {
         fetchData();
         setSelectedInfo(null);
-        setDetailsCache({});
     }, [fetchData]);
 
-    const fetchDetailForItem = useCallback(async (kbId: number) => {
-        if (detailsCache[kbId] || loadingDetails.has(kbId)) return;
-        setLoadingDetails(prev => new Set(prev).add(kbId));
-        try {
-            const detailData = await getKnowledgeBaseDetail(kbId);
-            setDetailsCache(prev => ({ ...prev, [kbId]: detailData }));
-        } catch (err) {
-            console.error(`Failed to load details for item ${kbId}`, err);
-        } finally {
-            setLoadingDetails(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(kbId);
-                return newSet;
-            });
-        }
-    }, [detailsCache, loadingDetails]);
+    const groupedData = useMemo(() => kbItems.reduce((acc, item) => {
+        const { tech_dimension } = item;
+        if (!acc[tech_dimension]) acc[tech_dimension] = [];
+        acc[tech_dimension].push(item);
+        return acc;
+    }, {} as Record<string, KnowledgeBaseItem[]>), [kbItems]);
     
-    const groupedData = useMemo(() => {
-        return kbItems.reduce((acc, item) => {
-            const { tech_dimension } = item;
-            if (!acc[tech_dimension]) {
-                acc[tech_dimension] = [];
-            }
-            acc[tech_dimension].push(item);
-            return acc;
-        }, {} as Record<string, KnowledgeBaseItem[]>);
-    }, [kbItems]);
+    const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
+    useEffect(() => setExpandedDims(new Set(Object.keys(groupedData))), [groupedData]);
     
-    const [expandedPrimaryDims, setExpandedPrimaryDims] = useState<Set<string>>(new Set());
-    const [expandedSubDims, setExpandedSubDims] = useState<Set<number>>(new Set());
-    
-    useEffect(() => setExpandedPrimaryDims(new Set(Object.keys(groupedData))), [groupedData]);
-    
-    const togglePrimaryDimExpansion = (dim: string) => setExpandedPrimaryDims(p => {
+    const toggleDimExpansion = (dim: string) => setExpandedDims(p => {
         const newSet = new Set(p);
         if (newSet.has(dim)) newSet.delete(dim); else newSet.add(dim);
         return newSet;
     });
-    
-    const toggleSubDimExpansion = useCallback((kbId: number) => {
-        setExpandedSubDims(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(kbId)) {
-                newSet.delete(kbId);
-            } else {
-                newSet.add(kbId);
-                if (!detailsCache[kbId]) {
-                    fetchDetailForItem(kbId);
-                }
-            }
-            return newSet;
-        });
-    }, [detailsCache, fetchDetailForItem]);
 
     const renderLeftPanelContent = () => {
         if (isLoading) return <div className="text-center p-10 text-gray-500">加载中...</div>;
@@ -326,53 +347,30 @@ export const CompetitivenessDashboard: React.FC = () => {
             <div className="space-y-2">
             {Object.entries(groupedData).map(([dim, items]) => {
                 const Icon = techDimensionIcons[dim] || BrainIcon;
-                const isPrimaryExpanded = expandedPrimaryDims.has(dim);
+                const isExpanded = expandedDims.has(dim);
                 return (
                     <div key={dim}>
-                        <button onClick={() => togglePrimaryDimExpansion(dim)} className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-gray-100">
-                            <div className="flex items-center gap-3">
-                                <Icon className="w-5 h-5 text-gray-500" />
-                                <span className="font-semibold text-gray-800">{dim} ({items.length})</span>
-                            </div>
-                            <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isPrimaryExpanded ? 'rotate-180' : ''}`} />
+                        <button onClick={() => toggleDimExpansion(dim)} className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-gray-100">
+                            <div className="flex items-center gap-3"><Icon className="w-5 h-5 text-gray-500" /><span className="font-semibold text-gray-800">{dim} ({items.length})</span></div>
+                            <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                         </button>
-                        {isPrimaryExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
+                        {isExpanded && <div className="pl-4 pt-1 pb-2 border-l-2 ml-5 space-y-1">
                             {items.map(item => {
-                                const isSubExpanded = expandedSubDims.has(item.id);
-                                const detail = detailsCache[item.id];
-                                const techPoints = detail?.consolidated_tech_details;
-
-                                return <div key={item.id}>
-                                    <button onClick={() => toggleSubDimExpansion(item.id)} className="w-full flex justify-between items-center p-2 rounded-md hover:bg-gray-100 text-left">
-                                        <span className="font-medium text-sm text-gray-700">{item.sub_tech_dimension}</span>
-                                        <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isSubExpanded ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    {isSubExpanded && <div className="pl-4 py-1 space-y-1">
-                                        {loadingDetails.has(item.id) ? (
-                                            <div className="text-xs text-center p-4 text-gray-500">加载中...</div>
-                                        ) : (
-                                            techPoints && techPoints.map(techPoint => {
-                                                const reliabilityInfo = getReliabilityInfo(techPoint.reliability);
-                                                const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
-                                                return (
-                                                    <div key={techPoint.name + item.id} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
-                                                        <div className="flex justify-between items-start gap-2">
-                                                            <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>{techPoint.name}</p>
-                                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {(techPoint.source_article_ids || []).length}篇</span>
-                                                        </div>
-                                                        <div className="flex justify-between items-center mt-1.5">
-                                                            <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
-                                                            <span className="text-xs text-gray-400">{techPoint.publish_date ? new Date(techPoint.publish_date).toLocaleDateString() : '无日期'}</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
-                                        )}
-                                        {!loadingDetails.has(item.id) && (!techPoints || techPoints.length === 0) && (
-                                            <div className="text-xs text-center p-4 text-gray-500">无数据或加载失败</div>
-                                        )}
-                                    </div>}
-                                </div>
+                                const techPoint = item.consolidated_tech_preview;
+                                const reliabilityInfo = getReliabilityInfo(item.current_reliability_score);
+                                const isActive = selectedInfo?.kbId === item.id && selectedInfo?.techName === techPoint.name;
+                                return (
+                                    <div key={item.id} onClick={() => setSelectedInfo({ kbId: item.id, techName: techPoint.name })} className={`p-2.5 rounded-lg cursor-pointer transition-colors ${isActive ? 'bg-blue-100' : 'hover:bg-gray-100'}`}>
+                                        <div className="flex justify-between items-start gap-2">
+                                            <p className={`text-sm font-medium ${isActive ? 'text-blue-800' : 'text-gray-800'}`}>【{item.car_brand}】{item.sub_tech_dimension}: {techPoint.name}</p>
+                                            <span className="px-2 py-0.5 text-xs font-semibold text-gray-600 bg-gray-200/70 rounded-full whitespace-nowrap">来源: {item.source_article_count}篇</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-1.5">
+                                            <span className={`text-xs font-medium flex items-center gap-1 text-${reliabilityInfo.color}-800`}><reliabilityInfo.Icon className="w-3 h-3" />{reliabilityInfo.text}</span>
+                                            <span className="text-xs text-gray-400">{techPoint.publish_date ? new Date(techPoint.publish_date).toLocaleDateString() : '无日期'}</span>
+                                        </div>
+                                    </div>
+                                );
                             })}
                         </div>}
                     </div>
@@ -383,42 +381,43 @@ export const CompetitivenessDashboard: React.FC = () => {
     };
 
     return (
-        <div className="h-full grid grid-cols-[480px_1fr] gap-6 p-6 bg-slate-100/50">
-            {/* Left Panel */}
-            <aside className="w-full flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-                <header className="p-4 border-b border-gray-200 flex-shrink-0">
-                     <h1 className="text-2xl font-bold text-gray-800 mb-4 px-2">竞争力看板</h1>
-                     <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                            {/* Brand Filter */}
-                            <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value ? [e.target.value] : []}))} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="">全部品牌</option>
-                                {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                            {/* Tech Dimension Filter */}
-                            <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value ? [e.target.value] : []}))} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="">全部技术领域</option>
-                                {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        <div className="relative">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full bg-gray-100 border-transparent rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
-                        </div>
-                     </div>
-                </header>
-                <div className="flex-1 overflow-y-auto p-2">
-                    {renderLeftPanelContent()}
-                </div>
-            </aside>
-            {/* Right Panel */}
-            <main className="flex-1 h-full min-w-0">
-                <DetailPanel 
-                    kbId={selectedInfo?.kbId || null}
-                    selectedTechName={selectedInfo?.techName || null}
-                    onClose={() => setSelectedInfo(null)}
-                />
-            </main>
+        <div className="h-full flex flex-col p-6 bg-slate-100/50">
+            <LazyLoadModule placeholder={<DashboardSectionSkeleton />}>
+                <DashboardSection />
+            </LazyLoadModule>
+            <div className="flex-1 grid grid-cols-[480px_1fr] gap-6 min-h-0">
+                <aside className="w-full flex flex-col h-full bg-white rounded-2xl border border-slate-200/80 shadow-sm">
+                    <header className="p-4 border-b border-gray-200 flex-shrink-0">
+                         <h1 className="text-2xl font-bold text-gray-800 mb-4 px-2">情报探索</h1>
+                         <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                                <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value}))} value={filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">全部品牌</option>
+                                    {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                                <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value}))} value={filters.tech_dimension} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">全部技术领域</option>
+                                    {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                            </div>
+                            <div className="relative">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索技术点..." className="w-full bg-gray-100 border-transparent rounded-lg py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"/>
+                            </div>
+                         </div>
+                    </header>
+                    <div className="flex-1 overflow-y-auto p-2">
+                        {renderLeftPanelContent()}
+                    </div>
+                </aside>
+                <main className="flex-1 h-full min-w-0">
+                    <DetailPanel 
+                        kbId={selectedInfo?.kbId || null}
+                        selectedTechName={selectedInfo?.techName || null}
+                        onClose={() => setSelectedInfo(null)}
+                    />
+                </main>
+            </div>
         </div>
     );
 };
