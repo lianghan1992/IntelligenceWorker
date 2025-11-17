@@ -1,9 +1,9 @@
 
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { CloseIcon, PlusIcon, PencilIcon } from '../icons';
 import { createLivestreamTask, getLivestreamPrompts } from '../../api';
 import { LivestreamPrompt } from '../../types';
-import { PromptEditModal } from './PromptEditModal';
 
 
 interface AddEventModalProps {
@@ -22,7 +22,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [formData, setFormData] = useState({
         url: '',
         livestream_name: '',
-        entity: '',
         start_time: '',
         prompt_file: '',
     });
@@ -33,7 +32,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [error, setError] = useState('');
 
     const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
-    const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchPrompts = async () => {
@@ -50,10 +48,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         };
         fetchPrompts();
     }, []);
-
-    const selectedPromptForEdit = useMemo(() => {
-        return prompts.find(p => p.name === formData.prompt_file) || null;
-    }, [prompts, formData.prompt_file]);
 
     const isFormValid = useMemo(() => {
         return formData.url.trim() !== '' && formData.livestream_name.trim() !== '' && formData.start_time.trim() !== '';
@@ -104,17 +98,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
             setIsLoading(false);
         }
     };
-    
-    const handlePromptSave = async () => {
-        setIsPromptModalOpen(false);
-        try {
-            const fetchedPrompts = await getLivestreamPrompts();
-            setPrompts(fetchedPrompts);
-        } catch (err) {
-            console.error("Failed to refetch livestream prompts:", err);
-            setError("无法重新加载提示词列表。");
-        }
-    };
 
     return (
         <>
@@ -142,10 +125,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                 <label className="block text-sm font-medium text-gray-700 mb-1">直播名称 <span className="text-red-500">*</span></label>
                                 <input name="livestream_name" type="text" value={formData.livestream_name} onChange={handleChange} placeholder="例如：小米汽车SU7发布会" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
-                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">关联实体 (可选)</label>
-                                <input name="entity" type="text" value={formData.entity} onChange={handleChange} placeholder="例如：小米汽车" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
-                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>
                                 <input name="start_time" type="datetime-local" value={formData.start_time} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
@@ -165,15 +144,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                             <option key={p.name} value={p.name}>{p.name}</option>
                                         ))}
                                     </select>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsPromptModalOpen(true)}
-                                        disabled={!selectedPromptForEdit}
-                                        className="p-2.5 bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                        title="编辑选中的提示词"
-                                    >
-                                        <PencilIcon className="w-5 h-5" />
-                                    </button>
                                 </div>
                             </div>
                             <div>
@@ -202,13 +172,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                     </div>
                 </div>
             </div>
-            {isPromptModalOpen && selectedPromptForEdit && (
-                <PromptEditModal
-                    prompt={selectedPromptForEdit}
-                    onClose={() => setIsPromptModalOpen(false)}
-                    onSave={handlePromptSave}
-                />
-            )}
         </>
     );
 };

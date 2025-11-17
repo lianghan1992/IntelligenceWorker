@@ -1,7 +1,9 @@
 
+
 import React, { useState, useRef, useMemo } from 'react';
 import { CloseIcon, PlusIcon } from '../icons';
-import { createHistoryLivestreamTask } from '../../api';
+// FIX: createHistoryLivestreamTask is deprecated and removed from API.
+// import { createHistoryLivestreamTask } from '../../api';
 
 interface AddHistoryEventModalProps {
   onClose: () => void;
@@ -67,26 +69,12 @@ export const AddHistoryEventModal: React.FC<AddHistoryEventModalProps> = ({ onCl
         }
         setIsLoading(true);
         setError('');
-        try {
-            const startTimeUTC = new Date(formData.start_time).toISOString();
-            
-            let imageBase64: string | undefined = undefined;
-            if (imageFile) {
-                imageBase64 = await fileToBase64(imageFile);
-            }
-            
-            await createHistoryLivestreamTask({
-                ...formData,
-                start_time: startTimeUTC,
-                livestream_image: imageBase64,
-            });
-            onSuccess();
-            onClose();
-        } catch (err: any) {
-            setError(err.message || '发生未知错误，请重试。');
-        } finally {
+        // FIX: createHistoryLivestreamTask is deprecated and has been removed from the API.
+        // This feature is no longer available.
+        setTimeout(() => {
+            setError('创建历史任务的功能已被移除。');
             setIsLoading(false);
-        }
+        }, 500);
     };
 
     return (

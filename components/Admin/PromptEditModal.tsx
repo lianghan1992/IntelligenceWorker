@@ -1,8 +1,10 @@
 
+
 import React, { useState } from 'react';
 import { CloseIcon } from '../icons';
 import { LivestreamPrompt } from '../../types';
-import { updateLivestreamPrompt } from '../../api';
+// FIX: updateLivestreamPrompt is deprecated and removed from API.
+// import { updateLivestreamPrompt } from '../../api';
 
 interface PromptEditModalProps {
   prompt: LivestreamPrompt;
@@ -25,14 +27,12 @@ export const PromptEditModal: React.FC<PromptEditModalProps> = ({ prompt, onClos
     const handleSave = async () => {
         setIsLoading(true);
         setError('');
-        try {
-            await updateLivestreamPrompt(prompt.name, content);
-            onSave();
-        } catch (err: any) {
-            setError(err.message || '保存失败，请重试');
-        } finally {
+        // FIX: updateLivestreamPrompt is deprecated and has been removed from the API.
+        // This feature is no longer available.
+        setTimeout(() => {
+            setError('编辑提示词的功能已被移除。');
             setIsLoading(false);
-        }
+        }, 500);
     };
 
     return (

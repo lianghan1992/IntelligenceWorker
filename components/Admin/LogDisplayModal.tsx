@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from '../icons';
-import { getTaskLog } from '../../api';
+// FIX: getTaskLog is deprecated and has been removed from the API.
+// import { getTaskLog } from '../../api';
 
 interface LogDisplayModalProps {
   taskId: string;
@@ -14,19 +15,15 @@ export const LogDisplayModal: React.FC<LogDisplayModalProps> = ({ taskId, taskNa
     const [error, setError] = useState('');
 
     useEffect(() => {
-        const fetchLog = async () => {
-            setIsLoading(true);
-            setError('');
-            try {
-                const response = await getTaskLog(taskId);
-                setLogContent(response.log_content);
-            } catch (err: any) {
-                setError(err.message || '加载日志失败');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchLog();
+        // FIX: getTaskLog is deprecated and has been removed from the API.
+        // This feature is no longer available.
+        setIsLoading(true);
+        setError('');
+        setTimeout(() => {
+            setError('查看日志的功能已被移除。');
+            setLogContent('');
+            setIsLoading(false);
+        }, 500);
     }, [taskId]);
 
     return (

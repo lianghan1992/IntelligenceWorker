@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
-import { getPublicLivestreamTasks } from '../../api';
+import { getLivestreamTasks } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
 
@@ -37,7 +37,8 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await getPublicLivestreamTasks({ limit: 50, sort_by: 'created_at', order: 'desc' });
+            // Updated API call to use getLivestreamTasks and page_size parameter
+            const response = await getLivestreamTasks({ page_size: 50, sort_by: 'created_at', order: 'desc' });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
             } else {

@@ -1,30 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { LivestreamTask } from '../../types';
-import { getLivestreamTasks, deleteLivestreamTask, getLivestreamTasksStats, startListenTask, stopListenTask, reanalyzeLivestreamTask } from '../../api';
+import { getLivestreamTasks, deleteLivestreamTask, startTask, stopTask, resummarizeTask, reprocessTask } from '../../api';
 import { AddEventModal } from './AddEventModal';
-import { AddHistoryEventModal } from './AddHistoryEventModal';
 import { 
     PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, PlayIcon, StopIcon, EyeIcon, CheckIcon, SparklesIcon,
     ChevronDownIcon, ChevronUpDownIcon, SearchIcon, VideoCameraIcon, CloseIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
-import { LogDisplayModal } from './LogDisplayModal';
 import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
 import { ReanalyzeOptionsModal } from './ReanalyzeOptionsModal';
 
 
 // --- Internal Components ---
-const StatCard: React.FC<{ title: string; value: number | string; icon: React.ReactNode }> = ({ title, value, icon }) => (
-    <div className="bg-white p-4 rounded-lg border border-gray-200 flex items-center gap-4 shadow-sm">
-        <div className="bg-blue-100 text-blue-600 p-3 rounded-full flex-shrink-0">{icon}</div>
-        <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
-            <p className="text-2xl font-bold text-gray-800">{value}</p>
-        </div>
-    </div>
-);
-
 const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower === 'recording') return { text: '直播中', className: 'bg-red-100 text-red-800' };
@@ -47,7 +35,6 @@ const SortableHeader: React.FC<{
         <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onSort(column)}>
             {label}
             {sortConfig.sort_by === column ? (
-                // FIX: Use rotated ChevronDownIcon for ascending sort indicator
                 sortConfig.order === 'asc' ? <ChevronDownIcon className="w-3 h-3 rotate-180" /> : <ChevronDownIcon className="w-3 h-3" />
             ) : (
                 <ChevronUpDownIcon className="w-3 h-3 text-gray-400" />
@@ -65,17 +52,14 @@ export const LivestreamTaskManager: React.FC = () => {
     
     // Modals and actions state
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
     const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop'} | null>(null);
     const [taskToReanalyze, setTaskToReanalyze] = useState<LivestreamTask | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
-    const [logModalTask, setLogModalTask] = useState<LivestreamTask | null>(null);
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
-    const [stats, setStats] = useState<any>({});
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
@@ -87,36 +71,32 @@ export const LivestreamTaskManager: React.FC = () => {
         try {
             const params = {
                 page: pagination.page,
-                limit: pagination.limit,
+                page_size: pagination.page_size,
                 status: filters.status || undefined,
                 search_term: filters.search_term || undefined,
                 sort_by: sort.sort_by,
                 order: sort.order,
             };
-            const [tasksResponse, statsResponse] = await Promise.all([
-                getLivestreamTasks(params),
-                getLivestreamTasksStats()
-            ]);
+            const tasksResponse = await getLivestreamTasks(params);
 
             if (tasksResponse && Array.isArray(tasksResponse.items)) {
                 setTasks(tasksResponse.items);
                 setPagination({
                     page: tasksResponse.page,
-                    limit: tasksResponse.limit,
+                    page_size: tasksResponse.limit, // API might still return 'limit'
                     total: tasksResponse.total,
-                    totalPages: tasksResponse.totalPages ?? 1,
+                    totalPages: tasksResponse.totalPages ?? Math.ceil(tasksResponse.total / pagination.page_size) ?? 1,
                 });
             } else {
                 setTasks([]);
-                setPagination({ page: 1, limit: 10, total: 0, totalPages: 1 });
+                setPagination({ page: 1, page_size: 10, total: 0, totalPages: 1 });
             }
-            setStats(statsResponse || {});
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit, filters, sort]);
+    }, [pagination.page, pagination.page_size, filters, sort]);
 
     useEffect(() => {
         loadTasks();
@@ -163,8 +143,8 @@ export const LivestreamTaskManager: React.FC = () => {
             }
             switch (action) {
                 case 'delete': await deleteLivestreamTask(task.id); break;
-                case 'start': await startListenTask(task.id); break;
-                case 'stop': await stopListenTask(task.id); break;
+                case 'start': await startTask(task.id); break;
+                case 'stop': await stopTask(task.id); break;
             }
             await loadTasks(false);
         } catch (err) {
@@ -175,7 +155,7 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
 
-    const handleConfirmReanalyze = async (stage?: string) => {
+    const handleConfirmReanalyze = async (reanalyzeAction: 'reprocess' | 'resummarize') => {
         if (!taskToReanalyze) return;
 
         setActionLoading(true);
@@ -184,7 +164,11 @@ export const LivestreamTaskManager: React.FC = () => {
             if (!taskToReanalyze.id) {
                 throw new Error("操作失败：任务ID不存在。");
             }
-            await reanalyzeLivestreamTask(taskToReanalyze.id, stage);
+            if (reanalyzeAction === 'resummarize') {
+                await resummarizeTask(taskToReanalyze.id);
+            } else {
+                await reprocessTask(taskToReanalyze.id);
+            }
             await loadTasks(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : `重新分析失败`);
@@ -209,9 +193,6 @@ export const LivestreamTaskManager: React.FC = () => {
                     <button onClick={() => loadTasks()} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition">
-                        <PlusIcon className="w-4 h-4" /> <span>创建历史任务</span>
-                    </button>
                     <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
                         <PlusIcon className="w-4 h-4" /> <span>创建分析任务</span>
                     </button>
@@ -219,15 +200,6 @@ export const LivestreamTaskManager: React.FC = () => {
             </div>
 
             {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                <StatCard title="全部任务" value={stats.total || 0} icon={<DocumentTextIcon className="w-6 h-6"/>} />
-                <StatCard title="直播中" value={stats.recording || 0} icon={<VideoCameraIcon className="w-6 h-6"/>} />
-                <StatCard title="监听中" value={stats.listening || 0} icon={<EyeIcon className="w-6 h-6"/>} />
-                <StatCard title="AI总结中" value={stats.processing || 0} icon={<SparklesIcon className="w-6 h-6"/>} />
-                <StatCard title="已完成" value={stats.completed || 0} icon={<CheckIcon className="w-6 h-6"/>} />
-                <StatCard title="失败" value={stats.failed || 0} icon={<CloseIcon className="w-6 h-6"/>} />
-            </div>
 
             <div className="mb-4 p-4 bg-white rounded-lg border flex items-center gap-4">
                 <div className="relative flex-grow">
@@ -281,7 +253,6 @@ export const LivestreamTaskManager: React.FC = () => {
                                                 <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                             )}
                                             <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
-                                            <button onClick={() => setLogModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">日志</button>
                                             <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                             {isReanalyzable && (
                                                 <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
@@ -307,9 +278,7 @@ export const LivestreamTaskManager: React.FC = () => {
             </div>
 
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
-            {isHistoryModalOpen && <AddHistoryEventModal onClose={() => setIsHistoryModalOpen(false)} onSuccess={loadTasks} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
-            {logModalTask && logModalTask.id && <LogDisplayModal taskId={logModalTask.id} taskName={logModalTask.livestream_name} onClose={() => setLogModalTask(null)} />}
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskToReanalyze && (
                 <ReanalyzeOptionsModal

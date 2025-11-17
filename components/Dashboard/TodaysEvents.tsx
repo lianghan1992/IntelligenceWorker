@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask, View } from '../../types';
-import { getPublicLivestreamTasks } from '../../api';
+import { getLivestreamTasks } from '../../api';
 import { VideoCameraIcon, ArrowRightIcon, PlayIcon } from '../icons';
 
 // Helper function to safely handle various image data formats from the backend
@@ -186,10 +186,10 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
             setLoading(true);
             try {
                 const [pendingRes, liveRes, listeningRes, completedRes] = await Promise.all([
-                    getPublicLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
-                    getPublicLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
-                    getPublicLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
-                    getPublicLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
+                    getLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
                 ]);
                 const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items, ...completedRes.items];
                 const uniqueEvents = Array.from(new Map(combined.map(e => [e.url, e])).values());
