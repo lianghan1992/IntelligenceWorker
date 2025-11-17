@@ -112,7 +112,10 @@ const DashboardSection: React.FC = () => {
                 // FIX: Add fallback empty array to prevent crash if API response is missing 'items'
                 setBrandDist(brandData.items || []);
                 setTechDist(techData.items || []);
-                setQuality(qualityData);
+                // FIX: Add a check to ensure qualityData is valid before setting state
+                if (qualityData && qualityData.reliability_distribution) {
+                    setQuality(qualityData);
+                }
             } catch (error) {
                 console.error("Failed to load dashboard data:", error);
             } finally {

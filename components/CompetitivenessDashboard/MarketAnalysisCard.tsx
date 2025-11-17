@@ -40,13 +40,14 @@ export const MarketAnalysisCard: React.FC<MarketAnalysisCardProps> = ({ selected
         setError('');
         try {
             // FIX: Explicitly type the response to ensure correct type inference downstream.
-            const response = await queryData<MarketAnalysisFinding>(
+            const response: DataQueryResponse<MarketAnalysisFinding> = await queryData(
                 { limit: 100 },
                 {
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_market'
                 }
             );
+            // FIX: Added a safeguard to ensure response.data is an array before using it.
             if (response && Array.isArray(response.data)) {
                 setFindings(response.data);
             } else {

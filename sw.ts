@@ -1,8 +1,5 @@
 /// <reference lib="WebWorker" />
 
-// FIX: Remove redeclaration of 'self' as it's already provided by the WebWorker lib reference.
-// declare const self: ServiceWorkerGlobalScope;
-
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -15,7 +12,7 @@ const urlsToCache = [
 ];
 
 // Install: Cache the app shell
-self.addEventListener('install', (event) => {
+self.addEventListener('install', (event: ExtendableEvent) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -29,7 +26,7 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate: Clean up old caches
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', (event: ExtendableEvent) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -46,7 +43,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch: Serve from cache or network
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', (event: FetchEvent) => {
   const { request } = event;
   const url = new URL(request.url);
 
@@ -88,7 +85,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         }).catch(error => {
             console.error('Fetch failed:', error);
-            // FIX: Re-throw to allow default browser handling of the network error.
+            // Re-throw to allow default browser handling of the network error.
             // This ensures the promise chain either resolves to a Response or is rejected.
             throw error;
         });

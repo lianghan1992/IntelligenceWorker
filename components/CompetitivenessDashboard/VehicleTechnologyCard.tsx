@@ -30,13 +30,14 @@ export const VehicleTechnologyCard: React.FC<VehicleTechnologyCardProps> = ({ se
         setError('');
         try {
             // FIX: Explicitly type the response to ensure correct type inference downstream.
-            const response = await queryData<VehicleTechnologyFinding>(
+            const response: DataQueryResponse<VehicleTechnologyFinding> = await queryData(
                 { limit: 100 }, // Query params
                 { // Body
                     entity_ids: selectedEntityIds,
                     data_table: 'cdash_data_technology'
                 }
             );
+            // FIX: Added a safeguard to ensure response.data is an array before using it.
             if (response && Array.isArray(response.data)) {
                 setFindings(response.data);
             } else {
