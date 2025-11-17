@@ -93,6 +93,36 @@ export const getTaskSummary = async (taskId: string): Promise<string> => {
 
 // --- Prompts API ---
 // The API now returns an array of strings (filenames).
-export const getLivestreamPrompts = (): Promise<string[]> => apiFetch<string[]>(`${LIVESTREAM_SERVICE_PATH}/prompts`);
+export const getLivestreamPrompts = async (): Promise<string[]> => {
+    const url = `${LIVESTREAM_SERVICE_PATH}/prompts`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+        throw new Error(errorData.message || '获取提示词列表失败');
+    }
+
+    try {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+            return data;
+        }
+        // If the API returns something else (like an empty object when there are no prompts),
+        // return an empty array to prevent crashes, but also log a warning.
+        console.warn("getLivestreamPrompts API did not return an array as expected. Received:", data);
+        return [];
+    } catch (e) {
+        // This can happen if the response body is empty but content-type is json
+        console.warn("getLivestreamPrompts failed to parse JSON, returning empty array.", e);
+        return [];
+    }
+};
+
 
 // Removed updateLivestreamPrompt as it's deprecated.
