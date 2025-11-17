@@ -33,9 +33,13 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
         const fetchPrompts = async () => {
             try {
                 const fetchedPrompts = await getLivestreamPrompts();
-                setPrompts(fetchedPrompts);
-                if (fetchedPrompts.length > 0) {
-                    setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0]}));
+                if (Array.isArray(fetchedPrompts)) {
+                    setPrompts(fetchedPrompts);
+                    if (fetchedPrompts.length > 0) {
+                        setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0]}));
+                    }
+                } else {
+                    setPrompts([]);
                 }
             } catch (err) {
                 console.error("Failed to fetch livestream prompts:", err);
