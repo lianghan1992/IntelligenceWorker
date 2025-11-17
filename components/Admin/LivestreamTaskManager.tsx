@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks, deleteLivestreamTask, startTask, stopTask, resummarizeTask, reprocessTask } from '../../api';
 import { AddEventModal } from './AddEventModal';
 import { 
-    PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon, PlayIcon, StopIcon, EyeIcon, CheckIcon, SparklesIcon,
-    ChevronDownIcon, ChevronUpDownIcon, SearchIcon, VideoCameraIcon, CloseIcon
+    PlusIcon, RefreshIcon, TrashIcon,
+    ChevronDownIcon, ChevronUpDownIcon, SearchIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -59,7 +59,8 @@ export const LivestreamTaskManager: React.FC = () => {
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
-    const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, totalPages: 1 });
+    // FIX: Changed 'page_size' to 'limit' to match the PaginatedResponse type.
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
@@ -71,7 +72,7 @@ export const LivestreamTaskManager: React.FC = () => {
         try {
             const params = {
                 page: pagination.page,
-                page_size: pagination.page_size,
+                page_size: pagination.limit,
                 status: filters.status || undefined,
                 search_term: filters.search_term || undefined,
                 sort_by: sort.sort_by,
@@ -81,22 +82,24 @@ export const LivestreamTaskManager: React.FC = () => {
 
             if (tasksResponse && Array.isArray(tasksResponse.items)) {
                 setTasks(tasksResponse.items);
+                // FIX: Use 'limit' from response as per PaginatedResponse type. This resolves errors on lines 86 and 88.
                 setPagination({
                     page: tasksResponse.page,
-                    page_size: tasksResponse.limit, // API might still return 'limit'
+                    limit: tasksResponse.limit,
                     total: tasksResponse.total,
-                    totalPages: tasksResponse.totalPages ?? Math.ceil(tasksResponse.total / pagination.page_size) ?? 1,
+                    totalPages: tasksResponse.totalPages ?? Math.ceil(tasksResponse.total / (tasksResponse.limit)) ?? 1,
                 });
             } else {
                 setTasks([]);
-                setPagination({ page: 1, page_size: 10, total: 0, totalPages: 1 });
+                // FIX: Use 'limit' to match state shape.
+                setPagination({ page: 1, limit: 10, total: 0, totalPages: 1 });
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
             if (showLoading) setIsLoading(false);
         }
-    }, [pagination.page, pagination.page_size, filters, sort]);
+    }, [pagination.page, pagination.limit, filters, sort]);
 
     useEffect(() => {
         loadTasks();

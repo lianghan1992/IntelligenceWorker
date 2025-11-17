@@ -1,7 +1,7 @@
 // src/api/livestream.ts
 
 import { LIVESTREAM_SERVICE_PATH } from '../config';
-import { PaginatedResponse, LivestreamTask, LivestreamPrompt } from '../types';
+import { PaginatedResponse, LivestreamTask } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // Helper to convert File to Base64, returning only the data part.
@@ -24,20 +24,16 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 
 // --- Livestream / Events API ---
-export const getLivestreamTasks = (params: { page?: number; limit?: number; page_size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.page_size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
+// Updated to use page_size as per new docs
+export const getLivestreamTasks = (params: { page?: number; page_size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
+    const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks${query}`);
 };
 
-// Public endpoint is no longer available. Components should use getLivestreamTasks.
-// getLivestreamTasksStats is removed as it's not in the new docs.
+// Removed getPublicLivestreamTasks and getLivestreamTasksStats as they are deprecated.
 
-export const createLivestreamTask = async (data: { url: string; livestream_name: string; start_time: string; prompt_file: string; image?: File }): Promise<LivestreamTask> => {
+// Updated to use JSON body with Base64 image, as per new docs.
+export const createLivestreamTask = async (data: { url: string; livestream_name: string; start_time: string; prompt_file: string; image?: File }): Promise<{ task_id: string; status: string; message: string }> => {
     let cover_image_b64: string | undefined = undefined;
     if (data.image) {
         cover_image_b64 = await fileToBase64(data.image);
@@ -48,21 +44,21 @@ export const createLivestreamTask = async (data: { url: string; livestream_name:
         task_name: data.livestream_name,
         live_url: data.url,
         start_time: data.start_time,
-        summary_prompt: data.prompt_file,
+        summary_prompt: data.prompt_file || undefined, // Send undefined if empty
         cover_image_b64: cover_image_b64,
     };
     
-    return apiFetch<LivestreamTask>(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
+    return apiFetch<{ task_id: string; status: string; message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
         method: 'POST',
         body: JSON.stringify(payload),
     });
 };
 
-// createHistoryLivestreamTask is removed as it's not in the new docs.
+// Removed createHistoryLivestreamTask as it's deprecated.
 
 export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
 
-// Paths updated from /listen/start and /listen/stop to /start and /stop
+// Updated paths from /listen/start and /listen/stop to /start and /stop
 export const startTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, { method: 'POST' });
 export const stopTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
 
@@ -77,9 +73,9 @@ export const resummarizeTask = (taskId: string): Promise<{ message: string }> =>
         method: 'POST',
     });
 
-// getTaskLog is removed as it's not in the new docs.
+// Removed getTaskLog as it's deprecated.
 
-// getTaskManuscript is replaced by getTaskSummary, which returns plain text.
+// Replaced getTaskManuscript with getTaskSummary, which returns plain text.
 export const getTaskSummary = async (taskId: string): Promise<string> => {
     const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/summary`;
     const token = localStorage.getItem('accessToken');
@@ -89,12 +85,14 @@ export const getTaskSummary = async (taskId: string): Promise<string> => {
     }
     const response = await fetch(url, { headers });
     if (!response.ok) {
-        throw new Error(`获取文稿失败: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`获取文稿失败: ${response.statusText} - ${errorText}`);
     }
     return response.text();
 };
 
 // --- Prompts API ---
-export const getLivestreamPrompts = (): Promise<LivestreamPrompt[]> => apiFetch<LivestreamPrompt[]>(`${LIVESTREAM_SERVICE_PATH}/prompts`);
+// The API now returns an array of strings (filenames).
+export const getLivestreamPrompts = (): Promise<string[]> => apiFetch<string[]>(`${LIVESTREAM_SERVICE_PATH}/prompts`);
 
-// updateLivestreamPrompt is removed as it's not in the new docs.
+// Removed updateLivestreamPrompt as it's deprecated.

@@ -1,10 +1,6 @@
-
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { CloseIcon, PlusIcon, PencilIcon } from '../icons';
+import { CloseIcon, PlusIcon } from '../icons';
 import { createLivestreamTask, getLivestreamPrompts } from '../../api';
-import { LivestreamPrompt } from '../../types';
-
 
 interface AddEventModalProps {
   onClose: () => void;
@@ -31,7 +27,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const [prompts, setPrompts] = useState<LivestreamPrompt[]>([]);
+    const [prompts, setPrompts] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchPrompts = async () => {
@@ -39,7 +35,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 const fetchedPrompts = await getLivestreamPrompts();
                 setPrompts(fetchedPrompts);
                 if (fetchedPrompts.length > 0) {
-                    setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0].name}));
+                    setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0]}));
                 }
             } catch (err) {
                 console.error("Failed to fetch livestream prompts:", err);
@@ -131,20 +127,18 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">分析提示词 (可选)</label>
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        name="prompt_file"
-                                        value={formData.prompt_file}
-                                        onChange={handleChange}
-                                        className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        disabled={isLoading}
-                                    >
-                                        <option value="">不使用提示词</option>
-                                        {prompts.map(p => (
-                                            <option key={p.name} value={p.name}>{p.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <select
+                                    name="prompt_file"
+                                    value={formData.prompt_file}
+                                    onChange={handleChange}
+                                    className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    disabled={isLoading}
+                                >
+                                    <option value="">不使用提示词</option>
+                                    {prompts.map(p => (
+                                        <option key={p} value={p}>{p}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>

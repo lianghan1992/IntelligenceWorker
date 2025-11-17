@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { LivestreamTask } from '../../types';
 import { CloseIcon, SparklesIcon } from '../icons';

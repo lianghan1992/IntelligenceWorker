@@ -186,10 +186,10 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
             setLoading(true);
             try {
                 const [pendingRes, liveRes, listeningRes, completedRes] = await Promise.all([
-                    getLivestreamTasks({ limit: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ limit: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
+                    getLivestreamTasks({ page_size: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ page_size: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ page_size: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
+                    getLivestreamTasks({ page_size: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
                 ]);
                 const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items, ...completedRes.items];
                 const uniqueEvents = Array.from(new Map(combined.map(e => [e.url, e])).values());

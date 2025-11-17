@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from '../icons';
-// FIX: getTaskLog is deprecated and has been removed from the API.
-// import { getTaskLog } from '../../api';
 
 interface LogDisplayModalProps {
   taskId: string;

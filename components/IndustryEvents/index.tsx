@@ -37,7 +37,6 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            // Updated API call to use getLivestreamTasks and page_size parameter
             const response = await getLivestreamTasks({ page_size: 50, sort_by: 'created_at', order: 'desc' });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);

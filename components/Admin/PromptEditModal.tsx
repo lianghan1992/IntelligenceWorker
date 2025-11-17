@@ -1,10 +1,6 @@
-
-
 import React, { useState } from 'react';
 import { CloseIcon } from '../icons';
 import { LivestreamPrompt } from '../../types';
-// FIX: updateLivestreamPrompt is deprecated and removed from API.
-// import { updateLivestreamPrompt } from '../../api';
 
 interface PromptEditModalProps {
   prompt: LivestreamPrompt;
