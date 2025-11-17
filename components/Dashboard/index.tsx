@@ -36,15 +36,21 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
             try {
                 // 1. Get total articles today
                 const pointIds = subscriptions.map(sub => sub.id);
-                const d = new Date();
-                const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                
+                const startOfToday = new Date();
+                startOfToday.setHours(0, 0, 0, 0);
+                const year = startOfToday.getFullYear();
+                const month = String(startOfToday.getMonth() + 1).padStart(2, '0');
+                const day = String(startOfToday.getDate()).padStart(2, '0');
+                const todayTimestamp = `${year}-${month}-${day}T00:00:00`;
+
 
                 let totalArticlesToday = 0;
                 if (pointIds.length > 0) {
                     const articlesData = await searchArticlesFiltered({
                         query_text: '*',
                         point_ids: pointIds,
-                        publish_date_start: today,
+                        publish_date_start: todayTimestamp,
                         limit: 1,
                     });
                     totalArticlesToday = articlesData.total;
@@ -69,7 +75,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                 const poiUpdatePromises = pois.map(poi => 
                     searchArticlesFiltered({
                         query_text: poi.content,
-                        publish_date_start: today,
+                        publish_date_start: todayTimestamp,
                         limit: 1
                     }).then(result => ({
                         content: poi.content,

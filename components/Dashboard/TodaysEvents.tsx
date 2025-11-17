@@ -159,21 +159,17 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
         const fetchEvents = async () => {
             setLoading(true);
             try {
-                const [pendingRes, liveRes, listeningRes, completedRes] = await Promise.all([
-                    getLivestreamTasks({ page_size: 5, status: 'pending', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ page_size: 5, status: 'recording', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ page_size: 5, status: 'listening', sort_by: 'start_time', order: 'asc' }),
-                    getLivestreamTasks({ page_size: 5, status: 'completed', sort_by: 'start_time', order: 'desc' })
-                ]);
-                const combined = [...liveRes.items, ...pendingRes.items, ...listeningRes.items, ...completedRes.items];
-                const uniqueEvents = Array.from(new Map(combined.map(e => [e.live_url, e])).values());
+                // Fetch recent tasks, sorted by start time to catch upcoming and just-passed events.
+                const response = await getLivestreamTasks({ page_size: 50, sort_by: 'start_time', order: 'desc' });
+                
+                const allEvents = response.items || [];
                 
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const endOfDay = new Date();
                 endOfDay.setHours(23, 59, 59, 999);
 
-                const todaysEvents = uniqueEvents.filter(event => {
+                const todaysEvents = allEvents.filter(event => {
                     const eventDate = new Date(event.start_time);
                     return eventDate >= today && eventDate <= endOfDay;
                 });
