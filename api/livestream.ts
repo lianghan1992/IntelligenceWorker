@@ -92,7 +92,7 @@ export const getTaskSummary = async (taskId: string): Promise<string> => {
 };
 
 // --- Prompts API ---
-// The API now returns an array of strings (filenames).
+// The API now returns an object { prompts: [...] }.
 export const getLivestreamPrompts = async (): Promise<string[]> => {
     const url = `${LIVESTREAM_SERVICE_PATH}/prompts`;
     const token = localStorage.getItem('accessToken');
@@ -110,15 +110,13 @@ export const getLivestreamPrompts = async (): Promise<string[]> => {
 
     try {
         const data = await response.json();
-        if (Array.isArray(data)) {
-            return data;
+        // As per docs, API returns an object like { prompts: ["file1.md", "file2.md"] }
+        if (data && Array.isArray(data.prompts)) {
+            return data.prompts;
         }
-        // If the API returns something else (like an empty object when there are no prompts),
-        // return an empty array to prevent crashes, but also log a warning.
-        console.warn("getLivestreamPrompts API did not return an array as expected. Received:", data);
+        console.warn("getLivestreamPrompts API did not return an object with a 'prompts' array. Received:", data);
         return [];
     } catch (e) {
-        // This can happen if the response body is empty but content-type is json
         console.warn("getLivestreamPrompts failed to parse JSON, returning empty array.", e);
         return [];
     }
