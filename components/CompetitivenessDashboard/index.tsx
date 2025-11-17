@@ -109,8 +109,9 @@ const DashboardSection: React.FC = () => {
                     getDashboardQuality({ top_n: 5 })
                 ]);
                 setOverview(overviewData);
-                setBrandDist(brandData.items);
-                setTechDist(techData.items);
+                // FIX: Add fallback empty array to prevent crash if API response is missing 'items'
+                setBrandDist(brandData.items || []);
+                setTechDist(techData.items || []);
                 setQuality(qualityData);
             } catch (error) {
                 console.error("Failed to load dashboard data:", error);

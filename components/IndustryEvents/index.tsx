@@ -21,7 +21,7 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {tasks.map((task) => (
                     // FIX: The LivestreamTask type uses 'live_url', not 'url'.
-                    <TaskCard key={task.live_url + task.start_time} task={task} onViewReport={() => onCardClick(task)} />
+                    <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
             </div>
         </section>

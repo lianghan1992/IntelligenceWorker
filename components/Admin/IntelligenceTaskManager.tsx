@@ -57,7 +57,7 @@ export const IntelligenceTaskManager: React.FC = () => {
                     page: response.page,
                     total: response.total,
                     // Use `prev.limit` for calculation to prevent state corruption if API response lacks `limit`
-                    totalPages: Math.ceil(response.total / prev.limit) || 1,
+                    totalPages: response.totalPages ?? (Math.ceil(response.total / prev.limit) || 1),
                 }));
             } else {
                 setTasks([]);

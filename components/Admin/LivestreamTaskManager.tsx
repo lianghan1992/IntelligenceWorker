@@ -89,7 +89,7 @@ export const LivestreamTaskManager: React.FC = () => {
                     limit: tasksResponse.limit || pagination.limit,
                     total: tasksResponse.total,
                     // FIX: Property 'page_size' does not exist on type 'PaginatedResponse<LivestreamTask>'. Use 'limit' instead.
-                    totalPages: Math.ceil(tasksResponse.total / (tasksResponse.limit || pagination.limit)) || 1,
+                    totalPages: tasksResponse.totalPages || Math.ceil(tasksResponse.total / (tasksResponse.limit || pagination.limit)) || 1,
                 });
             } else {
                 setTasks([]);
