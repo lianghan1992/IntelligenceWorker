@@ -149,15 +149,15 @@ export const MarkdownToHtmlManager: React.FC = () => {
     };
 
     return (
-        <div className="p-6 h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">Markdown转HTML任务管理</h1>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => loadTasks()} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+        <div className="p-4 md:p-6 h-full flex flex-col">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">Markdown转HTML任务</h1>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.md,.txt,.docx" className="hidden" />
-                    <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
+                    <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition disabled:bg-blue-300">
                         {isUploading ? <Spinner /> : <PlusIcon className="w-4 h-4" />}
                         <span>{isUploading ? '上传中...' : '上传文档'}</span>
                     </button>
@@ -166,54 +166,88 @@ export const MarkdownToHtmlManager: React.FC = () => {
 
             {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
             
-            <div className="bg-white rounded-lg border overflow-x-auto flex-1">
-                 <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3">文件名</th>
-                            <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">文件大小</th>
-                            <th className="px-6 py-3">页数</th>
-                            <th className="px-6 py-3">创建时间</th>
-                            <th className="px-6 py-3">更新时间</th>
-                            <th className="px-6 py-3 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading ? (
-                            <tr><td colSpan={7} className="text-center py-10"><Spinner /></td></tr>
-                        ) : tasks.length === 0 ? (
-                            <tr><td colSpan={7} className="text-center py-10">未找到任何任务。</td></tr>
-                        ) : (
-                            tasks.map(task => {
-                                const statusBadge = getStatusBadge(task.status);
-                                const isAnyActionInProgress = actionLoading || !!regeneratingTaskId;
-                                return (
-                                <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={task.original_filename}>{task.original_filename}</td>
-                                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
-                                    <td className="px-6 py-4">{formatBytes(task.file_size)}</td>
-                                    <td className="px-6 py-4">{task.total_pages}</td>
-                                    <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
-                                    <td className="px-6 py-4">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                            <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
-                                            <button onClick={() => handleRegenerate(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-20">
-                                                {regeneratingTaskId === task.id ? <Spinner small /> : '重新生成'}
-                                            </button>
-                                            <button onClick={() => setTaskToDelete(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                 </table>
+            <div className="flex-1 overflow-y-auto">
+                {/* Desktop Table */}
+                <div className="bg-white rounded-lg border overflow-x-auto hidden md:block">
+                     <table className="w-full text-sm text-left text-gray-500">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3">文件名</th>
+                                <th className="px-6 py-3">状态</th>
+                                <th className="px-6 py-3">文件大小</th>
+                                <th className="px-6 py-3">页数</th>
+                                <th className="px-6 py-3">创建时间</th>
+                                <th className="px-6 py-3">更新时间</th>
+                                <th className="px-6 py-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isLoading && tasks.length === 0 ? (
+                                <tr><td colSpan={7} className="text-center py-10"><Spinner /></td></tr>
+                            ) : !isLoading && tasks.length === 0 ? (
+                                <tr><td colSpan={7} className="text-center py-10">未找到任何任务。</td></tr>
+                            ) : (
+                                tasks.map(task => {
+                                    const statusBadge = getStatusBadge(task.status);
+                                    const isAnyActionInProgress = actionLoading || !!regeneratingTaskId;
+                                    return (
+                                    <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={task.original_filename}>{task.original_filename}</td>
+                                        <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
+                                        <td className="px-6 py-4">{formatBytes(task.file_size)}</td>
+                                        <td className="px-6 py-4">{task.total_pages}</td>
+                                        <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
+                                        <td className="px-6 py-4">{new Date(task.updated_at).toLocaleString('zh-CN')}</td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                                <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
+                                                <button onClick={() => handleRegenerate(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-20">
+                                                    {regeneratingTaskId === task.id ? <Spinner small /> : '重新生成'}
+                                                </button>
+                                                <button onClick={() => setTaskToDelete(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                     </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="md:hidden space-y-4">
+                    {isLoading && tasks.length === 0 ? <div className="text-center py-10 text-gray-500">加载中...</div> :
+                     !isLoading && tasks.length === 0 ? <div className="text-center py-10 text-gray-500">未找到任何任务。</div> :
+                     tasks.map(task => {
+                        const statusBadge = getStatusBadge(task.status);
+                        const isAnyActionInProgress = actionLoading || !!regeneratingTaskId;
+                         return (
+                            <div key={task.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                                <div className="flex justify-between items-start">
+                                    <p className="font-bold text-gray-900 pr-4 break-all">{task.original_filename}</p>
+                                    <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
+                                </div>
+                                <div className="mt-3 pt-3 border-t text-sm grid grid-cols-2 gap-x-4 gap-y-2">
+                                    <div><strong className="text-gray-500">文件大小: </strong>{formatBytes(task.file_size)}</div>
+                                    <div><strong className="text-gray-500">页数: </strong>{task.total_pages}</div>
+                                    <div className="col-span-2"><strong className="text-gray-500">创建于: </strong>{new Date(task.created_at).toLocaleString('zh-CN')}</div>
+                                </div>
+                                <div className="mt-4 pt-3 border-t flex items-center justify-end gap-2 flex-wrap">
+                                     <button onClick={() => handleDownload(task)} disabled={task.status !== 'completed' || isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed">下载</button>
+                                    <button onClick={() => handleRegenerate(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-20">
+                                        {regeneratingTaskId === task.id ? <Spinner small /> : '重新生成'}
+                                    </button>
+                                    <button onClick={() => setTaskToDelete(task)} disabled={isAnyActionInProgress} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200 disabled:opacity-50">删除</button>
+                                </div>
+                            </div>
+                         )
+                     })
+                    }
+                </div>
             </div>
 
-            <div className="flex justify-between items-center mt-4 text-sm">
+            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 <div className="flex items-center gap-2">
                     <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50"><ChevronLeftIcon className="w-4 h-4" /></button>

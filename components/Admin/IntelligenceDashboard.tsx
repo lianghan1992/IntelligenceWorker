@@ -31,8 +31,13 @@ export const IntelligenceDashboard: React.FC = () => {
         <div className="p-4 md:p-6 h-full flex flex-col">
             <div className="flex-shrink-0">
                 <div className="border-b border-gray-200">
-                    <div className="overflow-x-auto -mb-px">
-                        <nav className="flex space-x-6" aria-label="Tabs">
+                    <div className="overflow-x-auto -mb-px" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                         <style>{`
+                            .scrollbar-hide::-webkit-scrollbar {
+                                display: none;
+                            }
+                        `}</style>
+                        <nav className="flex space-x-6 scrollbar-hide" aria-label="Tabs">
                             {subNavItems.map(item => (
                                 <button
                                     key={item.view}
