@@ -1,5 +1,8 @@
 /// <reference lib="WebWorker" />
 
+// FIX: Remove redeclaration of 'self' as it's already provided by the WebWorker lib reference.
+// declare const self: ServiceWorkerGlobalScope;
+
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -12,7 +15,7 @@ const urlsToCache = [
 ];
 
 // Install: Cache the app shell
-self.addEventListener('install', (event: ExtendableEvent) => {
+self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -26,7 +29,7 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 });
 
 // Activate: Clean up old caches
-self.addEventListener('activate', (event: ExtendableEvent) => {
+self.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -43,7 +46,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 });
 
 // Fetch: Serve from cache or network
-self.addEventListener('fetch', (event: FetchEvent) => {
+self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
