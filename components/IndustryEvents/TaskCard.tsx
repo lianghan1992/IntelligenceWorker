@@ -7,56 +7,24 @@ interface TaskCardProps {
     onViewReport: () => void;
 }
 
-// Helper function to safely handle various image data formats from the backend
-const getSafeImageSrc = (imageData: string | null | undefined): string | null => {
-  // 1. Initial cleanup for falsy or placeholder values
-  if (!imageData || imageData.trim() === '' || imageData.toLowerCase() === 'none' || imageData.toLowerCase() === 'null') {
+// Simplified and robust helper to handle image data from the backend
+const getSafeImageSrc = (base64Data: string | null | undefined): string | null => {
+  if (!base64Data || base64Data.trim() === '' || base64Data.toLowerCase() === 'none' || base64Data.toLowerCase() === 'null') {
     return null;
   }
   
-  // 2. Handle full external URLs
-  if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-    return imageData;
+  // If it's already a data URI, return it directly.
+  if (base64Data.startsWith('data:image')) {
+    return base64Data;
   }
 
-  // 3. Handle potential data URIs, including broken ones due to double-encoding
-  if (imageData.startsWith('data:image')) {
-    const parts = imageData.split(',');
-    if (parts.length < 2) return null; // Malformed
-
-    const prefix = parts[0];
-    let payload = parts.slice(1).join(',');
-
-    try {
-      // Attempt to decode, checking for double-encoding
-      const decodedPayload = atob(payload);
-
-      if (decodedPayload.startsWith('data:image')) {
-        // Case: The entire data URI was base64 encoded. The decoded payload is the correct URI.
-        // e.g., base64('data:image/jpeg;base64,/9j/...')
-        return decodedPayload;
-      } else if (decodedPayload.startsWith('/9j/')) {
-        // Case: The base64 data was double-encoded.
-        // e.g., base64('/9j/...')
-        return `${prefix},${decodedPayload}`;
-      }
-    } catch (e) {
-      // Decoding failed, which is expected for a correct, single-encoded base64 string.
-      // We can proceed assuming the original imageData is correct.
-    }
-    
-    // If no double-encoding was detected, return the original URI as is.
-    return imageData;
+  // If it's a full external URL, return it.
+  if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
+    return base64Data;
   }
-  
-  // 4. Fallback for raw base64 string without a prefix
-  try {
-    atob(imageData); // Verify it's valid base64
-    return `data:image/jpeg;base64,${imageData}`;
-  } catch (e) {
-    console.error("Invalid image data format:", imageData);
-    return null; // The data is not a URL, not a data URI, and not valid raw base64.
-  }
+
+  // Assume it's a raw base64 string and prepend the necessary prefix for JPG.
+  return `data:image/jpeg;base64,${base64Data}`;
 };
 
 
@@ -97,7 +65,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const isLive = statusDetails.type === 'live';
     const hasReport = isFinished && !!task.summary_report;
     const [timeLeft, setTimeLeft] = useState('');
-    const imageUrl = getSafeImageSrc(task.livestream_image);
+    const imageUrl = getSafeImageSrc(task.cover_image_b64);
 
     useEffect(() => {
         if (statusDetails.type !== 'upcoming') return;
@@ -142,7 +110,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
 
     const handleReplayClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        window.open(task.url, '_blank', 'noopener,noreferrer');
+        window.open(task.live_url, '_blank', 'noopener,noreferrer');
     };
 
     return (
@@ -151,9 +119,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             className={`group relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 ${hasReport ? 'cursor-pointer' : 'cursor-default'}`}
         >
             {imageUrl ? (
-                <img src={imageUrl} alt={task.livestream_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <img src={imageUrl} alt={task.task_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             ) : (
-                <div className="absolute inset-0 w-full h-full bg-gray-800"></div>
+                <div className="absolute inset-0 w-full h-full bg-gray-800 flex items-center justify-center">
+                    <FilmIcon className="w-12 h-12 text-gray-600" />
+                </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
             
@@ -166,13 +136,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             )}
 
             <div className="absolute inset-0 flex flex-col justify-end p-4 text-white z-10">
-                <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.livestream_name}</h3>
-                <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{task.host_name} &nbsp;&nbsp;|&nbsp;&nbsp; {formattedDate}</p>
+                <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.task_name}</h3>
+                <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{formattedDate}</p>
 
                 {isLive && (
                     <div className="mt-4">
                         <a
-                            href={task.url}
+                            href={task.live_url}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}

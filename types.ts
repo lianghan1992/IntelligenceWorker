@@ -153,17 +153,22 @@ export interface ExportChunksResponse {
 
 export interface LivestreamTask {
   id: string;
-  url: string;
-  livestream_name: string;
-  host_name: string;
-  entity: string;
+  task_name: string;
+  live_url: string;
   start_time: string;
+  summary_prompt: string;
   status: string;
-  summary_report: string | null;
-  livestream_image: string | null;
   created_at: string;
   updated_at: string;
+  dir?: string;
+  cover_image_b64?: string | null;
+  stats_json?: any;
+  
+  // This is not part of the list response, but fetched separately.
+  // Kept for modal convenience.
+  summary_report?: string | null;
 }
+
 
 export interface LivestreamPrompt {
   name: string;

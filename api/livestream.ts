@@ -33,18 +33,25 @@ export const getLivestreamTasks = (params: { page?: number; page_size?: number; 
 // Removed getPublicLivestreamTasks and getLivestreamTasksStats as they are deprecated.
 
 // Updated to use JSON body with Base64 image, as per new docs.
-export const createLivestreamTask = async (data: { url: string; livestream_name: string; start_time: string; prompt_file: string; image?: File }): Promise<{ task_id: string; status: string; message: string }> => {
+export const createLivestreamTask = async (data: { 
+    task_name: string; 
+    live_url: string; 
+    start_time: string; 
+    summary_prompt: string;
+    direct_download?: boolean;
+    image?: File 
+}): Promise<{ task_id: string; status: string; message: string }> => {
     let cover_image_b64: string | undefined = undefined;
     if (data.image) {
         cover_image_b64 = await fileToBase64(data.image);
     }
     
-    // Mapping frontend field names to backend API field names from the new doc
     const payload = {
-        task_name: data.livestream_name,
-        live_url: data.url,
+        task_name: data.task_name,
+        live_url: data.live_url,
         start_time: data.start_time,
-        summary_prompt: data.prompt_file || undefined, // Send undefined if empty
+        summary_prompt: data.summary_prompt || undefined, // Send undefined if empty to let backend use default
+        direct_download: data.direct_download,
         cover_image_b64: cover_image_b64,
     };
     

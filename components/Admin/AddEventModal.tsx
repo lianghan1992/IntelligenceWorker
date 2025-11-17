@@ -16,10 +16,11 @@ const Spinner: React.FC = () => (
 
 export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess }) => {
     const [formData, setFormData] = useState({
-        url: '',
-        livestream_name: '',
+        live_url: '',
+        task_name: '',
         start_time: '',
-        prompt_file: '',
+        summary_prompt: 'default_summary.md',
+        direct_download: false,
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -35,9 +36,6 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 const fetchedPrompts = await getLivestreamPrompts();
                 if (Array.isArray(fetchedPrompts)) {
                     setPrompts(fetchedPrompts);
-                    if (fetchedPrompts.length > 0) {
-                        setFormData(prev => ({...prev, prompt_file: fetchedPrompts[0]}));
-                    }
                 } else {
                     setPrompts([]);
                 }
@@ -50,12 +48,17 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return formData.url.trim() !== '' && formData.livestream_name.trim() !== '' && formData.start_time.trim() !== '';
+        return formData.live_url.trim() !== '' && formData.task_name.trim() !== '' && formData.start_time.trim() !== '';
     }, [formData]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, checked } = e.target;
+        setFormData(prev => ({ ...prev, [name]: checked }));
     };
     
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,6 +87,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
             await createLivestreamTask({
                 ...formData,
                 start_time: startTimeUTC,
+                summary_prompt: formData.summary_prompt || 'default_summary.md',
                 image: imageFile || undefined,
             });
             onSuccess();
@@ -119,30 +123,37 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">直播间URL <span className="text-red-500">*</span></label>
-                                <input name="url" type="text" value={formData.url} onChange={handleChange} placeholder="支持B站、微博、抖音等主流平台" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                                <input name="live_url" type="text" value={formData.live_url} onChange={handleChange} placeholder="支持B站、微博、抖音等主流平台" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">直播名称 <span className="text-red-500">*</span></label>
-                                <input name="livestream_name" type="text" value={formData.livestream_name} onChange={handleChange} placeholder="例如：小米汽车SU7发布会" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                                <label className="block text-sm font-medium text-gray-700 mb-1">任务名称 <span className="text-red-500">*</span></label>
+                                <input name="task_name" type="text" value={formData.task_name} onChange={handleChange} placeholder="例如：小米汽车SU7发布会" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>
                                 <input name="start_time" type="datetime-local" value={formData.start_time} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">分析提示词 (可选)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">分析提示词</label>
                                 <select
-                                    name="prompt_file"
-                                    value={formData.prompt_file}
+                                    name="summary_prompt"
+                                    value={formData.summary_prompt}
                                     onChange={handleChange}
                                     className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     disabled={isLoading}
                                 >
+                                    <option value="default_summary.md">默认提示词</option>
                                     <option value="">不使用提示词</option>
                                     {prompts.map(p => (
                                         <option key={p} value={p}>{p}</option>
                                     ))}
                                 </select>
+                            </div>
+                             <div>
+                                <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mt-2 cursor-pointer">
+                                    <input name="direct_download" type="checkbox" checked={formData.direct_download} onChange={handleCheckboxChange} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" disabled={isLoading} />
+                                    <span>存在直链时直接下载处理</span>
+                                </label>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>

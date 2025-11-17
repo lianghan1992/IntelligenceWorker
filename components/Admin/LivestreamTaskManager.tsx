@@ -59,7 +59,6 @@ export const LivestreamTaskManager: React.FC = () => {
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
-    // FIX: Changed 'page_size' to 'limit' to match the PaginatedResponse type.
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
@@ -82,16 +81,16 @@ export const LivestreamTaskManager: React.FC = () => {
 
             if (tasksResponse && Array.isArray(tasksResponse.items)) {
                 setTasks(tasksResponse.items);
-                // FIX: Use 'limit' from response as per PaginatedResponse type. This resolves errors on lines 86 and 88.
                 setPagination({
                     page: tasksResponse.page,
-                    limit: tasksResponse.limit,
+                    // FIX: Property 'page_size' does not exist on type 'PaginatedResponse<LivestreamTask>'. Use 'limit' instead.
+                    limit: tasksResponse.limit || pagination.limit,
                     total: tasksResponse.total,
-                    totalPages: tasksResponse.totalPages ?? Math.ceil(tasksResponse.total / (tasksResponse.limit)) ?? 1,
+                    // FIX: Property 'page_size' does not exist on type 'PaginatedResponse<LivestreamTask>'. Use 'limit' instead.
+                    totalPages: Math.ceil(tasksResponse.total / (tasksResponse.limit || pagination.limit)) || 1,
                 });
             } else {
                 setTasks([]);
-                // FIX: Use 'limit' to match state shape.
                 setPagination({ page: 1, limit: 10, total: 0, totalPages: 1 });
             }
         } catch (err) {
@@ -207,7 +206,7 @@ export const LivestreamTaskManager: React.FC = () => {
             <div className="mb-4 p-4 bg-white rounded-lg border flex items-center gap-4">
                 <div className="relative flex-grow">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" value={searchTermInput} onChange={handleSearchChange} placeholder="搜索直播名称或主播..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" value={searchTermInput} onChange={handleSearchChange} placeholder="搜索任务名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <select value={filters.status} onChange={handleStatusChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">所有状态</option>
@@ -224,8 +223,8 @@ export const LivestreamTaskManager: React.FC = () => {
                 <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                         <tr>
-                            <SortableHeader column="livestream_name" label="直播名称" sortConfig={sort} onSort={handleSort} />
-                            <th scope="col" className="px-6 py-3">主播/公司</th>
+                            <SortableHeader column="task_name" label="任务名称" sortConfig={sort} onSort={handleSort} />
+                            <th scope="col" className="px-6 py-3">分析提示词</th>
                             <SortableHeader column="start_time" label="开始时间" sortConfig={sort} onSort={handleSort} />
                             <SortableHeader column="status" label="状态" sortConfig={sort} onSort={handleSort} />
                             <th scope="col" className="px-6 py-3 text-center">操作</th>
@@ -243,8 +242,8 @@ export const LivestreamTaskManager: React.FC = () => {
                                 const isReanalyzable = ['completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{task.livestream_name}<br/><span className="text-xs text-gray-500 font-normal">{task.entity}</span></td>
-                                    <td className="px-6 py-4">{task.host_name}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900">{task.task_name}</td>
+                                    <td className="px-6 py-4 text-xs font-mono" title={task.summary_prompt}>{task.summary_prompt || '默认'}</td>
                                     <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
                                     <td className="px-6 py-4 text-center">
@@ -282,7 +281,7 @@ export const LivestreamTaskManager: React.FC = () => {
 
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
-            {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.livestream_name} onClose={() => setManuscriptModalTask(null)} />}
+            {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.task_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskToReanalyze && (
                 <ReanalyzeOptionsModal
                     task={taskToReanalyze}
@@ -294,7 +293,7 @@ export const LivestreamTaskManager: React.FC = () => {
             {taskToAction && (
                 <ConfirmationModal
                     title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}
-                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]} "${taskToAction.task.livestream_name}" 吗？`}
+                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]} "${taskToAction.task.task_name}" 吗？`}
                     confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止' }[taskToAction.action]}`}
                     onConfirm={confirmAction}
                     onCancel={() => setTaskToAction(null)}

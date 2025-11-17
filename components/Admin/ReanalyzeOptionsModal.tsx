@@ -30,7 +30,8 @@ export const ReanalyzeOptionsModal: React.FC<ReanalyzeOptionsModalProps> = ({ ta
                 <div className="p-6 border-b flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-blue-500" />
-                        重新分析: {task.livestream_name}
+                        {/* FIX: The LivestreamTask type uses 'task_name', not 'livestream_name'. */}
+                        重新分析: {task.task_name}
                     </h3>
                     <button onClick={onClose} disabled={isLoading} className="text-gray-400 hover:text-gray-700"><CloseIcon className="w-6 h-6" /></button>
                 </div>

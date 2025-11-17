@@ -53,8 +53,8 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
                             <DocumentTextIcon className="w-6 h-6" />
                         </div>
                         <div className="overflow-hidden">
-                            <h2 className="text-lg font-bold text-gray-900 truncate">{event.livestream_name} - AI解读报告</h2>
-                            <p className="text-sm text-gray-500">{event.host_name} &nbsp;&nbsp;|&nbsp;&nbsp; {formattedDate}</p>
+                            <h2 className="text-lg font-bold text-gray-900 truncate">{event.task_name} - AI解读报告</h2>
+                            <p className="text-sm text-gray-500">{formattedDate}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
@@ -72,7 +72,7 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
 
                  {/* Footer */}
                 <div className="px-6 py-4 bg-white border-t flex justify-end">
-                     <a href={event.url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
+                     <a href={event.live_url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
                         查看回放
                      </a>
                 </div>
