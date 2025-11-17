@@ -8,11 +8,11 @@ import { CompetitivenessManager } from './CompetitivenessManager';
 import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
-    { view: 'users', label: '用户管理', icon: UsersIcon },
-    { view: 'events', label: '发布会管理', icon: VideoCameraIcon },
-    { view: 'intelligence', label: '情报管理', icon: RssIcon },
-    { view: 'competitiveness', label: '竞争力管理', icon: BrainIcon },
-    { view: 'markdown2html', label: 'Markdown转HTML', icon: DocumentTextIcon },
+    { view: 'users', label: '用户', icon: UsersIcon },
+    { view: 'events', label: '发布会', icon: VideoCameraIcon },
+    { view: 'intelligence', label: '情报', icon: RssIcon },
+    { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
+    { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -37,7 +37,8 @@ export const AdminPage: React.FC = () => {
 
     return (
         <div className="flex h-full bg-gray-50/50">
-            <aside className="w-56 bg-white border-r flex-shrink-0">
+            {/* Desktop Sidebar */}
+            <aside className="hidden md:block w-56 bg-white border-r flex-shrink-0">
                 <nav className="p-2 mt-4 space-y-1">
                     {navItems.map(item => (
                         <button
@@ -50,14 +51,34 @@ export const AdminPage: React.FC = () => {
                             }`}
                         >
                             <item.icon className="w-5 h-5" />
-                            {item.label}
+                            {item.label}管理
                         </button>
                     ))}
                 </nav>
             </aside>
-            <main className="flex-1 overflow-y-auto">
+
+            {/* Main Content */}
+            <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
                 {renderView()}
             </main>
+
+            {/* Mobile Bottom Navigation */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-md flex justify-around z-30">
+                {navItems.map(item => (
+                    <button
+                        key={item.view}
+                        onClick={() => setView(item.view)}
+                        className={`flex flex-col items-center justify-center text-center p-2 w-full transition-colors ${
+                            view === item.view
+                                ? 'text-blue-600'
+                                : 'text-gray-500 hover:bg-gray-100'
+                        }`}
+                    >
+                        <item.icon className="w-6 h-6 mb-1" />
+                        <span className="text-xs truncate">{item.label}</span>
+                    </button>
+                ))}
+            </nav>
         </div>
     );
 };

@@ -26,8 +26,8 @@ const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
 );
 
 const ViewContainer: React.FC<{ title: string; onRefresh?: () => void; isLoading?: boolean; children: React.ReactNode; rightHeader?: React.ReactNode }> = ({ title, onRefresh, isLoading, children, rightHeader }) => (
-    <div className="p-6 h-full flex flex-col">
-        <div className="flex justify-between items-center mb-6 flex-shrink-0">
+    <div className="p-4 md:p-6 h-full flex flex-col">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 flex-shrink-0">
             <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
             <div className="flex items-center gap-2">
                 {rightHeader}
@@ -282,12 +282,18 @@ const EntityManager: React.FC = () => {
         <div className="h-full flex flex-col">
             {error && <p className="text-sm text-red-600 bg-red-100 p-3 rounded-lg mb-4">{error}</p>}
             
-            <div className="flex-shrink-0 mb-4 p-4 bg-white rounded-lg border flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                    <div className="relative">
+            <div className="flex-shrink-0 mb-4 p-4 bg-white rounded-lg border flex flex-col gap-4">
+                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="relative flex-grow">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="搜索实体名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4" />
                     </div>
+                    <div className="flex items-center gap-2">
+                         <button onClick={() => fetchData()} className="p-2.5 bg-white border rounded-lg"><RefreshIcon className={`w-5 h-5 ${isLoading && !entities.length ? 'animate-spin' : ''}`} /></button>
+                         <button onClick={() => setModalState({ type: 'new' })} className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg"><PlusIcon className="w-4 h-4" /> 新建实体</button>
+                    </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                     <select value={filters.entity_type} onChange={e => setFilters(p => ({...p, entity_type: e.target.value}))} className="bg-white border border-gray-300 rounded-lg py-2 px-3">
                         <option value="">所有类型</option>
                         {uniqueEntityTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -298,58 +304,88 @@ const EntityManager: React.FC = () => {
                         <option value="false">未激活</option>
                     </select>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => fetchData()} className="p-2.5 bg-white border rounded-lg"><RefreshIcon className={`w-5 h-5 ${isLoading && !entities.length ? 'animate-spin' : ''}`} /></button>
-                    <button onClick={() => setModalState({ type: 'new' })} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg"><PlusIcon className="w-4 h-4" /> 新建实体</button>
-                </div>
             </div>
 
-            <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
-                 <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <th className="px-6 py-3">名称</th>
-                            <th className="px-6 py-3">类型</th>
-                            <th className="px-6 py-3">别名</th>
-                            <th className="px-6 py-3">描述</th>
-                            <th className="px-6 py-3">激活</th>
-                            <th className="px-6 py-3">更新时间</th>
-                            <th className="px-6 py-3 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading && entities.length === 0 ? (<tr><td colSpan={7}><Spinner /></td></tr>)
-                        : entities.length === 0 ? (<tr><td colSpan={7} className="text-center py-10">未找到任何实体。</td></tr>)
-                        : (entities.map(entity => (
-                            <tr key={entity.id} className="bg-white border-b hover:bg-gray-50">
-                                <td className="px-6 py-4 font-medium text-gray-900">{entity.name}</td>
-                                <td className="px-6 py-4">{entity.entity_type}</td>
-                                <td className="px-6 py-4 max-w-sm truncate" title={entity.aliases.join(', ')}>{entity.aliases.join(', ')}</td>
-                                <td className="px-6 py-4 max-w-xs truncate" title={entity.description || ''}>{entity.description}</td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                        <ToggleSwitch
-                                            checked={entity.is_active}
-                                            onChange={() => handleToggleActive(entity)}
-                                            disabled={togglingId === entity.id}
-                                        />
-                                        {togglingId === entity.id && <Spinner small={true} />}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">{new Date(entity.updated_at || entity.created_at).toLocaleString('zh-CN')}</td>
-                                <td className="px-6 py-4 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <button onClick={() => setModalState({ type: 'edit', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
-                                        <button onClick={() => setModalState({ type: 'delete', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
-                                    </div>
-                                </td>
+            <div className="flex-1 overflow-y-auto">
+                {/* Desktop Table */}
+                <div className="bg-white rounded-lg border overflow-x-auto hidden md:block">
+                     <table className="w-full text-sm text-left text-gray-500">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                            <tr>
+                                <th className="px-6 py-3">名称</th>
+                                <th className="px-6 py-3">类型</th>
+                                <th className="px-6 py-3">别名</th>
+                                <th className="px-6 py-3">描述</th>
+                                <th className="px-6 py-3">激活</th>
+                                <th className="px-6 py-3">更新时间</th>
+                                <th className="px-6 py-3 text-center">操作</th>
                             </tr>
-                        )))}
-                    </tbody>
-                 </table>
+                        </thead>
+                        <tbody>
+                            {isLoading && entities.length === 0 ? (<tr><td colSpan={7}><Spinner /></td></tr>)
+                            : entities.length === 0 ? (<tr><td colSpan={7} className="text-center py-10">未找到任何实体。</td></tr>)
+                            : (entities.map(entity => (
+                                <tr key={entity.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{entity.name}</td>
+                                    <td className="px-6 py-4">{entity.entity_type}</td>
+                                    <td className="px-6 py-4 max-w-sm truncate" title={entity.aliases.join(', ')}>{entity.aliases.join(', ')}</td>
+                                    <td className="px-6 py-4 max-w-xs truncate" title={entity.description || ''}>{entity.description}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <ToggleSwitch
+                                                checked={entity.is_active}
+                                                onChange={() => handleToggleActive(entity)}
+                                                disabled={togglingId === entity.id}
+                                            />
+                                            {togglingId === entity.id && <Spinner small={true} />}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">{new Date(entity.updated_at || entity.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button onClick={() => setModalState({ type: 'edit', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
+                                            <button onClick={() => setModalState({ type: 'delete', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )))}
+                        </tbody>
+                     </table>
+                </div>
+
+                {/* Mobile Cards */}
+                 <div className="md:hidden space-y-4">
+                    {isLoading && entities.length === 0 ? <Spinner/> : entities.length === 0 ? <div className="text-center py-10 text-gray-500">未找到实体</div> :
+                    entities.map(entity => (
+                        <div key={entity.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-bold text-gray-900">{entity.name}</p>
+                                    <p className="text-sm text-gray-500">{entity.entity_type}</p>
+                                </div>
+                                <div className="flex items-center gap-2 -mr-1.5">
+                                    <button onClick={() => setModalState({ type: 'edit', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
+                                    <button onClick={() => setModalState({ type: 'delete', data: entity })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
+                                </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t text-sm space-y-2">
+                                <p><strong className="text-gray-600 font-medium">别名: </strong>{entity.aliases.join(', ') || '无'}</p>
+                                <p><strong className="text-gray-600 font-medium">描述: </strong>{entity.description || '无'}</p>
+                                <p><strong className="text-gray-600 font-medium">更新于: </strong>{new Date(entity.updated_at || entity.created_at).toLocaleDateString()}</p>
+                                <div className="flex items-center justify-between pt-2">
+                                     <strong className="text-gray-600 font-medium">激活状态:</strong>
+                                      <div className="flex items-center gap-2">
+                                        <ToggleSwitch checked={entity.is_active} onChange={() => handleToggleActive(entity)} disabled={togglingId === entity.id} />
+                                        {togglingId === entity.id && <Spinner small />}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                 </div>
             </div>
             
-            <div className="flex-shrink-0 flex justify-between items-center mt-4 text-sm">
+            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 {pagination.pages > 1 && (
                     <div className="flex items-center gap-2">
@@ -529,47 +565,82 @@ const ModuleManager: React.FC = () => {
             <div className="flex-shrink-0 mb-4 flex justify-end">
                  <button onClick={() => setModalState({ type: 'new' })} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg"><PlusIcon className="w-4 h-4" /> 新建模块</button>
             </div>
-            <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
-                <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <th className="px-6 py-3">模块名称</th>
-                            <th className="px-6 py-3">模块 Key</th>
-                            <th className="px-6 py-3">目标实体类型</th>
-                            <th className="px-6 py-3">激活</th>
-                            <th className="px-6 py-3">更新时间</th>
-                            <th className="px-6 py-3 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
-                        : modules.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何模块。</td></tr>)
-                        : (modules.map(module => (
-                            <tr key={module.id} className="bg-white border-b hover:bg-gray-50">
-                                <td className="px-6 py-4 font-medium text-gray-900">{module.module_name}</td>
-                                <td className="px-6 py-4 font-mono text-xs">{module.module_key}</td>
-                                <td className="px-6 py-4">
-                                    <div className="flex flex-wrap gap-1">
-                                        {module.target_entity_types.map(t => <span key={t} className="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs rounded-full">{t}</span>)}
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
+            <div className="flex-1 overflow-y-auto">
+                {/* Desktop Table */}
+                <div className="bg-white rounded-lg border overflow-x-auto hidden md:block">
+                    <table className="w-full text-sm text-left text-gray-500">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                            <tr>
+                                <th className="px-6 py-3">模块名称</th>
+                                <th className="px-6 py-3">模块 Key</th>
+                                <th className="px-6 py-3">目标实体类型</th>
+                                <th className="px-6 py-3">激活</th>
+                                <th className="px-6 py-3">更新时间</th>
+                                <th className="px-6 py-3 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isLoading ? (<tr><td colSpan={6}><Spinner /></td></tr>)
+                            : modules.length === 0 ? (<tr><td colSpan={6} className="text-center py-10">未找到任何模块。</td></tr>)
+                            : (modules.map(module => (
+                                <tr key={module.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{module.module_name}</td>
+                                    <td className="px-6 py-4 font-mono text-xs">{module.module_key}</td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-wrap gap-1">
+                                            {module.target_entity_types.map(t => <span key={t} className="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs rounded-full">{t}</span>)}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <ToggleSwitch checked={module.is_active} onChange={() => handleToggleActive(module)} disabled={togglingId === module.id} />
+                                            {togglingId === module.id && <Spinner small />}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">{new Date(module.updated_at || module.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button onClick={() => setModalState({ type: 'edit', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
+                                            <button onClick={() => setModalState({ type: 'delete', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Mobile Cards */}
+                 <div className="md:hidden space-y-4">
+                    {isLoading ? <Spinner/> : modules.length === 0 ? <div className="text-center py-10 text-gray-500">未找到任何模块。</div> :
+                    modules.map(module => (
+                         <div key={module.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                             <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-bold text-gray-900">{module.module_name}</p>
+                                    <p className="text-sm font-mono text-gray-500">{module.module_key}</p>
+                                </div>
+                                 <div className="flex items-center gap-2 -mr-1.5">
+                                    <button onClick={() => setModalState({ type: 'edit', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
+                                    <button onClick={() => setModalState({ type: 'delete', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
+                                </div>
+                            </div>
+                             <div className="mt-3 pt-3 border-t text-sm space-y-2">
+                                <p><strong className="text-gray-600 font-medium">目标类型: </strong>
+                                    {module.target_entity_types.map(t => <span key={t} className="ml-1 px-2 py-0.5 bg-gray-100 text-gray-800 text-xs rounded-full">{t}</span>)}
+                                </p>
+                                <p><strong className="text-gray-600 font-medium">更新于: </strong>{new Date(module.updated_at || module.created_at).toLocaleDateString()}</p>
+                                <div className="flex items-center justify-between pt-2">
+                                     <strong className="text-gray-600 font-medium">激活状态:</strong>
+                                     <div className="flex items-center gap-2">
                                         <ToggleSwitch checked={module.is_active} onChange={() => handleToggleActive(module)} disabled={togglingId === module.id} />
                                         {togglingId === module.id && <Spinner small />}
                                     </div>
-                                </td>
-                                <td className="px-6 py-4">{new Date(module.updated_at || module.created_at).toLocaleString('zh-CN')}</td>
-                                <td className="px-6 py-4 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <button onClick={() => setModalState({ type: 'edit', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><PencilIcon className="w-4 h-4 text-blue-600"/></button>
-                                        <button onClick={() => setModalState({ type: 'delete', data: module })} className="p-1.5 hover:bg-gray-100 rounded"><TrashIcon className="w-4 h-4 text-red-600"/></button>
-                                    </div>
-                                </td>
-                            </tr>
-                        )))}
-                    </tbody>
-                </table>
+                                </div>
+                            </div>
+                         </div>
+                    ))}
+                 </div>
             </div>
 
             {(modalState.type === 'new' || modalState.type === 'edit') && <ModuleModal module={modalState.data} onClose={() => setModalState({type: null})} onSuccess={() => { setModalState({type: null}); fetchData(false); }} />}
@@ -676,7 +747,7 @@ const DataQueryView: React.FC = () => {
                     )}
                 </div>
                 {results && results.total > 0 && (
-                     <div className="flex-shrink-0 p-3 border-t border-gray-200 flex justify-between items-center text-sm">
+                     <div className="flex-shrink-0 p-3 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-sm gap-4">
                         <span className="text-gray-600 font-medium">共 {results.total} 条</span>
                         <div className="flex items-center gap-2">
                             <button onClick={() => handleQuery(page - 1)} disabled={page <= 1 || isLoading} className="p-1.5 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
@@ -876,40 +947,69 @@ const BackfillJobsManager: React.FC = () => {
              <div className="flex-shrink-0 mb-4 flex justify-end">
                  <button onClick={() => setModalState({ type: 'new' })} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg"><PlusIcon className="w-4 h-4" /> 新建回溯任务</button>
             </div>
-            <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
-                 <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <th className="px-6 py-3">任务名称</th>
-                            <th className="px-6 py-3">时间范围</th>
-                            <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">创建时间</th>
-                            <th className="px-6 py-3 text-center">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading ? (<tr><td colSpan={5}><Spinner /></td></tr>)
-                        : jobs.length === 0 ? (<tr><td colSpan={5} className="text-center py-10">未找到任何回溯任务。</td></tr>)
-                        : (jobs.map(job => (
-                            <tr key={job.id} className="bg-white border-b hover:bg-gray-50">
-                                <td className="px-6 py-4 font-medium text-gray-900">{job.name}</td>
-                                <td className="px-6 py-4">{new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}</td>
-                                <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(job.status)}`}>{job.status}</span></td>
-                                <td className="px-6 py-4">{new Date(job.created_at).toLocaleString('zh-CN')}</td>
-                                <td className="px-6 py-4 text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                        { (job.status === 'pending' || job.status === 'paused') && 
-                                            <button onClick={() => setModalState({type: 'start', data: job})} className="p-1.5 hover:bg-gray-100 rounded" title="启动"><PlayIcon className="w-4 h-4 text-green-600" /></button>
-                                        }
-                                        { job.status === 'running' && 
-                                             <button onClick={() => setModalState({type: 'pause', data: job})} className="p-1.5 hover:bg-gray-100 rounded" title="暂停"><StopIcon className="w-4 h-4 text-yellow-600" /></button>
-                                        }
-                                    </div>
-                                </td>
+            <div className="flex-1 overflow-y-auto">
+                {/* Desktop Table */}
+                <div className="bg-white rounded-lg border overflow-x-auto hidden md:block">
+                     <table className="w-full text-sm text-left text-gray-500">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+                            <tr>
+                                <th className="px-6 py-3">任务名称</th>
+                                <th className="px-6 py-3">时间范围</th>
+                                <th className="px-6 py-3">状态</th>
+                                <th className="px-6 py-3">创建时间</th>
+                                <th className="px-6 py-3 text-center">操作</th>
                             </tr>
-                        )))}
-                    </tbody>
-                 </table>
+                        </thead>
+                        <tbody>
+                            {isLoading ? (<tr><td colSpan={5}><Spinner /></td></tr>)
+                            : jobs.length === 0 ? (<tr><td colSpan={5} className="text-center py-10">未找到任何回溯任务。</td></tr>)
+                            : (jobs.map(job => (
+                                <tr key={job.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{job.name}</td>
+                                    <td className="px-6 py-4">{new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(job.status)}`}>{job.status}</span></td>
+                                    <td className="px-6 py-4">{new Date(job.created_at).toLocaleString('zh-CN')}</td>
+                                    <td className="px-6 py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                            { (job.status === 'pending' || job.status === 'paused') && 
+                                                <button onClick={() => setModalState({type: 'start', data: job})} className="p-1.5 hover:bg-gray-100 rounded" title="启动"><PlayIcon className="w-4 h-4 text-green-600" /></button>
+                                            }
+                                            { job.status === 'running' && 
+                                                 <button onClick={() => setModalState({type: 'pause', data: job})} className="p-1.5 hover:bg-gray-100 rounded" title="暂停"><StopIcon className="w-4 h-4 text-yellow-600" /></button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            )))}
+                        </tbody>
+                     </table>
+                </div>
+
+                {/* Mobile Cards */}
+                 <div className="md:hidden space-y-4">
+                      {isLoading ? <Spinner/> : jobs.length === 0 ? <div className="text-center py-10 text-gray-500">未找到任何回溯任务。</div> :
+                        jobs.map(job => (
+                             <div key={job.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                                <div className="flex justify-between items-start">
+                                    <p className="font-bold text-gray-900 flex-1 pr-4">{job.name}</p>
+                                    <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(job.status)}`}>{job.status}</span>
+                                </div>
+                                <div className="mt-3 pt-3 border-t text-sm space-y-2">
+                                     <p><strong className="text-gray-600 font-medium">时间范围: </strong>{new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}</p>
+                                     <p><strong className="text-gray-600 font-medium">创建于: </strong>{new Date(job.created_at).toLocaleDateString()}</p>
+                                </div>
+                                 <div className="mt-4 flex justify-end">
+                                     { (job.status === 'pending' || job.status === 'paused') && 
+                                        <button onClick={() => setModalState({type: 'start', data: job})} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200"><PlayIcon className="w-4 h-4"/> 启动</button>
+                                    }
+                                    { job.status === 'running' && 
+                                         <button onClick={() => setModalState({type: 'pause', data: job})} className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200"><StopIcon className="w-4 h-4"/> 暂停</button>
+                                    }
+                                 </div>
+                             </div>
+                        ))
+                      }
+                 </div>
             </div>
             {modalState.type === 'new' && <BackfillJobModal onClose={() => setModalState({type: null})} onSuccess={() => { setModalState({type: null}); fetchData(false); }} />}
             { (modalState.type === 'start' || modalState.type === 'pause') && modalState.data &&
@@ -1020,25 +1120,27 @@ export const CompetitivenessManager: React.FC = () => {
     ];
 
     return (
-        <div className="p-6 h-full flex flex-col">
+        <div className="p-4 md:p-6 h-full flex flex-col">
             <div className="flex-shrink-0">
                 <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                         {navItems.map(item => (
-                            <button
-                                key={item.view}
-                                onClick={() => setSubView(item.view)}
-                                className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-                                    subView === item.view
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                }`}
-                            >
-                                <item.icon className="w-5 h-5" />
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
+                    <div className="overflow-x-auto -mb-px">
+                        <nav className="flex space-x-6" aria-label="Tabs">
+                             {navItems.map(item => (
+                                <button
+                                    key={item.view}
+                                    onClick={() => setSubView(item.view)}
+                                    className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                                        subView === item.view
+                                            ? 'border-blue-500 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    <item.icon className="w-5 h-5" />
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
                 </div>
             </div>
             <div className="flex-1 mt-6 overflow-hidden flex flex-col">
