@@ -26,9 +26,14 @@ const getSafeImageSrc = (base64Data: string | null | undefined): string | null =
 
 const formatTimeLeft = (distance: number): string | null => {
     if (distance < 0) return null;
+    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
     const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+    if (days > 0) {
+        return `${days}天 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
@@ -57,6 +62,8 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
 
         return () => clearInterval(timer);
     }, [event.start_time, isLive, isCompleted]);
+
+    const countdownTextSize = timeLeft && timeLeft.length > 8 ? 'text-3xl' : 'text-4xl';
 
     return (
         <div 
@@ -97,7 +104,7 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                 {/* Middle: Countdown */}
                 {!isLive && !isCompleted && timeLeft && (
                     <div className="text-center">
-                        <div className="text-4xl font-bold tracking-tighter" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
+                        <div className={`${countdownTextSize} font-bold tracking-tighter`} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                             {timeLeft}
                         </div>
                         <p className="text-sm opacity-80">后开始</p>

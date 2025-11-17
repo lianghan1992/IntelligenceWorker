@@ -10,6 +10,7 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
 import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
 import { ReanalyzeOptionsModal } from './ReanalyzeOptionsModal';
+import { StatsDisplayModal } from './StatsDisplayModal';
 
 
 // --- Internal Components ---
@@ -57,6 +58,7 @@ export const LivestreamTaskManager: React.FC = () => {
     const [taskToReanalyze, setTaskToReanalyze] = useState<LivestreamTask | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
+    const [statsModalTask, setStatsModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
@@ -242,7 +244,11 @@ export const LivestreamTaskManager: React.FC = () => {
                                 const isReanalyzable = ['completed', 'failed'].includes(task.status.toLowerCase());
                                 return (
                                 <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{task.task_name}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900">
+                                        <a href={task.live_url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 hover:underline" title={task.live_url}>
+                                            {task.task_name}
+                                        </a>
+                                    </td>
                                     <td className="px-6 py-4 text-xs font-mono" title={task.summary_prompt}>{task.summary_prompt || '默认'}</td>
                                     <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
@@ -255,6 +261,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                                 <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                             )}
                                             <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
+                                            <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">状态详情</button>
                                             <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                             {isReanalyzable && (
                                                 <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
@@ -300,6 +307,7 @@ export const LivestreamTaskManager: React.FC = () => {
                     isLoading={actionLoading}
                 />
             )}
+            {statsModalTask && <StatsDisplayModal task={statsModalTask} onClose={() => setStatsModalTask(null)} />}
         </div>
     );
 };

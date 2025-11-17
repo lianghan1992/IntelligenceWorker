@@ -50,9 +50,10 @@ const getStatusDetails = (status: string) => {
 };
 
 const CountdownDisplay: React.FC<{ timeLeft: string }> = ({ timeLeft }) => {
+    const textSizeClass = timeLeft.length > 8 ? 'text-3xl lg:text-4xl' : 'text-4xl lg:text-5xl';
     return (
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-4 text-white text-center font-bold" style={{ textShadow: '0 2px 6px rgba(0, 0, 0, 0.7)' }}>
-            <div className="text-4xl lg:text-5xl tracking-tighter leading-none">{timeLeft}</div>
+            <div className={`${textSizeClass} tracking-tighter leading-none`}>{timeLeft}</div>
             <div className="text-sm lg:text-base opacity-80 tracking-wide mt-1">后开始</div>
         </div>
     );
@@ -81,11 +82,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-            if (days > 0) return `${days}天 ${String(hours).padStart(2, '0')}时`;
-            if (hours > 0) return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            if (minutes > 0) return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            return `${seconds}秒`;
+            
+            if (days > 0) return `${days}天 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         };
         
         const timer = setInterval(() => {
@@ -136,7 +136,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
             )}
 
             <div className="absolute inset-0 flex flex-col justify-end p-4 text-white z-10">
-                <h3 className="text-lg font-bold drop-shadow-md leading-tight">{task.task_name}</h3>
+                <a 
+                  href={task.live_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  onClick={(e) => e.stopPropagation()} 
+                  className="text-lg font-bold drop-shadow-md leading-tight hover:underline"
+                >
+                  {task.task_name}
+                </a>
                 <p className="text-xs text-gray-200 mt-1.5 drop-shadow-sm">{formattedDate}</p>
 
                 {isLive && (
