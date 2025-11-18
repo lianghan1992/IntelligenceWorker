@@ -30,6 +30,10 @@ export const getLivestreamTasks = (params: { page?: number; page_size?: number; 
     return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks${query}`);
 };
 
+export const getLivestreamTaskById = (taskId: string): Promise<LivestreamTask> =>
+    apiFetch<LivestreamTask>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`);
+
+
 // Removed getPublicLivestreamTasks and getLivestreamTasksStats as they are deprecated.
 
 // Updated to use JSON body with Base64 image, as per new docs.

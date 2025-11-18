@@ -314,7 +314,8 @@ export const TechDashboard: React.FC = () => {
                             {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
                         {/* FIX: Added explicit event typing to resolve 'e.target' error. */}
-                         <select multiple value={selections.models} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('models', Array.from(e.target.selectedOptions, option => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                         {/* FIX: Explicitly type the 'option' parameter in Array.from to resolve type inference issue. */}
+                         <select multiple value={selections.models} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleSelectChange('models', Array.from(e.target.selectedOptions, (option: HTMLOptionElement) => option.value))} className="w-full max-w-md bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
                             {modelsOfBrand.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                         </select>
                     </div>
