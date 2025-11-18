@@ -108,6 +108,7 @@ export const getTaskManuscript = async (taskId: string): Promise<string> => {
     return response.text();
 };
 
+
 export const getLivestreamPrompts = async (): Promise<string[]> => {
     const url = `${PROMPTS_PATH}`;
     const token = localStorage.getItem('accessToken');
