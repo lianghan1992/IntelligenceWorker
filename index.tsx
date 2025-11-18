@@ -5,7 +5,7 @@ import App from './App';
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.ts')
+    navigator.serviceWorker.register(new URL('./sw.ts', import.meta.url), { type: 'module' })
       .then(registration => {
         console.log('ServiceWorker registration successful with scope: ', registration.scope);
       })

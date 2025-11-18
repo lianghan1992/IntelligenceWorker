@@ -1,6 +1,6 @@
 /// <reference lib="WebWorker" />
 
-const sw = self as unknown as ServiceWorkerGlobalScope;
+const sw = self;
 
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
 // Add assets that are absolutely essential for the app shell to work offline.

@@ -5,7 +5,7 @@ import { AddEventModal } from './AddEventModal';
 import { 
     PlusIcon, RefreshIcon, TrashIcon,
     ChevronDownIcon, ChevronUpDownIcon, SearchIcon, CalendarIcon,
-    FunnelIcon, ChevronLeftIcon, ChevronRightIcon, FilmIcon, BrainIcon
+    FunnelIcon, ChevronLeftIcon, ChevronRightIcon, FilmIcon, BrainIcon, PlayIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -400,9 +400,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                         <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                                {(statusLower === 'scheduled' || statusLower === 'pending') && (
-                                                    <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
-                                                )}
+                                                <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                                 {['listening', 'recording', 'downloading'].includes(statusLower) && (
                                                     <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                                 )}
@@ -456,9 +454,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
-                                     {(task.status.toLowerCase() === 'scheduled' || task.status.toLowerCase() === 'pending') && (
-                                        <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
-                                    )}
+                                    <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                     {['listening', 'recording', 'downloading'].includes(task.status.toLowerCase()) && (
                                         <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                     )}
