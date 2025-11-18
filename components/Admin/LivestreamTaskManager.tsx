@@ -110,9 +110,7 @@ export const LivestreamTaskManager: React.FC = () => {
     }, [pagination.page, pagination.limit, filters, sort]);
 
     useEffect(() => {
-        // FIX: While the function signature allows for zero arguments due to the default parameter,
-        // some tooling can incorrectly flag this. Explicitly passing `true` makes the call unambiguous
-        // without changing the initial loading behavior.
+        // FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker.
         loadTasks(true);
     }, [loadTasks]);
 
