@@ -48,9 +48,10 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                 let totalArticlesToday = 0;
                 if (sourceNames.length > 0) {
                     const articlesData = await searchArticlesFiltered({
-                        query_text: '*',
-                        source_names: sourceNames,
-                        publish_date_start: todayTimestamp,
+                        filters: {
+                            source_names: sourceNames,
+                            publish_date_start: todayTimestamp,
+                        },
                         limit: 1,
                         page: 1,
                     });
@@ -75,9 +76,11 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                 // 3. Get update count for each POI
                 const poiUpdatePromises = pois.map(poi => 
                     searchArticlesFiltered({
+                        filters: {
+                            source_names: sourceNames.length > 0 ? sourceNames : undefined,
+                            publish_date_start: todayTimestamp,
+                        },
                         query_text: poi.content,
-                        source_names: sourceNames.length > 0 ? sourceNames : undefined,
-                        publish_date_start: todayTimestamp,
                         limit: 1,
                         page: 1,
                     }).then(result => ({

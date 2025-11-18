@@ -81,9 +81,10 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
 
                 // Fetch today's articles to get the total count and a sample for active points
                 const articlesData = await searchArticlesFiltered({
-                    query_text: '*',
-                    source_names: sourceNames,
-                    publish_date_start: todayTimestamp,
+                    filters: {
+                        source_names: sourceNames,
+                        publish_date_start: todayTimestamp,
+                    },
                     limit: 100, // Get a decent sample to estimate active points
                     page: 1,
                 });
