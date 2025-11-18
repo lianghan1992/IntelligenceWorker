@@ -46,7 +46,21 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 // Fetch: Serve from cache or network
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { request } = event;
-  const url = new URL(request.url);
+  
+  // It's possible for a fetch event to be triggered with a non-URL request,
+  // for example from a browser extension. This would crash the service worker.
+  // We wrap this in a try-catch to prevent that.
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch (e) {
+    // If it's not a valid URL, we'll just forward the request to the network
+    // and let the browser handle it.
+    console.warn(`Service Worker ignoring invalid URL: ${request.url}`);
+    event.respondWith(fetch(request));
+    return;
+  }
+
 
   // For API calls and socket connections, always go to the network.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
