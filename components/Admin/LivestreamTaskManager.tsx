@@ -359,7 +359,16 @@ export const LivestreamTaskManager: React.FC = () => {
                     isLoading={actionLoading}
                 />
             )}
-            {statsModalTask && <StatsDisplayModal task={statsModalTask} onClose={() => setStatsModalTask(null)} />}
+            {statsModalTask && (
+                <StatsDisplayModal 
+                    task={statsModalTask} 
+                    onClose={() => setStatsModalTask(null)} 
+                    onReanalyze={(task, action) => {
+                        setStatsModalTask(null);
+                        handleReanalysisClick(task, action);
+                    }}
+                />
+            )}
         </div>
     );
 };

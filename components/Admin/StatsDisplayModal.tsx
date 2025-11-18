@@ -6,6 +6,7 @@ import { CloseIcon, ServerIcon, FilmIcon, BrainIcon, CheckCircleIcon, ChevronDow
 interface StatsDisplayModalProps {
     task: LivestreamTask;
     onClose: () => void;
+    onReanalyze: (task: LivestreamTask, action: 'reprocess' | 'resummarize') => void;
 }
 
 const STAT_LABELS: Record<string, string> = {
@@ -127,7 +128,7 @@ const PipelineConnector: React.FC<{ isFlowing?: boolean }> = ({ isFlowing }) => 
     </div>
 );
 
-export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onClose }) => {
+export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onClose, onReanalyze }) => {
     const [liveTask, setLiveTask] = useState<LivestreamTask>(task);
 
     const stats = useMemo(() => {
@@ -146,6 +147,7 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
 
     const taskStatus = useMemo(() => getStat('status', liveTask.status).toLowerCase(), [stats, liveTask.status]);
     const isTaskActive = useMemo(() => !['completed', 'failed'].includes(taskStatus), [taskStatus]);
+    const isReanalyzable = useMemo(() => ['completed', 'failed'].includes(taskStatus), [taskStatus]);
 
     useEffect(() => {
         if (!task.id || !isTaskActive) return;
@@ -241,7 +243,23 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                     </div>
                 </main>
 
-                <footer className="px-6 py-4 bg-white/70 backdrop-blur-sm border-t flex justify-end flex-shrink-0 rounded-b-2xl">
+                <footer className="px-6 py-4 bg-white/70 backdrop-blur-sm border-t flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
+                    {isReanalyzable && (
+                        <>
+                            <button 
+                                onClick={() => onReanalyze(liveTask, 'resummarize')}
+                                className="px-4 py-2 text-sm font-semibold text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors"
+                            >
+                                重新总结
+                            </button>
+                            <button 
+                                onClick={() => onReanalyze(liveTask, 'reprocess')}
+                                className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors"
+                            >
+                                重新分析
+                            </button>
+                        </>
+                    )}
                     <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-100 transition-colors">
                         关闭
                     </button>

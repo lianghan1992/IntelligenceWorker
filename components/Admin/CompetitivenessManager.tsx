@@ -794,10 +794,12 @@ const BackfillJobModal: React.FC<{ onClose: () => void; onSuccess: () => void; }
                     while (true) {
                         // FIX: Explicitly type the response to handle potential 'unknown' type and resolve 'length' property access error.
                         const modulesPage: CompetitivenessModule[] = await getModules({ is_active: true, limit, offset });
-                        if (modulesPage && modulesPage.length > 0) {
+                        // FIX: Add safety check to ensure modulesPage is an array before using array methods.
+                        if (modulesPage && Array.isArray(modulesPage) && modulesPage.length > 0) {
                             allModules.push(...modulesPage);
                         }
-                        if (!modulesPage || modulesPage.length < limit) {
+                        // FIX: Add safety check to ensure modulesPage is an array before checking its length.
+                        if (!modulesPage || !Array.isArray(modulesPage) || modulesPage.length < limit) {
                             break; // This was the last page
                         }
                         offset += limit;
