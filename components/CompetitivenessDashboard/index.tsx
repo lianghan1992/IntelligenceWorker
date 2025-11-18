@@ -372,10 +372,23 @@ export const CompetitivenessDashboard: React.FC = () => {
         );
     };
 
-    const selectedArticle = useMemo(() => {
+    const selectedArticle = useMemo((): SourceArticleWithRecords | null => {
         if (!selectedArticleId || !traceData) return null;
-        // FIX: The `traceData` type defines `source_articles`, not `sourceArticles`.
-        return traceData.source_articles.find(a => a.id === selectedArticleId) || null;
+
+        // FIX: The object from `traceData.source_articles` is missing the `stage1_records` property.
+        // We need to find the base article and then find all associated stage1 records
+        // to construct a valid `SourceArticleWithRecords` object.
+        const articleInfo = traceData.source_articles.find(a => a.id === selectedArticleId);
+        if (!articleInfo) {
+            return null;
+        }
+
+        const relatedRecords = traceData.stage1_records.filter(record => record.article_id === selectedArticleId);
+
+        return {
+            ...articleInfo,
+            stage1_records: relatedRecords,
+        };
     }, [selectedArticleId, traceData]);
 
 
