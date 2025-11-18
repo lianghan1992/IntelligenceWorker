@@ -1,7 +1,5 @@
 /// <reference lib="WebWorker" />
 
-const sw = self;
-
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -14,7 +12,7 @@ const urlsToCache = [
 ];
 
 // Install: Cache the app shell
-sw.addEventListener('install', (event) => {
+self.addEventListener('install', (event: ExtendableEvent) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -28,7 +26,7 @@ sw.addEventListener('install', (event) => {
 });
 
 // Activate: Clean up old caches
-sw.addEventListener('activate', (event) => {
+self.addEventListener('activate', (event: ExtendableEvent) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -38,6 +36,7 @@ sw.addEventListener('activate', (event) => {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
+          return null;
         })
       );
     })
@@ -45,7 +44,7 @@ sw.addEventListener('activate', (event) => {
 });
 
 // Fetch: Serve from cache or network
-sw.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', (event: FetchEvent) => {
   const { request } = event;
   const url = new URL(request.url);
 

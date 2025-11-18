@@ -403,6 +403,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value, tech_dimension: ''}))} value={filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">选择品牌</option>
+                                    {/* FIX: Add Array.isArray check to prevent 'map' on unknown type error if API response is unexpected. */}
                                     {meta?.car_brands && Array.isArray(meta.car_brands) && meta.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
                                 </select>
                                 <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value}))} value={filters.tech_dimension} disabled={!filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50">
