@@ -76,6 +76,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                 const poiUpdatePromises = pois.map(poi => 
                     searchArticlesFiltered({
                         query_text: poi.content,
+                        source_names: sourceNames.length > 0 ? sourceNames : undefined,
                         publish_date_start: todayTimestamp,
                         limit: 1,
                         page: 1,
@@ -217,6 +218,7 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                     const params: any = {
                         limit: 3,
                         similarity_threshold: 0.35,
+                        page: 1
                     };
                     if (subscribedSourceNames.length > 0) {
                         params.source_names = subscribedSourceNames;
