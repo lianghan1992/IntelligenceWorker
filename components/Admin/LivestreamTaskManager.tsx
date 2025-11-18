@@ -111,6 +111,7 @@ export const LivestreamTaskManager: React.FC = () => {
 
     useEffect(() => {
         // FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker.
+        // This resolves the "Expected 1 arguments, but got 0" error.
         loadTasks(true);
     }, [loadTasks]);
 

@@ -12,7 +12,7 @@ const urlsToCache = [
 ];
 
 // Install: Cache the app shell
-self.addEventListener('install', (event: ExtendableEvent) => {
+self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -26,7 +26,7 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 });
 
 // Activate: Clean up old caches
-self.addEventListener('activate', (event: ExtendableEvent) => {
+self.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -44,7 +44,7 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 });
 
 // Fetch: Serve from cache or network
-self.addEventListener('fetch', (event: FetchEvent) => {
+self.addEventListener('fetch', (event) => {
   const { request } = event;
   
   // It's possible for a fetch event to be triggered with a non-URL request,
