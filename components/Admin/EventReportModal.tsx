@@ -21,6 +21,7 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
     const [reportContent, setReportContent] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [copyStatus, setCopyStatus] = useState('一键复制');
 
     useEffect(() => {
         if (!event?.id) return;
@@ -64,6 +65,14 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
     const formattedDate = new Date(event.start_time).toLocaleString('zh-CN', {
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
+    
+    const handleCopy = () => {
+        if (reportContent) {
+            navigator.clipboard.writeText(reportContent);
+            setCopyStatus('已复制!');
+            setTimeout(() => setCopyStatus('一键复制'), 2000);
+        }
+    };
 
     const renderContent = () => {
         if (isLoading) {
@@ -108,10 +117,13 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
                 </div>
 
                  {/* Footer */}
-                <div className="px-6 py-4 bg-white border-t flex justify-end">
-                     <a href={event.live_url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors">
-                        查看回放
-                     </a>
+                <div className="px-6 py-4 bg-white border-t flex justify-end gap-3">
+                    <button onClick={handleCopy} disabled={!reportContent || isLoading} className="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors disabled:opacity-50">
+                        {copyStatus}
+                    </button>
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                        关闭
+                    </button>
                 </div>
             </div>
         </div>
