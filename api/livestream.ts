@@ -74,14 +74,16 @@ export const startTask = (taskId: string): Promise<void> => apiFetch<void>(`${LI
 export const stopTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
 
 // Old reanalyze is replaced by reprocess and resummarize
-export const reprocessTask = (taskId: string): Promise<{ message: string }> =>
+export const reprocessTask = (taskId: string, params?: { fps_scale?: number; prompt?: string }): Promise<{ message: string }> =>
     apiFetch<{ message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/reprocess`, {
         method: 'POST',
+        body: params ? JSON.stringify(params) : undefined,
     });
 
-export const resummarizeTask = (taskId: string): Promise<{ message: string }> =>
+export const resummarizeTask = (taskId: string, params?: { summary_prompt?: string }): Promise<{ message: string }> =>
     apiFetch<{ message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/resummarize`, {
         method: 'POST',
+        body: params ? JSON.stringify(params) : undefined,
     });
 
 // Removed getTaskLog as it's deprecated.

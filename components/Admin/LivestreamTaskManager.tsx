@@ -9,7 +9,6 @@ import {
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
 import { ManuscriptDisplayModal } from './ManuscriptDisplayModal';
-import { ReanalyzeOptionsModal } from './ReanalyzeOptionsModal';
 import { StatsDisplayModal } from './StatsDisplayModal';
 
 
@@ -55,7 +54,7 @@ export const LivestreamTaskManager: React.FC = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<LivestreamTask | null>(null);
     const [taskToAction, setTaskToAction] = useState<{task: LivestreamTask, action: 'delete' | 'start' | 'stop'} | null>(null);
-    const [taskToReanalyze, setTaskToReanalyze] = useState<LivestreamTask | null>(null);
+    const [taskForReanalysis, setTaskForReanalysis] = useState<{task: LivestreamTask, action: 'reprocess' | 'resummarize'} | null>(null);
     const [actionLoading, setActionLoading] = useState(false);
     const [manuscriptModalTask, setManuscriptModalTask] = useState<LivestreamTask | null>(null);
     const [statsModalTask, setStatsModalTask] = useState<LivestreamTask | null>(null);
@@ -159,26 +158,28 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
 
-    const handleConfirmReanalyze = async (reanalyzeAction: 'reprocess' | 'resummarize') => {
-        if (!taskToReanalyze) return;
+    const handleReanalysisClick = (task: LivestreamTask, action: 'reprocess' | 'resummarize') => {
+        setTaskForReanalysis({ task, action });
+    };
+
+    const confirmReanalysis = async () => {
+        if (!taskForReanalysis) return;
+        const { task, action } = taskForReanalysis;
 
         setActionLoading(true);
         setError(null);
         try {
-            if (!taskToReanalyze.id) {
-                throw new Error("操作失败：任务ID不存在。");
-            }
-            if (reanalyzeAction === 'resummarize') {
-                await resummarizeTask(taskToReanalyze.id);
-            } else {
-                await reprocessTask(taskToReanalyze.id);
+            if (action === 'resummarize') {
+                await resummarizeTask(task.id);
+            } else { // 'reprocess'
+                await reprocessTask(task.id);
             }
             await loadTasks(false);
         } catch (err) {
-            setError(err instanceof Error ? err.message : `重新分析失败`);
+            setError(err instanceof Error ? `操作失败: ${err.message}` : `操作失败`);
         } finally {
             setActionLoading(false);
-            setTaskToReanalyze(null);
+            setTaskForReanalysis(null);
         }
     };
 
@@ -266,7 +267,10 @@ export const LivestreamTaskManager: React.FC = () => {
                                                 <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                                 <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                                 {isReanalyzable && (
-                                                    <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
+                                                    <>
+                                                        <button onClick={() => handleReanalysisClick(task, 'resummarize')} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新总结</button>
+                                                        <button onClick={() => handleReanalysisClick(task, 'reprocess')} className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200">重新分析</button>
+                                                    </>
                                                 )}
                                                 <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                             </div>
@@ -310,7 +314,10 @@ export const LivestreamTaskManager: React.FC = () => {
                                     <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                     <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                     {isReanalyzable && (
-                                        <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
+                                        <>
+                                            <button onClick={() => handleReanalysisClick(task, 'resummarize')} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新总结</button>
+                                            <button onClick={() => handleReanalysisClick(task, 'reprocess')} className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200">重新分析</button>
+                                        </>
                                     )}
                                     <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                 </div>
@@ -332,11 +339,13 @@ export const LivestreamTaskManager: React.FC = () => {
             {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.task_name} onClose={() => setManuscriptModalTask(null)} />}
-            {taskToReanalyze && (
-                <ReanalyzeOptionsModal
-                    task={taskToReanalyze}
-                    onClose={() => setTaskToReanalyze(null)}
-                    onConfirm={handleConfirmReanalyze}
+            {taskForReanalysis && (
+                <ConfirmationModal
+                    title={taskForReanalysis.action === 'resummarize' ? '确认重新总结' : '确认重新分析'}
+                    message={`您确定要对 "${taskForReanalysis.task.task_name}" 执行此操作吗？${taskForReanalysis.action === 'reprocess' ? ' 这将删除现有数据并从头开始完整处理。' : ''}`}
+                    confirmText="确认"
+                    onConfirm={confirmReanalysis}
+                    onCancel={() => setTaskForReanalysis(null)}
                     isLoading={actionLoading}
                 />
             )}

@@ -402,11 +402,13 @@ export const CompetitivenessDashboard: React.FC = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value}))} value={filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">全部品牌</option>
-                                    {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
+                                    {/* FIX: Add a guard to ensure meta.car_brands is an array before mapping. */}
+                                    {meta?.car_brands && Array.isArray(meta.car_brands) && meta.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
                                 </select>
                                 <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value}))} value={filters.tech_dimension} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">全部技术领域</option>
-                                    {meta && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                                    {/* FIX: Add a guard to ensure meta.tech_dimensions is an object before getting its keys. */}
+                                    {meta?.tech_dimensions && typeof meta.tech_dimensions === 'object' && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
                                 </select>
                             </div>
                             <div className="relative">
