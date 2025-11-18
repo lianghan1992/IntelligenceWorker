@@ -71,7 +71,8 @@ export const IntelligenceTaskManager: React.FC = () => {
     }, [pagination.page, pagination.limit, sort]);
 
     useEffect(() => {
-        loadTasks();
+        // FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker.
+        loadTasks(true);
     }, [loadTasks]);
 
     const handleSort = (column: string) => {
@@ -89,7 +90,8 @@ export const IntelligenceTaskManager: React.FC = () => {
         <div className="h-full flex flex-col">
             <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h2 className="text-xl font-bold text-gray-800">采集任务监控</h2>
-                 <button onClick={() => loadTasks()} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                 {/* FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker. */}
+                 <button onClick={() => loadTasks(true)} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                     <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
             </div>

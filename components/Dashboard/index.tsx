@@ -35,7 +35,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
             setIsLoading(true);
             try {
                 // 1. Get total articles today
-                const pointIds = subscriptions.map(sub => sub.id);
+                const sourceNames = Array.from(new Set(subscriptions.map(sub => sub.source_name)));
                 
                 const startOfToday = new Date();
                 startOfToday.setHours(0, 0, 0, 0);
@@ -46,12 +46,13 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
 
 
                 let totalArticlesToday = 0;
-                if (pointIds.length > 0) {
+                if (sourceNames.length > 0) {
                     const articlesData = await searchArticlesFiltered({
                         query_text: '*',
-                        point_ids: pointIds,
+                        source_names: sourceNames,
                         publish_date_start: todayTimestamp,
                         limit: 1,
+                        page: 1,
                     });
                     totalArticlesToday = articlesData.total;
                 }
@@ -76,7 +77,8 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                     searchArticlesFiltered({
                         query_text: poi.content,
                         publish_date_start: todayTimestamp,
-                        limit: 1
+                        limit: 1,
+                        page: 1,
                     }).then(result => ({
                         content: poi.content,
                         count: result.total

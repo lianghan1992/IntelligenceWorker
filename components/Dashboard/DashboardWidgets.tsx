@@ -69,7 +69,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
             }
 
             try {
-                const pointIds = subscriptions.map(sub => sub.id);
+                const sourceNames = Array.from(new Set(subscriptions.map(s => s.source_name)));
                 
                 const startOfToday = new Date();
                 startOfToday.setHours(0, 0, 0, 0);
@@ -82,9 +82,10 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 // Fetch today's articles to get the total count and a sample for active points
                 const articlesData = await searchArticlesFiltered({
                     query_text: '*',
-                    point_ids: pointIds,
+                    source_names: sourceNames,
                     publish_date_start: todayTimestamp,
                     limit: 100, // Get a decent sample to estimate active points
+                    page: 1,
                 });
 
                 const articlesTodayCount = articlesData.total;
