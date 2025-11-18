@@ -50,25 +50,12 @@ export const searchArticles = (query: string, pointIds: string[], top_k: number)
     });
 
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<SearchResult>> => {
-    const { query_text, ...restParams } = params;
-    const isSemanticSearch = query_text && query_text.trim() !== '' && query_text.trim() !== '*';
-
-    // Calls with `query_text` are likely semantic searches. We'll leave them pointed 
-    // at the old endpoint for now to avoid breaking other parts of the application,
-    // as the documented `/search/combined` endpoint has a different signature.
-    if (isSemanticSearch) {
-        return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
-            method: 'POST',
-            body: JSON.stringify(params), // Send original params
-        });
-    }
-
-    // Calls without `query_text` are simple filtered searches (e.g., from the dashboard).
-    // We'll point them to the correct `/articles` endpoint as documented.
-    // This endpoint expects a payload like `{ filters: { ... }, page: 1, limit: 20 }`.
-    return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+    // Per inspection of multiple components, the working pattern is to use
+    // the '/search/articles_filtered' endpoint with a flat parameter structure.
+    // This simplifies the logic and aligns all calls to the same working endpoint.
+    return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
-        body: JSON.stringify(restParams), // Send params without query_text
+        body: JSON.stringify(params),
     });
 };
 
