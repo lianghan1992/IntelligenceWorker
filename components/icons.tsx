@@ -292,3 +292,9 @@ export const AnnotationIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =
     <path fillRule="evenodd" d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" clipRule="evenodd" />
   </Icon>
 );
+
+export const FunnelIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 018 18.25v-5.757a2.25 2.25 0 00-.659-1.59L2.67 6.22A2.25 2.25 0 012 4.629V2.34a.75.75 0 01.628-.74z" clipRule="evenodd" />
+  </Icon>
+);

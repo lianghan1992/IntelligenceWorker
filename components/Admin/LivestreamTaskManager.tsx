@@ -4,7 +4,8 @@ import { getLivestreamTasks, deleteLivestreamTask, startTask, stopTask, resummar
 import { AddEventModal } from './AddEventModal';
 import { 
     PlusIcon, RefreshIcon, TrashIcon,
-    ChevronDownIcon, ChevronUpDownIcon, SearchIcon, CalendarIcon
+    ChevronDownIcon, ChevronUpDownIcon, SearchIcon, CalendarIcon,
+    FunnelIcon, ChevronLeftIcon, ChevronRightIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -67,6 +68,7 @@ export const LivestreamTaskManager: React.FC = () => {
     const [filters, setFilters] = useState({ status: '', search_term: '', company: '', start_date: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
+    const [isFilterVisible, setIsFilterVisible] = useState(false);
     const searchTimeout = useRef<number | null>(null);
 
     const loadTasks = useCallback(async (showLoading = true) => {
@@ -211,28 +213,43 @@ export const LivestreamTaskManager: React.FC = () => {
 
             {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
 
-            <div className="mb-4 p-4 bg-white rounded-lg border flex flex-col xl:flex-row items-stretch gap-4">
-                <div className="relative flex-grow">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" value={searchTermInput} onChange={handleSearchChange} placeholder="搜索任务名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch gap-4">
-                     <input type="text" name="company" value={filters.company} onChange={handleFilterChange} placeholder="搜索车企..." className="w-full sm:w-auto bg-white border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <div className="relative w-full sm:w-auto">
-                        <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="date" name="start_date" value={filters.start_date} onChange={handleFilterChange} className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            {/* Mobile Filter Toggle */}
+            <div className="md:hidden mb-4">
+                <button 
+                    onClick={() => setIsFilterVisible(!isFilterVisible)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition"
+                >
+                    <FunnelIcon className="w-4 h-4" />
+                    <span>{isFilterVisible ? '收起筛选' : '展开筛选'}</span>
+                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isFilterVisible ? 'rotate-180' : ''}`} />
+                </button>
+            </div>
+
+            {/* Filter Panel */}
+            <div className={`${isFilterVisible ? 'block' : 'hidden'} md:block mb-4 p-4 bg-white rounded-lg border`}>
+                <div className="flex flex-col xl:flex-row items-stretch gap-4">
+                    <div className="relative flex-grow">
+                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input type="text" value={searchTermInput} onChange={handleSearchChange} placeholder="搜索任务名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
-                    <select name="status" value={filters.status} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">所有状态</option>
-                        <option value="scheduled">即将开始</option>
-                        <option value="listening">监听中</option>
-                        <option value="recording">录制中</option>
-                        <option value="downloading">下载中</option>
-                        <option value="stopping">停止中</option>
-                        <option value="processing">AI总结中</option>
-                        <option value="finished">已结束</option>
-                        <option value="failed">失败</option>
-                    </select>
+                    <div className="flex flex-col sm:flex-row items-stretch gap-4">
+                        <input type="text" name="company" value={filters.company} onChange={handleFilterChange} placeholder="搜索车企..." className="w-full sm:w-auto bg-white border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div className="relative w-full sm:w-auto">
+                            <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input type="date" name="start_date" value={filters.start_date} onChange={handleFilterChange} className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <select name="status" value={filters.status} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">所有状态</option>
+                            <option value="scheduled">即将开始</option>
+                            <option value="listening">监听中</option>
+                            <option value="recording">录制中</option>
+                            <option value="downloading">下载中</option>
+                            <option value="stopping">停止中</option>
+                            <option value="processing">AI总结中</option>
+                            <option value="finished">已结束</option>
+                            <option value="failed">失败</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             
@@ -349,11 +366,27 @@ export const LivestreamTaskManager: React.FC = () => {
             </div>
 
             <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
-                <span className="text-gray-600">共 {pagination.total} 条</span>
-                <div className="flex items-center gap-2">
+                <span className="text-gray-600 hidden md:block">共 {pagination.total} 条</span>
+                
+                {/* Desktop Pagination */}
+                <div className="hidden md:flex items-center gap-2">
                     <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
                     <span>第 {pagination.page} / {pagination.totalPages} 页</span>
                     <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
+                </div>
+
+                {/* Mobile Pagination */}
+                <div className="md:hidden flex w-full justify-between items-center">
+                    <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="p-2 bg-white border rounded-md disabled:opacity-50">
+                        <ChevronLeftIcon className="w-5 h-5" />
+                    </button>
+                    <div className="text-center">
+                        <span className="font-semibold">{pagination.page} / {pagination.totalPages}</span>
+                        <p className="text-xs text-gray-500">共 {pagination.total} 条</p>
+                    </div>
+                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="p-2 bg-white border rounded-md disabled:opacity-50">
+                        <ChevronRightIcon className="w-5 h-5" />
+                    </button>
                 </div>
             </div>
 
