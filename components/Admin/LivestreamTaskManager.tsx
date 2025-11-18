@@ -224,14 +224,41 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
     
+    const getStatusPriority = (status: string): number => {
+        const s = status.toLowerCase();
+        // Live tasks first
+        if (['recording', 'downloading', 'stopping'].includes(s)) return 0;
+        // Upcoming tasks next
+        if (['listening', 'scheduled', 'pending'].includes(s)) return 1;
+        // Then processing
+        if (['processing'].includes(s)) return 2;
+        // Then finished/completed
+        if (['finished', 'completed'].includes(s)) return 3;
+        // Then failed
+        if (['failed'].includes(s)) return 4;
+        // Others last
+        return 5;
+    };
+
     const mobileSortedTasks = useMemo(() => {
-        const isLiveOrUpcoming = (status: string) => !['finished', 'completed', 'failed'].includes(status.toLowerCase());
         return [...tasks].sort((a, b) => {
-            const aIsLive = isLiveOrUpcoming(a.status);
-            const bIsLive = isLiveOrUpcoming(b.status);
-            if (aIsLive && !bIsLive) return -1;
-            if (!aIsLive && bIsLive) return 1;
-            return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+            const priorityA = getStatusPriority(a.status);
+            const priorityB = getStatusPriority(b.status);
+
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+
+            const timeA = new Date(a.start_time).getTime();
+            const timeB = new Date(b.start_time).getTime();
+
+            // For upcoming tasks (priority 1), sort by soonest start time (ascending)
+            if (priorityA === 1) {
+                return timeA - timeB;
+            }
+            
+            // For all other groups (Live, Finished, etc.), sort by most recent start time (descending)
+            return timeB - timeA;
         });
     }, [tasks]);
 
@@ -282,7 +309,7 @@ export const LivestreamTaskManager: React.FC = () => {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
                 <h1 className="text-2xl font-bold text-gray-800">发布会任务管理</h1>
                 <div className="hidden md:flex items-center gap-2">
-                     <button onClick={() => { isNewQuery.current = true; loadTasks(); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                     <button onClick={() => { isNewQuery.current = true; loadTasks(true); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                     </button>
                     <button onClick={() => setIsAddModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
@@ -293,7 +320,7 @@ export const LivestreamTaskManager: React.FC = () => {
 
              {/* Mobile Action Bar */}
             <div className="md:hidden flex items-center gap-2 mb-4">
-                <button onClick={() => { isNewQuery.current = true; loadTasks(); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                <button onClick={() => { isNewQuery.current = true; loadTasks(true); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                     <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                 </button>
                 <button onClick={() => setIsAddModalOpen(true)} className="flex-grow flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
@@ -470,7 +497,7 @@ export const LivestreamTaskManager: React.FC = () => {
                 </div>
             </div>
 
-            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={() => { isNewQuery.current = true; loadTasks(); }} />}
+            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={() => { isNewQuery.current = true; loadTasks(true); }} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.task_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskForReanalysis && (
