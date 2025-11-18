@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, ReactNode } from 'react';
+import React, { useState, useMemo, useEffect, ReactNode, useCallback } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
 import { 
     getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability,
@@ -219,8 +219,11 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ kbId, selectedTechName, onClo
 
     const { timelineItems, articleMap } = useMemo(() => {
         if (!traceData) return { timelineItems: [], articleMap: new Map() };
-        const sortedItems = [...(traceData.stage1_records || [])].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
-        const articles = new Map((traceData.source_articles || []).map(a => [a.id, a]));
+        // FIX: Add safeguards to ensure traceData properties are arrays before using array methods.
+        const stage1Records = Array.isArray(traceData.stage1_records) ? traceData.stage1_records : [];
+        const sourceArticles = Array.isArray(traceData.source_articles) ? traceData.source_articles : [];
+        const sortedItems = [...stage1Records].sort((a, b) => new Date(b.publish_date).getTime() - new Date(a.publish_date).getTime());
+        const articles = new Map(sourceArticles.map(a => [a.id, a]));
         return { timelineItems: sortedItems, articleMap: articles };
     }, [traceData]);
     
