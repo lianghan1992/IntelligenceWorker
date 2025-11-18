@@ -149,7 +149,7 @@ export const LivestreamTaskManager: React.FC = () => {
     
     // --- Infinite Scroll Logic for Mobile ---
     const observer = useRef<IntersectionObserver>();
-    const lastTaskElementRef = useCallback(node => {
+    const lastTaskElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoading) return;
         if (observer.current) observer.current.disconnect();
         observer.current = new IntersectionObserver(entries => {
@@ -246,6 +246,34 @@ export const LivestreamTaskManager: React.FC = () => {
             };
         } catch {
             return { segments: 0, recognized: 0 };
+        }
+    };
+
+    const getModalProps = (taskToAction: {task: LivestreamTask, action: 'delete' | 'start' | 'stop'}) => {
+        const { action, task } = taskToAction;
+        const commonMessage = `您确定要对任务 “${task.task_name}” 执行此操作吗？`;
+        switch (action) {
+            case 'delete':
+                return {
+                    title: '确认删除任务',
+                    message: `${commonMessage} 此操作将永久删除任务及其所有相关数据，无法撤销。`,
+                    confirmText: '永久删除',
+                    variant: 'destructive' as const
+                };
+            case 'stop':
+                return {
+                    title: '确认停止任务',
+                    message: `${commonMessage} 任务将停止录制并开始处理已录制的内容。此操作可能不会立即生效。`,
+                    confirmText: '确认停止',
+                    variant: 'warning' as const
+                };
+            case 'start':
+                return {
+                    title: '确认开始任务',
+                    message: `${commonMessage} 系统将开始监听直播状态，并在直播开始时自动录制。`,
+                    confirmText: '确认开始',
+                    variant: 'default' as const
+                };
         }
     };
     
@@ -453,13 +481,12 @@ export const LivestreamTaskManager: React.FC = () => {
                     onConfirm={confirmReanalysis}
                     onCancel={() => setTaskForReanalysis(null)}
                     isLoading={actionLoading}
+                    variant={taskForReanalysis.action === 'resummarize' ? 'default' : 'warning'}
                 />
             )}
             {taskToAction && (
                 <ConfirmationModal
-                    title={`确认${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]}任务`}
-                    message={`您确定要${{ delete: '删除', start: '开始监听', stop: '停止监听' }[taskToAction.action]} "${taskToAction.task.task_name}" 吗？`}
-                    confirmText={`确认${{ delete: '删除', start: '开始', stop: '停止' }[taskToAction.action]}`}
+                    {...getModalProps(taskToAction)}
                     onConfirm={confirmAction}
                     onCancel={() => setTaskToAction(null)}
                     isLoading={actionLoading}
