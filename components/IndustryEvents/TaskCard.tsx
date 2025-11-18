@@ -31,17 +31,20 @@ const getSafeImageSrc = (base64Data: string | null | undefined): string | null =
 const getStatusDetails = (status: string) => {
     const statusLower = status.toLowerCase();
 
-    if (statusLower === 'recording') {
+    if (statusLower === 'recording' || statusLower === 'downloading') {
         return { text: '直播中', className: 'bg-red-500 text-white', type: 'live' };
     }
-    if (statusLower === 'listening' || statusLower === 'pending') {
+    if (statusLower === 'listening' || statusLower === 'pending' || statusLower === 'scheduled') {
         return { text: '即将开始', className: 'bg-blue-500 text-white', type: 'upcoming' };
     }
-    if (statusLower === 'completed') {
+    if (statusLower === 'finished' || statusLower === 'completed') {
         return { text: '已结束', className: 'bg-green-500 text-white', type: 'finished' };
     }
     if (statusLower === 'processing') {
         return { text: 'AI总结中', className: 'bg-indigo-500 text-white', type: 'finished' };
+    }
+     if (statusLower === 'stopping') {
+        return { text: '停止中', className: 'bg-yellow-500 text-white', type: 'live' };
     }
     if (statusLower === 'failed') {
         return { text: '失败', className: 'bg-red-500 text-white', type: 'finished' };
@@ -64,7 +67,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const isLive = statusDetails.type === 'live';
-    const hasReport = isFinished && !!task.summary_report;
+    const hasReport = (isFinished && (task.status.toLowerCase() === 'completed' || task.status.toLowerCase() === 'finished')) && !!task.summary_report;
     const [timeLeft, setTimeLeft] = useState('');
     const imageUrl = getSafeImageSrc(task.cover_image_b64);
 

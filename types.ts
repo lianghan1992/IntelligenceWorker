@@ -154,10 +154,11 @@ export interface ExportChunksResponse {
 export interface LivestreamTask {
   id: string;
   task_name: string;
+  company: string;
   live_url: string;
   start_time: string;
   summary_prompt: string;
-  status: string;
+  status: 'scheduled' | 'listening' | 'recording' | 'downloading' | 'processing' | 'finished' | 'failed' | 'stopping';
   created_at: string;
   updated_at: string;
   dir?: string;

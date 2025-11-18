@@ -20,7 +20,6 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {tasks.map((task) => (
-                    // FIX: The LivestreamTask type uses 'live_url', not 'url'.
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
             </div>
@@ -64,11 +63,11 @@ export const IndustryEvents: React.FC = () => {
         tasks.forEach(task => {
             const status = task.status.toLowerCase();
             
-            if (status === 'recording') {
+            if (status === 'recording' || status === 'downloading' || status === 'stopping') {
                 liveTasks.push(task);
-            } else if (status === 'listening' || status === 'pending') {
+            } else if (status === 'listening' || status === 'pending' || status === 'scheduled') {
                 upcomingTasks.push(task);
-            } else { // completed, failed, processing
+            } else { // finished, failed, processing, and for backward compatibility 'completed'
                 finishedTasks.push(task);
             }
         });
@@ -82,7 +81,8 @@ export const IndustryEvents: React.FC = () => {
     }, [tasks]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
-        if (task.status.toLowerCase() === 'completed' && task.summary_report) {
+        const status = task.status.toLowerCase();
+        if ((status === 'completed' || status === 'finished') && task.summary_report) {
             setSelectedEvent(task);
         }
     };

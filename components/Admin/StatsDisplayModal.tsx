@@ -16,7 +16,9 @@ const STAT_LABELS: Record<string, string> = {
     segments_extracted_done: "已处理分段",
     frames_extracted_total: "总提取帧数",
     text_detected_total: "文本检测帧数",
+    unique_images_total: "去重后图片数",
     ai_recognized_total: "AI识别帧数",
+    ai_recognized_success_total: "AI识别成功",
     ffmpeg_running: "录制进程",
     resolved_stream_url: "解析流地址",
 };
@@ -145,9 +147,9 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
     
     const getStat = (key: string, defaultValue: any = 0) => stats?.[key] ?? defaultValue;
 
-    const taskStatus = useMemo(() => getStat('status', liveTask.status).toLowerCase(), [stats, liveTask.status]);
-    const isTaskActive = useMemo(() => !['completed', 'failed'].includes(taskStatus), [taskStatus]);
-    const isReanalyzable = useMemo(() => ['completed', 'failed'].includes(taskStatus), [taskStatus]);
+    const taskStatus = useMemo(() => liveTask.status.toLowerCase(), [liveTask.status]);
+    const isTaskActive = useMemo(() => !['finished', 'completed', 'failed'].includes(taskStatus), [taskStatus]);
+    const isReanalyzable = useMemo(() => ['finished', 'completed', 'failed'].includes(taskStatus), [taskStatus]);
 
     useEffect(() => {
         if (!task.id || !isTaskActive) return;
@@ -167,10 +169,12 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
 
     const statusBadge = useMemo(() => {
         if (taskStatus === 'recording') return { text: '直播中', className: 'bg-red-100 text-red-800' };
+        if (taskStatus === 'downloading') return { text: '下载中', className: 'bg-cyan-100 text-cyan-800' };
         if (taskStatus === 'listening') return { text: '监听中', className: 'bg-cyan-100 text-cyan-800' };
-        if (taskStatus === 'pending') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
-        if (taskStatus === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
+        if (taskStatus === 'scheduled' || taskStatus === 'pending') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
+        if (taskStatus === 'stopping') return { text: '停止中', className: 'bg-yellow-100 text-yellow-800' };
         if (taskStatus === 'processing') return { text: 'AI总结中', className: 'bg-indigo-100 text-indigo-800' };
+        if (taskStatus === 'finished' || taskStatus === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
         if (taskStatus === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
         return { text: taskStatus, className: 'bg-gray-100 text-gray-800' };
     }, [taskStatus]);
@@ -217,6 +221,12 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                                 </StatItem>
                                 <StatItem label={STAT_LABELS.start_time}>
                                     <span className="text-base font-medium text-gray-800">{getStat('start_time', '') ? new Date(getStat('start_time', '')).toLocaleString('zh-CN') : '未开始'}</span>
+                                </StatItem>
+                                 <StatItem label={STAT_LABELS.unique_images_total}>
+                                    <span className="font-semibold text-gray-800">{getStat('unique_images_total')}</span>
+                                </StatItem>
+                                 <StatItem label={STAT_LABELS.ai_recognized_success_total}>
+                                    <span className="font-semibold text-green-600">{getStat('ai_recognized_success_total')}</span>
                                 </StatItem>
                                 <StatItem label={STAT_LABELS.resolved_stream_url} fullWidth>
                                     {getStat('resolved_stream_url', '') ? <CopyableText text={getStat('resolved_stream_url', '')} /> : 'N/A'}

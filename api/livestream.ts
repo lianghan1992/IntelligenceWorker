@@ -1,6 +1,5 @@
 // src/api/livestream.ts
 
-import { LIVESTREAM_SERVICE_PATH } from '../config';
 import { PaginatedResponse, LivestreamTask } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -22,75 +21,65 @@ const fileToBase64 = (file: File): Promise<string> => {
     });
 };
 
+const TASKS_PATH = '/api/tasks';
+const PROMPTS_PATH = '/api/prompts';
+
 
 // --- Livestream / Events API ---
-// Updated to use page_size as per new docs
 export const getLivestreamTasks = (params: { page?: number; page_size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<LivestreamTask>>(`${LIVESTREAM_SERVICE_PATH}/tasks${query}`);
+    return apiFetch<PaginatedResponse<LivestreamTask>>(`${TASKS_PATH}${query}`);
 };
 
 export const getLivestreamTaskById = (taskId: string): Promise<LivestreamTask> =>
-    apiFetch<LivestreamTask>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`);
+    apiFetch<LivestreamTask>(`${TASKS_PATH}/${taskId}`);
 
-
-// Removed getPublicLivestreamTasks and getLivestreamTasksStats as they are deprecated.
-
-// Updated to use JSON body with Base64 image, as per new docs.
 export const createLivestreamTask = async (data: { 
-    task_name: string; 
+    task_name: string;
+    company: string;
     live_url: string; 
     start_time: string; 
     summary_prompt: string;
     direct_download?: boolean;
-    image?: File 
+    image: File 
 }): Promise<{ task_id: string; status: string; message: string }> => {
-    let cover_image_b64: string | undefined = undefined;
-    if (data.image) {
-        cover_image_b64 = await fileToBase64(data.image);
-    }
+    const cover_image_b64 = await fileToBase64(data.image);
     
     const payload = {
         task_name: data.task_name,
         live_url: data.live_url,
+        company: data.company,
         start_time: data.start_time,
         summary_prompt: data.summary_prompt || undefined, // Send undefined if empty to let backend use default
         direct_download: data.direct_download,
         cover_image_b64: cover_image_b64,
     };
     
-    return apiFetch<{ task_id: string; status: string; message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks`, {
+    return apiFetch<{ task_id: string; status: string; message: string }>(`${TASKS_PATH}`, {
         method: 'POST',
         body: JSON.stringify(payload),
     });
 };
 
-// Removed createHistoryLivestreamTask as it's deprecated.
+export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}`, { method: 'DELETE' });
 
-export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}`, { method: 'DELETE' });
+export const startTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}/start`, { method: 'POST' });
+export const stopTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}/stop`, { method: 'POST' });
 
-// Updated paths from /listen/start and /listen/stop to /start and /stop
-export const startTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/start`, { method: 'POST' });
-export const stopTask = (taskId: string): Promise<void> => apiFetch<void>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/stop`, { method: 'POST' });
-
-// Old reanalyze is replaced by reprocess and resummarize
 export const reprocessTask = (taskId: string, params?: { fps_scale?: number; prompt?: string }): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/reprocess`, {
+    apiFetch<{ message: string }>(`${TASKS_PATH}/${taskId}/reprocess`, {
         method: 'POST',
         body: params ? JSON.stringify(params) : undefined,
     });
 
 export const resummarizeTask = (taskId: string, params?: { summary_prompt?: string }): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/resummarize`, {
+    apiFetch<{ message: string }>(`${TASKS_PATH}/${taskId}/resummarize`, {
         method: 'POST',
         body: params ? JSON.stringify(params) : undefined,
     });
 
-// Removed getTaskLog as it's deprecated.
-
-// Replaced getTaskManuscript with getTaskSummary, which returns plain text.
 export const getTaskSummary = async (taskId: string): Promise<string> => {
-    const url = `${LIVESTREAM_SERVICE_PATH}/tasks/${taskId}/summary`;
+    const url = `${TASKS_PATH}/${taskId}/summary`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) {
@@ -104,10 +93,8 @@ export const getTaskSummary = async (taskId: string): Promise<string> => {
     return response.text();
 };
 
-// --- Prompts API ---
-// The API now returns an object { prompts: [...] }.
 export const getLivestreamPrompts = async (): Promise<string[]> => {
-    const url = `${LIVESTREAM_SERVICE_PATH}/prompts`;
+    const url = `${PROMPTS_PATH}`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) {
@@ -123,7 +110,6 @@ export const getLivestreamPrompts = async (): Promise<string[]> => {
 
     try {
         const data = await response.json();
-        // As per docs, API returns an object like { prompts: ["file1.md", "file2.md"] }
         if (data && Array.isArray(data.prompts)) {
             return data.prompts;
         }
@@ -134,6 +120,3 @@ export const getLivestreamPrompts = async (): Promise<string[]> => {
         return [];
     }
 };
-
-
-// Removed updateLivestreamPrompt as it's deprecated.

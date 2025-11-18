@@ -4,7 +4,7 @@ import { getLivestreamTasks, deleteLivestreamTask, startTask, stopTask, resummar
 import { AddEventModal } from './AddEventModal';
 import { 
     PlusIcon, RefreshIcon, TrashIcon,
-    ChevronDownIcon, ChevronUpDownIcon, SearchIcon
+    ChevronDownIcon, ChevronUpDownIcon, SearchIcon, CalendarIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -16,10 +16,13 @@ import { StatsDisplayModal } from './StatsDisplayModal';
 const getStatusBadge = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower === 'recording') return { text: '直播中', className: 'bg-red-100 text-red-800' };
+    if (statusLower === 'downloading') return { text: '下载中', className: 'bg-cyan-100 text-cyan-800' };
     if (statusLower === 'listening') return { text: '监听中', className: 'bg-cyan-100 text-cyan-800' };
+    if (statusLower === 'scheduled') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
     if (statusLower === 'pending') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
-    if (statusLower === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
+    if (statusLower === 'stopping') return { text: '停止中', className: 'bg-yellow-100 text-yellow-800' };
     if (statusLower === 'processing') return { text: 'AI总结中', className: 'bg-indigo-100 text-indigo-800' };
+    if (statusLower === 'finished' || statusLower === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
     if (statusLower === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
     return { text: '未知', className: 'bg-gray-100 text-gray-800' };
 };
@@ -61,7 +64,7 @@ export const LivestreamTaskManager: React.FC = () => {
     
     // Data state
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
-    const [filters, setFilters] = useState({ status: '', search_term: '' });
+    const [filters, setFilters] = useState({ status: '', search_term: '', company: '', start_date: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
     const searchTimeout = useRef<number | null>(null);
@@ -75,6 +78,8 @@ export const LivestreamTaskManager: React.FC = () => {
                 page_size: pagination.limit,
                 status: filters.status || undefined,
                 search_term: filters.search_term || undefined,
+                company: filters.company || undefined,
+                start_date: filters.start_date || undefined,
                 sort_by: sort.sort_by,
                 order: sort.order,
             };
@@ -84,10 +89,8 @@ export const LivestreamTaskManager: React.FC = () => {
                 setTasks(tasksResponse.items);
                 setPagination({
                     page: tasksResponse.page,
-                    // FIX: Property 'page_size' does not exist on type 'PaginatedResponse<LivestreamTask>'. Use 'limit' instead.
                     limit: tasksResponse.limit || pagination.limit,
                     total: tasksResponse.total,
-                    // FIX: Property 'page_size' does not exist on type 'PaginatedResponse<LivestreamTask>'. Use 'limit' instead.
                     totalPages: tasksResponse.totalPages || Math.ceil(tasksResponse.total / (tasksResponse.limit || pagination.limit)) || 1,
                 });
             } else {
@@ -105,6 +108,12 @@ export const LivestreamTaskManager: React.FC = () => {
         loadTasks();
     }, [loadTasks]);
 
+    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+        setPagination(prev => ({ ...prev, page: 1 }));
+    };
+
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTermInput(e.target.value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -112,11 +121,6 @@ export const LivestreamTaskManager: React.FC = () => {
             setFilters(prev => ({ ...prev, search_term: e.target.value }));
             setPagination(prev => ({ ...prev, page: 1 }));
         }, 500);
-    };
-
-    const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setFilters(prev => ({ ...prev, status: e.target.value }));
-        setPagination(prev => ({ ...prev, page: 1 }));
     };
 
     const handleSort = (column: string) => {
@@ -185,7 +189,8 @@ export const LivestreamTaskManager: React.FC = () => {
 
 
     const handleViewReport = (task: LivestreamTask) => {
-        if (task.status.toLowerCase() === 'completed' && task.summary_report) {
+        const status = task.status.toLowerCase();
+        if ((status === 'completed' || status === 'finished') && task.summary_report) {
             setSelectedEvent(task);
         }
     };
@@ -206,20 +211,29 @@ export const LivestreamTaskManager: React.FC = () => {
 
             {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
 
-            <div className="mb-4 p-4 bg-white rounded-lg border flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <div className="mb-4 p-4 bg-white rounded-lg border flex flex-col xl:flex-row items-stretch gap-4">
                 <div className="relative flex-grow">
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input type="text" value={searchTermInput} onChange={handleSearchChange} placeholder="搜索任务名称..." className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <select value={filters.status} onChange={handleStatusChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">所有状态</option>
-                    <option value="recording">直播中</option>
-                    <option value="listening">监听中</option>
-                    <option value="pending">即将开始</option>
-                    <option value="processing">AI总结中</option>
-                    <option value="completed">已结束</option>
-                    <option value="failed">失败</option>
-                </select>
+                <div className="flex flex-col sm:flex-row items-stretch gap-4">
+                     <input type="text" name="company" value={filters.company} onChange={handleFilterChange} placeholder="搜索车企..." className="w-full sm:w-auto bg-white border border-gray-300 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div className="relative w-full sm:w-auto">
+                        <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input type="date" name="start_date" value={filters.start_date} onChange={handleFilterChange} className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <select name="status" value={filters.status} onChange={handleFilterChange} className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">所有状态</option>
+                        <option value="scheduled">即将开始</option>
+                        <option value="listening">监听中</option>
+                        <option value="recording">录制中</option>
+                        <option value="downloading">下载中</option>
+                        <option value="stopping">停止中</option>
+                        <option value="processing">AI总结中</option>
+                        <option value="finished">已结束</option>
+                        <option value="failed">失败</option>
+                    </select>
+                </div>
             </div>
             
             <div className="flex-1 overflow-y-auto">
@@ -229,6 +243,7 @@ export const LivestreamTaskManager: React.FC = () => {
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50">
                             <tr>
                                 <SortableHeader column="task_name" label="任务名称" sortConfig={sort} onSort={handleSort} />
+                                <SortableHeader column="company" label="车企" sortConfig={sort} onSort={handleSort} />
                                 <th scope="col" className="px-6 py-3">分析提示词</th>
                                 <SortableHeader column="start_time" label="开始时间" sortConfig={sort} onSort={handleSort} />
                                 <SortableHeader column="status" label="状态" sortConfig={sort} onSort={handleSort} />
@@ -237,14 +252,15 @@ export const LivestreamTaskManager: React.FC = () => {
                         </thead>
                         <tbody>
                             {isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10">加载中...</td></tr>
                             ) : !isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={5} className="text-center py-10">未找到任何任务。</td></tr>
+                                <tr><td colSpan={6} className="text-center py-10">未找到任何任务。</td></tr>
                             ) : (
                                 tasks.map(task => {
                                     const statusBadge = getStatusBadge(task.status);
-                                    const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
-                                    const isReanalyzable = ['completed', 'failed'].includes(task.status.toLowerCase());
+                                    const statusLower = task.status.toLowerCase();
+                                    const isActionable = ['processing', 'finished', 'completed', 'failed'].includes(statusLower);
+                                    const isReanalyzable = ['finished', 'completed', 'failed'].includes(statusLower);
                                     return (
                                     <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
                                         <td className="px-6 py-4 font-medium text-gray-900">
@@ -252,15 +268,16 @@ export const LivestreamTaskManager: React.FC = () => {
                                                 {task.task_name}
                                             </a>
                                         </td>
+                                        <td className="px-6 py-4">{task.company}</td>
                                         <td className="px-6 py-4 text-xs font-mono" title={task.summary_prompt}>{task.summary_prompt || '默认'}</td>
                                         <td className="px-6 py-4">{new Date(task.start_time).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
                                         <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                                {task.status.toLowerCase() === 'pending' && (
+                                                {(statusLower === 'scheduled' || statusLower === 'pending') && (
                                                     <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                                 )}
-                                                {['listening', 'recording'].includes(task.status.toLowerCase()) && (
+                                                {['listening', 'recording', 'downloading'].includes(statusLower) && (
                                                     <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                                 )}
                                                 <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
@@ -289,14 +306,18 @@ export const LivestreamTaskManager: React.FC = () => {
                      !isLoading && tasks.length === 0 ? <div className="text-center py-10 text-gray-500">未找到任何任务。</div> :
                      tasks.map(task => {
                         const statusBadge = getStatusBadge(task.status);
-                        const isActionable = ['processing', 'completed', 'failed'].includes(task.status.toLowerCase());
-                        const isReanalyzable = ['completed', 'failed'].includes(task.status.toLowerCase());
+                        const statusLower = task.status.toLowerCase();
+                        const isActionable = ['processing', 'finished', 'completed', 'failed'].includes(statusLower);
+                        const isReanalyzable = ['finished', 'completed', 'failed'].includes(statusLower);
                         return (
                             <div key={task.id} className="bg-white rounded-lg border p-4 shadow-sm">
                                 <div className="flex justify-between items-start">
-                                    <a href={task.live_url} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-900 pr-4 hover:text-blue-600 hover:underline" title={task.live_url}>
-                                        {task.task_name}
-                                    </a>
+                                    <div className='flex-1 pr-4'>
+                                        <a href={task.live_url} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-900 hover:text-blue-600 hover:underline" title={task.live_url}>
+                                            {task.task_name}
+                                        </a>
+                                        <p className="text-sm text-gray-500 font-medium">{task.company}</p>
+                                    </div>
                                     <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
                                 </div>
                                 <div className="mt-3 pt-3 border-t text-sm space-y-2">
@@ -304,10 +325,10 @@ export const LivestreamTaskManager: React.FC = () => {
                                     <p><strong className="text-gray-500">提示词: </strong><span className="font-mono text-xs">{task.summary_prompt || '默认'}</span></p>
                                 </div>
                                 <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
-                                    {task.status.toLowerCase() === 'pending' && (
+                                     {(statusLower === 'scheduled' || statusLower === 'pending') && (
                                         <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                     )}
-                                    {['listening', 'recording'].includes(task.status.toLowerCase()) && (
+                                    {['listening', 'recording', 'downloading'].includes(statusLower) && (
                                         <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                     )}
                                     <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>

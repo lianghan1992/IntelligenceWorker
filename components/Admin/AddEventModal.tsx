@@ -18,6 +18,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     const [formData, setFormData] = useState({
         live_url: '',
         task_name: '',
+        company: '',
         start_time: '',
         summary_prompt: 'default_summary.md',
         direct_download: false,
@@ -48,8 +49,12 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
     }, []);
 
     const isFormValid = useMemo(() => {
-        return formData.live_url.trim() !== '' && formData.task_name.trim() !== '' && formData.start_time.trim() !== '';
-    }, [formData]);
+        return formData.live_url.trim() !== '' && 
+               formData.task_name.trim() !== '' && 
+               formData.company.trim() !== '' && 
+               formData.start_time.trim() !== '' &&
+               imageFile !== null;
+    }, [formData, imageFile]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -75,7 +80,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
 
     const handleSubmit = async () => {
         if (!isFormValid) {
-            setError("请填写所有必填项。");
+            setError("请填写所有必填项，并上传封面图片。");
             return;
         }
         setIsLoading(true);
@@ -88,7 +93,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                 ...formData,
                 start_time: startTimeUTC,
                 summary_prompt: formData.summary_prompt || 'default_summary.md',
-                image: imageFile || undefined,
+                image: imageFile!,
             });
             onSuccess();
             onClose();
@@ -130,6 +135,10 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                 <input name="task_name" type="text" value={formData.task_name} onChange={handleChange} placeholder="例如：小米汽车SU7发布会" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">车企名称 <span className="text-red-500">*</span></label>
+                                <input name="company" type="text" value={formData.company} onChange={handleChange} placeholder="例如：小米汽车" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">开始时间 <span className="text-red-500">*</span></label>
                                 <input name="start_time" type="datetime-local" value={formData.start_time} onChange={handleChange} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                             </div>
@@ -156,7 +165,7 @@ export const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, onSuccess
                                 </label>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 (可选)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">封面图片 <span className="text-red-500">*</span></label>
                                 <div onClick={() => !isLoading && fileInputRef.current?.click()} className={`mt-1 w-full h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center ${isLoading ? 'cursor-not-allowed' : 'cursor-pointer hover:border-blue-500'} transition-colors overflow-hidden`}>
                                     {imagePreview ? (
                                         <img src={imagePreview} alt="封面预览" className="w-full h-full object-cover" />
