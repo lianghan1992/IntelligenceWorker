@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks, deleteLivestreamTask, startTask, stopTask, resummarizeTask, reprocessTask } from '../../api';
 import { AddEventModal } from './AddEventModal';
 import { 
     PlusIcon, RefreshIcon, TrashIcon,
     ChevronDownIcon, ChevronUpDownIcon, SearchIcon, CalendarIcon,
-    FunnelIcon, ChevronLeftIcon, ChevronRightIcon
+    FunnelIcon, ChevronLeftIcon, ChevronRightIcon, FilmIcon, BrainIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { EventReportModal } from './EventReportModal';
@@ -64,12 +64,13 @@ export const LivestreamTaskManager: React.FC = () => {
     const [statsModalTask, setStatsModalTask] = useState<LivestreamTask | null>(null);
     
     // Data state
-    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '', company: '', start_date: '' });
     const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const searchTimeout = useRef<number | null>(null);
+    const isNewQuery = useRef(true);
 
     const loadTasks = useCallback(async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
@@ -88,7 +89,8 @@ export const LivestreamTaskManager: React.FC = () => {
             const tasksResponse = await getLivestreamTasks(params);
 
             if (tasksResponse && Array.isArray(tasksResponse.items)) {
-                setTasks(tasksResponse.items);
+                const append = !isNewQuery.current && params.page > 1;
+                setTasks(prev => append ? [...prev, ...tasksResponse.items] : tasksResponse.items);
                 setPagination({
                     page: tasksResponse.page,
                     limit: tasksResponse.limit || pagination.limit,
@@ -97,21 +99,26 @@ export const LivestreamTaskManager: React.FC = () => {
                 });
             } else {
                 setTasks([]);
-                setPagination({ page: 1, limit: 10, total: 0, totalPages: 1 });
+                setPagination({ page: 1, limit: 20, total: 0, totalPages: 1 });
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
             if (showLoading) setIsLoading(false);
+            isNewQuery.current = false;
         }
     }, [pagination.page, pagination.limit, filters, sort]);
 
     useEffect(() => {
-        loadTasks();
+        // FIX: While the function signature allows for zero arguments due to the default parameter,
+        // some tooling can incorrectly flag this. Explicitly passing `true` makes the call unambiguous
+        // without changing the initial loading behavior.
+        loadTasks(true);
     }, [loadTasks]);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
+        isNewQuery.current = true;
         setFilters(prev => ({ ...prev, [name]: value }));
         setPagination(prev => ({ ...prev, page: 1 }));
     };
@@ -120,6 +127,7 @@ export const LivestreamTaskManager: React.FC = () => {
         setSearchTermInput(e.target.value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = window.setTimeout(() => {
+            isNewQuery.current = true;
             setFilters(prev => ({ ...prev, search_term: e.target.value }));
             setPagination(prev => ({ ...prev, page: 1 }));
         }, 500);
@@ -127,14 +135,31 @@ export const LivestreamTaskManager: React.FC = () => {
 
     const handleSort = (column: string) => {
         const isAsc = sort.sort_by === column && sort.order === 'asc';
+        isNewQuery.current = true;
         setSort({ sort_by: column, order: isAsc ? 'desc' : 'asc' });
+        setPagination(prev => ({ ...prev, page: 1 }));
     };
 
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
+            isNewQuery.current = true; // Force replace for desktop pagination
             setPagination(prev => ({ ...prev, page: newPage }));
         }
     };
+    
+    // --- Infinite Scroll Logic for Mobile ---
+    const observer = useRef<IntersectionObserver>();
+    const lastTaskElementRef = useCallback(node => {
+        if (isLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && pagination.page < pagination.totalPages) {
+                isNewQuery.current = false; // Force append for infinite scroll
+                setPagination(prev => ({ ...prev, page: prev.page + 1 }));
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [isLoading, pagination.page, pagination.totalPages]);
 
     const handleAction = (task: LivestreamTask, action: 'delete' | 'start' | 'stop') => {
         setTaskToAction({ task, action });
@@ -155,6 +180,7 @@ export const LivestreamTaskManager: React.FC = () => {
                 case 'start': await startTask(task.id); break;
                 case 'stop': await stopTask(task.id); break;
             }
+            isNewQuery.current = true;
             await loadTasks(false);
         } catch (err) {
             setError(err instanceof Error ? err.message : `操作失败`);
@@ -180,6 +206,7 @@ export const LivestreamTaskManager: React.FC = () => {
             } else { // 'reprocess'
                 await reprocessTask(task.id);
             }
+            isNewQuery.current = true;
             await loadTasks(false);
         } catch (err) {
             setError(err instanceof Error ? `操作失败: ${err.message}` : `操作失败`);
@@ -197,12 +224,37 @@ export const LivestreamTaskManager: React.FC = () => {
         }
     };
     
+    const mobileSortedTasks = useMemo(() => {
+        const isLiveOrUpcoming = (status: string) => !['finished', 'completed', 'failed'].includes(status.toLowerCase());
+        return [...tasks].sort((a, b) => {
+            const aIsLive = isLiveOrUpcoming(a.status);
+            const bIsLive = isLiveOrUpcoming(b.status);
+            if (aIsLive && !bIsLive) return -1;
+            if (!aIsLive && bIsLive) return 1;
+            return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+        });
+    }, [tasks]);
+
+    const getStats = (task: LivestreamTask) => {
+        try {
+            const stats = typeof task.stats_json === 'string'
+                ? JSON.parse(task.stats_json)
+                : task.stats_json || {};
+            return {
+                segments: stats.recorded_segments_total ?? 0,
+                recognized: stats.ai_recognized_success_total ?? 0,
+            };
+        } catch {
+            return { segments: 0, recognized: 0 };
+        }
+    };
+    
     return (
         <div className="p-4 md:p-6 h-full flex flex-col">
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
                 <h1 className="text-2xl font-bold text-gray-800">发布会任务管理</h1>
                 <div className="hidden md:flex items-center gap-2">
-                     <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                     <button onClick={() => { isNewQuery.current = true; loadTasks(); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                     </button>
                     <button onClick={() => setIsAddModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
@@ -213,7 +265,7 @@ export const LivestreamTaskManager: React.FC = () => {
 
              {/* Mobile Action Bar */}
             <div className="md:hidden flex items-center gap-2 mb-4">
-                <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                <button onClick={() => { isNewQuery.current = true; loadTasks(); }} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                     <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                 </button>
                 <button onClick={() => setIsAddModalOpen(true)} className="flex-grow flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
@@ -325,13 +377,9 @@ export const LivestreamTaskManager: React.FC = () => {
                 <div className="md:hidden space-y-4">
                     {isLoading && tasks.length === 0 ? <div className="text-center py-10 text-gray-500">加载中...</div> :
                      !isLoading && tasks.length === 0 ? <div className="text-center py-10 text-gray-500">未找到任何任务。</div> :
-                     tasks.map(task => {
-                        const statusBadge = getStatusBadge(task.status);
-                        const statusLower = task.status.toLowerCase();
-                        const isActionable = ['processing', 'finished', 'completed', 'failed'].includes(statusLower);
-                        const isReanalyzable = ['finished', 'completed', 'failed'].includes(statusLower);
-                        return (
-                            <div key={task.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                     mobileSortedTasks.map((task, index) => {
+                        const cardContent = (
+                            <div className="bg-white rounded-lg border p-4 shadow-sm">
                                 <div className="flex justify-between items-start">
                                     <div className='flex-1 pr-4'>
                                         <a href={task.live_url} target="_blank" rel="noopener noreferrer" className="font-bold text-gray-900 hover:text-blue-600 hover:underline" title={task.live_url}>
@@ -339,23 +387,32 @@ export const LivestreamTaskManager: React.FC = () => {
                                         </a>
                                         <p className="text-sm text-gray-500 font-medium">{task.company}</p>
                                     </div>
-                                    <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
+                                    <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadge(task.status).className}`}>{getStatusBadge(task.status).text}</span>
                                 </div>
                                 <div className="mt-3 pt-3 border-t text-sm space-y-2">
                                     <p><strong className="text-gray-500">开始时间: </strong>{new Date(task.start_time).toLocaleString('zh-CN')}</p>
-                                    <p><strong className="text-gray-500">提示词: </strong><span className="font-mono text-xs">{task.summary_prompt || '默认'}</span></p>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                            <FilmIcon className="w-4 h-4 text-gray-400" />
+                                            <strong>分段: </strong><span>{getStats(task).segments}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                            <BrainIcon className="w-4 h-4 text-gray-400" />
+                                            <strong>AI识别: </strong><span>{getStats(task).recognized}</span>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
-                                     {(statusLower === 'scheduled' || statusLower === 'pending') && (
+                                     {(task.status.toLowerCase() === 'scheduled' || task.status.toLowerCase() === 'pending') && (
                                         <button onClick={() => handleAction(task, 'start')} className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-100 rounded-md hover:bg-green-200">开始</button>
                                     )}
-                                    {['listening', 'recording', 'downloading'].includes(statusLower) && (
+                                    {['listening', 'recording', 'downloading'].includes(task.status.toLowerCase()) && (
                                         <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                     )}
                                     <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
                                     <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
-                                    <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
-                                    {isReanalyzable && (
+                                    <button onClick={() => setManuscriptModalTask(task)} disabled={!['processing', 'finished', 'completed', 'failed'].includes(task.status.toLowerCase())} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
+                                    {['finished', 'completed', 'failed'].includes(task.status.toLowerCase()) && (
                                         <>
                                             <button onClick={() => handleReanalysisClick(task, 'resummarize')} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新总结</button>
                                             <button onClick={() => handleReanalysisClick(task, 'reprocess')} className="px-2 py-1 text-xs font-semibold text-indigo-700 bg-indigo-100 rounded-md hover:bg-indigo-200">重新分析</button>
@@ -364,37 +421,28 @@ export const LivestreamTaskManager: React.FC = () => {
                                     <button onClick={() => handleAction(task, 'delete')} className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-100 rounded-md hover:bg-red-200">删除</button>
                                 </div>
                             </div>
-                        )
+                        );
+                        if (mobileSortedTasks.length === index + 1) {
+                            return <div ref={lastTaskElementRef} key={task.id}>{cardContent}</div>;
+                        }
+                        return <div key={task.id}>{cardContent}</div>;
                     })}
+                     {isLoading && tasks.length > 0 && <div className="text-center text-gray-500 py-4">加载更多...</div>}
                 </div>
             </div>
 
-            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-2 text-sm gap-4">
-                <span className="text-gray-600 hidden md:block">共 {pagination.total} 条</span>
+            <div className="flex-shrink-0 flex-col md:flex-row justify-between items-center mt-2 text-sm gap-4 hidden md:flex">
+                <span className="text-gray-600">共 {pagination.total} 条</span>
                 
                 {/* Desktop Pagination */}
-                <div className="hidden md:flex items-center gap-2">
+                <div className="flex items-center gap-2">
                     <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
                     <span>第 {pagination.page} / {pagination.totalPages} 页</span>
                     <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
                 </div>
-
-                {/* Mobile Pagination */}
-                <div className="md:hidden flex w-full justify-between items-center">
-                    <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="p-2 bg-white border rounded-md disabled:opacity-50">
-                        <ChevronLeftIcon className="w-5 h-5" />
-                    </button>
-                    <div className="text-center">
-                        <span className="font-semibold">{pagination.page} / {pagination.totalPages}</span>
-                        <p className="text-xs text-gray-500">共 {pagination.total} 条</p>
-                    </div>
-                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="p-2 bg-white border rounded-md disabled:opacity-50">
-                        <ChevronRightIcon className="w-5 h-5" />
-                    </button>
-                </div>
             </div>
 
-            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={loadTasks} />}
+            {isAddModalOpen && <AddEventModal onClose={() => setIsAddModalOpen(false)} onSuccess={() => { isNewQuery.current = true; loadTasks(); }} />}
             {selectedEvent && <EventReportModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />}
             {manuscriptModalTask && manuscriptModalTask.id && <ManuscriptDisplayModal taskId={manuscriptModalTask.id} taskName={manuscriptModalTask.task_name} onClose={() => setManuscriptModalTask(null)} />}
             {taskForReanalysis && (
