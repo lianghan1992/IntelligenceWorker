@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { CloseIcon, DocumentTextIcon } from '../icons';
+import { getTaskSummary } from '../../api';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -17,19 +18,40 @@ interface EventReportModalProps {
 }
 
 export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClose }) => {
+    const [reportContent, setReportContent] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!event?.id) return;
+
+        const fetchReport = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const content = await getTaskSummary(event.id);
+                setReportContent(content);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : '加载报告失败');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchReport();
+    }, [event]);
+
     const reportHtml = useMemo(() => {
-        if (!event.summary_report) {
-            return '<p>报告内容为空。</p>';
+        if (isLoading || error || !reportContent) {
+            return '';
         }
     
-        // 直接从 window 对象访问 marked，确保库已加载
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(event.summary_report);
+            return window.marked.parse(reportContent);
         }
         
         console.error("marked.js is not loaded or is not a function. Falling back to pre-formatted text.");
-        // 如果 marked.js 加载失败，提供一个可读性更好的回退方案
-        const escapedContent = event.summary_report
+        const escapedContent = reportContent
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
@@ -37,11 +59,29 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
             .replace(/'/g, "&#039;");
             
         return `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 1rem;">${escapedContent}</pre>`;
-    }, [event.summary_report]);
+    }, [reportContent, isLoading, error]);
 
     const formattedDate = new Date(event.start_time).toLocaleString('zh-CN', {
         year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
+
+    const renderContent = () => {
+        if (isLoading) {
+            return <div className="text-center p-8 text-gray-500">正在加载报告内容...</div>;
+        }
+        if (error) {
+            return <div className="text-center p-8 text-red-500">错误: {error}</div>;
+        }
+        if (!reportContent) {
+             return <div className="text-center p-8 text-gray-500">报告内容为空。</div>;
+        }
+        return (
+             <article 
+                className="prose prose-slate max-w-none prose-h2:font-bold prose-h2:text-xl prose-h2:mb-3 prose-h2:mt-6 prose-p:leading-relaxed prose-strong:font-semibold prose-li:my-1 prose-ul:pl-5 prose-headings:text-gray-800"
+                dangerouslySetInnerHTML={{ __html: reportHtml }}
+            />
+        );
+    };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
@@ -64,10 +104,7 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
 
                 {/* Content */}
                 <div className="flex-1 bg-gray-50/70 overflow-y-auto p-8">
-                    <article 
-                        className="prose prose-slate max-w-none prose-h2:font-bold prose-h2:text-xl prose-h2:mb-3 prose-h2:mt-6 prose-p:leading-relaxed prose-strong:font-semibold prose-li:my-1 prose-ul:pl-5 prose-headings:text-gray-800"
-                        dangerouslySetInnerHTML={{ __html: reportHtml }}
-                    />
+                    {renderContent()}
                 </div>
 
                  {/* Footer */}

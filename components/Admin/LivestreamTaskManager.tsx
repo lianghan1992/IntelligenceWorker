@@ -217,7 +217,7 @@ export const LivestreamTaskManager: React.FC = () => {
 
     const handleViewReport = (task: LivestreamTask) => {
         const status = task.status.toLowerCase();
-        if ((status === 'completed' || status === 'finished') && task.summary_report) {
+        if (status === 'completed' || status === 'finished') {
             setSelectedEvent(task);
         }
     };
@@ -406,7 +406,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                                 {['listening', 'recording', 'downloading'].includes(statusLower) && (
                                                     <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                                 )}
-                                                <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
+                                                <button onClick={() => handleViewReport(task)} disabled={!['finished', 'completed'].includes(statusLower)} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
                                                 <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                                 <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                                 {isReanalyzable && (
@@ -462,7 +462,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                     {['listening', 'recording', 'downloading'].includes(task.status.toLowerCase()) && (
                                         <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                     )}
-                                    <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
+                                    <button onClick={() => handleViewReport(task)} disabled={!['finished', 'completed'].includes(task.status.toLowerCase())} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
                                     <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                     <button onClick={() => setManuscriptModalTask(task)} disabled={!['processing', 'finished', 'completed', 'failed'].includes(task.status.toLowerCase())} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                     {['finished', 'completed', 'failed'].includes(task.status.toLowerCase()) && (

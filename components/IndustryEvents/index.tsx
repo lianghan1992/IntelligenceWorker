@@ -82,7 +82,7 @@ export const IndustryEvents: React.FC = () => {
     
     const handleTaskCardClick = (task: LivestreamTask) => {
         const status = task.status.toLowerCase();
-        if ((status === 'completed' || status === 'finished') && task.summary_report) {
+        if (status === 'completed' || status === 'finished') {
             setSelectedEvent(task);
         }
     };

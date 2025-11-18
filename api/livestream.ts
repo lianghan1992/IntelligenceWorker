@@ -88,7 +88,22 @@ export const getTaskSummary = async (taskId: string): Promise<string> => {
     const response = await fetch(url, { headers });
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`获取文稿失败: ${response.statusText} - ${errorText}`);
+        throw new Error(`获取最终报告失败: ${response.statusText} - ${errorText}`);
+    }
+    return response.text();
+};
+
+export const getTaskManuscript = async (taskId: string): Promise<string> => {
+    const url = `${TASKS_PATH}/${taskId}/manuscript`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`获取原始识别稿失败: ${response.statusText} - ${errorText}`);
     }
     return response.text();
 };

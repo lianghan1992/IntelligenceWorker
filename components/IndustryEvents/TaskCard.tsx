@@ -67,7 +67,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onViewReport }) => {
     const statusDetails = getStatusDetails(task.status);
     const isFinished = statusDetails.type === 'finished';
     const isLive = statusDetails.type === 'live';
-    const hasReport = (isFinished && (task.status.toLowerCase() === 'completed' || task.status.toLowerCase() === 'finished')) && !!task.summary_report;
+    const hasReport = isFinished && (task.status.toLowerCase() === 'completed' || task.status.toLowerCase() === 'finished');
     const [timeLeft, setTimeLeft] = useState('');
     const imageUrl = getSafeImageSrc(task.cover_image_b64);
 

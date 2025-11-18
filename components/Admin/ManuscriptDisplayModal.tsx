@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon } from '../icons';
-import { getTaskSummary } from '../../api';
+import { getTaskManuscript } from '../../api';
 
 interface ManuscriptDisplayModalProps {
   taskId: string;
@@ -18,7 +18,7 @@ export const ManuscriptDisplayModal: React.FC<ManuscriptDisplayModalProps> = ({ 
             setIsLoading(true);
             setError('');
             try {
-                const response = await getTaskSummary(taskId);
+                const response = await getTaskManuscript(taskId);
                 setContent(response || '文稿内容为空。');
             } catch (err: any) {
                 setError(err.message || `加载原始文稿失败`);
