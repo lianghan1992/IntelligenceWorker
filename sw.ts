@@ -1,5 +1,7 @@
 /// <reference lib="WebWorker" />
 
+const sw = self as unknown as ServiceWorkerGlobalScope;
+
 const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -12,7 +14,7 @@ const urlsToCache = [
 ];
 
 // Install: Cache the app shell
-self.addEventListener('install', (event) => {
+sw.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -26,7 +28,7 @@ self.addEventListener('install', (event) => {
 });
 
 // Activate: Clean up old caches
-self.addEventListener('activate', (event) => {
+sw.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -36,7 +38,6 @@ self.addEventListener('activate', (event) => {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
-          return null;
         })
       );
     })
@@ -44,23 +45,9 @@ self.addEventListener('activate', (event) => {
 });
 
 // Fetch: Serve from cache or network
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
   const { request } = event;
-  
-  // It's possible for a fetch event to be triggered with a non-URL request,
-  // for example from a browser extension. This would crash the service worker.
-  // We wrap this in a try-catch to prevent that.
-  let url;
-  try {
-    url = new URL(request.url);
-  } catch (e) {
-    // If it's not a valid URL, we'll just forward the request to the network
-    // and let the browser handle it.
-    console.warn(`Service Worker ignoring invalid URL: ${request.url}`);
-    event.respondWith(fetch(request));
-    return;
-  }
-
+  const url = new URL(request.url);
 
   // For API calls and socket connections, always go to the network.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {

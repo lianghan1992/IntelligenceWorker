@@ -403,13 +403,11 @@ export const CompetitivenessDashboard: React.FC = () => {
                             <div className="grid grid-cols-2 gap-3">
                                 <select onChange={e => setFilters(f => ({...f, car_brand: e.target.value, tech_dimension: ''}))} value={filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                     <option value="">选择品牌</option>
-                                    {/* FIX: Add Array.isArray check to prevent 'map' on unknown type error if API response is unexpected. */}
                                     {meta?.car_brands && Array.isArray(meta.car_brands) && meta.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
                                 </select>
                                 <select onChange={e => setFilters(f => ({...f, tech_dimension: e.target.value}))} value={filters.tech_dimension} disabled={!filters.car_brand} className="w-full bg-gray-100 border-transparent rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50">
                                     <option value="">全技术领域</option>
-                                    {/* FIX: Added a null check to fix type inference issue, as `typeof null` is `'object'` which confused the type guard. */}
-                                    {meta?.tech_dimensions && typeof meta.tech_dimensions === 'object' && meta.tech_dimensions !== null && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                                    {meta?.tech_dimensions && typeof meta.tech_dimensions === 'object' && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
                                 </select>
                             </div>
                             <div className="relative">
