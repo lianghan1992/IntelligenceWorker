@@ -69,21 +69,19 @@ const KpiCard: React.FC<{ title: string; value: string | number; description: st
 );
 
 const BarChartCard: React.FC<{ title: string; data: DashboardDistributionItem[] }> = ({ title, data }) => {
-    // FIX: Ensure data is an array before calling map to prevent runtime errors.
-    const validData = Array.isArray(data) ? data : [];
-    const maxCount = Math.max(...validData.map(item => item.count), 0);
+    const maxCount = Math.max(...data.map(item => item.count), 0);
     return (
         <div className="bg-white p-4 rounded-xl border border-gray-200/80">
             <h3 className="font-semibold text-gray-800 mb-4">{title}</h3>
             <div className="space-y-3">
-                {validData.map(item => (
+                {data.map(item => (
                     <div key={item.name} className="text-sm">
                         <div className="flex justify-between mb-1">
                             <span className="text-gray-600">{item.name}</span>
                             <span className="font-medium text-gray-800">{item.count.toLocaleString()}</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-2">
-                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${maxCount > 0 ? (item.count / maxCount) * 100 : 0}%` }}></div>
+                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(item.count / maxCount) * 100}%` }}></div>
                         </div>
                     </div>
                 ))}

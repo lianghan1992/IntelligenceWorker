@@ -64,8 +64,7 @@ export const MarketAnalysisCard: React.FC<MarketAnalysisCardProps> = ({ selected
         fetchData();
     }, [fetchData]);
 
-    // FIX: Explicitly type groupedFindings to resolve '.map on unknown' error.
-    const groupedFindings: Record<string, MarketAnalysisFinding[]> = useMemo(() => {
+    const groupedFindings = useMemo(() => {
         return findings.reduce((acc, finding) => {
             const { entity_name } = finding;
             if (!acc[entity_name]) {
