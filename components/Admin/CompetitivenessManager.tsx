@@ -792,7 +792,8 @@ const BackfillJobModal: React.FC<{ onClose: () => void; onSuccess: () => void; }
                     let offset = 0;
                     const limit = 100; // Max limit as per API documentation
                     while (true) {
-                        const modulesPage = await getModules({ is_active: true, limit, offset });
+                        // FIX: Explicitly type the response to handle potential 'unknown' type and resolve 'length' property access error.
+                        const modulesPage: CompetitivenessModule[] = await getModules({ is_active: true, limit, offset });
                         if (modulesPage && modulesPage.length > 0) {
                             allModules.push(...modulesPage);
                         }
@@ -851,31 +852,37 @@ const BackfillJobModal: React.FC<{ onClose: () => void; onSuccess: () => void; }
                     {error && <p className="text-sm text-red-600 bg-red-100 p-3 rounded-lg">{error}</p>}
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">任务名称</label>
-                        <input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                        {/* FIX: Explicitly type event object to resolve 'e.target' error. */}
+                        <input value={formData.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(p => ({ ...p, name: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
-                        <input value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                        {/* FIX: Explicitly type event object to resolve 'e.target' error. */}
+                        <input value={formData.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(p => ({ ...p, description: e.target.value }))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">开始日期</label>
-                            <input type="date" value={formData.start_date} onChange={e => setFormData(p => ({...p, start_date: e.target.value}))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            {/* FIX: Explicitly type event object to resolve 'e.target' error. */}
+                            <input type="date" value={formData.start_date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(p => ({...p, start_date: e.target.value}))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                         </div>
                         <div>
                              <label className="block text-sm font-medium text-gray-700 mb-1">结束日期</label>
-                            <input type="date" value={formData.end_date} onChange={e => setFormData(p => ({...p, end_date: e.target.value}))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
+                            {/* FIX: Explicitly type event object to resolve 'e.target' error. */}
+                            <input type="date" value={formData.end_date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData(p => ({...p, end_date: e.target.value}))} className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3" />
                         </div>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">指定模块 (可选, 默认全部)</label>
-                        <select multiple value={formData.module_ids} onChange={e => setFormData(p => ({...p, module_ids: Array.from(e.target.selectedOptions, o => o.value)}))} className="w-full h-32 bg-gray-50 border border-gray-300 rounded-lg p-2">
+                        {/* FIX: Explicitly type event and option objects to resolve errors. */}
+                        <select multiple value={formData.module_ids} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData(p => ({...p, module_ids: Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value)}))} className="w-full h-32 bg-gray-50 border border-gray-300 rounded-lg p-2">
                            {availableModules.map(m => <option key={m.id} value={m.id}>{m.module_name}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">指定实体 (可选, 默认全部)</label>
-                         <select multiple value={formData.entity_ids} onChange={e => setFormData(p => ({...p, entity_ids: Array.from(e.target.selectedOptions, o => o.value)}))} className="w-full h-32 bg-gray-50 border border-gray-300 rounded-lg p-2">
+                         {/* FIX: Explicitly type event and option objects to resolve errors. */}
+                         <select multiple value={formData.entity_ids} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData(p => ({...p, entity_ids: Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value)}))} className="w-full h-32 bg-gray-50 border border-gray-300 rounded-lg p-2">
                            {availableEntities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                         </select>
                     </div>

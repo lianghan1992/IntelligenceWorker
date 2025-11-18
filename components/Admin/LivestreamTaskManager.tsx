@@ -263,7 +263,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                                     <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                                 )}
                                                 <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
-                                                <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">状态详情</button>
+                                                <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                                 <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                                 {isReanalyzable && (
                                                     <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
@@ -307,7 +307,7 @@ export const LivestreamTaskManager: React.FC = () => {
                                         <button onClick={() => handleAction(task, 'stop')} className="px-2 py-1 text-xs font-semibold text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200">停止</button>
                                     )}
                                     <button onClick={() => handleViewReport(task)} disabled={!task.summary_report} className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed">报告</button>
-                                    <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">状态详情</button>
+                                    <button onClick={() => setStatsModalTask(task)} className="px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-100 rounded-md hover:bg-teal-200">详情</button>
                                     <button onClick={() => setManuscriptModalTask(task)} disabled={!isActionable} className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed">文稿</button>
                                     {isReanalyzable && (
                                         <button onClick={() => setTaskToReanalyze(task)} className="px-2 py-1 text-xs font-semibold text-purple-700 bg-purple-100 rounded-md hover:bg-purple-200">重新分析</button>
