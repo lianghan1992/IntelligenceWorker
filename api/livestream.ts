@@ -21,8 +21,8 @@ const fileToBase64 = (file: File): Promise<string> => {
     });
 };
 
-const TASKS_PATH = '/api/tasks';
-const PROMPTS_PATH = '/api/prompts';
+const TASKS_PATH = '/api/livestream/tasks';
+const PROMPTS_PATH = '/api/livestream/prompts';
 
 
 // --- Livestream / Events API ---
