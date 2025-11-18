@@ -199,32 +199,36 @@ export const LivestreamTaskManager: React.FC = () => {
     
     return (
         <div className="p-4 md:p-6 h-full flex flex-col">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
                 <h1 className="text-2xl font-bold text-gray-800">发布会任务管理</h1>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                <div className="hidden md:flex items-center gap-2">
+                     <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
                     </button>
-                    <button onClick={() => setIsAddModalOpen(true)} className="flex-grow sm:flex-grow-0 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                    <button onClick={() => setIsAddModalOpen(true)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
                         <PlusIcon className="w-4 h-4" /> <span>创建分析任务</span>
                     </button>
                 </div>
             </div>
 
-            {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
-
-            {/* Mobile Filter Toggle */}
-            <div className="md:hidden mb-4">
+             {/* Mobile Action Bar */}
+            <div className="md:hidden flex items-center gap-2 mb-4">
+                <button onClick={() => loadTasks()} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
+                    <RefreshIcon className={`w-5 h-5 ${isLoading && !tasks.length ? 'animate-spin' : ''}`} />
+                </button>
+                <button onClick={() => setIsAddModalOpen(true)} className="flex-grow flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
+                    <PlusIcon className="w-4 h-4" /> <span>创建任务</span>
+                </button>
                 <button 
                     onClick={() => setIsFilterVisible(!isFilterVisible)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition"
+                    className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition"
                 >
-                    <FunnelIcon className="w-4 h-4" />
-                    <span>{isFilterVisible ? '收起筛选' : '展开筛选'}</span>
-                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isFilterVisible ? 'rotate-180' : ''}`} />
+                    <FunnelIcon className="w-5 h-5" />
                 </button>
             </div>
 
+            {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
+            
             {/* Filter Panel */}
             <div className={`${isFilterVisible ? 'block' : 'hidden'} md:block mb-4 p-4 bg-white rounded-lg border`}>
                 <div className="flex flex-col xl:flex-row items-stretch gap-4">
@@ -365,7 +369,7 @@ export const LivestreamTaskManager: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-4 text-sm gap-4">
+            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-2 text-sm gap-4">
                 <span className="text-gray-600 hidden md:block">共 {pagination.total} 条</span>
                 
                 {/* Desktop Pagination */}
