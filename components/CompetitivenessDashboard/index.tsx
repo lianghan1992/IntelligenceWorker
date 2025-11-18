@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useEffect, ReactNode } from 'react';
 import { KnowledgeBaseItem, KnowledgeBaseDetail, KnowledgeBaseMeta, KnowledgeBaseTraceability, ExtractedTechnologyRecord } from '../../types';
 import { 
     getKnowledgeBase, getKnowledgeBaseDetail, getKnowledgeBaseMeta, getKnowledgeBaseTraceability,

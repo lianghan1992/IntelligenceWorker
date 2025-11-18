@@ -20,18 +20,6 @@ const STAT_LABELS: Record<string, string> = {
     resolved_stream_url: "解析流地址",
 };
 
-const StatCard: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, icon, children, className }) => (
-    <div className={`bg-white rounded-xl border border-gray-200 p-5 shadow-sm ${className}`}>
-        <div className="flex items-center gap-3 mb-4">
-            {icon}
-            <h3 className="font-bold text-lg text-gray-800">{title}</h3>
-        </div>
-        <div>
-            {children}
-        </div>
-    </div>
-);
-
 const StatItem: React.FC<{ label: string; children: React.ReactNode; fullWidth?: boolean }> = ({ label, children, fullWidth }) => (
     <div className={fullWidth ? 'col-span-1 sm:col-span-2' : ''}>
         <dt className="text-sm font-medium text-gray-500">{label}</dt>
@@ -47,7 +35,7 @@ const CopyableText: React.FC<{ text: string }> = ({ text }) => {
         setTimeout(() => setCopied(false), 2000);
     };
     return (
-        <div className="flex items-center justify-between bg-gray-100 p-2 rounded-md">
+        <div className="flex items-center justify-between bg-slate-100 p-2 rounded-md border border-slate-200">
             <span className="text-sm font-mono truncate text-gray-700">{text}</span>
             <button onClick={handleCopy} className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex-shrink-0 ml-2">
                 {copied ? '已复制' : '复制'}
@@ -62,23 +50,23 @@ const ProgressBar: React.FC<{ value: number; max: number; label: string }> = ({ 
         <div>
             <div className="flex justify-between mb-1 text-sm">
                 <span className="font-medium text-gray-700">{label}</span>
-                <span className="text-gray-500">{value} / {max}</span>
+                <span className="text-gray-500">{value.toLocaleString()} / {max.toLocaleString()}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+            <div className="w-full bg-slate-200 rounded-full h-2.5">
+                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${percentage}%` }}></div>
             </div>
         </div>
     );
 };
 
 const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
-    const [displayValue, setDisplayValue] = useState(0);
-    const previousValueRef = useRef(0);
+    const [displayValue, setDisplayValue] = useState(value);
+    const prevValueRef = useRef(value);
 
     useEffect(() => {
-        const startValue = previousValueRef.current;
+        const startValue = prevValueRef.current;
         const endValue = value;
-        previousValueRef.current = value;
+        prevValueRef.current = value;
 
         if (startValue === endValue) {
             setDisplayValue(endValue);
@@ -93,13 +81,15 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
             const progress = timestamp - startTime;
             const percentage = Math.min(progress / duration, 1);
             
-            const easedPercentage = 1 - Math.pow(1 - percentage, 3);
+            const easedPercentage = 1 - Math.pow(1 - percentage, 4); // easeOutQuart
             
-            const currentValue = Math.floor(startValue + (endValue - startValue) * easedPercentage);
+            const currentValue = Math.round(startValue + (endValue - startValue) * easedPercentage);
             setDisplayValue(currentValue);
 
             if (progress < duration) {
                 requestAnimationFrame(animate);
+            } else {
+                 setDisplayValue(endValue);
             }
         };
 
@@ -109,6 +99,33 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
     return <span>{displayValue.toLocaleString()}</span>;
 };
 
+
+const PipelineNode: React.FC<{ icon: React.ReactNode; label: string; value: number; unit?: string; }> = ({ icon, label, value, unit }) => (
+    <div className="bg-white/50 backdrop-blur-sm rounded-2xl border border-white/30 p-4 shadow-lg w-full flex items-center gap-4">
+        <div className="p-3 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+            {icon}
+        </div>
+        <div className="flex-1">
+            <p className="text-sm font-medium text-slate-600">{label}</p>
+            <p className="text-3xl font-bold text-slate-900">
+                <AnimatedNumber value={value} />
+                {unit && <span className="text-lg font-medium text-slate-500 ml-1">{unit}</span>}
+            </p>
+        </div>
+    </div>
+);
+
+const PipelineConnector: React.FC<{ isFlowing?: boolean }> = ({ isFlowing }) => (
+    <div className="h-10 w-full flex justify-center items-center relative">
+        <div className="w-0.5 h-full bg-slate-200"></div>
+        {isFlowing && (
+             <div className="absolute w-2 h-2 rounded-full bg-blue-500/50" style={{
+                animation: 'flow-light 2s linear infinite',
+                boxShadow: '0 0 8px 2px rgba(59, 130, 246, 0.7)',
+            }}></div>
+        )}
+    </div>
+);
 
 export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onClose }) => {
     const [liveTask, setLiveTask] = useState<LivestreamTask>(task);
@@ -127,12 +144,11 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
     
     const getStat = (key: string, defaultValue: any = 0) => stats?.[key] ?? defaultValue;
 
+    const taskStatus = useMemo(() => getStat('status', liveTask.status).toLowerCase(), [stats, liveTask.status]);
+    const isTaskActive = useMemo(() => !['completed', 'failed'].includes(taskStatus), [taskStatus]);
+
     useEffect(() => {
-        if (!task.id) return;
-        const taskStatus = getStat('status', liveTask.status).toLowerCase();
-        const isTaskActive = !['completed', 'failed'].includes(taskStatus);
-        
-        if (!isTaskActive) return;
+        if (!task.id || !isTaskActive) return;
 
         const interval = setInterval(async () => {
             try {
@@ -140,37 +156,35 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                 setLiveTask(updatedTask);
             } catch (error) {
                 console.error("Failed to fetch live task stats:", error);
-                // Optionally stop polling on error
-                // clearInterval(interval);
             }
-        }, 3000); // Poll every 3 seconds
+        }, 3000);
 
         return () => clearInterval(interval);
-    }, [task.id, liveTask.status, stats]);
+    }, [task.id, isTaskActive]);
 
 
     const statusBadge = useMemo(() => {
-        const status = getStat('status', liveTask.status).toLowerCase();
-        if (status === 'recording') return { text: '直播中', className: 'bg-red-100 text-red-800' };
-        if (status === 'listening') return { text: '监听中', className: 'bg-cyan-100 text-cyan-800' };
-        if (status === 'pending') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
-        if (status === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
-        if (status === 'processing') return { text: 'AI总结中', className: 'bg-indigo-100 text-indigo-800' };
-        if (status === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
-        return { text: status, className: 'bg-gray-100 text-gray-800' };
-    }, [stats, liveTask.status]);
+        if (taskStatus === 'recording') return { text: '直播中', className: 'bg-red-100 text-red-800' };
+        if (taskStatus === 'listening') return { text: '监听中', className: 'bg-cyan-100 text-cyan-800' };
+        if (taskStatus === 'pending') return { text: '即将开始', className: 'bg-blue-100 text-blue-800' };
+        if (taskStatus === 'completed') return { text: '已结束', className: 'bg-green-100 text-green-800' };
+        if (taskStatus === 'processing') return { text: 'AI总结中', className: 'bg-indigo-100 text-indigo-800' };
+        if (taskStatus === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
+        return { text: taskStatus, className: 'bg-gray-100 text-gray-800' };
+    }, [taskStatus]);
     
     const pipelineStages = [
-        { label: STAT_LABELS.recorded_segments_total, value: getStat('recorded_segments_total'), icon: <FilmIcon className="w-7 h-7" /> },
-        { label: STAT_LABELS.segments_extracted_done, value: getStat('segments_extracted_done'), icon: <CheckCircleIcon className="w-7 h-7" /> },
-        { label: STAT_LABELS.frames_extracted_total, value: getStat('frames_extracted_total'), icon: <ViewGridIcon className="w-7 h-7" /> },
-        { label: STAT_LABELS.ai_recognized_total, value: getStat('ai_recognized_total'), icon: <BrainIcon className="w-7 h-7" /> },
+        { label: STAT_LABELS.recorded_segments_total, value: getStat('recorded_segments_total'), icon: <FilmIcon className="w-6 h-6" /> },
+        { label: STAT_LABELS.segments_extracted_done, value: getStat('segments_extracted_done'), icon: <CheckCircleIcon className="w-6 h-6" /> },
+        { label: STAT_LABELS.frames_extracted_total, value: getStat('frames_extracted_total'), icon: <ViewGridIcon className="w-6 h-6" />, unit: "帧" },
+        { label: STAT_LABELS.ai_recognized_total, value: getStat('ai_recognized_total'), icon: <BrainIcon className="w-6 h-6" />, unit: "帧" },
     ];
     
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
-            <div className="bg-gray-50 rounded-2xl w-full max-w-xl max-h-[90vh] flex flex-col shadow-xl transform transition-all animate-in zoom-in-95">
-                <header className="p-5 border-b bg-white flex justify-between items-center flex-shrink-0">
+        <>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
+            <div className="bg-slate-50 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in zoom-in-95">
+                <header className="p-5 border-b bg-white/70 backdrop-blur-sm flex justify-between items-center flex-shrink-0 rounded-t-2xl">
                     <div className="flex items-center gap-3 overflow-hidden">
                         <div className="p-2 bg-teal-100 text-teal-600 rounded-lg flex-shrink-0">
                             <ServerIcon className="w-6 h-6" />
@@ -186,59 +200,72 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-6 space-y-6">
-                     <StatCard title="核心状态" icon={<ServerIcon className="w-5 h-5 text-gray-500"/>}>
-                        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                            <StatItem label={STAT_LABELS.status}>
-                                <span className={`px-2.5 py-1 text-sm font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
-                            </StatItem>
-                             <StatItem label={STAT_LABELS.ffmpeg_running}>
-                                <span className={`font-semibold ${getStat('ffmpeg_running', false) ? 'text-green-600' : 'text-gray-600'}`}>{getStat('ffmpeg_running', false) ? '运行中' : '已停止'}</span>
-                            </StatItem>
-                            <StatItem label={STAT_LABELS.start_time}>
-                                <span className="text-base font-medium text-gray-800">{getStat('start_time', '') ? new Date(getStat('start_time', '')).toLocaleString('zh-CN') : '未开始'}</span>
-                            </StatItem>
-                            <StatItem label={STAT_LABELS.resolved_stream_url} fullWidth>
-                                {getStat('resolved_stream_url', '') ? <CopyableText text={getStat('resolved_stream_url', '')} /> : 'N/A'}
-                            </StatItem>
-                        </dl>
-                    </StatCard>
+                    <details className="group" open>
+                        <summary className="list-none flex items-center justify-between cursor-pointer font-bold text-lg text-gray-800">
+                            核心状态
+                            <ChevronDownIcon className="w-5 h-5 text-gray-400 transition-transform group-open:rotate-180" />
+                        </summary>
+                         <div className="mt-4 bg-white rounded-xl border border-gray-200 p-5">
+                            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                                <StatItem label={STAT_LABELS.status}>
+                                    <span className={`px-2.5 py-1 text-sm font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
+                                </StatItem>
+                                <StatItem label={STAT_LABELS.ffmpeg_running}>
+                                    <span className={`font-semibold ${getStat('ffmpeg_running', false) ? 'text-green-600' : 'text-gray-600'}`}>{getStat('ffmpeg_running', false) ? '运行中' : '已停止'}</span>
+                                </StatItem>
+                                <StatItem label={STAT_LABELS.start_time}>
+                                    <span className="text-base font-medium text-gray-800">{getStat('start_time', '') ? new Date(getStat('start_time', '')).toLocaleString('zh-CN') : '未开始'}</span>
+                                </StatItem>
+                                <StatItem label={STAT_LABELS.resolved_stream_url} fullWidth>
+                                    {getStat('resolved_stream_url', '') ? <CopyableText text={getStat('resolved_stream_url', '')} /> : 'N/A'}
+                                </StatItem>
+                            </dl>
+                        </div>
+                    </details>
                     
-                    <StatCard title="处理流水线" icon={<FilmIcon className="w-5 h-5 text-gray-500"/>}>
-                        <div className="space-y-4">
+                    <div>
+                        <h3 className="font-bold text-lg text-gray-800 mb-4">处理流水线</h3>
+                        <div className="flex flex-col items-center">
                             {pipelineStages.map((stage, index) => (
                                 <React.Fragment key={stage.label}>
-                                    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex items-center gap-4">
-                                        <div className="p-3 bg-gray-100 text-gray-600 rounded-full">
-                                            {stage.icon}
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-gray-500">{stage.label}</p>
-                                            <p className="text-3xl font-bold text-gray-900">
-                                                <AnimatedNumber value={stage.value} />
-                                                {stage.label.includes('帧') && <span className="text-lg font-medium text-gray-500 ml-1">帧</span>}
-                                            </p>
-                                        </div>
-                                    </div>
+                                    <PipelineNode {...stage} />
                                     {index < pipelineStages.length - 1 && (
-                                        <div className="flex justify-center">
-                                            <ChevronDownIcon className="w-6 h-6 text-gray-300" />
-                                        </div>
+                                        <PipelineConnector isFlowing={isTaskActive} />
                                     )}
                                 </React.Fragment>
                             ))}
-                            <div className="pt-4">
-                                <ProgressBar label="分段处理进度" value={getStat('segments_extracted_done')} max={getStat('recorded_segments_total')} />
-                            </div>
                         </div>
-                    </StatCard>
+                         <div className="mt-6 bg-white rounded-xl border border-gray-200 p-5">
+                            <ProgressBar label="分段处理进度" value={getStat('segments_extracted_done')} max={getStat('recorded_segments_total')} />
+                        </div>
+                    </div>
                 </main>
 
-                <footer className="px-6 py-4 bg-white border-t flex justify-end">
+                <footer className="px-6 py-4 bg-white/70 backdrop-blur-sm border-t flex justify-end flex-shrink-0 rounded-b-2xl">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-100 transition-colors">
                         关闭
                     </button>
                 </footer>
             </div>
         </div>
+        <style>{`
+            @keyframes flow-light {
+                from {
+                    transform: translateY(-20px);
+                    opacity: 0;
+                }
+                50% {
+                    opacity: 1;
+                }
+                to {
+                    transform: translateY(20px);
+                    opacity: 0;
+                }
+            }
+            details summary::-webkit-details-marker {
+                display: none;
+            }
+        `}</style>
+        </>
     );
 };
