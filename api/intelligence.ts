@@ -6,7 +6,7 @@ import {
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
     SearchResult, IntelligenceTask,
    SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
-   LlmSearchTasksResponse
+   LlmSearchTasksResponse, LlmSearchTaskDetail
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -237,6 +237,10 @@ export const createLlmSearchTask = (data: LlmSearchRequest): Promise<LlmSearchRe
 export const getLlmSearchTasks = (params: any): Promise<LlmSearchTasksResponse> => {
     const query = createApiQuery(params);
     return apiFetch<LlmSearchTasksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks${query}`);
+};
+
+export const getLlmSearchTask = (taskId: string): Promise<LlmSearchTaskDetail> => {
+    return apiFetch<LlmSearchTaskDetail>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks/${taskId}`);
 };
 
 export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {

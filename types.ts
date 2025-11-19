@@ -167,7 +167,7 @@ export interface LlmSearchResponse {
 
 export interface LlmSearchTaskItem {
     id: string;
-    prompt_text: string; // API returns prompt_text, request sends query_text
+    prompt_text: string;
     total_articles: number;
     processed_count: number;
     matched_count: number;
@@ -175,6 +175,16 @@ export interface LlmSearchTaskItem {
     task_dir: string;
     created_at: string;
     finished_at?: string;
+}
+
+export interface LlmSearchTaskDetail extends LlmSearchTaskItem {
+    source_names?: string; // Comma separated string in detail view per API doc
+    publish_date_start?: string;
+    publish_date_end?: string;
+    tokens_with_content_estimate?: number;
+    tokens_without_content_estimate?: number;
+    duration_seconds?: number;
+    processed_time_beijing?: string;
 }
 
 export interface LlmSearchTasksResponse {

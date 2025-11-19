@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { LlmSearchRequest, LlmSearchTaskItem } from '../../types';
-import { createLlmSearchTask, downloadLlmTaskResult, getSourceNames, getLlmSearchTasks } from '../../api';
-import { DownloadIcon, SparklesIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CloseIcon } from '../icons';
+import { LlmSearchRequest, LlmSearchTaskItem, LlmSearchTaskDetail } from '../../types';
+import { createLlmSearchTask, downloadLlmTaskResult, getSourceNames, getLlmSearchTasks, getLlmSearchTask } from '../../api';
+import { DownloadIcon, SparklesIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CloseIcon, ChartIcon } from '../icons';
 
 const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     <svg className={`animate-spin ${small ? 'h-4 w-4' : 'h-5 w-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -101,6 +101,134 @@ const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, 
     );
 };
 
+// --- Task Progress Modal ---
+const TaskProgressModal: React.FC<{ taskId: string; onClose: () => void }> = ({ taskId, onClose }) => {
+    const [task, setTask] = useState<LlmSearchTaskDetail | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    const fetchTask = useCallback(async () => {
+        try {
+            const data = await getLlmSearchTask(taskId);
+            setTask(data);
+            setLoading(false);
+        } catch (err: any) {
+            setError(err.message || '获取任务进度失败');
+            setLoading(false);
+        }
+    }, [taskId]);
+
+    useEffect(() => {
+        fetchTask();
+        const interval = setInterval(fetchTask, 1000);
+        return () => clearInterval(interval);
+    }, [fetchTask]);
+
+    if (loading && !task) return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-8 rounded-2xl flex flex-col items-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-600 mb-4"></div>
+                <p className="text-gray-600">正在加载任务详情...</p>
+            </div>
+        </div>
+    );
+
+    if (error) return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-6 rounded-2xl max-w-md w-full">
+                <h3 className="text-red-600 font-bold mb-2">错误</h3>
+                <p className="text-gray-600 mb-4">{error}</p>
+                <button onClick={onClose} className="w-full py-2 bg-gray-200 rounded-lg hover:bg-gray-300">关闭</button>
+            </div>
+        </div>
+    );
+
+    if (!task) return null;
+
+    const percentage = task.total_articles > 0 ? Math.min(100, Math.round((task.processed_count / task.total_articles) * 100)) : 0;
+    const isFinished = task.processed_count >= task.total_articles && task.total_articles > 0;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900">任务进度详情</h3>
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">ID: {task.id}</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors">
+                        <CloseIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                <div className="p-6 overflow-y-auto space-y-6">
+                    {/* Progress Bar Section */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm relative overflow-hidden">
+                        <div className="flex justify-between items-end mb-2 relative z-10">
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">总体进度</p>
+                                <p className="text-3xl font-bold text-purple-600 mt-1">{percentage}%</p>
+                            </div>
+                            <div className="text-right">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isFinished ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800 animate-pulse'}`}>
+                                    {isFinished ? '已完成' : '进行中...'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-3 relative z-10">
+                            <div className="bg-purple-600 h-3 rounded-full transition-all duration-500 ease-out" style={{ width: `${percentage}%` }}></div>
+                        </div>
+                        {/* Background decoration */}
+                        <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-purple-50 rounded-full z-0"></div>
+                    </div>
+
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <p className="text-xs text-gray-500 mb-1">总文章数</p>
+                            <p className="text-xl font-bold text-gray-800">{task.total_articles.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                            <p className="text-xs text-blue-600 mb-1">已处理</p>
+                            <p className="text-xl font-bold text-blue-700">{task.processed_count.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-xl border border-green-100 text-center">
+                            <p className="text-xs text-green-600 mb-1">命中</p>
+                            <p className="text-xl font-bold text-green-700">{task.matched_count.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                            <p className="text-xs text-gray-400 mb-1">未命中</p>
+                            <p className="text-xl font-bold text-gray-500">{(task.unrelated_count || 0).toLocaleString()}</p>
+                        </div>
+                    </div>
+
+                    {/* Details List */}
+                    <div className="space-y-4 border-t border-gray-100 pt-4">
+                        <div>
+                            <p className="text-sm font-medium text-gray-700 mb-1">分析指令</p>
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-sm text-gray-600 max-h-32 overflow-y-auto">
+                                {task.prompt_text}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1">来源范围</p>
+                                <p className="text-sm text-gray-800">{task.source_names || '所有来源'}</p>
+                            </div>
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 mb-1">时间范围</p>
+                                <p className="text-sm text-gray-800">
+                                    {task.publish_date_start || '不限'} - {task.publish_date_end || '不限'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 export const LlmSortingManager: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -113,6 +241,7 @@ export const LlmSortingManager: React.FC = () => {
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
     const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+    const [viewingProgressId, setViewingProgressId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchSources = async () => {
@@ -280,18 +409,26 @@ export const LlmSortingManager: React.FC = () => {
                                         <td className="px-6 py-4 font-mono text-xs">{task.id.slice(0, 8)}...</td>
                                         <td className="px-6 py-4 max-w-xs truncate" title={task.prompt_text}>{task.prompt_text}</td>
                                         <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
-                                        {/* FIX: Use correct field processed_count according to API */}
                                         <td className="px-6 py-4">{task.processed_count}</td>
                                         <td className="px-6 py-4 font-semibold text-purple-600">{task.matched_count}</td>
                                         <td className="px-6 py-4 text-center">
-                                            <button 
-                                                onClick={() => handleDownload(task)} 
-                                                disabled={downloadingId === task.id}
-                                                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 transition-colors"
-                                            >
-                                                {downloadingId === task.id ? <Spinner small /> : <DownloadIcon className="w-3 h-3" />}
-                                                CSV
-                                            </button>
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    onClick={() => setViewingProgressId(task.id)}
+                                                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                                                >
+                                                    <ChartIcon className="w-3 h-3" />
+                                                    进度
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDownload(task)} 
+                                                    disabled={downloadingId === task.id}
+                                                    className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 transition-colors"
+                                                >
+                                                    {downloadingId === task.id ? <Spinner small /> : <DownloadIcon className="w-3 h-3" />}
+                                                    CSV
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -319,6 +456,10 @@ export const LlmSortingManager: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {viewingProgressId && (
+                <TaskProgressModal taskId={viewingProgressId} onClose={() => setViewingProgressId(null)} />
+            )}
         </div>
     );
 };
