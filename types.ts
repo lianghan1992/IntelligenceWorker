@@ -1,3 +1,4 @@
+
 // --- General ---
 
 export interface PaginatedResponse<T> {
@@ -146,6 +147,25 @@ export interface ExportChunkData {
 
 export interface ExportChunksResponse {
   export_data: ExportChunkData[];
+}
+
+export interface LlmSearchRequest {
+    query_text: string;
+    publish_date_start?: string;
+    publish_date_end?: string;
+    source_names?: string[];
+}
+
+export interface LlmSearchResponse {
+    task_id: string;
+    total_processed: number;
+    matched_count: number;
+    task_dir: string;
+}
+
+export interface LlmTaskRecord extends LlmSearchResponse {
+    query_text: string;
+    created_at: number;
 }
 
 

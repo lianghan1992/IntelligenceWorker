@@ -1,17 +1,20 @@
+
 import React, { useState } from 'react';
 import { IntelligencePointManager } from './IntelligencePointManager';
 import { IntelligenceTaskManager } from './IntelligenceTaskManager';
 import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
-import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon } from '../icons';
+import { LlmSortingManager } from './LlmSortingManager';
+import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon, SparklesIcon } from '../icons';
 
-type IntelligenceSubView = 'points' | 'tasks' | 'data' | 'chunks';
+type IntelligenceSubView = 'points' | 'tasks' | 'data' | 'chunks' | 'llm';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
     { view: 'points', label: '情报源管理', icon: RssIcon },
     { view: 'tasks', label: '采集任务监控', icon: ChartIcon },
     { view: 'data', label: '情报数据管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '分段管理', icon: ViewGridIcon },
+    { view: 'llm', label: 'LLM分拣', icon: SparklesIcon },
 ];
 
 export const IntelligenceDashboard: React.FC = () => {
@@ -23,6 +26,7 @@ export const IntelligenceDashboard: React.FC = () => {
             case 'tasks': return <IntelligenceTaskManager />;
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
+            case 'llm': return <LlmSortingManager />;
             default: return <IntelligencePointManager />;
         }
     };

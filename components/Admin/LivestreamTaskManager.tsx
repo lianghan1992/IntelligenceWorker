@@ -72,8 +72,9 @@ export const LivestreamTaskManager: React.FC = () => {
     const searchTimeout = useRef<number | null>(null);
     const isNewQuery = useRef(true);
 
-    const loadTasks = useCallback(async (showLoading = true) => {
-        if (showLoading) setIsLoading(true);
+    const loadTasks = useCallback(async (showLoading?: boolean) => {
+        const loading = showLoading === undefined ? true : showLoading;
+        if (loading) setIsLoading(true);
         setError(null);
         try {
             const params = {
@@ -104,13 +105,12 @@ export const LivestreamTaskManager: React.FC = () => {
         } catch (err) {
             setError(err instanceof Error ? err.message : '发生未知错误');
         } finally {
-            if (showLoading) setIsLoading(false);
+            if (loading) setIsLoading(false);
             isNewQuery.current = false;
         }
     }, [pagination.page, pagination.limit, filters, sort]);
 
     useEffect(() => {
-        // FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker.
         loadTasks(true);
     }, [loadTasks]);
 
@@ -146,7 +146,7 @@ export const LivestreamTaskManager: React.FC = () => {
     };
     
     // --- Infinite Scroll Logic for Mobile ---
-    const observer = useRef<IntersectionObserver>();
+    const observer = useRef<IntersectionObserver | null>(null);
     const lastTaskElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoading) return;
         if (observer.current) observer.current.disconnect();

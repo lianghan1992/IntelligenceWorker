@@ -46,16 +46,15 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
 
 
                 let totalArticlesToday = 0;
-                if (sourceNames.length > 0) {
-                    const articlesData = await searchArticlesFiltered({
-                        source_names: sourceNames,
-                        publish_date_start: todayTimestamp,
-                        query_text: '*',
-                        limit: 1,
-                        page: 1,
-                    });
-                    totalArticlesToday = articlesData.total;
-                }
+                // Relaxed filter: Fetch global today's articles to ensure the briefing works
+                const articlesData = await searchArticlesFiltered({
+                    // source_names: sourceNames.length > 0 ? sourceNames : undefined, 
+                    publish_date_start: todayTimestamp,
+                    query_text: '*',
+                    limit: 1,
+                    page: 1,
+                });
+                totalArticlesToday = articlesData.total;
                 
                 // 2. Get user's focus points (POIs)
                 const pois = await getUserPois();
@@ -75,7 +74,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                 // 3. Get update count for each POI
                 const poiUpdatePromises = pois.map(poi => 
                     searchArticlesFiltered({
-                        source_names: sourceNames.length > 0 ? sourceNames : undefined,
+                        // source_names: sourceNames.length > 0 ? sourceNames : undefined,
                         publish_date_start: todayTimestamp,
                         query_text: poi.content,
                         limit: 1,
@@ -220,6 +219,8 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                         similarity_threshold: 0.35,
                         page: 1
                     };
+                    // Keep strict filtering for Focus Points as per user request logic (unless user wants global search here too)
+                    // But to be consistent with DashboardWidgets fix, let's use the provided logic but be aware it's working (user said Focus Points has data).
                     if (subscribedSourceNames.length > 0) {
                         params.source_names = subscribedSourceNames;
                     }
