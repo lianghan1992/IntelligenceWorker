@@ -25,6 +25,99 @@
     }
     ```
 
+### 基于提示词的LLM相关性检索并导出CSV
+- 路径：`/crawler/search/llm`
+- 方法：`POST`
+- 请求：
+  ```json
+  {
+    "query_text": "我需要查找岚图泰山车型的所有相关信息",
+    "publish_date_start": "2025-01-01",
+    "publish_date_end": "2025-11-18",
+    "source_names": ["盖世汽车", "艾邦智造"]
+  }
+  ```
+- 响应：
+  ```json
+  {
+    "task_id": "<uuid>",
+    "total_processed": 1000,
+    "matched_count": 300,
+    "task_dir": "services/crawler/search_tasks/<uuid>"
+  }
+  ```
+
+### 查询LLM检索任务（分页，含统计）
+- 路径：`/crawler/search/tasks`
+- 方法：`GET`
+- 查询参数：`page`、`limit`
+- 响应：
+  ```json
+  {
+    "total": 12,
+    "page": 1,
+    "limit": 20,
+    "stats": {
+      "total_tasks": 12,
+      "total_processed": 5432,
+      "matched_count": 1789
+    },
+    "items": [
+      {
+        "id": "<uuid>",
+        "prompt_text": "...",
+        "total_processed": 1000,
+        "matched_count": 300,
+        "task_dir": "services/crawler/search_tasks/<uuid>",
+        "created_at": "2025-11-18T12:00:00+08:00",
+        "finished_at": "2025-11-18T12:15:00+08:00"
+      }
+    ]
+  }
+  ```
+
+### 查询单个LLM检索任务详情
+- 路径：`/crawler/search/tasks/{task_id}`
+- 方法：`GET`
+- 响应：
+  ```json
+  {
+    "id": "<uuid>",
+    "prompt_text": "...",
+    "source_names": "盖世汽车,艾邦智造",
+    "publish_date_start": "2025-01-01",
+    "publish_date_end": "2025-11-18",
+    "total_processed": 1000,
+    "matched_count": 300,
+    "tokens_with_content_estimate": 123456,
+    "tokens_without_content_estimate": 78901,
+    "duration_seconds": 900,
+    "processed_time_beijing": "2025-11-18 12:00:00",
+    "task_dir": "services/crawler/search_tasks/<uuid>",
+    "created_at": "2025-11-18T12:00:00+08:00",
+    "finished_at": "2025-11-18T12:15:00+08:00"
+  }
+  ```
+
+### 下载任务的CSV文件
+- 路径：`/crawler/search/tasks/{task_id}/download`
+- 方法：`GET`
+- 查询参数：`with_content=true|false`（默认 true）
+- 响应：文件下载（`related_with_content.csv` 或 `related_no_content.csv`）
+
+### 获取所有情报源名称
+- 路径：`/crawler/sources/names`
+- 方法：`GET`
+- 响应：
+  ```json
+  [
+    "盖世汽车",
+    "艾邦智造",
+    "AutoTechNews",
+    "佐思汽研"
+  ]
+  ```
+
 ### 文章检索（分页）
 - 路径：`/crawler/articles`
 - 方法：`POST`

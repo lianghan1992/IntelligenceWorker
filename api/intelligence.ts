@@ -5,7 +5,8 @@ import { INTELLIGENCE_SERVICE_PATH } from '../config';
 import { 
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
     SearchResult, IntelligenceTask,
-   SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse
+   SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
+   LlmSearchTasksResponse
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -24,6 +25,8 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
 };
 
 export const getSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+
+export const getSourceNames = (): Promise<string[]> => apiFetch<string[]>(`${INTELLIGENCE_SERVICE_PATH}/sources/names`);
 
 export const deleteSource = (sourceName: string): Promise<void> => 
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, { method: 'DELETE' });
@@ -241,8 +244,13 @@ export const createLlmSearchTask = (data: LlmSearchRequest): Promise<LlmSearchRe
         body: JSON.stringify(data),
     });
 
+export const getLlmSearchTasks = (params: any): Promise<LlmSearchTasksResponse> => {
+    const query = createApiQuery(params);
+    return apiFetch<LlmSearchTasksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks${query}`);
+};
+
 export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {
-    const url = `${INTELLIGENCE_SERVICE_PATH}/search/llm/download${createApiQuery({ task_id: taskId })}`;
+    const url = `${INTELLIGENCE_SERVICE_PATH}/search/tasks/${taskId}/download`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) {

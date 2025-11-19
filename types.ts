@@ -163,9 +163,26 @@ export interface LlmSearchResponse {
     task_dir: string;
 }
 
-export interface LlmTaskRecord extends LlmSearchResponse {
-    query_text: string;
-    created_at: number;
+export interface LlmSearchTaskItem {
+    id: string;
+    prompt_text: string;
+    total_processed: number;
+    matched_count: number;
+    task_dir: string;
+    created_at: string;
+    finished_at?: string;
+}
+
+export interface LlmSearchTasksResponse {
+    total: number;
+    page: number;
+    limit: number;
+    stats: {
+        total_tasks: number;
+        total_processed: number;
+        matched_count: number;
+    };
+    items: LlmSearchTaskItem[];
 }
 
 

@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { LlmSearchRequest, LlmTaskRecord, SystemSource } from '../../types';
-import { createLlmSearchTask, downloadLlmTaskResult, getSources } from '../../api';
-import { DownloadIcon, SparklesIcon, RefreshIcon } from '../icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { LlmSearchRequest, LlmSearchTaskItem } from '../../types';
+import { createLlmSearchTask, downloadLlmTaskResult, getSourceNames, getLlmSearchTasks } from '../../api';
+import { DownloadIcon, SparklesIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 
 const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     <svg className={`animate-spin ${small ? 'h-4 w-4' : 'h-5 w-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -15,23 +15,42 @@ export const LlmSortingManager: React.FC = () => {
     const [query, setQuery] = useState('');
     const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
     const [selectedSources, setSelectedSources] = useState<string[]>([]);
-    const [availableSources, setAvailableSources] = useState<SystemSource[]>([]);
+    const [availableSources, setAvailableSources] = useState<string[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [tasks, setTasks] = useState<LlmTaskRecord[]>([]);
+    const [tasks, setTasks] = useState<LlmSearchTaskItem[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+    const [isLoadingTasks, setIsLoadingTasks] = useState(true);
 
     useEffect(() => {
         const fetchSources = async () => {
             try {
-                const sources = await getSources();
-                setAvailableSources(sources);
+                const sourceNames = await getSourceNames();
+                setAvailableSources(sourceNames);
             } catch (e) {
-                console.error("Failed to load sources", e);
+                console.error("Failed to load source names", e);
             }
         };
         fetchSources();
     }, []);
+
+    const fetchTasks = useCallback(async (page: number = 1) => {
+        setIsLoadingTasks(true);
+        try {
+            const response = await getLlmSearchTasks({ page, limit: pagination.limit });
+            setTasks(response.items || []);
+            setPagination(prev => ({ ...prev, page, total: response.total }));
+        } catch (err: any) {
+            console.error("Failed to fetch tasks", err);
+        } finally {
+            setIsLoadingTasks(false);
+        }
+    }, [pagination.limit]);
+
+    useEffect(() => {
+        fetchTasks(1);
+    }, [fetchTasks]);
 
     const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const options = Array.from(e.target.selectedOptions, option => option.value);
@@ -55,14 +74,10 @@ export const LlmSortingManager: React.FC = () => {
         };
 
         try {
-            const response = await createLlmSearchTask(payload);
-            const newTask: LlmTaskRecord = {
-                ...response,
-                query_text: query,
-                created_at: Date.now()
-            };
-            setTasks(prev => [newTask, ...prev]);
-            // Clear form optionally? User might want to run similar query.
+            await createLlmSearchTask(payload);
+            // Refresh the list to show the new task
+            fetchTasks(1);
+            setQuery(''); // Clear input on success
         } catch (err: any) {
             setError(err.message || '任务创建失败');
         } finally {
@@ -70,14 +85,14 @@ export const LlmSortingManager: React.FC = () => {
         }
     };
 
-    const handleDownload = async (task: LlmTaskRecord) => {
-        setDownloadingId(task.task_id);
+    const handleDownload = async (task: LlmSearchTaskItem) => {
+        setDownloadingId(task.id);
         try {
-            const blob = await downloadLlmTaskResult(task.task_id);
+            const blob = await downloadLlmTaskResult(task.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `llm_search_result_${task.task_id.slice(0, 8)}.csv`;
+            a.download = `llm_search_result_${task.id.slice(0, 8)}.csv`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -88,6 +103,8 @@ export const LlmSortingManager: React.FC = () => {
             setDownloadingId(null);
         }
     };
+    
+    const totalPages = Math.ceil(pagination.total / pagination.limit);
 
     return (
         <div className="h-full flex flex-col">
@@ -120,7 +137,7 @@ export const LlmSortingManager: React.FC = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">指定情报源 (按住Ctrl多选)</label>
                             <select multiple value={selectedSources} onChange={handleSourceChange} className="bg-gray-50 border border-gray-300 rounded-lg p-2 w-full h-[42px] focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                                {availableSources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
+                                {availableSources.map(name => <option key={name} value={name}>{name}</option>)}
                             </select>
                         </div>
                     </div>
@@ -142,8 +159,13 @@ export const LlmSortingManager: React.FC = () => {
 
             <div className="flex-1 bg-white rounded-lg border overflow-hidden flex flex-col shadow-sm">
                 <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800">任务历史 (本次会话)</h3>
-                    <span className="text-xs text-gray-500">共 {tasks.length} 条</span>
+                    <h3 className="font-bold text-gray-800">任务历史</h3>
+                    <div className="flex items-center gap-4">
+                        <span className="text-xs text-gray-500">共 {pagination.total} 条</span>
+                        <button onClick={() => fetchTasks(1)} className="text-gray-500 hover:text-blue-600">
+                             <RefreshIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
                      <table className="w-full text-sm text-left text-gray-500">
@@ -151,30 +173,32 @@ export const LlmSortingManager: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-3">任务ID</th>
                                 <th className="px-6 py-3">分析指令摘要</th>
-                                <th className="px-6 py-3">处理时间</th>
+                                <th className="px-6 py-3">创建时间</th>
                                 <th className="px-6 py-3">处理总量</th>
                                 <th className="px-6 py-3">匹配数量</th>
                                 <th className="px-6 py-3 text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {tasks.length === 0 ? (
+                            {isLoadingTasks ? (
+                                <tr><td colSpan={6} className="text-center py-10"><Spinner small={false} /> <span className="text-gray-500 ml-2">加载中...</span></td></tr>
+                            ) : tasks.length === 0 ? (
                                 <tr><td colSpan={6} className="text-center py-10 text-gray-400">暂无任务记录</td></tr>
                             ) : (
                                 tasks.map(task => (
-                                    <tr key={task.task_id} className="bg-white border-b hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-mono text-xs">{task.task_id.slice(0, 8)}...</td>
-                                        <td className="px-6 py-4 max-w-xs truncate" title={task.query_text}>{task.query_text}</td>
-                                        <td className="px-6 py-4">{new Date(task.created_at).toLocaleTimeString()}</td>
+                                    <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
+                                        <td className="px-6 py-4 font-mono text-xs">{task.id.slice(0, 8)}...</td>
+                                        <td className="px-6 py-4 max-w-xs truncate" title={task.prompt_text}>{task.prompt_text}</td>
+                                        <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
                                         <td className="px-6 py-4">{task.total_processed}</td>
                                         <td className="px-6 py-4 font-semibold text-purple-600">{task.matched_count}</td>
                                         <td className="px-6 py-4 text-center">
                                             <button 
                                                 onClick={() => handleDownload(task)} 
-                                                disabled={downloadingId === task.task_id}
+                                                disabled={downloadingId === task.id}
                                                 className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50 transition-colors"
                                             >
-                                                {downloadingId === task.task_id ? <Spinner small /> : <DownloadIcon className="w-3 h-3" />}
+                                                {downloadingId === task.id ? <Spinner small /> : <DownloadIcon className="w-3 h-3" />}
                                                 CSV
                                             </button>
                                         </td>
@@ -184,6 +208,25 @@ export const LlmSortingManager: React.FC = () => {
                         </tbody>
                      </table>
                 </div>
+                {pagination.total > 0 && (
+                    <div className="p-3 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+                         <button 
+                            onClick={() => fetchTasks(pagination.page - 1)} 
+                            disabled={pagination.page <= 1}
+                            className="p-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50"
+                        >
+                            <ChevronLeftIcon className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs text-gray-600">第 {pagination.page} / {totalPages} 页</span>
+                         <button 
+                            onClick={() => fetchTasks(pagination.page + 1)} 
+                            disabled={pagination.page >= totalPages}
+                            className="p-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50"
+                        >
+                            <ChevronRightIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
