@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DocumentTextIcon, RssIcon, TrendingUpIcon } from '../icons';
 import { BookmarkIcon } from './icons';
@@ -57,11 +58,6 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
             const totalPoints = subscriptions.length;
             const totalSources = new Set(subscriptions.map(sub => sub.source_name)).size;
             
-            // Even if no subscriptions, we might want to show global stats or just zeros
-            // But for now let's proceed to fetch global stats if user has no subs, or specific if they do.
-            // Actually, to solve the "0 data" issue reported by user, we will relax the source filtering
-            // to show "Platform-wide" intelligence for today if specific subscription filtering fails or is empty.
-            
             try {
                 // const sourceNames = Array.from(new Set(subscriptions.map(s => s.source_name)));
                 
@@ -86,6 +82,8 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 });
 
                 const articlesTodayCount = articlesData.total;
+                // If showing global stats, calculating pointsWithUpdates based on response items is still valid,
+                // but it might count points the user doesn't subscribe to. This is acceptable for "platform vitality" display.
                 const pointsWithUpdatesCount = new Set(articlesData.items.map(item => item.point_id)).size;
                 
                 setStats({

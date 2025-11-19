@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Subscription, User, InfoItem, View, ApiPoi } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
@@ -35,7 +36,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
             setIsLoading(true);
             try {
                 // 1. Get total articles today
-                const sourceNames = Array.from(new Set(subscriptions.map(sub => sub.source_name)));
+                // const sourceNames = Array.from(new Set(subscriptions.map(sub => sub.source_name)));
                 
                 const startOfToday = new Date();
                 startOfToday.setHours(0, 0, 0, 0);
@@ -47,6 +48,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
 
                 let totalArticlesToday = 0;
                 // Relaxed filter: Fetch global today's articles to ensure the briefing works
+                // Even if user hasn't subscribed to much, showing global activity is better than 0.
                 const articlesData = await searchArticlesFiltered({
                     // source_names: sourceNames.length > 0 ? sourceNames : undefined, 
                     publish_date_start: todayTimestamp,

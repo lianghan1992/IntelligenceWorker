@@ -57,13 +57,14 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
     // Destructure to separate query text/pagination from filters
     const { query_text, page, limit, similarity_threshold, ...restFilters } = params;
     
+    // Check if it's a general filter query (empty or '*')
     const isGeneralFilter = !query_text || query_text === '*' || query_text.trim() === '';
 
     if (isGeneralFilter) {
         // CASE 1: General Filtering (e.g., Dashboard "Today's News")
         // Use /crawler/articles per API Doc
         
-        const payload = {
+        const payload: any = {
             filters: {
                 // Map flat params to the 'filters' object structure required by the backend
                 source_names: restFilters.source_names,
@@ -78,13 +79,9 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         };
 
         // Clean up undefined filters
-        // @ts-ignore
         Object.keys(payload.filters).forEach(key => {
-            // @ts-ignore
             const val = payload.filters[key];
-            // @ts-ignore
             if (val === undefined || val === null || (Array.isArray(val) && val.length === 0) || val === '') {
-                 // @ts-ignore
                 delete payload.filters[key];
             }
         });
@@ -98,7 +95,7 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         // CASE 2: Semantic/Keyword Search (e.g., Focus Points, Search Bar)
         // Use /crawler/search/combined per API Doc
         
-        const payload = {
+        const payload: any = {
             query: query_text,
             top_k: 100, // Default reasonably high for list views
             min_score: similarity_threshold,
@@ -111,13 +108,9 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         };
 
         // Clean up undefined filters
-        // @ts-ignore
         Object.keys(payload.filters).forEach(key => {
-            // @ts-ignore
             const val = payload.filters[key];
-            // @ts-ignore
             if (val === undefined || val === null || (Array.isArray(val) && val.length === 0) || val === '') {
-                // @ts-ignore
                 delete payload.filters[key];
             }
         });
@@ -177,7 +170,7 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
         // Extract other known filters if needed, ignore unknown props
     } = params;
 
-    const payload = {
+    const payload: any = {
         query: query_text || '*',
         top_k: top_k || 200,
         min_score: similarity_threshold,
@@ -189,11 +182,8 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
     };
 
     // Clean undefined filters
-    // @ts-ignore
     Object.keys(payload.filters).forEach(key => {
-        // @ts-ignore
         if (payload.filters[key] === undefined || payload.filters[key] === null || (Array.isArray(payload.filters[key]) && payload.filters[key].length === 0)) {
-            // @ts-ignore
             delete payload.filters[key];
         }
     });
