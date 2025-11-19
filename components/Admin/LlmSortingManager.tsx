@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LlmSearchRequest, LlmSearchTaskItem } from '../../types';
 import { createLlmSearchTask, downloadLlmTaskResult, getSourceNames, getLlmSearchTasks } from '../../api';
-import { DownloadIcon, SparklesIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { DownloadIcon, SparklesIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CloseIcon } from '../icons';
 
 const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
     <svg className={`animate-spin ${small ? 'h-4 w-4' : 'h-5 w-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -10,6 +10,97 @@ const Spinner: React.FC<{ small?: boolean }> = ({ small }) => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+// --- Custom MultiSelect Component ---
+interface MultiSelectProps {
+    options: string[];
+    selected: string[];
+    onChange: (selected: string[]) => void;
+    placeholder?: string;
+}
+
+const MultiSelect: React.FC<MultiSelectProps> = ({ options, selected, onChange, placeholder = "选择..." }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleOption = (option: string) => {
+        if (selected.includes(option)) {
+            onChange(selected.filter(item => item !== option));
+        } else {
+            onChange([...selected, option]);
+        }
+    };
+
+    const clearSelection = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange([]);
+    };
+
+    return (
+        <div className="relative" ref={containerRef}>
+            <div 
+                className="w-full bg-gray-50 border border-gray-300 rounded-lg p-2 flex items-center justify-between cursor-pointer min-h-[42px] text-sm hover:bg-gray-100"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex flex-wrap gap-1 max-w-[90%]">
+                    {selected.length === 0 ? (
+                        <span className="text-gray-500">{placeholder}</span>
+                    ) : (
+                        <span className="text-gray-800 font-medium">已选择 {selected.length} 个来源</span>
+                    )}
+                </div>
+                <div className="flex items-center gap-1">
+                    {selected.length > 0 && (
+                        <button 
+                            onClick={clearSelection} 
+                            className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
+                        >
+                            <CloseIcon className="w-3 h-3" />
+                        </button>
+                    )}
+                    <ChevronDownIcon className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </div>
+            </div>
+            
+            {isOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {options.length === 0 ? (
+                        <div className="p-3 text-center text-gray-500 text-xs">无可用选项</div>
+                    ) : (
+                        <div className="p-1 space-y-0.5">
+                            {options.map(option => (
+                                <div 
+                                    key={option} 
+                                    onClick={() => toggleOption(option)}
+                                    className="flex items-center px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 rounded-md cursor-pointer"
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selected.includes(option)} 
+                                        readOnly
+                                        className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500 mr-3"
+                                    />
+                                    {option}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 export const LlmSortingManager: React.FC = () => {
     const [query, setQuery] = useState('');
@@ -52,10 +143,6 @@ export const LlmSortingManager: React.FC = () => {
         fetchTasks(1);
     }, [fetchTasks]);
 
-    const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const options = Array.from(e.target.selectedOptions, option => option.value);
-        setSelectedSources(options);
-    };
 
     const handleSubmit = async () => {
         if (!query.trim()) {
@@ -135,10 +222,13 @@ export const LlmSortingManager: React.FC = () => {
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">指定情报源 (按住Ctrl多选)</label>
-                            <select multiple value={selectedSources} onChange={handleSourceChange} className="bg-gray-50 border border-gray-300 rounded-lg p-2 w-full h-[42px] focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                                {availableSources.map(name => <option key={name} value={name}>{name}</option>)}
-                            </select>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">指定情报源 (可选)</label>
+                            <MultiSelect 
+                                options={availableSources} 
+                                selected={selectedSources} 
+                                onChange={setSelectedSources}
+                                placeholder="选择情报源..."
+                            />
                         </div>
                     </div>
 
@@ -181,7 +271,7 @@ export const LlmSortingManager: React.FC = () => {
                         </thead>
                         <tbody>
                             {isLoadingTasks ? (
-                                <tr><td colSpan={6} className="text-center py-10"><Spinner small={false} /> <span className="text-gray-500 ml-2">加载中...</span></td></tr>
+                                <tr><td colSpan={6} className="text-center py-10"><div className="flex justify-center items-center"><Spinner small={false} /> <span className="text-gray-500 ml-2">加载中...</span></div></td></tr>
                             ) : tasks.length === 0 ? (
                                 <tr><td colSpan={6} className="text-center py-10 text-gray-400">暂无任务记录</td></tr>
                             ) : (
@@ -190,7 +280,8 @@ export const LlmSortingManager: React.FC = () => {
                                         <td className="px-6 py-4 font-mono text-xs">{task.id.slice(0, 8)}...</td>
                                         <td className="px-6 py-4 max-w-xs truncate" title={task.prompt_text}>{task.prompt_text}</td>
                                         <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
-                                        <td className="px-6 py-4">{task.total_processed}</td>
+                                        {/* FIX: Use correct field processed_count according to API */}
+                                        <td className="px-6 py-4">{task.processed_count}</td>
                                         <td className="px-6 py-4 font-semibold text-purple-600">{task.matched_count}</td>
                                         <td className="px-6 py-4 text-center">
                                             <button 

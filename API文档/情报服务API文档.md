@@ -25,7 +25,7 @@
     }
     ```
 
-### 基于提示词的LLM相关性检索并导出CSV
+### 基于提示词的LLM相关性检索并导出CSV（含进度）
 - 路径：`/crawler/search/llm`
 - 方法：`POST`
 - 请求：
@@ -41,8 +41,10 @@
   ```json
   {
     "task_id": "<uuid>",
-    "total_processed": 1000,
+    "total_articles": 1000,
+    "processed_count": 1000,
     "matched_count": 300,
+    "unrelated_count": 700,
     "task_dir": "services/crawler/search_tasks/<uuid>"
   }
   ```
@@ -59,15 +61,19 @@
     "limit": 20,
     "stats": {
       "total_tasks": 12,
-      "total_processed": 5432,
-      "matched_count": 1789
+      "total_articles": 5432,
+      "processed_count": 5432,
+      "matched_count": 1789,
+      "unrelated_count": 3643
     },
     "items": [
       {
         "id": "<uuid>",
         "prompt_text": "...",
-        "total_processed": 1000,
+        "total_articles": 1000,
+        "processed_count": 1000,
         "matched_count": 300,
+        "unrelated_count": 700,
         "task_dir": "services/crawler/search_tasks/<uuid>",
         "created_at": "2025-11-18T12:00:00+08:00",
         "finished_at": "2025-11-18T12:15:00+08:00"
@@ -99,11 +105,17 @@
   }
   ```
 
-### 下载任务的CSV文件
+### 下载任务的CSV文件（实时生成）
 - 路径：`/crawler/search/tasks/{task_id}/download`
 - 方法：`GET`
 - 查询参数：`with_content=true|false`（默认 true）
 - 响应：文件下载（`related_with_content.csv` 或 `related_no_content.csv`）
+  - 当任务进行中，CSV 会实时写入，可多次下载获取最新内容
+
+### 任务进度
+- 任务创建后，接口返回的 `task_id` 可用于实时查询进度：
+  - 进度字段：`total_articles`、`processed_count`、`matched_count`、`unrelated_count`
+  - 详情接口：`GET /crawler/search/tasks/{task_id}` 会随着处理过程更新 `task.json` 中的统计并反映到 API 返回
 
 ### 获取所有情报源名称
 - 路径：`/crawler/sources/names`

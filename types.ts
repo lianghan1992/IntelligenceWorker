@@ -158,16 +158,20 @@ export interface LlmSearchRequest {
 
 export interface LlmSearchResponse {
     task_id: string;
-    total_processed: number;
+    total_articles: number;
+    processed_count: number;
     matched_count: number;
+    unrelated_count?: number;
     task_dir: string;
 }
 
 export interface LlmSearchTaskItem {
     id: string;
     prompt_text: string;
-    total_processed: number;
+    total_articles: number;
+    processed_count: number;
     matched_count: number;
+    unrelated_count?: number;
     task_dir: string;
     created_at: string;
     finished_at?: string;
@@ -179,8 +183,10 @@ export interface LlmSearchTasksResponse {
     limit: number;
     stats: {
         total_tasks: number;
-        total_processed: number;
+        total_articles: number;
+        processed_count: number;
         matched_count: number;
+        unrelated_count: number;
     };
     items: LlmSearchTaskItem[];
 }
