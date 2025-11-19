@@ -42,9 +42,9 @@
   {
     "task_id": "<uuid>",
     "total_articles": 1000,
-    "processed_count": 1000,
-    "matched_count": 300,
-    "unrelated_count": 700,
+    "processed_count": 432,
+    "matched_count": 128,
+    "unrelated_count": 304,
     "task_dir": "services/crawler/search_tasks/<uuid>"
   }
   ```
@@ -62,18 +62,18 @@
     "stats": {
       "total_tasks": 12,
       "total_articles": 5432,
-      "processed_count": 5432,
-      "matched_count": 1789,
-      "unrelated_count": 3643
+      "processed_count": 2310,
+      "matched_count": 789,
+      "unrelated_count": 1521
     },
     "items": [
       {
         "id": "<uuid>",
         "prompt_text": "...",
         "total_articles": 1000,
-        "processed_count": 1000,
-        "matched_count": 300,
-        "unrelated_count": 700,
+        "processed_count": 432,
+        "matched_count": 128,
+        "unrelated_count": 304,
         "task_dir": "services/crawler/search_tasks/<uuid>",
         "created_at": "2025-11-18T12:00:00+08:00",
         "finished_at": "2025-11-18T12:15:00+08:00"
@@ -109,6 +109,7 @@
 - 路径：`/crawler/search/tasks/{task_id}/download`
 - 方法：`GET`
 - 查询参数：`with_content=true|false`（默认 true）
+- 支持压缩包下载：设置 `both=true` 时同时打包含原文与不含原文两个 CSV
 - 响应：文件下载（`related_with_content.csv` 或 `related_no_content.csv`）
   - 当任务进行中，CSV 会实时写入，可多次下载获取最新内容
 

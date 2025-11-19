@@ -167,7 +167,7 @@ export interface LlmSearchResponse {
 
 export interface LlmSearchTaskItem {
     id: string;
-    prompt_text: string;
+    prompt_text: string; // API returns prompt_text, request sends query_text
     total_articles: number;
     processed_count: number;
     matched_count: number;
