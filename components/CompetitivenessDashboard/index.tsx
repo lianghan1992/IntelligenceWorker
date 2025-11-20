@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
     KnowledgeBaseItem, 
@@ -22,7 +21,7 @@ import {
 } from '../../api/competitiveness';
 import { LazyLoadModule } from '../Dashboard/LazyLoadModule';
 import { 
-    RefreshIcon, ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
+    ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
     TrendingUpIcon, EyeIcon, ClockIcon, SearchIcon, ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, ViewGridIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon
 } from '../icons';
@@ -447,14 +446,7 @@ const IntelligenceMatrix: React.FC = () => {
         return () => clearTimeout(timer);
     }, [filters, page]);
     
-    // Fetch Trace Data separately to get the full article list if needed for the SourcePanel
-    // However, in this design, DossierPanel fetches its own trace data.
-    // We need to hoist the trace data fetching OR let DossierPanel handle it and pass the article up.
-    // Let's simplify: The DossierPanel is responsible for fetching trace data based on selectedItem.
-    // But we need the 'selectedArticle' object for the SourcePanel.
-    // We can add a callback to DossierPanel to set the article object, but DossierPanel only has IDs.
-    // FIX: We will fetch trace data at this level when item is selected, to share between panels.
-
+    // Fetch Trace Data at parent level to share article content
     useEffect(() => {
         if (!selectedItem) {
             setTraceData(null);
@@ -501,7 +493,10 @@ const IntelligenceMatrix: React.FC = () => {
                 <select 
                     className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 min-w-[120px]"
                     value={filters.car_brand}
-                    onChange={e => setFilters({...filters, car_brand: e.target.value, page: 1})}
+                    onChange={e => {
+                        setFilters({...filters, car_brand: e.target.value});
+                        setPage(1);
+                    }}
                 >
                     <option value="">所有品牌</option>
                     {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
@@ -510,7 +505,10 @@ const IntelligenceMatrix: React.FC = () => {
                 <select 
                     className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 min-w-[120px]"
                     value={filters.tech_dimension}
-                    onChange={e => setFilters({...filters, tech_dimension: e.target.value, sub_tech_dimension: '', page: 1})}
+                    onChange={e => {
+                        setFilters({...filters, tech_dimension: e.target.value, sub_tech_dimension: ''});
+                        setPage(1);
+                    }}
                 >
                     <option value="">所有技术领域</option>
                     {meta?.tech_dimensions && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
@@ -519,7 +517,10 @@ const IntelligenceMatrix: React.FC = () => {
                 <select 
                     className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 disabled:opacity-50 min-w-[120px]"
                     value={filters.sub_tech_dimension}
-                    onChange={e => setFilters({...filters, sub_tech_dimension: e.target.value, page: 1})}
+                    onChange={e => {
+                        setFilters({...filters, sub_tech_dimension: e.target.value});
+                        setPage(1);
+                    }}
                     disabled={!filters.tech_dimension}
                 >
                     <option value="">所有子领域</option>
@@ -530,7 +531,10 @@ const IntelligenceMatrix: React.FC = () => {
                     {[0, 4, 3, 2].map(score => (
                         <button
                             key={score}
-                            onClick={() => setFilters({...filters, min_reliability: score, page: 1})}
+                            onClick={() => {
+                                setFilters({...filters, min_reliability: score});
+                                setPage(1);
+                            }}
                             className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${
                                 filters.min_reliability === score 
                                     ? 'bg-white text-blue-600 shadow-sm' 
@@ -551,7 +555,10 @@ const IntelligenceMatrix: React.FC = () => {
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 pl-10 p-2" 
                         placeholder="搜索技术点名称..." 
                         value={filters.search}
-                        onChange={e => setFilters({...filters, search: e.target.value, page: 1})}
+                        onChange={e => {
+                            setFilters({...filters, search: e.target.value});
+                            setPage(1);
+                        }}
                     />
                 </div>
             </div>
