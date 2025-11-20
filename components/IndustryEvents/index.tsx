@@ -1,24 +1,27 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTasks } from '../../api';
 import { TaskCard } from './TaskCard';
 import { EventReportModal } from './EventReportModal';
+import { HeroSection } from './HeroSection';
 
+// Helper to separate tasks into grid sections if needed
 const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClick: (task: LivestreamTask) => void; color: string; }> = ({ title, tasks, onCardClick, color }) => {
     if (tasks.length === 0) {
         return null;
     }
     return (
-        <section>
-            <div className="flex items-center gap-4 mb-4 relative">
+        <section className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center gap-4 mb-6 relative">
                 <div className="flex items-center gap-3 flex-shrink-0">
                     <div className={`w-1 h-7 rounded-full`} style={{ backgroundColor: color }}></div>
-                    <div className={`absolute left-0 w-24 h-1 bottom-0`} style={{ background: `radial-gradient(ellipse at center, ${color}33 0%, transparent 70%)`}}></div>
-                    <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
+                    <h2 className="text-xl font-bold text-gray-800">{title}</h2>
                 </div>
-                <div className="flex-grow h-px bg-gray-200"></div>
+                <div className="flex-grow h-px bg-gray-200/60"></div>
+                <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 rounded-full">{tasks.length}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
@@ -37,7 +40,8 @@ export const IndustryEvents: React.FC = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await getLivestreamTasks({ page_size: 50, sort_by: 'created_at', order: 'desc' });
+            // Fetch more items to fill both Hero and Grid
+            const response = await getLivestreamTasks({ page_size: 100, sort_by: 'created_at', order: 'desc' });
             if (response && Array.isArray(response.items)) {
                 setTasks(response.items);
             } else {
@@ -55,29 +59,47 @@ export const IndustryEvents: React.FC = () => {
         loadTasks();
     }, [loadTasks]);
 
-    const { liveTasks, upcomingTasks, finishedTasks } = useMemo(() => {
-        const liveTasks: LivestreamTask[] = [];
-        const upcomingTasks: LivestreamTask[] = [];
-        const finishedTasks: LivestreamTask[] = [];
-
-        tasks.forEach(task => {
-            const status = task.status.toLowerCase();
-            
-            if (status === 'recording' || status === 'downloading' || status === 'stopping') {
-                liveTasks.push(task);
-            } else if (status === 'listening' || status === 'pending' || status === 'scheduled') {
-                upcomingTasks.push(task);
-            } else { // finished, failed, processing, and for backward compatibility 'completed'
-                finishedTasks.push(task);
-            }
-        });
+    const { heroTasks, upcomingOthers, finishedOthers } = useMemo(() => {
+        // Logic: 
+        // 1. Hero gets Live, Upcoming (Next 24h), and maybe top recent highlights.
+        // 2. Grid gets everything else (History, future scheduled events).
+        // To simplify: Pass ALL tasks to Hero, Hero picks its playlist.
+        // BUT, we don't want to duplicate items in the grid below immediately if they are in Hero.
+        // Let's keep it simple: Hero shows "Highlights", Grid shows "Everything" (or "Past Events").
         
-        const sortByDate = (a: LivestreamTask, b: LivestreamTask) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-        liveTasks.sort(sortByDate);
-        upcomingTasks.sort(sortByDate);
-        finishedTasks.sort((a,b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
+        // Refined Logic:
+        // Hero displays dynamic playlist.
+        // Grid displays: "Upcoming" (future > 24h) and "Past Events" (finished). 
+        // "Live" and "Imminent" are exclusive to Hero to reduce clutter.
+        
+        const now = new Date().getTime();
+        const oneDay = 24 * 60 * 60 * 1000;
 
-        return { liveTasks, upcomingTasks, finishedTasks };
+        const isHeroWorthy = (t: LivestreamTask) => {
+            const s = t.status.toLowerCase();
+            if (['recording', 'downloading', 'stopping'].includes(s)) return true; // Live
+            if (['listening', 'scheduled', 'pending'].includes(s)) {
+                // Upcoming within 24h
+                return new Date(t.start_time).getTime() - now < oneDay; 
+            }
+            return false; 
+        };
+
+        const heroWorthyTasks = tasks.filter(isHeroWorthy);
+        const otherTasks = tasks.filter(t => !isHeroWorthy(t));
+
+        // Sort others
+        const upcomingOthers = otherTasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
+            .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+            
+        const finishedOthers = otherTasks.filter(t => !['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
+            .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()); // Newest finished first
+
+        return { 
+            heroTasks: heroWorthyTasks.length > 0 ? heroWorthyTasks : [], // If no active, Hero handles fallback internally or we pass empty
+            upcomingOthers,
+            finishedOthers 
+        };
     }, [tasks]);
     
     const handleTaskCardClick = (task: LivestreamTask) => {
@@ -88,33 +110,56 @@ export const IndustryEvents: React.FC = () => {
     };
 
     const renderContent = () => {
-        if (isLoading) return <div className="text-center py-20 text-gray-500">加载中...</div>;
+        if (isLoading) return <div className="text-center py-20 text-gray-500"><div className="animate-pulse">正在加载行业事件...</div></div>;
         if (error) return <div className="text-center py-20 text-red-500">加载失败: {error}</div>;
         
         const noTasks = tasks.length === 0;
 
         if (noTasks) {
              return (
-                <div className="flex-1 flex items-center justify-center text-center bg-white/50 backdrop-blur-sm rounded-xl border-2 border-dashed mt-6">
-                    <div className="text-gray-500">
+                <div className="flex-1 flex items-center justify-center text-center bg-white/50 backdrop-blur-sm rounded-3xl border-2 border-dashed border-gray-200 h-96">
+                    <div className="text-gray-400">
                         <p className="font-semibold text-lg">暂无任何发布会任务</p>
                     </div>
                 </div>
             );
         }
 
+        // If we have Hero tasks, show Hero. Otherwise, if we only have history, maybe just show grid?
+        // Actually, HeroSection has a fallback logic to show recent finished tasks if no live ones.
+        // So we simply pass all tasks to HeroSection, let it decide what to highlight, 
+        // and we render the full categorized list below for comprehensive browsing.
+        
         return (
-            <div className="space-y-12">
-                <TaskSection title="直播中" tasks={liveTasks} onCardClick={handleTaskCardClick} color="#ef4444" />
-                <TaskSection title="即将开始" tasks={upcomingTasks} onCardClick={handleTaskCardClick} color="#3b82f6" />
-                <TaskSection title="已结束" tasks={finishedTasks} onCardClick={handleTaskCardClick} color="#8b5cf6" />
+            <div className="space-y-10 pb-20">
+                {/* 1. Immersive Hero Area */}
+                <HeroSection tasks={tasks} onViewReport={handleTaskCardClick} />
+
+                {/* 2. Standard Grid Areas */}
+                <div className="px-2 space-y-12">
+                    {/* Show "Future" if not in Hero (e.g. next week) */}
+                    <TaskSection 
+                        title="后续日程" 
+                        tasks={upcomingOthers} 
+                        onCardClick={handleTaskCardClick} 
+                        color="#3b82f6" 
+                    />
+                    
+                    {/* Show "History" */}
+                    <TaskSection 
+                        title="往期回顾" 
+                        tasks={finishedOthers} 
+                        onCardClick={handleTaskCardClick} 
+                        color="#8b5cf6" 
+                    />
+                </div>
             </div>
         )
     }
 
     return (
         <>
-            <div className="p-6 min-h-full flex flex-col relative overflow-hidden colorful-bg-animation">
+            <div className="p-6 min-h-full flex flex-col relative bg-gray-50">
                 {renderContent()}
             </div>
             {selectedEvent && (
@@ -123,28 +168,6 @@ export const IndustryEvents: React.FC = () => {
                     onClose={() => setSelectedEvent(null)}
                 />
             )}
-             <style>{`
-                .colorful-bg-animation::before {
-                    content: '';
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(236, 72, 153, 0.12), rgba(245, 158, 11, 0.12), rgba(16, 185, 129, 0.12));
-                    background-size: 400% 400%;
-                    animation: gradient-animation 15s ease infinite;
-                    z-index: -1;
-                    opacity: 1;
-                    filter: blur(60px);
-                }
-
-                @keyframes gradient-animation {
-                    0% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
-                    100% { background-position: 0% 50%; }
-                }
-            `}</style>
         </>
     );
 };
