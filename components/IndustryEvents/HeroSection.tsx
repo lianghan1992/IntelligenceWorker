@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { LivestreamTask } from '../../types';
 import { PlayIcon, ClockIcon, FilmIcon, DocumentTextIcon } from '../icons';
@@ -65,7 +64,6 @@ const Countdown: React.FC<{ targetDate: string }> = ({ targetDate }) => {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport }) => {
     // Filter high priority tasks: Live > Upcoming (next 24h) > Recent Finished (last 24h)
-    // If none, maybe show generic recent.
     const playlist = useMemo(() => {
         const now = new Date().getTime();
         const oneDay = 24 * 60 * 60 * 1000;
@@ -82,8 +80,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
         if (live.length + upcoming.length < 5) {
              recent = tasks.filter(t => {
                 const isDone = ['finished', 'completed'].includes(t.status.toLowerCase());
-                // const isRecent = now - new Date(t.start_time).getTime() < oneDay * 7; // last 7 days
-                return isDone; // Just show finished ones
+                return isDone; 
             })
             .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
             .slice(0, 5 - (live.length + upcoming.length));
@@ -108,17 +105,31 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
     return (
         <div className="relative w-full overflow-hidden rounded-3xl bg-gray-900 shadow-2xl mb-10 transition-all duration-500">
+            {/* Style injection for scrollbar hiding */}
+            <style>{`
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+                .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+            `}</style>
+
             {/* 1. Dynamic Background Layer */}
             <div className="absolute inset-0 z-0">
                 {activeImage ? (
                     <div 
-                        className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out transform scale-110 filter blur-3xl opacity-40"
+                        className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out transform scale-105 filter blur-2xl opacity-70"
                         style={{ backgroundImage: `url(${activeImage})` }}
                     />
                 ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black opacity-60" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black opacity-80" />
                 )}
-                <div className="absolute inset-0 bg-black/40" /> {/* Dimmer */}
+                {/* Reduced dimmer to allow colors to pop */}
+                <div className="absolute inset-0 bg-black/20" /> 
+                {/* Gradient to ensure text readability at the bottom */}
+                <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/20 to-transparent" />
             </div>
 
             {/* 2. Content Container */}
@@ -128,25 +139,25 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                 <div className={`relative flex-1 flex flex-col justify-end p-6 sm:p-10 transition-all duration-500 ${isSingleMode ? 'w-full' : 'lg:w-3/4'}`}>
                     {/* Main Visual (Clickable area for video) */}
                      <div className="absolute inset-0 z-0 lg:right-4">
-                        {/* Provide a subtle gradient overlay on the image itself for text readability */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent lg:to-transparent lg:via-transparent lg:bg-gradient-to-r lg:from-gray-900 lg:via-gray-900/60 lg:to-transparent"></div>
+                         {/* Subtle gradient overlay on the image itself for text readability */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-transparent to-transparent lg:to-transparent"></div>
                     </div>
 
                     {/* Text Content */}
                     <div className="relative z-10 max-w-3xl space-y-4">
                         <div className="flex items-center gap-3 mb-2">
                             <StatusBadge status={activeTask.status} />
-                            <span className="text-blue-300 font-semibold text-sm tracking-wide uppercase">{activeTask.company}</span>
+                            <span className="text-blue-200 font-semibold text-sm tracking-wide uppercase drop-shadow-md">{activeTask.company}</span>
                         </div>
                         
                         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight drop-shadow-lg">
                             {activeTask.task_name}
                         </h1>
                         
-                        <div className="flex items-center text-gray-300 text-sm sm:text-base gap-4">
+                        <div className="flex items-center text-gray-200 text-sm sm:text-base gap-4 font-medium drop-shadow">
                             <span>{new Date(activeTask.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                             {['listening', 'scheduled'].includes(activeTask.status.toLowerCase()) && (
-                                <span className="text-yellow-400 font-medium flex items-center gap-1">
+                                <span className="text-yellow-400 font-bold flex items-center gap-1">
                                     <ClockIcon className="w-4 h-4"/>
                                     <Countdown targetDate={activeTask.start_time} />
                                 </span>
@@ -180,9 +191,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
                 {/* Right: Playlist (Only if > 1 item) */}
                 {!isSingleMode && (
-                    <div className="lg:w-[320px] bg-gray-900/60 backdrop-blur-xl border-l border-white/5 flex flex-col">
-                        <div className="p-4 border-b border-white/5">
-                            <h3 className="text-white font-bold text-sm uppercase tracking-wider text-opacity-80">今日焦点 & 热门</h3>
+                    <div className="lg:w-[320px] bg-gray-900/70 backdrop-blur-xl border-l border-white/10 flex flex-col">
+                        <div className="p-4 border-b border-white/10 bg-gray-900/50">
+                            <h3 className="text-white font-bold text-sm uppercase tracking-wider text-opacity-90">今日焦点 & 热门</h3>
                         </div>
                         <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-2">
                             {playlist.map((task, index) => {
@@ -194,12 +205,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                                     <div 
                                         key={task.id}
                                         onClick={() => setActiveIndex(index)}
-                                        className={`group flex gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${isActive ? 'bg-white/10 border border-white/10' : 'hover:bg-white/5 border border-transparent'}`}
+                                        className={`group flex gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 ${isActive ? 'bg-white/15 border border-white/20 shadow-lg' : 'hover:bg-white/5 border border-transparent'}`}
                                     >
                                         {/* Thumbnail */}
-                                        <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
+                                        <div className="relative w-24 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800 border border-white/10">
                                             {img ? (
-                                                <img src={img} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                                <img src={img} alt="" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-gray-600"><FilmIcon className="w-6 h-6"/></div>
                                             )}
@@ -210,10 +221,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                                         
                                         {/* Info */}
                                         <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                            <h4 className={`text-sm font-medium truncate leading-tight mb-1 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                            <h4 className={`text-sm font-medium truncate leading-tight mb-1 ${isActive ? 'text-white font-bold' : 'text-gray-300 group-hover:text-white'}`}>
                                                 {task.task_name}
                                             </h4>
-                                            <p className="text-xs text-gray-500 truncate">{task.company}</p>
+                                            <p className="text-xs text-gray-400 truncate">{task.company}</p>
                                             {isActive && isLive && <p className="text-[10px] text-red-400 mt-1 font-bold">正在直播</p>}
                                         </div>
                                     </div>
