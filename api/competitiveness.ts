@@ -2,19 +2,18 @@ import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } f
 import { 
     CompetitivenessEntity, CompetitivenessModule, BackfillJob, SystemStatus, 
     DataQueryResponse, PaginatedEntitiesResponse, PaginatedResponse, KnowledgeBaseItem,
-    KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords, KnowledgeBaseTraceability
+    KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords, KnowledgeBaseTraceability,
+    DashboardOverview, DashboardTrendItem, DashboardDistributionItem, DashboardQuality
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- (LEGACY) Entity Management ---
 export const getEntities = (params: { page?: number; size?: number; [key: string]: any }): Promise<PaginatedEntitiesResponse<CompetitivenessEntity>> => {
     const query = createApiQuery(params);
-    // Per API doc, this endpoint uses a trailing slash. e.g., /entities/?page=1&size=10
     return apiFetch<PaginatedEntitiesResponse<CompetitivenessEntity>>(`${COMPETITIVENESS_SERVICE_PATH}/entities/${query}`);
 };
 
 export const createEntity = (data: Partial<CompetitivenessEntity>): Promise<CompetitivenessEntity> =>
-    // Per API doc, this endpoint does not use a trailing slash.
     apiFetch<CompetitivenessEntity>(`${COMPETITIVENESS_SERVICE_PATH}/entities`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -34,12 +33,10 @@ export const deleteEntity = (id: string): Promise<{ message: string }> =>
 // --- (LEGACY) Module Management ---
 export const getModules = (params: any): Promise<CompetitivenessModule[]> => {
     const query = createApiQuery(params);
-    // Per API doc, this endpoint does not use a trailing slash and returns an array.
     return apiFetch<CompetitivenessModule[]>(`${COMPETITIVENESS_SERVICE_PATH}/modules${query}`);
 };
 
 export const createModule = (data: Partial<CompetitivenessModule>): Promise<CompetitivenessModule> =>
-    // Per API doc, this endpoint does not use a trailing slash.
     apiFetch<CompetitivenessModule>(`${COMPETITIVENESS_SERVICE_PATH}/modules`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -126,7 +123,6 @@ export const getKnowledgeBaseTraceability = (id: number, techName: string): Prom
 };
 
 export const exportKnowledgeBase = async (params: any): Promise<void> => {
-    // This cannot use apiFetch because it's a file download
     const query = createApiQuery(params);
     const url = `${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/export${query}`;
     const token = localStorage.getItem('accessToken');
@@ -148,7 +144,6 @@ export const exportKnowledgeBase = async (params: any): Promise<void> => {
         const a = document.createElement('a');
         a.href = downloadUrl;
         
-        // Extract filename from content-disposition header if available
         const disposition = response.headers.get('content-disposition');
         let filename = `knowledge_base_export_${new Date().toISOString().slice(0,10)}.csv`;
         if (disposition && disposition.indexOf('attachment') !== -1) {
@@ -167,35 +162,12 @@ export const exportKnowledgeBase = async (params: any): Promise<void> => {
 
     } catch (error) {
         console.error("Export failed:", error);
-        throw error; // Re-throw to be caught by the component
+        throw error; 
     }
 };
 
 
 // --- NEW DASHBOARD APIs ---
-
-export interface DashboardOverview {
-    processed_article_count: number;
-    stage1_total: number;
-    kb_total: number;
-    kb_last_updated_at: string;
-    kb_reliability_avg: number;
-}
-
-export interface DashboardTrendItem {
-    date: string;
-    count: number;
-}
-
-export interface DashboardDistributionItem {
-    name: string;
-    count: number;
-}
-
-export interface DashboardQuality {
-    reliability_distribution: { reliability: number; count: number; percentage: number }[];
-    low_reliability_top: { name: string; car_brand: string; tech_dimension: string; reliability: number }[];
-}
 
 export const getDashboardOverview = (): Promise<DashboardOverview> => {
     return apiFetch<DashboardOverview>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/dashboard/overview`);

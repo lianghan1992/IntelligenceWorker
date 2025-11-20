@@ -148,7 +148,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
         const interval = setInterval(() => {
             handleNext();
-        }, 3000); // 3 seconds
+        }, 5000); // 5 seconds
 
         return () => clearInterval(interval);
     }, [hasMultiple, isHovered, playlist.length]); // Depend on playlist length to reset if data changes

@@ -1,4 +1,3 @@
-
 // --- General ---
 
 export interface PaginatedResponse<T> {
@@ -358,8 +357,8 @@ export interface KnowledgeBaseMeta {
 }
 
 export interface ExtractedTechnologyRecord {
-  id: number;
-  article_id: string; // Added from docs for mapping
+  id: string; // Changed to string based on typical UUID usage, though input had number in one place
+  article_id: string; 
   tech_name: string;
   tech_description: string;
   reliability: number;
@@ -492,4 +491,30 @@ export interface PaginatedDocumentsResponse {
     page: number;
     page_size: number;
     totalPages: number;
+}
+
+
+// --- Competitiveness Dashboard ---
+
+export interface DashboardOverview {
+    processed_article_count: number;
+    stage1_total: number;
+    kb_total: number;
+    kb_last_updated_at: string;
+    kb_reliability_avg: number;
+}
+
+export interface DashboardTrendItem {
+    date: string;
+    count: number;
+}
+
+export interface DashboardDistributionItem {
+    name: string;
+    count: number;
+}
+
+export interface DashboardQuality {
+    reliability_distribution: { reliability: number; count: number; percentage: number }[];
+    low_reliability_top: { name: string; car_brand: string; tech_dimension: string; reliability: number }[];
 }
