@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { PlayIcon, ClockIcon, FilmIcon, DocumentTextIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 
@@ -21,7 +20,6 @@ const getSafeImageSrc = (base64Data: string | null | undefined): string | null =
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
-    // API Doc: recording, downloading, stopping -> LIVE
     if (['recording', 'downloading', 'stopping'].includes(s)) {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse shadow-lg shadow-red-900/20">
@@ -30,8 +28,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
             </span>
         );
     }
-    // API Doc: listening, scheduled -> UPCOMING
-    // 'pending' is kept for backward compatibility if needed
     if (['listening', 'scheduled', 'pending'].includes(s)) {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-lg shadow-blue-900/20">
@@ -40,7 +36,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
             </span>
         );
     }
-    // API Doc: processing -> PROCESSING
     if (s === 'processing') {
         return (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-lg">
@@ -49,7 +44,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
             </span>
         );
     }
-    // API Doc: finished -> FINISHED
     return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-700/80 backdrop-blur text-white text-xs font-bold rounded-full">
             精彩回放
@@ -57,7 +51,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     );
 };
 
-// Simple Sparkles icon for local usage
 const SparklesIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
@@ -94,41 +87,36 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
             return d.toLocaleDateString('zh-CN') === todayStr;
         };
         
-        // Priority 1: Live (recording, downloading, stopping)
+        // Priority 1: Live
         const live = tasks.filter(t => ['recording', 'downloading', 'stopping'].includes(t.status.toLowerCase()));
 
-        // Priority 2: Processing (Just finished recording, AI working)
+        // Priority 2: Processing
         const processing = tasks.filter(t => t.status.toLowerCase() === 'processing');
 
-        // Priority 3: Upcoming Today (listening, scheduled)
-        // We strictly check if the start time is "Today" or very near future (e.g. tomorrow morning)
+        // Priority 3: Upcoming Today
         const upcomingToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
-            // API doc says 'scheduled' or 'listening'
             if (!['listening', 'scheduled', 'pending'].includes(s)) return false;
-            
             const startTime = new Date(t.start_time).getTime();
             const nowTime = now.getTime();
-            // Is today OR within next 24h
             return isToday(t.start_time) || (startTime > nowTime && startTime - nowTime < 24 * 60 * 60 * 1000);
         }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-        // Priority 4: Finished Today (Recent highlights)
+        // Priority 4: Finished Today
         const finishedToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
             return ['finished', 'completed'].includes(s) && isToday(t.start_time);
         }).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-        // Combine into playlist
+        // Combine
         let list = [...live, ...processing, ...upcomingToday, ...finishedToday];
 
-        // Fallback: If list is empty, grab the single most relevant upcoming task from the future
+        // Fallback
         if (list.length === 0) {
              const nextUpcoming = tasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
                 .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
              if (nextUpcoming) list.push(nextUpcoming);
              
-             // Or if no upcoming, grab the very last finished one
              if (!nextUpcoming) {
                  const lastFinished = tasks.filter(t => ['finished', 'completed'].includes(t.status.toLowerCase()))
                     .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())[0];
@@ -136,19 +124,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
              }
         }
 
-        // Remove duplicates (just in case logic overlaps)
+        // De-duplicate
         return Array.from(new Set(list.map(t => t.id))).map(id => list.find(t => t.id === id)!);
     }, [tasks]);
 
     const [activeIndex, setActiveIndex] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
     const activeTask = playlist[activeIndex];
-
-    // Reset index if playlist changes significantly
-    useEffect(() => {
-        if (playlist.length > 0 && activeIndex >= playlist.length) {
-            setActiveIndex(0);
-        }
-    }, [playlist.length]);
 
     const handleNext = () => {
         setActiveIndex((prev) => (prev + 1) % playlist.length);
@@ -158,13 +140,29 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
         setActiveIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
     };
 
+    const hasMultiple = playlist.length > 1;
+
+    // Auto-rotation effect (3s)
+    useEffect(() => {
+        if (!hasMultiple || isHovered) return;
+
+        const interval = setInterval(() => {
+            handleNext();
+        }, 3000); // 3 seconds
+
+        return () => clearInterval(interval);
+    }, [hasMultiple, isHovered, playlist.length]); // Depend on playlist length to reset if data changes
+
     if (!activeTask) return null;
 
     const activeImage = getSafeImageSrc(activeTask.cover_image_b64);
-    const hasMultiple = playlist.length > 1;
 
     return (
-        <div className="relative w-full overflow-hidden rounded-3xl bg-gray-900 shadow-2xl mb-10 group h-[500px] lg:h-[550px]">
+        <div 
+            className="relative w-full overflow-hidden rounded-3xl bg-gray-900 shadow-2xl mb-10 group h-[500px] lg:h-[550px]"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* 1. Background Layer */}
             <div className="absolute inset-0 z-0">
                 {activeImage ? (
@@ -172,7 +170,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                         className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out transform scale-105"
                         style={{ 
                             backgroundImage: `url(${activeImage})`,
-                            // Removed heavy blur to make image visible
                             filter: 'blur(0px)',
                             opacity: 0.85
                         }}
@@ -180,27 +177,34 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                 ) : (
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black" />
                 )}
-                {/* Gradient Overlay: Ensures text readability while letting image shine through */}
+                {/* Gradient Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
             </div>
 
-            {/* 2. Content Container */}
-            <div className="relative z-10 flex flex-col justify-end h-full p-8 sm:p-12 lg:p-16 max-w-5xl">
-                
-                {/* Navigation Arrows (Only if multiple) */}
-                {hasMultiple && (
-                    <div className="absolute top-1/2 -translate-y-1/2 right-4 lg:right-10 flex flex-col gap-4 z-20">
-                         <button onClick={handlePrev} className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all hover:scale-110 border border-white/10 shadow-lg">
-                             <ChevronLeftIcon className="w-6 h-6" />
-                         </button>
-                         <button onClick={handleNext} className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all hover:scale-110 border border-white/10 shadow-lg">
-                             <ChevronRightIcon className="w-6 h-6" />
-                         </button>
-                    </div>
-                )}
+            {/* 2. Navigation Arrows (Sides) - Only if multiple */}
+            {hasMultiple && (
+                <>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handlePrev(); }}
+                        className="absolute left-4 lg:left-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110"
+                    >
+                        <ChevronLeftIcon className="w-8 h-8" />
+                    </button>
 
-                <div className="space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleNext(); }}
+                        className="absolute right-4 lg:right-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110"
+                    >
+                        <ChevronRightIcon className="w-8 h-8" />
+                    </button>
+                </>
+            )}
+
+            {/* 3. Content Container */}
+            <div className="relative z-10 flex flex-col justify-end h-full p-8 sm:p-12 lg:p-16 max-w-5xl pointer-events-none">
+                {/* Content wrapper with pointer-events-auto to allow clicking buttons */}
+                <div className="space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
                     {/* Metadata Row */}
                     <div className="flex items-center flex-wrap gap-3 mb-2">
                         <StatusBadge status={activeTask.status} />
@@ -254,14 +258,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                 </div>
             </div>
 
-            {/* Pagination Indicators (Dots) */}
+            {/* 4. Pagination Indicators (Dots) */}
             {hasMultiple && (
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                     {playlist.map((_, idx) => (
                         <button 
                             key={idx}
-                            onClick={() => setActiveIndex(idx)}
-                            className={`w-2 h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-6' : 'bg-white/40 hover:bg-white/80'}`}
+                            onClick={(e) => { e.stopPropagation(); setActiveIndex(idx); }}
+                            className={`w-2 h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-8' : 'bg-white/40 hover:bg-white/80'}`}
                         />
                     ))}
                 </div>
