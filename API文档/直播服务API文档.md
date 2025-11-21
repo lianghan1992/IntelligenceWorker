@@ -122,7 +122,11 @@ curl -sS http://127.0.0.1:7651/api/tasks/<task_id>
     "text_detected_total": 14,
     "unique_images_total": 12,
     "ai_recognized_total": 14,
-    "ai_recognized_success_total": 13
+    "ai_recognized_success_total": 13,
+    "asr_submitted_total": 2,
+    "asr_success_total": 2,
+    "asr_failed_total": 0,
+    "asr_finished": false
   }
 }
 ```
@@ -183,12 +187,17 @@ curl -sS 'http://127.0.0.1:7651/api/tasks?page=1&page_size=20&company=捷途汽�
   - `unique_images_total`：整数，去重后保留下来的含文本图片数量（基于 pHash 与窗口去重）。
   - `ai_recognized_total`：整数，提交至 AI 识别的帧数中返回了文本的数量（总计）。
   - `ai_recognized_success_total`：整数，AI 识别成功的数量（非空文本计数）。
+  - `asr_submitted_total`：整数，已提交语音转文字的分段数量（触发提取音频与识别）。
+  - `asr_success_total`：整数，语音识别成功并写入 `Raw_Manuscript.md` 的分段数量。
+  - `asr_failed_total`：整数，语音识别最终失败或超时跳过的分段数量（重试3次后计入）。
+  - `asr_finished`：布尔，汇总阶段是否已结束对 ASR 的等待（达到 `ASR_SUMMARY_WAIT_MAX_SECONDS` 或全部 ASR 任务完成）。
 - 流程说明（stats_json 的动态变化）：
   - `scheduled`：到点前，`status_text` 显示“即将开始”，`ffmpeg_running=false`，计数均为零。
   - `listening`：轮询直播可用性，`ffmpeg_running=false`，计数基本为零；当到达 `start_time` 或直播可用时进入下阶段。
   - `recording`：平台页面录制，`ffmpeg_running=true`，`recorded_segments_total` 持续增加；抽帧与识别完成后 `segments_extracted_done`、`frames_extracted_total`、`text_detected_total`、`ai_recognized_total` 等累计增长。
   - `downloading`：直链源分段下载或拼接，`ffmpeg_running=true`（分段场景）或 `false`（HTTP Range 下载场景）；完成后进入 `processing`。
-  - `processing`：ffmpeg 停止，进行总结生成，`ffmpeg_running=false`；最终进入 `finished` 或 `failed`。
+  - `processing`：ffmpeg 停止，进行总结生成，`ffmpeg_running=false`；若开启 ASR（`ASR_ENABLE=true`），在总结前对 ASR 进行有限等待（由 `ASR_SUMMARY_WAIT_MAX_SECONDS` 控制），等待结束后将 `asr_finished` 置为 `true` 并生成总结；最终进入 `finished` 或 `failed`。
+  - 当 ASR 失败或超时时，系统不会阻塞总结；对应计数将体现在 `asr_failed_total` 中，且 `Raw_Manuscript.md` 可不写入该分段的 ASR 段落。
   - 注意：`stats_json` 不包含 `status` 字段，状态以任务记录的 `status` 字段为准；用于展示的 `status_text` 会同步刷新。
 
 ---

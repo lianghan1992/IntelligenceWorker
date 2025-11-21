@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTaskById } from '../../api';
-import { CloseIcon, ServerIcon, FilmIcon, BrainIcon, CheckCircleIcon, ChevronDownIcon, ViewGridIcon, DocumentTextIcon } from '../icons';
+import { CloseIcon, ServerIcon, FilmIcon, BrainIcon, CheckCircleIcon, ChevronDownIcon, ViewGridIcon, DocumentTextIcon, MicrophoneIcon, PhotoIcon } from '../icons';
 
 interface StatsDisplayModalProps {
     task: LivestreamTask;
@@ -48,26 +48,54 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
     return <span>{displayValue.toLocaleString()}</span>;
 };
 
-const PipelineNode: React.FC<{ icon: React.ReactNode; label: string; children: React.ReactNode; isFlowing?: boolean }> = ({ icon, label, children, isFlowing }) => (
-    <div className="flex flex-col items-center text-center w-full sm:w-auto">
-        <div className={`relative p-3 rounded-full border-2 transition-colors duration-300 ${isFlowing ? 'bg-blue-100 border-blue-300' : 'bg-slate-100 border-slate-200'}`}>
-            {isFlowing && <div className="absolute inset-0 rounded-full bg-blue-400/50 animate-ping"></div>}
-            <div className={`relative transition-colors duration-300 ${isFlowing ? 'text-blue-600' : 'text-slate-600'}`}>{icon}</div>
-        </div>
-        <p className="mt-2 text-xs font-semibold text-slate-700">{label}</p>
-        <div className="mt-1 text-2xl font-bold text-slate-900">{children}</div>
-    </div>
-);
+const PipelineNode: React.FC<{ 
+    icon: React.ReactNode; 
+    label: string; 
+    children: React.ReactNode; 
+    isFlowing?: boolean;
+    activeColor?: string; // 'blue' | 'green' | 'purple' etc.
+}> = ({ icon, label, children, isFlowing, activeColor = 'blue' }) => {
+    const colorClasses = {
+        blue: { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-600', ping: 'bg-blue-400/50' },
+        purple: { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-600', ping: 'bg-purple-400/50' },
+        green: { bg: 'bg-green-100 border-green-300', text: 'text-green-600', ping: 'bg-green-400/50' },
+        indigo: { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-600', ping: 'bg-indigo-400/50' },
+    }[activeColor] || { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-600', ping: 'bg-blue-400/50' };
 
-const PipelineConnector: React.FC<{ isFlowing?: boolean }> = ({ isFlowing }) => (
-    <div className="relative h-8 w-px sm:h-px sm:w-full sm:flex-1 bg-slate-200 mx-2 my-1 sm:my-0">
-        {isFlowing && (
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute h-full w-full bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-flow sm:animate-flow-horizontal"></div>
+    return (
+        <div className="flex flex-col items-center text-center w-full sm:w-auto z-10">
+            <div className={`relative p-3 rounded-full border-2 transition-colors duration-300 ${isFlowing ? colorClasses.bg : 'bg-slate-100 border-slate-200'}`}>
+                {isFlowing && <div className={`absolute inset-0 rounded-full animate-ping ${colorClasses.ping}`}></div>}
+                <div className={`relative transition-colors duration-300 ${isFlowing ? colorClasses.text : 'text-slate-600'}`}>{icon}</div>
             </div>
-        )}
-    </div>
-);
+            <p className="mt-2 text-xs font-semibold text-slate-700 whitespace-nowrap">{label}</p>
+            <div className="mt-1 text-lg sm:text-xl font-bold text-slate-900">{children}</div>
+        </div>
+    );
+};
+
+const PipelineConnector: React.FC<{ isFlowing?: boolean; vertical?: boolean }> = ({ isFlowing, vertical }) => {
+    if (vertical) {
+        return (
+            <div className="relative w-px h-8 bg-slate-200 my-1">
+                {isFlowing && (
+                    <div className="absolute inset-0 overflow-hidden">
+                        <div className="absolute w-full h-full bg-gradient-to-b from-transparent via-blue-400 to-transparent animate-flow-vertical"></div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+    return (
+        <div className="relative h-px flex-1 min-w-[20px] bg-slate-200 mx-2">
+            {isFlowing && (
+                <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute h-full w-full bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-flow-horizontal"></div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 
 const StatItem: React.FC<{ label: string; children: React.ReactNode; fullWidth?: boolean }> = ({ label, children, fullWidth }) => (
@@ -94,7 +122,7 @@ const CopyableText: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-const ProgressBar: React.FC<{ value: number; max: number; label: string }> = ({ value, max, label }) => {
+const ProgressBar: React.FC<{ value: number; max: number; label: string; colorClass?: string }> = ({ value, max, label, colorClass = 'bg-blue-600' }) => {
     const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
     return (
         <div>
@@ -102,8 +130,8 @@ const ProgressBar: React.FC<{ value: number; max: number; label: string }> = ({ 
                 <span className="font-medium text-slate-600">{label}</span>
                 <span className="text-slate-500 font-mono">{value.toLocaleString()} / {max.toLocaleString()}</span>
             </div>
-            <div className="w-full bg-slate-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out" style={{ width: `${percentage}%` }}></div>
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div className={`h-2 rounded-full transition-all duration-500 ease-out ${colorClass}`} style={{ width: `${percentage}%` }}></div>
             </div>
         </div>
     );
@@ -148,10 +176,20 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
         return { text: taskStatus, className: 'bg-gray-100 text-gray-800' };
     }, [taskStatus]);
 
+    // Determine flow states for parallel branches
+    const totalSegments = getStat('recorded_segments_total');
+    const segmentsExtracted = getStat('segments_extracted_done');
+    const uniqueImages = getStat('unique_images_total');
+    
+    const isSegmentationFlowing = isTaskActive;
+    const isProcessingFlowing = isTaskActive && totalSegments > 0;
+    const isVisualFlowing = isTaskActive && segmentsExtracted > 0;
+    const isAudioFlowing = isTaskActive && segmentsExtracted > 0; // Starts when extraction is done for a segment
+
     return (
         <>
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
-                <div className="bg-slate-50 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in zoom-in-95">
+                <div className="bg-slate-50 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95">
                     <header className="p-5 border-b bg-white/70 backdrop-blur-sm flex justify-between items-center flex-shrink-0 rounded-t-2xl">
                         <div className="flex items-center gap-3 overflow-hidden">
                             <div className="p-2 bg-teal-100 text-teal-600 rounded-lg flex-shrink-0">
@@ -169,7 +207,7 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
 
                     <main className="flex-1 overflow-y-auto p-6 space-y-6">
                         {/* Core Info Section */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4">
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
                                 <div className="pr-4 space-y-2 pb-2 sm:pb-0">
                                     <StatItem label="车企"><span className="font-semibold">{liveTask.company}</span></StatItem>
@@ -188,30 +226,100 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                             </dl>
                         </div>
 
-                        {/* Pipeline Section */}
+                        {/* Enhanced Pipeline Section */}
                         <div>
-                            <h3 className="font-bold text-lg text-gray-800 mb-4">处理流水线</h3>
-                            <div className="bg-white rounded-xl border border-gray-200 p-6">
-                                <div className="flex flex-col sm:flex-row items-center justify-around">
-                                    <PipelineNode label="视频分段" icon={<FilmIcon className="w-5 h-5"/>} isFlowing={isTaskActive}>
+                            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                                <BrainIcon className="w-5 h-5 text-indigo-500" />
+                                并行处理流水线
+                            </h3>
+                            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                                
+                                {/* Phase 1: Linear Processing */}
+                                <div className="flex flex-col sm:flex-row items-center justify-center mb-6">
+                                    <PipelineNode label="视频分段" icon={<FilmIcon className="w-5 h-5"/>} isFlowing={isSegmentationFlowing} activeColor="blue">
                                         <AnimatedNumber value={getStat('recorded_segments_total')} />
                                     </PipelineNode>
-                                    <PipelineConnector isFlowing={isTaskActive} />
-                                    <PipelineNode label="分段处理" icon={<CheckCircleIcon className="w-5 h-5"/>} isFlowing={isTaskActive && getStat('recorded_segments_total') > 0}>
+                                    <div className="w-full sm:w-16 flex justify-center items-center">
+                                        <PipelineConnector isFlowing={isSegmentationFlowing} />
+                                    </div>
+                                    <PipelineNode label="分段预处理" icon={<CheckCircleIcon className="w-5 h-5"/>} isFlowing={isProcessingFlowing} activeColor="blue">
                                         <AnimatedNumber value={getStat('segments_extracted_done')} />
                                     </PipelineNode>
-                                     <PipelineConnector isFlowing={isTaskActive} />
-                                    <PipelineNode label="图像筛选" icon={<ViewGridIcon className="w-5 h-5"/>} isFlowing={isTaskActive && getStat('segments_extracted_done') > 0}>
-                                        <AnimatedNumber value={getStat('unique_images_total')} />
-                                    </PipelineNode>
-                                    <PipelineConnector isFlowing={isTaskActive} />
-                                    <PipelineNode label="AI识别" icon={<BrainIcon className="w-5 h-5"/>} isFlowing={isTaskActive && getStat('unique_images_total') > 0}>
-                                         <AnimatedNumber value={getStat('ai_recognized_success_total')} />
-                                    </PipelineNode>
                                 </div>
-                                <div className="mt-6 space-y-4 pt-4 border-t border-gray-100">
-                                    <ProgressBar label="分段处理进度" value={getStat('segments_extracted_done')} max={getStat('recorded_segments_total')} />
-                                    <ProgressBar label="AI识别进度" value={getStat('ai_recognized_success_total')} max={getStat('ai_recognized_total')} />
+
+                                {/* Branching Visuals */}
+                                <div className="relative hidden sm:block h-8 mb-4">
+                                    <div className={`absolute left-1/2 -translate-x-1/2 top-0 w-px h-full bg-slate-200`}></div>
+                                    <div className={`absolute left-[25%] right-[25%] top-full h-px bg-slate-200`}></div>
+                                    <div className={`absolute left-[25%] top-full h-8 w-px bg-slate-200`}></div>
+                                    <div className={`absolute right-[25%] top-full h-8 w-px bg-slate-200`}></div>
+                                    {/* Branching Animation */}
+                                    {isProcessingFlowing && (
+                                        <>
+                                            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-px h-full overflow-hidden"><div className="w-full h-full bg-blue-400 animate-flow-vertical"></div></div>
+                                            {/* Complex branching animation simplified: just showing active indicators in nodes below */}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Phase 2: Parallel Branches */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-4 relative">
+                                    
+                                    {/* Branch A: Visual Intelligence */}
+                                    <div className="relative p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 flex flex-col items-center">
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs font-bold text-indigo-500 tracking-wider border border-indigo-100 rounded-full">视觉识别通道</div>
+                                        
+                                        <div className="flex flex-col sm:flex-row items-center justify-around w-full mt-2">
+                                            <PipelineNode label="图像筛选" icon={<ViewGridIcon className="w-5 h-5"/>} isFlowing={isVisualFlowing} activeColor="indigo">
+                                                <AnimatedNumber value={getStat('unique_images_total')} />
+                                            </PipelineNode>
+                                            <div className="w-8 hidden sm:block"><PipelineConnector isFlowing={isVisualFlowing && uniqueImages > 0} /></div>
+                                            <div className="h-4 sm:hidden"><PipelineConnector isFlowing={isVisualFlowing && uniqueImages > 0} vertical /></div>
+                                            <PipelineNode label="AI 视觉分析" icon={<PhotoIcon className="w-5 h-5"/>} isFlowing={isVisualFlowing && uniqueImages > 0} activeColor="indigo">
+                                                <AnimatedNumber value={getStat('ai_recognized_success_total')} />
+                                            </PipelineNode>
+                                        </div>
+                                        
+                                        <div className="w-full mt-4 pt-3 border-t border-indigo-100">
+                                            <ProgressBar 
+                                                label="识别完成度" 
+                                                value={getStat('ai_recognized_success_total')} 
+                                                max={getStat('ai_recognized_total') || 1} 
+                                                colorClass="bg-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Branch B: Audio Intelligence */}
+                                    <div className="relative p-4 rounded-xl bg-green-50/50 border border-green-100 flex flex-col items-center">
+                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs font-bold text-green-600 tracking-wider border border-green-100 rounded-full">语音识别通道</div>
+                                        
+                                        <div className="flex flex-col sm:flex-row items-center justify-around w-full mt-2">
+                                            <PipelineNode label="ASR 提交" icon={<DocumentTextIcon className="w-5 h-5"/>} isFlowing={isAudioFlowing} activeColor="green">
+                                                <AnimatedNumber value={getStat('asr_submitted_total')} />
+                                            </PipelineNode>
+                                            <div className="w-8 hidden sm:block"><PipelineConnector isFlowing={isAudioFlowing && getStat('asr_submitted_total') > 0} /></div>
+                                            <div className="h-4 sm:hidden"><PipelineConnector isFlowing={isAudioFlowing && getStat('asr_submitted_total') > 0} vertical /></div>
+                                            <PipelineNode label="ASR 成功" icon={<MicrophoneIcon className="w-5 h-5"/>} isFlowing={isAudioFlowing && getStat('asr_success_total') > 0} activeColor="green">
+                                                <AnimatedNumber value={getStat('asr_success_total')} />
+                                            </PipelineNode>
+                                        </div>
+
+                                        <div className="w-full mt-4 pt-3 border-t border-green-100">
+                                            <div className="flex justify-between items-end mb-1">
+                                                <ProgressBar 
+                                                    label="转写完成度" 
+                                                    value={getStat('asr_success_total')} 
+                                                    max={getStat('asr_submitted_total') || 1} 
+                                                    colorClass="bg-green-500"
+                                                />
+                                            </div>
+                                            {getStat('asr_failed_total') > 0 && (
+                                                <p className="text-[10px] text-red-500 mt-1 text-right">失败: {getStat('asr_failed_total')}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
                                 </div>
                             </div>
                         </div>
@@ -241,16 +349,14 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                 </div>
             </div>
             <style>{`
-                @keyframes flow {
-                    from { transform: translateY(-150%); } to { transform: translateY(150%); }
+                @keyframes flow-vertical {
+                    from { transform: translateY(-100%); } to { transform: translateY(100%); }
                 }
                 @keyframes flow-horizontal {
-                    from { transform: translateX(-150%); } to { transform: translateX(150%); }
+                    from { transform: translateX(-100%); } to { transform: translateX(100%); }
                 }
-                .animate-flow { animation: flow 2s ease-in-out infinite; }
-                .sm\\:animate-flow-horizontal {
-                     @media (min-width: 640px) { animation: flow-horizontal 2s ease-in-out infinite; }
-                }
+                .animate-flow-vertical { animation: flow-vertical 2s ease-in-out infinite; }
+                .animate-flow-horizontal { animation: flow-horizontal 2s ease-in-out infinite; }
             `}</style>
         </>
     );
