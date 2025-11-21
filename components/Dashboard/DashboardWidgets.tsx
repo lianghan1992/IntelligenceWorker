@@ -15,27 +15,58 @@ const StatCard: React.FC<{
     title: string; 
     value: string; 
     description: string; 
-    colorClass: 'blue' | 'green' | 'purple' | 'orange'; 
-}> = ({ icon, title, value, description, colorClass }) => {
-    const colors = {
-        blue: { bg: 'bg-blue-50', iconBg: 'bg-blue-100', iconText: 'text-blue-600', ring: 'hover:ring-blue-200' },
-        green: { bg: 'bg-green-50', iconBg: 'bg-green-100', iconText: 'text-green-600', ring: 'hover:ring-green-200' },
-        purple: { bg: 'bg-indigo-50', iconBg: 'bg-indigo-100', iconText: 'text-indigo-600', ring: 'hover:ring-indigo-200' },
-        orange: { bg: 'bg-amber-50', iconBg: 'bg-amber-100', iconText: 'text-amber-600', ring: 'hover:ring-amber-200' },
-    }[colorClass];
+    colorTheme: 'primary' | 'tertiary' | 'secondary' | 'error'; 
+}> = ({ icon, title, value, description, colorTheme }) => {
+    
+    // Material 3 Color Mappings (Approximate with Tailwind)
+    const themes = {
+        primary: { 
+            bg: 'bg-blue-50', 
+            text: 'text-blue-900', 
+            container: 'bg-blue-100', 
+            onContainer: 'text-blue-700',
+            decoration: 'bg-blue-200'
+        },
+        secondary: { 
+            bg: 'bg-purple-50', 
+            text: 'text-purple-900', 
+            container: 'bg-purple-100', 
+            onContainer: 'text-purple-700',
+            decoration: 'bg-purple-200'
+        },
+        tertiary: { 
+            bg: 'bg-emerald-50', 
+            text: 'text-emerald-900', 
+            container: 'bg-emerald-100', 
+            onContainer: 'text-emerald-700',
+            decoration: 'bg-emerald-200'
+        },
+        error: { 
+            bg: 'bg-orange-50', 
+            text: 'text-orange-900', 
+            container: 'bg-orange-100', 
+            onContainer: 'text-orange-700',
+            decoration: 'bg-orange-200'
+        },
+    }[colorTheme];
 
     return (
-        <div className={`p-5 rounded-2xl border border-gray-200/80 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 hover:ring-2 ${colors.ring} ${colors.bg}`}>
-            <div className="flex items-start justify-between">
+        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-300 hover:shadow-lg group ${themes.bg}`}>
+            <div className="flex justify-between items-start z-10 relative">
                 <div>
-                    <p className="text-sm font-medium text-gray-500">{title}</p>
-                    <p className="text-3xl font-bold text-gray-800 mt-2">{value}</p>
+                    <p className={`text-sm font-medium opacity-70 tracking-wide ${themes.text}`}>{title}</p>
+                    <p className={`text-4xl font-normal mt-2 ${themes.text} font-sans`}>{value}</p>
                 </div>
-                <div className={`p-3 rounded-xl ${colors.iconBg} ${colors.iconText}`}>
+                <div className={`p-4 rounded-[16px] ${themes.container} ${themes.onContainer}`}>
                     {icon}
                 </div>
             </div>
-            <p className="text-xs text-gray-500 mt-4">{description}</p>
+            <p className={`text-xs mt-4 opacity-60 font-medium ${themes.text} flex items-center gap-1`}>
+                {description}
+            </p>
+            
+            {/* Decorative Circle */}
+            <div className={`absolute -bottom-4 -right-4 w-32 h-32 rounded-full opacity-20 ${themes.decoration} group-hover:scale-110 transition-transform duration-500 ease-out`}></div>
         </div>
     );
 };
@@ -54,53 +85,44 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
         const fetchStats = async () => {
             setIsLoading(true);
 
-            // Calculate stats derived directly from subscriptions
             const totalPoints = subscriptions.length;
             const totalSources = new Set(subscriptions.map(sub => sub.source_name)).size;
             
             try {
-                // const sourceNames = Array.from(new Set(subscriptions.map(s => s.source_name)));
-                
-                const startOfToday = new Date();
-                startOfToday.setHours(0, 0, 0, 0);
-                const year = startOfToday.getFullYear();
-                const month = String(startOfToday.getMonth() + 1).padStart(2, '0');
-                const day = String(startOfToday.getDate()).padStart(2, '0');
-                const todayTimestamp = `${year}-${month}-${day}T00:00:00`;
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                // FIX: Use ISO-like format with T separator which is safer for backend parsing
+                const todayStart = `${year}-${month}-${day}T00:00:00`; 
 
-
-                // Fetch today's articles
-                // NOTE: Removed `source_names` filter temporarily to ensure data visibility. 
-                // If we want strictly subscribed content, we would add `source_names: sourceNames.length > 0 ? sourceNames : undefined`
-                // But given the user report of 0 data, showing global daily updates is a better fallback.
                 const articlesData = await searchArticlesFiltered({
-                    // source_names: sourceNames, // Relaxed filter
-                    publish_date_start: todayTimestamp,
-                    query_text: '*',
-                    limit: 50, // Reduced from 100 to stay within API recommendations
+                    publish_date_start: todayStart,
+                    query_text: '*', // 获取所有
+                    limit: 100, // 获取足够的条目以统计涉及的情报点
                     page: 1,
                 });
 
                 const articlesTodayCount = articlesData.total;
-                // If showing global stats, calculating pointsWithUpdates based on response items is still valid,
-                // but it might count points the user doesn't subscribe to. This is acceptable for "platform vitality" display.
-                const pointsWithUpdatesCount = new Set(articlesData.items.map(item => item.point_id)).size;
+                
+                // 统计涉及的情报点数量 (排重)
+                const uniquePointIds = new Set(
+                    articlesData.items
+                        .map(item => item.point_id)
+                        .filter(id => id) // 过滤掉空ID
+                );
                 
                 setStats({
                     articlesToday: articlesTodayCount,
-                    pointsWithUpdates: pointsWithUpdatesCount,
+                    pointsWithUpdates: uniquePointIds.size,
                     totalPoints,
                     totalSources,
                 });
 
             } catch (error) {
                 console.error("Failed to fetch dashboard stats:", error);
-                setStats({
-                    articlesToday: 0,
-                    pointsWithUpdates: 0,
-                    totalPoints,
-                    totalSources,
-                });
+                // 即使失败也保留基础订阅数据
+                setStats(prev => ({ ...prev, articlesToday: 0, pointsWithUpdates: 0 }));
             } finally {
                 setIsLoading(false);
             }
@@ -109,37 +131,37 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
         fetchStats();
     }, [subscriptions]);
     
-    const valueOrLoading = (value: number) => isLoading ? '...' : value.toLocaleString();
+    const valueOrLoading = (value: number) => isLoading ? '-' : value.toLocaleString();
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard 
                 icon={<DocumentTextIcon className="w-6 h-6" />}
                 title="今日新增情报"
                 value={valueOrLoading(stats.articlesToday)}
-                description="平台今日新收录的情报总数"
-                colorClass="blue"
+                description="平台今日收录的新增内容"
+                colorTheme="primary"
             />
             <StatCard 
                 icon={<TrendingUpIcon className="w-6 h-6" />}
-                title="有动态的情报点"
+                title="活跃情报点"
                 value={valueOrLoading(stats.pointsWithUpdates)}
-                description="今日产出新情报的情报点数量"
-                colorClass="green"
+                description="今日捕获动态的监控项"
+                colorTheme="tertiary"
             />
             <StatCard 
                 icon={<BookmarkIcon className="w-6 h-6" />}
-                title="情报点总数"
+                title="监控情报点"
                 value={valueOrLoading(stats.totalPoints)}
-                description="您创建的所有情报追踪点"
-                colorClass="purple"
+                description="您配置的全部追踪目标"
+                colorTheme="secondary"
             />
             <StatCard 
                 icon={<RssIcon className="w-6 h-6" />}
-                title="情报源总数"
+                title="覆盖情报源"
                 value={valueOrLoading(stats.totalSources)}
-                description="您订阅的情报来源总数"
-                colorClass="orange"
+                description="已连接的信息渠道总数"
+                colorTheme="error"
             />
         </div>
     );

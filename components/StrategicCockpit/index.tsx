@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Subscription, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -43,22 +44,26 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     const fetchArticles = useCallback(async (query: string, page: number = 1) => {
         setIsLoading(true);
         if (page === 1) {
-            setArticles([]); // Only clear for the first page of a new query
+            setArticles([]); 
         }
-        setSelectedArticle(null); // Reset detail view on new search
         setError(null);
 
         try {
-            const limit = 15;
+            const limit = 20;
+            // Build params carefully for /search/combined vs /articles
             const params: any = {
                 query_text: query,
                 page,
                 limit: limit,
                 similarity_threshold: 0.35,
             };
+            
+            // Pass source names filter if we have subscriptions, 
+            // ensuring we don't filter by empty list which might block everything or nothing depending on backend implementation.
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
             }
+            
             const response = await searchArticlesFiltered(params);
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
@@ -66,9 +71,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             setArticles(response.items || []);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
-            // Auto-select the first article on new page load
-            if (response.items && response.items.length > 0) {
+            // Auto-select first article only on initial load if none selected
+            if (page === 1 && response.items && response.items.length > 0 && !selectedArticle) {
                 setSelectedArticle(response.items[0]);
+            } else if (page === 1 && (!response.items || response.items.length === 0)) {
+                setSelectedArticle(null);
             }
 
         } catch (err: any) {
@@ -76,7 +83,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         } finally {
             setIsLoading(false);
         }
-    }, [subscribedSourceNames]);
+    }, [subscribedSourceNames]); // removed selectedArticle to prevent loop
 
 
     useEffect(() => {
@@ -87,6 +94,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
+        setSelectedArticle(null);
     };
 
     const handlePageChange = (newPage: number) => {
@@ -113,15 +121,15 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     const handleModalClose = () => {
         setIsFocusPointModalOpen(false);
-        fetchPois(); // Refetch on close
+        fetchPois(); 
     };
 
     return (
-        <div className="h-full flex flex-col bg-slate-50">
-            <div className="flex-1 flex min-h-0">
-                {/* Left Sidebar */}
-                <aside className="w-64 flex-shrink-0 p-4 flex flex-col">
-                    <div className="overflow-y-auto space-y-4 scrollbar-hide">
+        <div className="h-full flex flex-col bg-[#f8f9fa] p-4 gap-4 overflow-hidden">
+            <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+                {/* Left Sidebar - Navigation Drawer (Material 3) */}
+                <aside className="w-72 flex-shrink-0 flex flex-col bg-white rounded-[24px] py-4 shadow-sm border border-gray-100">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar px-3">
                         <StrategicCompass
                             categories={lookCategories}
                             selectedLook={selectedLook}
@@ -131,6 +139,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
                             activeQuery={activeQuery}
                         />
+                        <div className="my-4 border-t border-gray-100 mx-2"></div>
                         <FocusPoints 
                             onManageClick={() => setIsFocusPointModalOpen(true)}
                             pois={pois}
@@ -141,9 +150,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     </div>
                 </aside>
 
-                {/* Main Content Area (Middle + Right) */}
-                 <main className="flex-1 grid grid-cols-10 gap-4 p-4 pl-0 min-w-0">
-                    <div className="col-span-6 flex flex-col min-h-0">
+                {/* Main Content Area */}
+                 <main className="flex-1 flex gap-4 min-w-0">
+                    {/* List View */}
+                    <div className="w-[400px] flex-shrink-0 flex flex-col bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden">
                         <IntelligenceCenter
                             title={activeQuery.label}
                             articles={articles}
@@ -157,7 +167,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             onPageChange={handlePageChange}
                         />
                     </div>
-                    <div className="col-span-4 min-h-0">
+                    
+                    {/* Detail View */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden">
                          <EvidenceTrail
                             selectedArticle={selectedArticle}
                         />
@@ -166,7 +178,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             </div>
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
-             <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+             <style>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
+            `}</style>
         </div>
     );
 };

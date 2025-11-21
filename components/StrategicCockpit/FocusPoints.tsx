@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ApiPoi } from '../../types';
 import { TagIcon, GearIcon } from '../icons';
@@ -12,19 +13,18 @@ interface FocusPointsProps {
 
 export const FocusPoints: React.FC<FocusPointsProps> = ({ onManageClick, pois, isLoading, onPoiClick, activeQuery }) => {
     return (
-        <div className="bg-white rounded-2xl border border-gray-200 p-3">
-            <div className="flex items-center justify-between p-3">
-                <h3 className="text-sm font-semibold text-gray-600 flex items-center gap-3">
-                    <TagIcon className="w-5 h-5 text-gray-500" />
+        <div className="mt-2">
+            <div className="flex items-center justify-between px-4 py-3 mb-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
                     我的关注点
                 </h3>
-                <button onClick={onManageClick} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md" title="管理关注点">
+                <button onClick={onManageClick} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="管理关注点">
                     <GearIcon className="w-4 h-4" />
                 </button>
             </div>
             <div className="space-y-1">
                 {isLoading ? (
-                    <div className="px-3 py-2 text-sm text-gray-400">加载中...</div>
+                    <div className="px-4 py-2 text-sm text-gray-400">加载中...</div>
                 ) : pois.length > 0 ? (
                     pois.map(poi => {
                         const isActive = activeQuery.type === 'poi' && activeQuery.value === poi.content;
@@ -32,16 +32,24 @@ export const FocusPoints: React.FC<FocusPointsProps> = ({ onManageClick, pois, i
                             <button 
                                 key={poi.id} 
                                 onClick={() => onPoiClick(poi.content, poi.content)}
-                                className={`w-full text-left px-5 py-2 rounded-md text-sm text-gray-700 transition-colors ${
-                                    isActive ? 'bg-blue-50 font-semibold text-blue-700' : 'hover:bg-gray-50'
-                                }`}
+                                className={`
+                                    w-full text-left px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 truncate flex items-center gap-3
+                                    ${isActive 
+                                        ? 'bg-purple-100 text-purple-900' 
+                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                    }
+                                `}
+                                title={poi.content}
                             >
+                                <TagIcon className={`w-4 h-4 ${isActive ? 'text-purple-700' : 'text-gray-400'}`} />
                                 {poi.content}
                             </button>
                         );
                     })
                 ) : (
-                    <div className="px-3 py-2 text-sm text-gray-400 text-center">暂无关注点</div>
+                    <div className="px-4 py-3 text-sm text-gray-500 text-center bg-gray-50 rounded-lg mx-2 border border-gray-100">
+                        暂无关注点
+                    </div>
                 )}
             </div>
         </div>

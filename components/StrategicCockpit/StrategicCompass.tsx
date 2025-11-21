@@ -1,8 +1,7 @@
+
 import React from 'react';
 import { StrategicLookKey } from '../../types';
-import { ChevronDownIcon } from '../icons';
 import { Category, SubCategory } from './data';
-
 
 interface StrategicCompassProps {
     categories: Category[];
@@ -31,17 +30,17 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
         if (category.children.length > 0) {
             const firstSub = category.children[0];
             if (firstSub) {
-                // Only change sub-look if the primary category is changing, or if the current view isn't a sub-look
-                if (key !== selectedLook || activeQuery.type !== 'sublook') {
+                // Only change sub-look if the primary category is changing
+                if (key !== selectedLook) {
                     setSelectedSubLook(firstSub.key);
                     onSubCategoryClick(firstSub.keywords, firstSub.label);
                 }
             } else {
                 setSelectedSubLook(null);
             }
-        } else { // Handle categories with no children like "所有情报"
+        } else { // Handle categories with no children
             setSelectedSubLook(null);
-            onSubCategoryClick('*', category.label); // Pass '*' and label
+            onSubCategoryClick('*', category.label); 
         }
     };
 
@@ -51,48 +50,44 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     }
 
     return (
-        <nav className="bg-white rounded-2xl border border-gray-200 p-3 space-y-1">
+        <nav className="space-y-1">
             {categories.map((category) => {
                 const isPrimaryActive = selectedLook === category.key;
                 return (
-                    <div key={category.key}>
-                        <button
+                    <div key={category.key} className="mb-1">
+                        {/* Primary Category Item */}
+                        <div 
                             onClick={() => handlePrimaryClick(category)}
-                            className={`w-full flex items-center justify-between text-left p-3 rounded-lg text-sm font-semibold transition-colors duration-200
+                            className={`
+                                flex items-center px-4 py-3 rounded-full cursor-pointer transition-all duration-200 select-none
                                 ${isPrimaryActive 
-                                    ? 'bg-blue-50 text-blue-700' 
-                                    : 'text-gray-600 hover:bg-gray-100'
+                                    ? 'bg-blue-100 text-blue-900 font-semibold' 
+                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }
                             `}
                         >
-                            <div className="flex items-center gap-3">
-                                <category.icon className={`w-5 h-5 ${isPrimaryActive ? 'text-blue-600' : 'text-gray-500'}`} />
-                                <span>{category.label}</span>
-                            </div>
-                            {category.children.length > 0 && (
-                                <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform ${isPrimaryActive ? 'rotate-180' : ''}`} />
-                            )}
-                        </button>
+                            <category.icon className={`w-5 h-5 mr-3 ${isPrimaryActive ? 'text-blue-700' : 'text-gray-500'}`} />
+                            <span className="text-sm">{category.label}</span>
+                        </div>
 
+                        {/* Sub Categories */}
                         {isPrimaryActive && category.children.length > 0 && (
-                            <div className="pl-6 pt-2 pb-1 space-y-1 animate-in fade-in-0 duration-300">
+                            <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-100 space-y-1 animate-in fade-in-0 slide-in-from-top-1 duration-200">
                                 {category.children.map(subCategory => {
                                     const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
                                     return (
                                         <button
                                             key={subCategory.key}
-                                            onClick={() => handleSubCategoryClick(subCategory)}
-                                            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors relative flex items-center
+                                            onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
+                                            className={`
+                                                w-full text-left px-4 py-2.5 rounded-full text-sm font-medium transition-colors duration-200
                                                 ${isSubActive
-                                                    ? 'font-semibold text-blue-700' 
-                                                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                                                    ? 'bg-blue-50 text-blue-800' 
+                                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
                                                 }
                                             `}
                                         >
-                                            {isSubActive && 
-                                                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-1 bg-blue-600 rounded-r-full"></span>
-                                            }
-                                            <span className="ml-2">{subCategory.label}</span>
+                                            {subCategory.label}
                                         </button>
                                     );
                                 })}
