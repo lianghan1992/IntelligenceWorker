@@ -113,6 +113,8 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
             }),
             top_k: 100,
             min_score: similarity_threshold || 0.2,
+            page: page || 1,
+            limit: limit || 20,
         };
 
         // The combined endpoint returns { items: [{ article_id, content_chunk, score, ... }] }

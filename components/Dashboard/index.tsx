@@ -217,7 +217,7 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
 
                 if (pois.length > 0) {
                     const params: any = {
-                        limit: 3,
+                        limit: 5, // Request 5 items per user request
                         similarity_threshold: 0.35,
                         page: 1
                     };

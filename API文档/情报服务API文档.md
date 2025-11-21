@@ -203,20 +203,37 @@
   ```json
   {
     "filters": {
-      "point_ids": [1, 2],
+      "point_ids": ["<point_id>", "<point_id>"] ,
       "source_names": ["盖世汽车"],
-      "publish_date_start": "2024-01-01T00:00:00",
-      "publish_date_end": "2024-12-31T23:59:59",
-      "min_influence_score": 0.2,
-      "sentiment": ["positive", "neutral"]
+      "publish_date_start": "2024-01-01",
+      "publish_date_end": "2024-12-31"
     },
-    "query": "智能驾驶域控制器",
-    "top_k": 10,
-    "min_score": 0.25
+    "query": "智能驾驶域控制器", 
+    "query_text": "智能驾驶域控制器", 
+    "top_k": 20,
+    "min_score": 0.5,
+    "similarity_threshold": 0.5,
+    "page": 1,
+    "limit": 20
   }
   ```
 - 响应：
   - `200`：同语义搜索，返回满足结构化筛选条件后的向量检索结果。
+ - 兼容性说明：`query` 与 `query_text` 等价；`min_score` 与 `similarity_threshold` 等价。若查询文本为 `"*"`，仅进行结构化筛选与分页。
+
+**cURL示例**
+```bash
+curl -X POST "http://127.0.0.1:7657/crawler/search/combined" \
+ -H "Authorization: Bearer <token>" \
+ -H "Content-Type: application/json" \
+ -d '{
+  "filters": {"source_names": ["盖世汽车"], "publish_date_start": "2024-01-01"},
+  "query_text": "电池热管理",
+  "page": 1,
+  "limit": 20,
+  "similarity_threshold": 0.5
+}'
+```
 
 ### 情报信息流（分页）
 - 路径：`/crawler/feed`
