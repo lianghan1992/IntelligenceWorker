@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ApiPoi } from '../../types';
 import { TagIcon, GearIcon } from '../icons';

@@ -1,4 +1,3 @@
-
 // src/api/intelligence.ts
 
 import { INTELLIGENCE_SERVICE_PATH } from '../config';

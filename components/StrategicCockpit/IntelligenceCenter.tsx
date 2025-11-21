@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { InfoItem } from '../../types';
 import { RssIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';

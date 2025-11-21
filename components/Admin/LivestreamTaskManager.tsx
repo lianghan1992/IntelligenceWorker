@@ -66,7 +66,8 @@ export const LivestreamTaskManager: React.FC = () => {
     // Data state
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '', company: '', start_date: '' });
-    const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
+    // CHANGE: Default sort by created_at descending
+    const [sort, setSort] = useState({ sort_by: 'created_at', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const searchTimeout = useRef<number | null>(null);
@@ -484,7 +485,7 @@ export const LivestreamTaskManager: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-shrink-0 flex-col md:flex-row justify-between items-center mt-2 text-sm gap-4 hidden md:flex">
+            <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center mt-2 text-sm gap-4 hidden md:flex">
                 <span className="text-gray-600">共 {pagination.total} 条</span>
                 
                 {/* Desktop Pagination */}

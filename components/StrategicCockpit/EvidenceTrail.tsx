@@ -1,4 +1,3 @@
-
 import React, { useMemo, useEffect } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon } from '../icons';

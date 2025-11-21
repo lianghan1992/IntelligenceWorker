@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Subscription, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -58,6 +57,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             };
             
             // Only add source filter if we have subscriptions and query is general
+            // For semantic search (when query != *), we might want to broaden the scope or keep it strict.
+            // Let's keep it consistent with the dashboard logic.
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
             }
