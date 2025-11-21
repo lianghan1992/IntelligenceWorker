@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { StrategicLookKey } from '../../types';
 import { Category, SubCategory } from './data';
+import { ChevronDownIcon } from '../icons';
 
 interface StrategicCompassProps {
     categories: Category[];
@@ -25,12 +25,13 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     
     const handlePrimaryClick = (category: Category) => {
         const key = category.key;
+        // Toggle functionality: if clicking already active, keep it active but maybe collapse? 
+        // Material 3 drawers usually keep selection.
         setSelectedLook(key);
         
         if (category.children.length > 0) {
             const firstSub = category.children[0];
             if (firstSub) {
-                // Only change sub-look if the primary category is changing
                 if (key !== selectedLook) {
                     setSelectedSubLook(firstSub.key);
                     onSubCategoryClick(firstSub.keywords, firstSub.label);
@@ -38,7 +39,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
             } else {
                 setSelectedSubLook(null);
             }
-        } else { // Handle categories with no children
+        } else { 
             setSelectedSubLook(null);
             onSubCategoryClick('*', category.label); 
         }
@@ -55,24 +56,32 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                 const isPrimaryActive = selectedLook === category.key;
                 return (
                     <div key={category.key} className="mb-1">
-                        {/* Primary Category Item */}
+                        {/* Primary Category Item - Material 3 Style */}
                         <div 
                             onClick={() => handlePrimaryClick(category)}
                             className={`
-                                flex items-center px-4 py-3 rounded-full cursor-pointer transition-all duration-200 select-none
+                                group flex items-center justify-between px-4 py-3 rounded-full cursor-pointer transition-all duration-300 select-none
                                 ${isPrimaryActive 
-                                    ? 'bg-blue-100 text-blue-900 font-semibold' 
+                                    ? 'bg-blue-100/50 text-blue-900' 
                                     : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }
                             `}
                         >
-                            <category.icon className={`w-5 h-5 mr-3 ${isPrimaryActive ? 'text-blue-700' : 'text-gray-500'}`} />
-                            <span className="text-sm">{category.label}</span>
+                            <div className="flex items-center gap-3">
+                                <category.icon className={`w-5 h-5 ${isPrimaryActive ? 'text-blue-700' : 'text-gray-500 group-hover:text-gray-700'}`} />
+                                <span className={`text-sm font-medium ${isPrimaryActive ? 'font-semibold' : ''}`}>{category.label}</span>
+                            </div>
+                            {category.children.length > 0 && (
+                                <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isPrimaryActive ? 'rotate-180 text-blue-700' : ''}`} />
+                            )}
                         </div>
 
                         {/* Sub Categories */}
-                        {isPrimaryActive && category.children.length > 0 && (
-                            <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-100 space-y-1 animate-in fade-in-0 slide-in-from-top-1 duration-200">
+                        <div className={`
+                            overflow-hidden transition-all duration-300 ease-in-out
+                            ${isPrimaryActive && category.children.length > 0 ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0'}
+                        `}>
+                            <div className="space-y-1 pl-3">
                                 {category.children.map(subCategory => {
                                     const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
                                     return (
@@ -80,19 +89,20 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                                             key={subCategory.key}
                                             onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
                                             className={`
-                                                w-full text-left px-4 py-2.5 rounded-full text-sm font-medium transition-colors duration-200
+                                                w-full text-left px-4 py-2 rounded-full text-sm transition-colors duration-200 flex items-center
                                                 ${isSubActive
-                                                    ? 'bg-blue-50 text-blue-800' 
-                                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                                                    ? 'bg-blue-200 text-blue-900 font-semibold' 
+                                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                                                 }
                                             `}
                                         >
+                                            <span className={`w-1.5 h-1.5 rounded-full mr-3 ${isSubActive ? 'bg-blue-700' : 'bg-transparent'}`}></span>
                                             {subCategory.label}
                                         </button>
                                     );
                                 })}
                             </div>
-                        )}
+                        </div>
                     </div>
                 );
             })}

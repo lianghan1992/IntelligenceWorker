@@ -33,7 +33,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         if (window.marked && typeof window.marked.parse === 'function') {
             const markdownWithStyledImages = selectedArticle.content.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
-                '<figure class="my-6"><img src="$2" alt="$1" class="rounded-2xl w-full object-cover shadow-sm border border-gray-100"><figcaption class="text-center text-xs text-gray-500 mt-2 font-medium">$1</figcaption></figure>'
+                '<figure class="my-6"><img src="$2" alt="$1" class="rounded-2xl w-full object-cover shadow-sm"><figcaption class="text-center text-xs text-gray-500 mt-2">$1</figcaption></figure>'
             );
             return window.marked.parse(markdownWithStyledImages);
         }
@@ -49,63 +49,61 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
 
     if (!selectedArticle) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-center p-10 bg-white">
-                <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                    <DocumentTextIcon className="w-10 h-10 text-gray-300" />
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-white">
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
+                    <DocumentTextIcon className="w-10 h-10 text-gray-300 opacity-50" />
                 </div>
-                <h3 className="font-medium text-xl text-gray-800 mb-2">选择情报查看详情</h3>
-                <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
-                    点击左侧列表中的任意卡片，在此处查看完整的文章内容、来源及分析。
+                <h3 className="font-medium text-xl text-gray-800 mb-2">阅读详情</h3>
+                <p className="text-sm text-gray-500 max-w-[200px] leading-relaxed">
+                    点击左侧列表中的任意卡片，在此处查看完整情报内容。
                 </p>
             </div>
         );
     }
 
     return (
-        <aside className="h-full flex flex-col bg-white overflow-hidden">
-            {/* Header Area */}
-            <div className="px-8 pt-8 pb-4 bg-white flex-shrink-0">
-                <div className="flex items-start justify-between gap-6">
+        <aside className="h-full flex flex-col bg-white overflow-hidden transition-all duration-500">
+            {/* Header Area with Material Surface Color */}
+            <div className="p-8 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
+                <div className="flex items-start justify-between gap-4">
                     <div>
-                        <div className="flex items-center gap-3 mb-4">
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                                 {selectedArticle.source_name}
                             </span>
-                            <span className="text-xs font-medium text-gray-400">
-                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            <span className="text-xs text-gray-500 font-medium">
+                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN')}
                             </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 text-2xl leading-tight">
+                        <h3 className="font-bold text-gray-900 text-2xl leading-tight line-clamp-3">
                             {selectedArticle.title}
                         </h3>
                     </div>
                 </div>
-                <div className="mt-6 border-b border-gray-100"></div>
-            </div>
-
-            {/* Content Area */}
-            <div ref={contentRef} className="flex-1 overflow-y-auto px-8 pb-12 custom-scrollbar">
-                <article 
-                    className="prose prose-slate max-w-none 
-                        prose-headings:font-bold prose-headings:text-gray-900 
-                        prose-p:text-gray-600 prose-p:leading-7 prose-p:mb-5 prose-p:text-[16px]
-                        prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                        prose-strong:text-gray-800 prose-strong:font-bold
-                        prose-blockquote:border-l-4 prose-blockquote:border-blue-200 prose-blockquote:bg-blue-50/30 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-gray-700
-                        prose-li:marker:text-gray-400 prose-img:rounded-xl"
-                    dangerouslySetInnerHTML={{ __html: articleHtml }}
-                />
-                
-                <div className="mt-12 pt-8 border-t border-gray-100 flex justify-center">
+                <div className="mt-6">
                      <a 
                         href={selectedArticle.original_url} 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-full hover:bg-gray-100 hover:text-gray-900 transition-all group"
+                        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-full hover:bg-gray-100 transition-colors shadow-sm"
                     >
-                        访问原始链接 <ArrowRightIcon className="w-4 h-4 text-gray-400 group-hover:text-gray-600 group-hover:translate-x-1 transition-transform" />
+                        访问原始链接 <ArrowRightIcon className="w-4 h-4" />
                     </a>
                 </div>
+            </div>
+
+            {/* Content Area */}
+            <div ref={contentRef} className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar">
+                <article 
+                    className="prose prose-slate max-w-none 
+                        prose-headings:font-bold prose-headings:text-gray-900 
+                        prose-p:text-gray-600 prose-p:leading-8 prose-p:mb-6 prose-p:text-base
+                        prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
+                        prose-strong:text-gray-800 prose-strong:font-semibold
+                        prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
+                        prose-li:marker:text-blue-500"
+                    dangerouslySetInnerHTML={{ __html: articleHtml }}
+                />
             </div>
         </aside>
     );

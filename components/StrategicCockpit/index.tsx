@@ -50,7 +50,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
         try {
             const limit = 20;
-            // Build params carefully for /search/combined vs /articles
             const params: any = {
                 query_text: query,
                 page,
@@ -58,8 +57,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 similarity_threshold: 0.35,
             };
             
-            // Pass source names filter if we have subscriptions, 
-            // ensuring we don't filter by empty list which might block everything or nothing depending on backend implementation.
+            // Only add source filter if we have subscriptions and query is general
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
             }
@@ -83,10 +81,11 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         } finally {
             setIsLoading(false);
         }
-    }, [subscribedSourceNames]); // removed selectedArticle to prevent loop
+    }, [subscribedSourceNames]); // Removed selectedArticle from dependencies to prevent infinite loop
 
 
     useEffect(() => {
+        // Trigger fetch when activeQuery changes
         if (activeQuery.value) {
             fetchArticles(activeQuery.value, 1);
         }
@@ -94,7 +93,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
-        setSelectedArticle(null);
+        // Reset selection on category change to avoid stale data display
+        setSelectedArticle(null); 
     };
 
     const handlePageChange = (newPage: number) => {
@@ -128,8 +128,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         <div className="h-full flex flex-col bg-[#f8f9fa] p-4 gap-4 overflow-hidden">
             <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
                 {/* Left Sidebar - Navigation Drawer (Material 3) */}
-                <aside className="w-72 flex-shrink-0 flex flex-col bg-white rounded-[24px] py-4 shadow-sm border border-gray-100">
-                    <div className="flex-1 overflow-y-auto custom-scrollbar px-3">
+                <aside className="w-72 flex-shrink-0 flex flex-col bg-white rounded-[24px] py-6 shadow-sm border border-gray-100/50">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
+                        <h2 className="text-sm font-bold text-gray-500 px-4 mb-4 uppercase tracking-wider">情报罗盘</h2>
                         <StrategicCompass
                             categories={lookCategories}
                             selectedLook={selectedLook}
@@ -139,7 +140,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
                             activeQuery={activeQuery}
                         />
-                        <div className="my-4 border-t border-gray-100 mx-2"></div>
+                        <div className="my-6 border-t border-gray-100 mx-2"></div>
                         <FocusPoints 
                             onManageClick={() => setIsFocusPointModalOpen(true)}
                             pois={pois}
@@ -153,7 +154,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 {/* Main Content Area */}
                  <main className="flex-1 flex gap-4 min-w-0">
                     {/* List View */}
-                    <div className="w-[400px] flex-shrink-0 flex flex-col bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="w-[420px] flex-shrink-0 flex flex-col bg-white rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden">
                         <IntelligenceCenter
                             title={activeQuery.label}
                             articles={articles}
@@ -169,7 +170,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     </div>
                     
                     {/* Detail View */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="flex-1 flex flex-col min-w-0 bg-white rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden">
                          <EvidenceTrail
                             selectedArticle={selectedArticle}
                         />

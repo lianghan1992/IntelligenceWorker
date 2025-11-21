@@ -35,23 +35,23 @@ const StatCard: React.FC<{
             decoration: 'bg-purple-200'
         },
         tertiary: { 
-            bg: 'bg-emerald-50', 
-            text: 'text-emerald-900', 
-            container: 'bg-emerald-100', 
-            onContainer: 'text-emerald-700',
-            decoration: 'bg-emerald-200'
+            bg: 'bg-teal-50', 
+            text: 'text-teal-900', 
+            container: 'bg-teal-100', 
+            onContainer: 'text-teal-700',
+            decoration: 'bg-teal-200'
         },
         error: { 
-            bg: 'bg-orange-50', 
-            text: 'text-orange-900', 
-            container: 'bg-orange-100', 
-            onContainer: 'text-orange-700',
-            decoration: 'bg-orange-200'
+            bg: 'bg-rose-50', 
+            text: 'text-rose-900', 
+            container: 'bg-rose-100', 
+            onContainer: 'text-rose-700',
+            decoration: 'bg-rose-200'
         },
     }[colorTheme];
 
     return (
-        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-300 hover:shadow-lg group ${themes.bg}`}>
+        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-300 hover:shadow-md group ${themes.bg}`}>
             <div className="flex justify-between items-start z-10 relative">
                 <div>
                     <p className={`text-sm font-medium opacity-70 tracking-wide ${themes.text}`}>{title}</p>
@@ -96,20 +96,21 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 // FIX: Use ISO-like format with T separator which is safer for backend parsing
                 const todayStart = `${year}-${month}-${day}T00:00:00`; 
 
+                // Use updated searchArticlesFiltered which now calls /feed
                 const articlesData = await searchArticlesFiltered({
                     publish_date_start: todayStart,
-                    query_text: '*', // 获取所有
-                    limit: 100, // 获取足够的条目以统计涉及的情报点
+                    query_text: '*', // Wildcard to fetch all
+                    limit: 100, 
                     page: 1,
                 });
 
                 const articlesTodayCount = articlesData.total;
                 
-                // 统计涉及的情报点数量 (排重)
+                // Estimate active points based on fetched items
                 const uniquePointIds = new Set(
                     articlesData.items
                         .map(item => item.point_id)
-                        .filter(id => id) // 过滤掉空ID
+                        .filter(id => id)
                 );
                 
                 setStats({
@@ -121,7 +122,6 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
 
             } catch (error) {
                 console.error("Failed to fetch dashboard stats:", error);
-                // 即使失败也保留基础订阅数据
                 setStats(prev => ({ ...prev, articlesToday: 0, pointsWithUpdates: 0 }));
             } finally {
                 setIsLoading(false);
@@ -139,28 +139,28 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 icon={<DocumentTextIcon className="w-6 h-6" />}
                 title="今日新增情报"
                 value={valueOrLoading(stats.articlesToday)}
-                description="平台今日收录的新增内容"
+                description="平台今日收录总量"
                 colorTheme="primary"
             />
             <StatCard 
                 icon={<TrendingUpIcon className="w-6 h-6" />}
-                title="活跃情报点"
+                title="有动态的情报点"
                 value={valueOrLoading(stats.pointsWithUpdates)}
-                description="今日捕获动态的监控项"
+                description="今日有更新的监控项"
                 colorTheme="tertiary"
             />
             <StatCard 
                 icon={<BookmarkIcon className="w-6 h-6" />}
-                title="监控情报点"
+                title="情报点总数"
                 value={valueOrLoading(stats.totalPoints)}
-                description="您配置的全部追踪目标"
+                description="当前配置的追踪目标"
                 colorTheme="secondary"
             />
             <StatCard 
                 icon={<RssIcon className="w-6 h-6" />}
-                title="覆盖情报源"
+                title="情报源总数"
                 value={valueOrLoading(stats.totalSources)}
-                description="已连接的信息渠道总数"
+                description="已连接的信息渠道"
                 colorTheme="error"
             />
         </div>

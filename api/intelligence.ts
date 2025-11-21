@@ -61,8 +61,8 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
     const isGeneralFilter = !query_text || query_text === '*' || query_text.trim() === '';
 
     if (isGeneralFilter) {
-        // CASE 1: General Filtering (e.g., Dashboard "Today's News")
-        // Use /crawler/articles per API Doc
+        // CASE 1: General Filtering (e.g., Dashboard "Today's News", Main List)
+        // FIX: Use /crawler/feed per API Doc (instead of /articles which returned 405)
         
         const payload: any = {
             filters: {
@@ -86,61 +86,48 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
             }
         });
 
-        return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+        return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/feed`, {
             method: 'POST',
             body: JSON.stringify(payload),
         });
 
     } else {
         // CASE 2: Semantic/Keyword Search (e.g., Focus Points, Search Bar)
-        // Use /crawler/search/combined per API Doc
+        // FIX: Use /crawler/search/semantic per API Doc (since /combined returned 404)
         
         const payload: any = {
             query: query_text,
             top_k: 100, // Default reasonably high for list views
-            min_score: similarity_threshold,
-            filters: {
-                source_names: restFilters.source_names,
-                publish_date_start: restFilters.publish_date_start,
-                publish_date_end: restFilters.publish_date_end,
-                point_ids: restFilters.point_ids,
-            }
+            min_score: similarity_threshold || 0.2,
         };
 
-        // Clean up undefined filters
-        Object.keys(payload.filters).forEach(key => {
-            const val = payload.filters[key];
-            if (val === undefined || val === null || (Array.isArray(val) && val.length === 0) || val === '') {
-                delete payload.filters[key];
-            }
-        });
-
-        // The /search/combined endpoint returns chunks/items. We map them to SearchResult (InfoItem) format.
-        // Note: The combined endpoint usually returns 'content_chunk', we map it to 'content' for preview.
-        const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
+        // The semantic endpoint returns { items: [{ article_id, content_chunk, score }] }
+        // We need to map this to our SearchResult format.
+        const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
             method: 'POST',
             body: JSON.stringify(payload),
         });
 
+        // Since semantic search often returns chunks, we map them to simulate article items.
         const items = (response.items || []).map((item: any) => ({
             id: item.article_id || String(Math.random()),
-            title: item.title || item.article_title || '无标题',
+            title: item.title || item.article_title || '相关情报片段',
             content: item.content_chunk || item.content || '', // Use chunk as content preview
             original_url: item.original_url || item.article_url || '#',
-            source_name: item.source_name || '未知来源',
+            source_name: item.source_name || '智能检索',
             point_name: item.point_name || '',
             point_id: item.point_id || '',
-            publish_date: item.publish_date,
+            publish_date: item.publish_date, // Might be missing in semantic response
             created_at: item.created_at || new Date().toISOString(),
             similarity_score: item.score
         }));
 
         return {
             items: items,
-            total: response.total || items.length,
-            page: page || 1,
-            limit: limit || 20,
-            totalPages: Math.ceil((response.total || items.length) / (limit || 20)) || 1
+            total: items.length, // Semantic search usually doesn't return total count of DB, just top_k
+            page: 1,
+            limit: items.length,
+            totalPages: 1
         };
     }
 };
@@ -158,50 +145,30 @@ export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => 
 
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
-    // Adapter for new API endpoint /search/combined (based on provided API doc)
-    // Maps frontend flat params to nested filter structure expected by API
+    // Using /search/semantic for chunks as well if /combined is down or returns 404
     const { 
         query_text, 
         top_k, 
         similarity_threshold, 
-        source_names, 
-        publish_date_start, 
-        publish_date_end,
-        // Extract other known filters if needed, ignore unknown props
     } = params;
 
     const payload: any = {
         query: query_text || '*',
         top_k: top_k || 200,
         min_score: similarity_threshold,
-        filters: {
-            source_names,
-            publish_date_start,
-            publish_date_end,
-        }
     };
 
-    // Clean undefined filters
-    Object.keys(payload.filters).forEach(key => {
-        if (payload.filters[key] === undefined || payload.filters[key] === null || (Array.isArray(payload.filters[key]) && payload.filters[key].length === 0)) {
-            delete payload.filters[key];
-        }
-    });
-
-    const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
+    const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
         method: 'POST',
         body: JSON.stringify(payload),
     });
 
-    // Map API response to SearchChunksResponse
-    // Expected API item: { article_id, content_chunk, score, ...maybe metadata }
     const results = (response.items || []).map((item: any, index: number) => ({
         article_id: String(item.article_id),
-        // Use fallback values as the 'combined' endpoint might return sparse data
-        article_title: item.title || item.article_title || 'Unknown Title', 
+        article_title: item.title || item.article_title || '未知标题', 
         article_url: item.original_url || item.article_url || '',
         article_publish_date: item.publish_date || null,
-        source_name: item.source_name || 'Unknown Source',
+        source_name: item.source_name || '未知来源',
         chunk_index: item.chunk_index || index,
         chunk_text: item.content_chunk || '',
         similarity_score: item.score || 0
@@ -209,8 +176,8 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
 
     return {
         results,
-        total_chunks: response.total || results.length,
-        total_articles: 0 // Not provided by combined search
+        total_chunks: results.length,
+        total_articles: 0 
     };
 };
 
