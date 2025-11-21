@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, ReactNode } from 'react';
 import { RssIcon, VideoCameraIcon } from '../icons';
 
@@ -74,15 +75,29 @@ export const FocusPointsSkeleton: React.FC = () => (
         <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-gray-800">我的关注点</h2>
         </div>
-        <div className="space-y-6">
-            <div className="bg-white rounded-2xl border p-5">
-                <div className="flex justify-between items-center">
-                    <div className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-6 w-20 bg-gray-200 rounded-full animate-pulse"></div>
+        {/* Masonry Skeleton */}
+        <div className="columns-1 md:columns-2 xl:columns-3 gap-4 space-y-4">
+            <div className="bg-white rounded-xl border p-4 h-48 animate-pulse break-inside-avoid">
+                <div className="h-6 w-1/3 bg-gray-200 rounded mb-4"></div>
+                <div className="space-y-3">
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                    <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
                 </div>
-                <div className="mt-4 space-y-3">
-                    <div className="h-5 w-full bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-5 w-3/4 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+            <div className="bg-white rounded-xl border p-4 h-32 animate-pulse break-inside-avoid">
+                <div className="h-6 w-1/2 bg-gray-200 rounded mb-4"></div>
+                <div className="space-y-3">
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                </div>
+            </div>
+             <div className="bg-white rounded-xl border p-4 h-56 animate-pulse break-inside-avoid">
+                <div className="h-6 w-1/3 bg-gray-200 rounded mb-4"></div>
+                <div className="space-y-3">
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                    <div className="h-4 w-full bg-gray-200 rounded"></div>
+                    <div className="h-4 w-2/3 bg-gray-200 rounded"></div>
                 </div>
             </div>
         </div>
@@ -91,16 +106,16 @@ export const FocusPointsSkeleton: React.FC = () => (
 
 
 export const SubscriptionManagerSkeleton: React.FC = () => (
-    <div>
+    <div className="border-t border-gray-200 pt-8 mt-4">
         <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                <RssIcon className="w-6 h-6 text-blue-600" />
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <RssIcon className="w-5 h-5 text-blue-600" />
                 情报源订阅
             </h2>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className="flex overflow-x-auto gap-3 pb-4">
             {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="bg-gray-200 rounded-2xl h-36 animate-pulse"></div>
+                <div key={index} className="flex-shrink-0 w-40 h-32 bg-gray-200 rounded-xl animate-pulse"></div>
             ))}
         </div>
     </div>
