@@ -165,26 +165,4 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             onSelectArticle={setSelectedArticle}
                             currentPage={pagination.page}
                             totalPages={pagination.totalPages}
-                            totalItems={pagination.total}
-                            onPageChange={handlePageChange}
-                        />
-                    </div>
-                    
-                    {/* Detail View */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-white rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden">
-                         <EvidenceTrail
-                            selectedArticle={selectedArticle}
-                        />
-                    </div>
-                </main>
-            </div>
-
-            {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
-             <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
-            `}</style>
-        </div>
-    );
-};
+                            totalItems={pagination.total

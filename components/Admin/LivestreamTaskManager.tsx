@@ -66,8 +66,8 @@ export const LivestreamTaskManager: React.FC = () => {
     // Data state
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     const [filters, setFilters] = useState({ status: '', search_term: '', company: '', start_date: '' });
-    // CHANGE: Default sort by created_at descending
-    const [sort, setSort] = useState({ sort_by: 'created_at', order: 'desc' });
+    // CHANGE: Default sort by start_time descending
+    const [sort, setSort] = useState({ sort_by: 'start_time', order: 'desc' });
     const [searchTermInput, setSearchTermInput] = useState('');
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const searchTimeout = useRef<number | null>(null);
