@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask, View } from '../../types';
 import { getLivestreamTasks } from '../../api';
-import { VideoCameraIcon, ArrowRightIcon, PlayIcon, FilmIcon } from '../icons';
+import { VideoCameraIcon, ArrowRightIcon, PlayIcon, FilmIcon, DocumentTextIcon } from '../icons';
 
 // Simplified and robust helper to handle image data from the backend
 const getSafeImageSrc = (base64Data: string | null | undefined): string | null => {
@@ -46,7 +46,8 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
     const isLive = ['recording', 'downloading', 'stopping'].includes(statusLower);
     const isProcessing = statusLower === 'processing';
     const isCompleted = ['finished', 'completed', 'failed'].includes(statusLower);
-    const isUpcoming = ['scheduled', 'listening', 'pending'].includes(statusLower);
+    // Strictly exclude completed/processing items from upcoming
+    const isUpcoming = ['scheduled', 'listening', 'pending'].includes(statusLower) && !isCompleted && !isProcessing && !isLive;
 
     const imageUrl = getSafeImageSrc(event.cover_image_b64);
 
@@ -86,10 +87,14 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
     return (
         <div 
             onClick={() => onNavigate('events')}
-            className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer"
+            className={`group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isCompleted ? 'opacity-90 hover:opacity-100' : ''}`}
         >
             {imageUrl ? (
-                <img src={imageUrl} alt={event.task_name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                <img 
+                    src={imageUrl} 
+                    alt={event.task_name} 
+                    className={`absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${isCompleted ? 'grayscale-[30%]' : ''}`} 
+                />
             ) : (
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
                     <FilmIcon className="w-12 h-12 text-gray-600" />
@@ -115,8 +120,8 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                         </span>
                     )}
                     {isCompleted && (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-500/90 backdrop-blur-sm border border-green-400/50">
-                            已结束
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-gray-600/90 backdrop-blur-sm border border-gray-500/50 flex items-center gap-1">
+                            <CheckIcon className="w-3 h-3" /> 已结束
                         </span>
                     )}
                     {isUpcoming && (
@@ -150,6 +155,11 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                             <span>观看直播</span>
                         </a>
                     )}
+                    {isCompleted && (
+                         <div className="mb-2 inline-flex items-center gap-1 text-xs text-gray-300 bg-white/10 px-2 py-1 rounded">
+                            <DocumentTextIcon className="w-3 h-3" /> 报告已就绪
+                         </div>
+                    )}
                     <h3 className="text-lg font-bold leading-tight line-clamp-2">{event.task_name}</h3>
                     <p className="text-xs text-gray-200 mt-1 flex items-center gap-1">
                        <span>{event.company}</span>
@@ -161,6 +171,13 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
         </div>
     );
 };
+
+// Tiny internal icon component if needed locally, or import from icons.tsx
+const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+);
 
 const SkeletonCard: React.FC = () => (
     <div className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-200 animate-pulse">

@@ -47,9 +47,13 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
 
 // --- Articles / InfoItems API ---
 export const searchArticles = (query: string, pointIds: string[], top_k: number): Promise<InfoItem[]> =>
-    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/articles${createApiQuery({ top_k })}`, {
+    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
         method: 'POST',
-        body: JSON.stringify({ query_text: query, point_ids: pointIds }),
+        body: JSON.stringify({ 
+            query: query, 
+            filters: { point_ids: pointIds },
+            top_k 
+        }),
     });
 
 export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
@@ -59,31 +63,34 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
     // Check if it's a general filter query (empty or '*')
     const isGeneralFilter = !query_text || query_text === '*' || query_text.trim() === '';
 
+    // Helper to clean filters
+    const cleanFilters = (filters: any) => {
+        const cleaned: any = {};
+        Object.keys(filters).forEach(key => {
+            const val = filters[key];
+            if (val !== undefined && val !== null && !(Array.isArray(val) && val.length === 0) && val !== '') {
+                cleaned[key] = val;
+            }
+        });
+        return cleaned;
+    };
+
     if (isGeneralFilter) {
         // CASE 1: General Filtering (e.g., Dashboard "Today's News", Main List)
-        // FIX: Use /crawler/feed per API Doc (instead of /articles which returned 405)
+        // Use /crawler/feed per API Doc
         
         const payload: any = {
-            filters: {
-                // Map flat params to the 'filters' object structure required by the backend
+            filters: cleanFilters({
                 source_names: restFilters.source_names,
                 publish_date_start: restFilters.publish_date_start,
                 publish_date_end: restFilters.publish_date_end,
                 point_ids: restFilters.point_ids,
                 min_influence_score: restFilters.min_influence_score,
                 sentiment: restFilters.sentiment,
-            },
+            }),
             page: page || 1,
             limit: limit || 20
         };
-
-        // Clean up undefined filters
-        Object.keys(payload.filters).forEach(key => {
-            const val = payload.filters[key];
-            if (val === undefined || val === null || (Array.isArray(val) && val.length === 0) || val === '') {
-                delete payload.filters[key];
-            }
-        });
 
         return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/feed`, {
             method: 'POST',
@@ -92,22 +99,30 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
 
     } else {
         // CASE 2: Semantic/Keyword Search (e.g., Focus Points, Search Bar)
-        // FIX: Use /crawler/search/semantic per API Doc (since /combined returned 404)
+        // Use /crawler/search/combined per API Doc to support filters + vector search
         
         const payload: any = {
             query: query_text,
-            top_k: 100, // Default reasonably high for list views
+            filters: cleanFilters({
+                source_names: restFilters.source_names,
+                publish_date_start: restFilters.publish_date_start,
+                publish_date_end: restFilters.publish_date_end,
+                point_ids: restFilters.point_ids,
+                min_influence_score: restFilters.min_influence_score,
+                sentiment: restFilters.sentiment,
+            }),
+            top_k: 100,
             min_score: similarity_threshold || 0.2,
         };
 
-        // The semantic endpoint returns { items: [{ article_id, content_chunk, score }] }
+        // The combined endpoint returns { items: [{ article_id, content_chunk, score, ... }] }
         // We need to map this to our SearchResult format.
-        const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
+        const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
             method: 'POST',
             body: JSON.stringify(payload),
         });
 
-        // Since semantic search often returns chunks, we map them to simulate article items.
+        // Map semantic results to SearchResult format
         const items = (response.items || []).map((item: any) => ({
             id: item.article_id || String(Math.random()),
             title: item.title || item.article_title || '相关情报片段',
@@ -116,7 +131,7 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
             source_name: item.source_name || '智能检索',
             point_name: item.point_name || '',
             point_id: item.point_id || '',
-            publish_date: item.publish_date, // Might be missing in semantic response
+            publish_date: item.publish_date,
             created_at: item.created_at || new Date().toISOString(),
             similarity_score: item.score
         }));
@@ -144,20 +159,30 @@ export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => 
 
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
-    // Using /search/semantic for chunks as well if /combined is down or returns 404
+    // Use /search/combined for chunks as well to ensure consistency
     const { 
         query_text, 
         top_k, 
         similarity_threshold, 
+        source_names,
+        publish_date_start,
+        publish_date_end
     } = params;
+
+    // Construct filters object
+    const filters: any = {};
+    if (source_names && source_names.length > 0) filters.source_names = source_names;
+    if (publish_date_start) filters.publish_date_start = publish_date_start;
+    if (publish_date_end) filters.publish_date_end = publish_date_end;
 
     const payload: any = {
         query: query_text || '*',
+        filters: filters,
         top_k: top_k || 200,
         min_score: similarity_threshold,
     };
 
-    const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
+    const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
         method: 'POST',
         body: JSON.stringify(payload),
     });
