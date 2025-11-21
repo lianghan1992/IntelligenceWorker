@@ -41,27 +41,45 @@ const formatTimeLeft = (distance: number): string | null => {
 const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => void }> = ({ event, onNavigate }) => {
     const [timeLeft, setTimeLeft] = useState<string | null>(null);
     const statusLower = event.status.toLowerCase();
-    const isLive = statusLower === 'recording';
-    const isCompleted = statusLower === 'completed';
+    
+    // Comprehensive status mapping
+    const isLive = ['recording', 'downloading', 'stopping'].includes(statusLower);
+    const isProcessing = statusLower === 'processing';
+    const isCompleted = ['finished', 'completed', 'failed'].includes(statusLower);
+    const isUpcoming = ['scheduled', 'listening', 'pending'].includes(statusLower);
+
     const imageUrl = getSafeImageSrc(event.cover_image_b64);
 
     useEffect(() => {
-        if (isLive || isCompleted) return;
+        if (!isUpcoming) {
+            setTimeLeft(null);
+            return;
+        }
 
-        const timer = setInterval(() => {
+        const calculateTime = () => {
             const now = new Date().getTime();
             const startTime = new Date(event.start_time).getTime();
             const distance = startTime - now;
             if (distance < 0) {
                 setTimeLeft(null);
-                clearInterval(timer);
+                return false; // Should stop
             } else {
                 setTimeLeft(formatTimeLeft(distance));
+                return true; // Keep running
+            }
+        };
+
+        // Initial run
+        if (!calculateTime()) return;
+
+        const timer = setInterval(() => {
+            if (!calculateTime()) {
+                clearInterval(timer);
             }
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [event.start_time, isLive, isCompleted]);
+    }, [event.start_time, isUpcoming]);
 
     const countdownTextSize = timeLeft && timeLeft.length > 8 ? 'text-3xl' : 'text-4xl';
 
@@ -77,32 +95,39 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                     <FilmIcon className="w-12 h-12 text-gray-600" />
                 </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
             
             <div className="relative z-10 p-4 h-full flex flex-col justify-between text-white">
                 {/* Top: Status Badge */}
                 <div className="flex justify-end">
-                    {isLive ? (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-500/90 backdrop-blur-sm flex items-center gap-1.5 animate-pulse">
+                    {isLive && (
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-500/90 backdrop-blur-sm flex items-center gap-1.5 animate-pulse border border-red-400/50">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                             </span>
                             直播中
                         </span>
-                    ) : isCompleted ? (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-500/90 backdrop-blur-sm">
+                    )}
+                    {isProcessing && (
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-indigo-500/90 backdrop-blur-sm border border-indigo-400/50">
+                            AI生成中
+                        </span>
+                    )}
+                    {isCompleted && (
+                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-green-500/90 backdrop-blur-sm border border-green-400/50">
                             已结束
                         </span>
-                    ) : (
-                         <span className="px-3 py-1 text-xs font-bold rounded-full bg-blue-500/90 backdrop-blur-sm">
+                    )}
+                    {isUpcoming && (
+                         <span className="px-3 py-1 text-xs font-bold rounded-full bg-blue-500/90 backdrop-blur-sm border border-blue-400/50">
                             即将开始
                         </span>
                     )}
                 </div>
 
-                {/* Middle: Countdown */}
-                {!isLive && !isCompleted && timeLeft && (
+                {/* Middle: Countdown (Only for Upcoming) */}
+                {isUpcoming && timeLeft && (
                     <div className="text-center">
                         <div className={`${countdownTextSize} font-bold tracking-tighter`} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
                             {timeLeft}
@@ -125,9 +150,11 @@ const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => v
                             <span>观看直播</span>
                         </a>
                     )}
-                    <h3 className="text-lg font-bold leading-tight">{event.task_name}</h3>
-                    <p className="text-xs text-gray-200 mt-1">
-                       {new Date(event.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })} 开始
+                    <h3 className="text-lg font-bold leading-tight line-clamp-2">{event.task_name}</h3>
+                    <p className="text-xs text-gray-200 mt-1 flex items-center gap-1">
+                       <span>{event.company}</span>
+                       <span>•</span>
+                       <span>{new Date(event.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })} 开始</span>
                     </p>
                 </div>
             </div>
@@ -176,10 +203,11 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                 
                 const getStatusPriority = (status: string) => {
                     const s = status.toLowerCase();
-                    if (s === 'recording') return 0; // Live
-                    if (s === 'listening' || s === 'pending') return 1; // Upcoming
-                    if (s === 'completed') return 2; // Finished
-                    return 3; // Others
+                    if (['recording', 'downloading', 'stopping'].includes(s)) return 0; // Live
+                    if (['listening', 'scheduled', 'pending'].includes(s)) return 1; // Upcoming
+                    if (s === 'processing') return 2; // Processing
+                    if (['finished', 'completed', 'failed'].includes(s)) return 3; // Finished
+                    return 4; // Others
                 };
 
                 const sortedEvents = todaysEvents.sort((a, b) => {
@@ -188,14 +216,12 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
                     if (priorityA !== priorityB) {
                         return priorityA - priorityB;
                     }
-                    // For upcoming, sort by start time ascending. For completed, sort by start time descending (most recent first)
-                    if (priorityA === 1) { // upcoming
+                    // For upcoming, sort by start time ascending (soonest first). 
+                    if (priorityA === 1) { 
                         return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
                     }
-                    if (priorityA === 2) { // completed
-                        return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-                    }
-                    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime(); // default for live and others
+                    // For everything else (Live 0, Processing 2, Finished 3), sort by start time descending (most recent first)
+                    return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
                 });
 
                 setEvents(sortedEvents.slice(0, 4)); // Show top 4
