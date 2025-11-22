@@ -61,10 +61,12 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <Icon {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 .5C5.648.5.5 5.648.5 12s5.148 11.5 11.5 11.5 11.5-5.148 11.5-11.5S18.352.5 12 .5zM12 21.3c-5.12 0-9.3-4.18-9.3-9.3s4.18-9.3 9.3-9.3 9.3 4.18 9.3 9.3-4.18 9.3-9.3 9.3z" />
-    <path d="M12 6.9c-2.81 0-5.1 2.29-5.1 5.1s2.29 5.1 5.1 5.1 5.1-2.29 5.1-5.1-2.29-5.1-5.1-5.1zm0 8.5c-1.87 0-3.4-1.53-3.4-3.4s1.53-3.4 3.4-3.4 3.4 1.53 3.4 3.4-1.53 3.4-3.4 3.4z" />
-  </Icon>
+  <svg viewBox="0 0 24 24" fill="none" {...props}>
+    {/* Represents 'A' (Auto) and structure */}
+    <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="currentColor" />
+    {/* Represents 'I' (Insight) and core/beam */}
+    <path d="M12 12L10 22H14L12 12Z" fill="currentColor" fillOpacity="0.6" />
+  </svg>
 );
 
 export const ChevronDownIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -209,7 +211,7 @@ export const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
 
 export const FilmIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
-        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm0 2h12v10H4V5zm2 1a1 1 0 00-1 1v1a1 1 0 102 0V7a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0V7a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm-8 4a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1z" />
+        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm0 2h12v10H4V5zm2 1a1 1 0 00-1 1v1a1 1 0 102 0V7a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0V7a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0V7a1 1 0 00-1-1zm-8 4a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1zm4 0a1 1 0 00-1 1v1a1 1 0 102 0v-1a1 1 0 00-1-1z" />
     </Icon>
 );
 

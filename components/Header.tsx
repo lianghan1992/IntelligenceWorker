@@ -42,8 +42,8 @@ const NavItem: React.FC<{
         onClick={onClick}
         className={`flex items-center space-x-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors duration-200 ${
             isActive
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-600 hover:bg-gray-200'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100'
         }`}
     >
         <Icon className="w-5 h-5" />
@@ -70,16 +70,18 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
     };
 
     return (
-        <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm sticky top-0 z-20">
+        <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-50">
             <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     {/* Logo and Desktop Nav */}
                     <div className="flex items-center space-x-8">
-                        <div className="flex items-center space-x-2 text-blue-600 cursor-pointer" onClick={() => onNavigate('dashboard')}>
-                            <LogoIcon className="w-8 h-8"/>
-                            <span className="font-bold text-lg text-gray-800">Vantage AI</span>
+                        <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => onNavigate('dashboard')}>
+                            <div className="relative flex items-center justify-center w-9 h-9">
+                                <LogoIcon className="w-9 h-9 text-indigo-600 transition-transform duration-300 group-hover:scale-110 filter drop-shadow-sm" />
+                            </div>
+                            <span className="font-extrabold text-xl tracking-tight text-slate-900">Auto Insight</span>
                         </div>
-                        <nav className="hidden md:flex items-center space-x-2">
+                        <nav className="hidden md:flex items-center space-x-1">
                             {finalNavItems.map(item => (
                                 <NavItem 
                                     key={item.view}
@@ -92,11 +94,12 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                     </div>
 
                     {/* Right side: Upgrade, User Menu, and Mobile Menu Button */}
-                    <div className="flex items-center space-x-2 sm:space-x-4">
+                    <div className="flex items-center space-x-3 sm:space-x-4">
                         <button
                             onClick={onUpgrade}
-                            className="hidden md:inline-block px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
+                            className="hidden md:inline-flex items-center justify-center px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-lg shadow-md hover:from-indigo-500 hover:to-violet-500 transition-all transform hover:scale-105"
                         >
+                            <SparklesIcon className="w-4 h-4 mr-2" />
                             升级专业版
                         </button>
 
@@ -104,21 +107,25 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                             <button
                                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                                 onBlur={() => setTimeout(() => setIsUserMenuOpen(false), 200)}
-                                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100"
+                                className="flex items-center space-x-2 p-1.5 rounded-full hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200"
                             >
-                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200">
                                     {user.username.charAt(0).toUpperCase()}
                                 </div>
-                                <span className="hidden sm:inline text-sm font-medium text-gray-700">{user.username}</span>
-                                <ChevronDownIcon className="w-4 h-4 text-gray-500" />
+                                <span className="hidden sm:inline text-sm font-medium text-slate-700 px-1">{user.username}</span>
+                                <ChevronDownIcon className="hidden sm:block w-4 h-4 text-slate-400" />
                             </button>
 
                             {isUserMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border py-1 animate-in fade-in-0 zoom-in-95">
-                                    <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">个人资料</a>
-                                    <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">设置</a>
-                                    <div className="border-t my-1"></div>
-                                    <a href="#" onClick={handleLogout} className="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">退出登录</a>
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 animate-in fade-in-0 zoom-in-95 origin-top-right">
+                                    <div className="px-4 py-2 border-b border-slate-50">
+                                        <p className="text-xs text-slate-500">登录账号</p>
+                                        <p className="text-sm font-medium text-slate-900 truncate">{user.email}</p>
+                                    </div>
+                                    <a href="#" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">个人资料</a>
+                                    <a href="#" className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">设置</a>
+                                    <div className="border-t border-slate-50 my-1"></div>
+                                    <a href="#" onClick={handleLogout} className="block px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">退出登录</a>
                                 </div>
                             )}
                         </div>
@@ -126,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                         <div className="md:hidden flex items-center">
                             <button
                                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-800 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                                className="inline-flex items-center justify-center p-2 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
                                 aria-controls="mobile-menu"
                                 aria-expanded={isMobileMenuOpen}
                             >
@@ -144,8 +151,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                <div className="md:hidden" id="mobile-menu">
-                    <nav className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <div className="md:hidden bg-white border-t border-slate-200" id="mobile-menu">
+                    <nav className="px-4 pt-2 pb-4 space-y-1">
                          {finalNavItems.map(item => (
                             <button
                                 key={item.view}
@@ -153,26 +160,27 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                     onNavigate(item.view);
                                     setIsMobileMenuOpen(false);
                                 }}
-                                className={`flex items-center w-full space-x-3 px-3 py-2.5 rounded-lg text-base font-medium ${
+                                className={`flex items-center w-full space-x-3 px-3 py-3 rounded-lg text-base font-medium transition-colors ${
                                     currentView === item.view
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'text-gray-700 hover:bg-gray-100'
+                                        ? 'bg-indigo-50 text-indigo-700'
+                                        : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                                 aria-current={currentView === item.view ? 'page' : undefined}
                             >
-                                <item.icon className="w-5 h-5" />
+                                <item.icon className={`w-5 h-5 ${currentView === item.view ? 'text-indigo-600' : 'text-slate-400'}`} />
                                 <span>{item.label}</span>
                             </button>
                         ))}
                     </nav>
-                    <div className="pt-4 pb-3 border-t border-gray-200 px-4">
+                    <div className="p-4 border-t border-slate-100 bg-slate-50">
                          <button
                             onClick={() => {
                                 onUpgrade();
                                 setIsMobileMenuOpen(false);
                             }}
-                            className="w-full px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors"
+                            className="w-full flex items-center justify-center px-4 py-3 text-base font-bold text-white bg-indigo-600 rounded-xl shadow-sm hover:bg-indigo-700 transition-colors"
                         >
+                            <SparklesIcon className="w-5 h-5 mr-2" />
                             升级专业版
                         </button>
                     </div>

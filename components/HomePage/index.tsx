@@ -19,10 +19,10 @@ const BackgroundBlobs: React.FC = () => (
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
         </div>
         
-        {/* Animated Blobs */}
-        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob"></div>
+        {/* Animated Blobs - Updated colors for Indigo theme */}
+        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob"></div>
         <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-4000"></div>
+        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-4000"></div>
         
         <style>{`
             @keyframes blob {
@@ -123,12 +123,12 @@ const DataProcessingVisual: React.FC = () => {
                     <defs>
                         <linearGradient id="flow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
                             <stop offset="0%" stopColor="#60a5fa" stopOpacity="0" />
-                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
+                            <stop offset="50%" stopColor="#4f46e5" stopOpacity="0.6" />
                             <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                         </linearGradient>
                         <linearGradient id="flow-gradient-vertical" x1="0%" y1="0%" x2="0%" y2="100%">
                             <stop offset="0%" stopColor="#60a5fa" stopOpacity="0" />
-                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
+                            <stop offset="50%" stopColor="#4f46e5" stopOpacity="0.6" />
                             <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                         </linearGradient>
                         <filter id="glow-line-strong">
@@ -170,7 +170,7 @@ const DataProcessingVisual: React.FC = () => {
             {/* Left: Raw Data */}
             <div className="w-full md:w-[300px] h-40 md:h-full relative z-10">
                 <div className="absolute -top-8 left-0 w-full text-center md:text-left">
-                    <span className="text-[10px] font-bold text-blue-400/80 uppercase tracking-[0.2em] animate-pulse">Raw Data Stream</span>
+                    <span className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-[0.2em] animate-pulse">Raw Data Stream</span>
                 </div>
                 <div className="h-full w-full overflow-hidden mask-gradient-vertical">
                     <div className="animate-scroll-up space-y-4 p-2 w-full">
@@ -189,12 +189,12 @@ const DataProcessingVisual: React.FC = () => {
             {/* Center: AI Core */}
             <div className="flex-shrink-0 relative flex items-center justify-center z-20">
                 <div className="relative w-40 h-40 md:w-56 md:h-56 flex items-center justify-center">
-                    <div className="absolute inset-0 border border-blue-100/50 rounded-full animate-ping-slow"></div>
-                    <div className="absolute inset-4 border border-blue-200 rounded-full animate-spin-slow-reverse"></div>
-                    <div className="absolute inset-8 border-2 border-dashed border-blue-300 rounded-full animate-spin-medium"></div>
-                    <div className="absolute inset-0 bg-blue-500/10 rounded-full filter blur-3xl animate-pulse"></div>
-                    <div className="relative z-30 w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl shadow-[0_0_40px_rgba(59,130,246,0.4)] flex items-center justify-center border border-blue-50 transform rotate-45">
-                        <span className="transform -rotate-45 text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-indigo-600 font-black text-2xl md:text-3xl font-mono">AI</span>
+                    <div className="absolute inset-0 border border-indigo-100/50 rounded-full animate-ping-slow"></div>
+                    <div className="absolute inset-4 border border-indigo-200 rounded-full animate-spin-slow-reverse"></div>
+                    <div className="absolute inset-8 border-2 border-dashed border-indigo-300 rounded-full animate-spin-medium"></div>
+                    <div className="absolute inset-0 bg-indigo-500/10 rounded-full filter blur-3xl animate-pulse"></div>
+                    <div className="relative z-30 w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl shadow-[0_0_40px_rgba(79,70,229,0.4)] flex items-center justify-center border border-indigo-50 transform rotate-45">
+                        <span className="transform -rotate-45 text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 to-purple-600 font-black text-2xl md:text-3xl font-mono">AI</span>
                     </div>
                 </div>
             </div>
@@ -202,7 +202,7 @@ const DataProcessingVisual: React.FC = () => {
             {/* Right: Insights */}
             <div className="w-full md:w-[300px] h-48 md:h-full relative z-10">
                 <div className="absolute -top-8 left-0 w-full text-center md:text-right">
-                    <span className="text-[10px] font-bold text-green-500/80 uppercase tracking-[0.2em] animate-pulse">Actionable Insights</span>
+                    <span className="text-[10px] font-bold text-emerald-500/80 uppercase tracking-[0.2em] animate-pulse">Actionable Insights</span>
                 </div>
                 <div className="h-full w-full overflow-hidden mask-gradient-vertical">
                     <div className="animate-scroll-up space-y-4 p-2 w-full">
@@ -212,10 +212,10 @@ const DataProcessingVisual: React.FC = () => {
                                     {item.type}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-slate-800 truncate leading-tight mb-1 group-hover:text-blue-600">{item.title}</div>
+                                    <div className="text-xs font-bold text-slate-800 truncate leading-tight mb-1 group-hover:text-indigo-600">{item.title}</div>
                                     <div className="text-[10px] text-slate-500 truncate">{item.desc}</div>
                                 </div>
-                                <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
+                                <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity text-indigo-500">
                                     <DownloadIcon className="w-4 h-4" />
                                 </div>
                             </div>
@@ -255,9 +255,9 @@ const MockCockpit = () => (
         <div className="flex-1 p-4 flex gap-4">
             {/* Sidebar */}
             <div className="w-16 flex flex-col gap-3">
-                <div className="w-full h-16 bg-blue-50 rounded-lg border border-blue-100 flex flex-col items-center justify-center gap-1">
-                    <div className="w-6 h-6 rounded-full bg-blue-200"></div>
-                    <div className="w-8 h-1 bg-blue-200 rounded"></div>
+                <div className="w-full h-16 bg-indigo-50 rounded-lg border border-indigo-100 flex flex-col items-center justify-center gap-1">
+                    <div className="w-6 h-6 rounded-full bg-indigo-200"></div>
+                    <div className="w-8 h-1 bg-indigo-200 rounded"></div>
                 </div>
                 <div className="w-full h-8 bg-gray-50 rounded-lg"></div>
                 <div className="w-full h-8 bg-gray-50 rounded-lg"></div>
@@ -265,10 +265,10 @@ const MockCockpit = () => (
             {/* Main */}
             <div className="flex-1 flex flex-col gap-3">
                 <div className="flex gap-3 h-20">
-                    <div className="flex-1 bg-indigo-50 rounded-lg border border-indigo-100 p-3 relative overflow-hidden">
-                        <div className="w-4 h-4 bg-indigo-200 rounded-full mb-2"></div>
-                        <div className="w-16 h-4 bg-indigo-200 rounded mb-1"></div>
-                        <div className="absolute right-2 bottom-2 w-12 h-12 bg-indigo-200/50 rounded-full blur-xl"></div>
+                    <div className="flex-1 bg-blue-50 rounded-lg border border-blue-100 p-3 relative overflow-hidden">
+                        <div className="w-4 h-4 bg-blue-200 rounded-full mb-2"></div>
+                        <div className="w-16 h-4 bg-blue-200 rounded mb-1"></div>
+                        <div className="absolute right-2 bottom-2 w-12 h-12 bg-blue-200/50 rounded-full blur-xl"></div>
                     </div>
                     <div className="flex-1 bg-purple-50 rounded-lg border border-purple-100 p-3">
                         <div className="w-4 h-4 bg-purple-200 rounded-full mb-2"></div>
@@ -276,16 +276,16 @@ const MockCockpit = () => (
                     </div>
                 </div>
                 <div className="flex-1 bg-gray-50 rounded-lg border border-gray-100 p-3 flex items-end justify-between gap-2">
-                    <div className="w-full bg-blue-300 rounded-t-sm h-[40%]"></div>
-                    <div className="w-full bg-blue-400 rounded-t-sm h-[70%]"></div>
-                    <div className="w-full bg-blue-500 rounded-t-sm h-[50%]"></div>
-                    <div className="w-full bg-blue-600 rounded-t-sm h-[90%]"></div>
-                    <div className="w-full bg-blue-300 rounded-t-sm h-[60%]"></div>
+                    <div className="w-full bg-indigo-300 rounded-t-sm h-[40%]"></div>
+                    <div className="w-full bg-indigo-400 rounded-t-sm h-[70%]"></div>
+                    <div className="w-full bg-indigo-500 rounded-t-sm h-[50%]"></div>
+                    <div className="w-full bg-indigo-600 rounded-t-sm h-[90%]"></div>
+                    <div className="w-full bg-indigo-300 rounded-t-sm h-[60%]"></div>
                 </div>
             </div>
         </div>
         {/* Radar Overlay */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border border-blue-500/10 rounded-full animate-ping opacity-20 pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border border-indigo-500/10 rounded-full animate-ping opacity-20 pointer-events-none"></div>
     </div>
 );
 
@@ -303,11 +303,11 @@ const MockCompetitiveness = () => (
         </div>
         {/* Right Model */}
         <div className="flex-1 p-4 bg-white">
-            <div className="w-16 h-16 bg-blue-100 rounded-lg mb-4 mx-auto border border-blue-200"></div>
-            <div className="w-24 h-4 bg-blue-200 rounded mx-auto mb-6"></div>
+            <div className="w-16 h-16 bg-indigo-100 rounded-lg mb-4 mx-auto border border-indigo-200"></div>
+            <div className="w-24 h-4 bg-indigo-200 rounded mx-auto mb-6"></div>
             <div className="space-y-3">
                 <div className="flex justify-between"><div className="w-8 h-2 bg-gray-200 rounded"></div><div className="w-14 h-2 bg-green-400 rounded"></div></div>
-                <div className="flex justify-between"><div className="w-10 h-2 bg-gray-200 rounded"></div><div className="w-20 h-2 bg-blue-400 rounded"></div></div>
+                <div className="flex justify-between"><div className="w-10 h-2 bg-gray-200 rounded"></div><div className="w-20 h-2 bg-indigo-400 rounded"></div></div>
                 <div className="flex justify-between"><div className="w-6 h-2 bg-gray-200 rounded"></div><div className="w-12 h-2 bg-gray-200 rounded"></div></div>
             </div>
         </div>
@@ -325,7 +325,7 @@ const MockCompetitiveness = () => (
 const MockDeepDive = () => (
     <div className="relative h-64 w-full bg-gray-50 rounded-xl border border-gray-200 shadow-xl overflow-hidden flex items-center justify-center">
         {/* Background Flow */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-100/50 via-transparent to-transparent opacity-50"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-100/50 via-transparent to-transparent opacity-50"></div>
         
         {/* Left: PDF */}
         <div className="w-20 h-28 bg-white border border-gray-300 rounded shadow-sm flex flex-col items-center justify-center gap-2 absolute left-10 transform -rotate-6 transition-transform hover:rotate-0 hover:scale-110 z-10">
@@ -335,17 +335,17 @@ const MockDeepDive = () => (
         </div>
 
         {/* Middle: Processing Beam */}
-        <div className="w-32 h-1 bg-gradient-to-r from-gray-300 via-blue-500 to-gray-300 relative">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/50 z-20">
+        <div className="w-32 h-1 bg-gradient-to-r from-gray-300 via-indigo-500 to-gray-300 relative">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/50 z-20">
                 <SparklesIcon className="w-4 h-4 text-white" />
             </div>
         </div>
 
         {/* Right: Web/HTML */}
-        <div className="w-24 h-36 bg-white border border-blue-200 rounded-lg shadow-md flex flex-col overflow-hidden absolute right-10 transform rotate-6 transition-transform hover:rotate-0 hover:scale-110 z-10">
-            <div className="h-4 bg-blue-500 w-full"></div>
+        <div className="w-24 h-36 bg-white border border-indigo-200 rounded-lg shadow-md flex flex-col overflow-hidden absolute right-10 transform rotate-6 transition-transform hover:rotate-0 hover:scale-110 z-10">
+            <div className="h-4 bg-indigo-500 w-full"></div>
             <div className="p-2 space-y-2">
-                <div className="w-full h-12 bg-blue-50 rounded mb-1"></div>
+                <div className="w-full h-12 bg-indigo-50 rounded mb-1"></div>
                 <div className="w-full h-2 bg-gray-100 rounded"></div>
                 <div className="w-2/3 h-2 bg-gray-100 rounded"></div>
                 <div className="w-full h-2 bg-gray-100 rounded"></div>
@@ -481,7 +481,7 @@ const ScrollReveal: React.FC<{ children: React.ReactNode; delay?: number }> = ({
 // --- 主页面组件 ---
 export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
     return (
-        <div className="relative min-h-screen w-full bg-slate-50 text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
+        <div className="relative min-h-screen w-full bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 overflow-hidden">
             
             {/* --- 全局背景 --- */}
             <BackgroundBlobs />
@@ -491,12 +491,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                 <HeroParticleConvergence />
                 <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
                     <ScrollReveal>
-                        <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-blue-100 bg-white/80 backdrop-blur-sm px-4 py-1.5 shadow-sm ring-1 ring-blue-50">
+                        <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-indigo-100 bg-white/80 backdrop-blur-sm px-4 py-1.5 shadow-sm ring-1 ring-indigo-50">
                             <span className="flex h-2 w-2 mr-2 relative">
-                                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
+                                <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
                             </span>
-                            <span className="text-[10px] sm:text-xs font-bold text-blue-700 tracking-wide uppercase">VANTAGE AI • INTELLIGENCE AUTOMATION</span>
+                            <span className="text-[10px] sm:text-xs font-bold text-indigo-700 tracking-wide uppercase">AUTO INSIGHT • INTELLIGENCE AUTOMATION</span>
                         </div>
                     </ScrollReveal>
 
@@ -504,7 +504,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                         <h1 className="mx-auto max-w-5xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl leading-[1.1] drop-shadow-sm">
                             全域情报自动精炼，
                             <br className="hidden sm:block" />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600">
                                 AI 实时交付决策研报
                             </span>
                         </h1>
@@ -513,9 +513,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                     <ScrollReveal delay={200}>
                         <p className="mx-auto mt-6 max-w-3xl text-base sm:text-lg text-slate-600 leading-relaxed px-4 font-medium">
                             <strong className="text-slate-900 font-bold">专为汽车行业打造。</strong> 覆盖 
-                            <span className="inline-block mx-1 text-blue-700 font-bold bg-white/50 px-1.5 rounded border border-blue-100 shadow-sm text-sm">前沿技术趋势</span>、
-                            <span className="inline-block mx-1 text-blue-700 font-bold bg-white/50 px-1.5 rounded border border-blue-100 shadow-sm text-sm">竞品动态追踪</span> 与 
-                            <span className="inline-block mx-1 text-blue-700 font-bold bg-white/50 px-1.5 rounded border border-blue-100 shadow-sm text-sm">市场舆情监控</span>。
+                            <span className="inline-block mx-1 text-indigo-700 font-bold bg-white/50 px-1.5 rounded border border-indigo-100 shadow-sm text-sm">前沿技术趋势</span>、
+                            <span className="inline-block mx-1 text-indigo-700 font-bold bg-white/50 px-1.5 rounded border border-indigo-100 shadow-sm text-sm">竞品动态追踪</span> 与 
+                            <span className="inline-block mx-1 text-indigo-700 font-bold bg-white/50 px-1.5 rounded border border-indigo-100 shadow-sm text-sm">市场舆情监控</span>。
                             <br className="hidden sm:inline"/>
                             告别繁琐的人工搜集，AI 为您完成从 <strong>全网感知、数据清洗到结构化报告</strong> 的最后一公里。
                         </p>
@@ -527,7 +527,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
 
                     <ScrollReveal delay={400}>
                         <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row px-4">
-                            <button onClick={onEnter} className="w-full sm:w-auto group relative inline-flex h-12 sm:h-14 items-center justify-center overflow-hidden rounded-full bg-slate-900 px-8 sm:px-10 font-medium text-white shadow-xl shadow-slate-900/20 transition-all duration-300 hover:bg-blue-600 hover:scale-105 hover:shadow-blue-600/30 focus:outline-none">
+                            <button onClick={onEnter} className="w-full sm:w-auto group relative inline-flex h-12 sm:h-14 items-center justify-center overflow-hidden rounded-full bg-slate-900 px-8 sm:px-10 font-medium text-white shadow-xl shadow-slate-900/20 transition-all duration-300 hover:bg-indigo-600 hover:scale-105 hover:shadow-indigo-600/30 focus:outline-none">
                                 <span className="mr-2 text-base sm:text-lg">进入工作台</span>
                                 <ArrowRightIcon className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                             </button>
@@ -609,7 +609,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             <footer className="bg-white py-12 text-center border-t border-slate-200 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-4 text-slate-400">
                     <LogoIcon className="w-6 h-6 text-slate-400"/>
-                    <span className="font-bold text-lg text-slate-500">Vantage AI</span>
+                    <span className="font-bold text-lg text-slate-500">Auto Insight</span>
                 </div>
                 <p className="text-sm text-slate-400">
                     &copy; 2024 Automotive Intelligence Platform. All rights reserved.

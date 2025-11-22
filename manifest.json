@@ -1,11 +1,11 @@
 {
-  "name": "Vantage AI - 汽车行业情报平台",
-  "short_name": "Vantage AI",
-  "description": "一个AI驱动的、垂直于汽车行业的情报即服务（IaaS）平台。它能够主动感知、深度分析并生成决策依据，为用户提供实时信息追踪、项目式专题研究、自动化事件解读及AI问答式快速报告等核心能力。",
+  "name": "Auto Insight - 智能汽车情报平台",
+  "short_name": "Auto Insight",
+  "description": "一个AI驱动的、垂直于汽车行业的情报即服务（IaaS）平台。它能够主动感知、深度分析并生成决策依据。",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f3f4f6",
-  "theme_color": "#2563eb",
+  "theme_color": "#4f46e5",
   "icons": [
     {
       "src": "/logo.svg",

@@ -1,4 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <path d="M12 .5C5.648.5.5 5.648.5 12s5.148 11.5 11.5 11.5 11.5-5.148 11.5-11.5S18.352.5 12 .5zM12 21.3c-5.12 0-9.3-4.18-9.3-9.3s4.18-9.3 9.3-9.3 9.3 4.18 9.3 9.3-4.18 9.3-9.3 9.3z" />
-  <path d="M12 6.9c-2.81 0-5.1 2.29-5.1 5.1s2.29 5.1 5.1 5.1 5.1-2.29 5.1-5.1-2.29-5.1-5.1-5.1zm0 8.5c-1.87 0-3.4-1.53-3.4-3.4s1.53-3.4 3.4-3.4 3.4 1.53 3.4 3.4-1.53 3.4-3.4 3.4z" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <defs>
+    <linearGradient id="ai-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4338ca" /> <!-- Indigo 700 -->
+      <stop offset="50%" stop-color="#4f46e5" /> <!-- Indigo 600 -->
+      <stop offset="100%" stop-color="#7c3aed" /> <!-- Violet 600 -->
+    </linearGradient>
+  </defs>
+  <!-- The 'A' Frame (Auto/Structure) -->
+  <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="url(#ai-gradient)" />
+  <!-- The 'I' Beam (Insight/Core) -->
+  <path d="M12 12L10 22H14L12 12Z" fill="#818cf8" fill-opacity="0.9" />
+  <!-- Optional: A subtle glow filter could be added here, but kept clean for vector usage -->
 </svg>

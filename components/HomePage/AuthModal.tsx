@@ -64,58 +64,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
     };
     
     return (
-        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in-0">
-            <div className="bg-white rounded-2xl w-full max-w-md relative shadow-xl transform transition-all animate-in zoom-in-95">
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition-colors" disabled={isLoading}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
+            <div className="bg-white rounded-2xl w-full max-w-md relative shadow-2xl transform transition-all animate-in zoom-in-95 overflow-hidden">
+                <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors z-10" disabled={isLoading}>
                     <CloseIcon className="w-6 h-6" />
                 </button>
 
                 <div className="p-8">
-                    <div className="flex justify-center items-center gap-2 mb-6">
-                        <LogoIcon className="w-8 h-8 text-blue-600"/>
-                        <span className="font-bold text-xl text-gray-800">Vantage AI</span>
+                    <div className="flex flex-col items-center justify-center gap-3 mb-8">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center">
+                            <LogoIcon className="w-10 h-10 text-indigo-600"/>
+                        </div>
+                        <span className="font-extrabold text-2xl text-slate-900 tracking-tight">Auto Insight</span>
+                        <p className="text-slate-500 text-sm">AI 驱动的汽车行业情报平台</p>
                     </div>
 
-                    <div className="flex border-b mb-6">
-                        <button onClick={() => setMode('login')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${mode === 'login' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                    <div className="flex border-b border-slate-200 mb-6">
+                        <button onClick={() => setMode('login')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${mode === 'login' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                             登录
                         </button>
-                        <button onClick={() => setMode('register')} className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${mode === 'register' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+                        <button onClick={() => setMode('register')} className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${mode === 'register' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                             注册
                         </button>
                     </div>
 
-                    {error && <div className="mb-4 text-sm text-center text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+                    {error && <div className="mb-4 text-sm text-center text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">{error}</div>}
 
                     {mode === 'login' ? (
                         <form onSubmit={handleLogin} className="space-y-4">
                              <div>
-                                <label className="text-sm font-medium text-gray-700">邮箱</label>
-                                <input type="email" name="email" value={loginForm.email} onChange={handleLoginChange} required className="mt-1 w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <label className="text-sm font-bold text-slate-700">邮箱</label>
+                                <input type="email" name="email" value={loginForm.email} onChange={handleLoginChange} required className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700">密码</label>
-                                <input type="password" name="password" value={loginForm.password} onChange={handleLoginChange} required className="mt-1 w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <label className="text-sm font-bold text-slate-700">密码</label>
+                                <input type="password" name="password" value={loginForm.password} onChange={handleLoginChange} required className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
                             </div>
-                            <button type="submit" disabled={isLoading} className="w-full py-3 mt-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center">
+                            <button type="submit" disabled={isLoading} className="w-full py-3.5 mt-4 bg-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center transition-all transform active:scale-[0.98]">
                                 {isLoading ? <Spinner /> : '登录'}
                             </button>
                         </form>
                     ) : (
                          <form onSubmit={handleRegister} className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium text-gray-700">用户名</label>
-                                <input type="text" name="username" value={registerForm.username} onChange={handleRegisterChange} required className="mt-1 w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <label className="text-sm font-bold text-slate-700">用户名</label>
+                                <input type="text" name="username" value={registerForm.username} onChange={handleRegisterChange} required className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700">邮箱</label>
-                                <input type="email" name="email" value={registerForm.email} onChange={handleRegisterChange} required className="mt-1 w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <label className="text-sm font-bold text-slate-700">邮箱</label>
+                                <input type="email" name="email" value={registerForm.email} onChange={handleRegisterChange} required className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700">密码</label>
-                                <input type="password" name="password" value={registerForm.password} onChange={handleRegisterChange} required className="mt-1 w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                <label className="text-sm font-bold text-slate-700">密码</label>
+                                <input type="password" name="password" value={registerForm.password} onChange={handleRegisterChange} required className="mt-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" />
                             </div>
-                            <button type="submit" disabled={isLoading} className="w-full py-3 mt-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center">
+                            <button type="submit" disabled={isLoading} className="w-full py-3.5 mt-4 bg-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 disabled:bg-indigo-300 flex items-center justify-center transition-all transform active:scale-[0.98]">
                                 {isLoading ? <Spinner /> : '创建账户'}
                             </button>
                         </form>
