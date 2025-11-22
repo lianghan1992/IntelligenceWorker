@@ -77,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                     <div className="flex items-center space-x-8">
                         <div className="flex items-center space-x-2 text-blue-600 cursor-pointer" onClick={() => onNavigate('dashboard')}>
                             <LogoIcon className="w-8 h-8"/>
-                            <span className="font-bold text-lg text-gray-800">情报平台</span>
+                            <span className="font-bold text-lg text-gray-800">Vantage AI</span>
                         </div>
                         <nav className="hidden md:flex items-center space-x-2">
                             {finalNavItems.map(item => (

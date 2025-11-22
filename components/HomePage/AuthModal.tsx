@@ -73,7 +73,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
                 <div className="p-8">
                     <div className="flex justify-center items-center gap-2 mb-6">
                         <LogoIcon className="w-8 h-8 text-blue-600"/>
-                        <span className="font-bold text-xl text-gray-800">情报平台</span>
+                        <span className="font-bold text-xl text-gray-800">Vantage AI</span>
                     </div>
 
                     <div className="flex border-b mb-6">
