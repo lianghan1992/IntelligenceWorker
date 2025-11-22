@@ -131,12 +131,12 @@ export const IndustryEvents: React.FC = () => {
         // and we render the full categorized list below for comprehensive browsing.
         
         return (
-            <div className="space-y-10 pb-20">
+            <div className="space-y-6 md:space-y-10 pb-20">
                 {/* 1. Immersive Hero Area */}
                 <HeroSection tasks={tasks} onViewReport={handleTaskCardClick} />
 
                 {/* 2. Standard Grid Areas */}
-                <div className="px-2 space-y-12">
+                <div className="px-4 md:px-2 space-y-8 md:space-y-12">
                     {/* Show "Future" if not in Hero (e.g. next week) */}
                     <TaskSection 
                         title="后续日程" 
@@ -159,7 +159,7 @@ export const IndustryEvents: React.FC = () => {
 
     return (
         <>
-            <div className="p-6 min-h-full flex flex-col relative bg-gray-50">
+            <div className="md:p-6 p-0 min-h-full flex flex-col relative bg-gray-50">
                 {renderContent()}
             </div>
             {selectedEvent && (

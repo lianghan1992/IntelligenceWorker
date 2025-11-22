@@ -77,8 +77,8 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     
     return (
         <div className="h-full flex flex-col bg-white">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-gray-100 bg-white flex-shrink-0">
+            {/* Header - Hidden on mobile because the parent container provides a mobile-specific header */}
+            <div className="hidden md:block px-6 py-5 border-b border-gray-100 bg-white flex-shrink-0">
                 <h3 className="font-extrabold text-gray-900 text-xl tracking-tight">{title}</h3>
                 <p className="text-xs text-gray-500 mt-1">已为您聚合 {totalItems} 条最新情报</p>
             </div>

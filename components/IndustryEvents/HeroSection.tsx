@@ -159,7 +159,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
     return (
         <div 
-            className="relative w-full overflow-hidden rounded-3xl bg-gray-900 shadow-2xl mb-10 group h-[500px] lg:h-[550px]"
+            className="relative w-full overflow-hidden md:rounded-3xl bg-gray-900 shadow-2xl mb-6 md:mb-10 group h-[450px] md:h-[500px] lg:h-[550px]"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -187,24 +187,24 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                 <>
                     <button 
                         onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                        className="absolute left-4 lg:left-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110"
+                        className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-30 p-2 md:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110 hidden md:flex"
                     >
-                        <ChevronLeftIcon className="w-8 h-8" />
+                        <ChevronLeftIcon className="w-6 h-6 md:w-8 md:h-8" />
                     </button>
 
                     <button 
                         onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                        className="absolute right-4 lg:right-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110"
+                        className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-30 p-2 md:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110 hidden md:flex"
                     >
-                        <ChevronRightIcon className="w-8 h-8" />
+                        <ChevronRightIcon className="w-6 h-6 md:w-8 md:h-8" />
                     </button>
                 </>
             )}
 
             {/* 3. Content Container */}
-            <div className="relative z-10 flex flex-col justify-end h-full p-8 sm:p-12 lg:p-16 max-w-5xl pointer-events-none">
+            <div className="relative z-10 flex flex-col justify-end h-full p-6 sm:p-12 lg:p-16 max-w-5xl pointer-events-none">
                 {/* Content wrapper with pointer-events-auto to allow clicking buttons */}
-                <div className="space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
+                <div className="space-y-4 md:space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
                     {/* Metadata Row */}
                     <div className="flex items-center flex-wrap gap-3 mb-2">
                         <StatusBadge status={activeTask.status} />
@@ -215,43 +215,44 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
                     </div>
                     
                     {/* Title */}
-                    <h1 className="text-3xl sm:text-4xl lg:text-6xl font-extrabold text-white leading-tight drop-shadow-2xl line-clamp-2">
+                    <h1 className="text-2xl sm:text-4xl lg:text-6xl font-extrabold text-white leading-tight drop-shadow-2xl line-clamp-2">
                         {activeTask.task_name}
                     </h1>
                     
                     {/* Time & Countdown */}
-                    <div className="flex flex-wrap items-center text-gray-200 text-sm sm:text-base gap-6 font-medium">
+                    <div className="flex flex-wrap items-center text-gray-200 text-sm sm:text-base gap-4 md:gap-6 font-medium">
                         <span className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg backdrop-blur-sm border border-white/5">
-                            <CalendarIcon className="w-5 h-5 text-gray-300" />
+                            <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
                             {new Date(activeTask.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {['listening', 'scheduled', 'pending'].includes(activeTask.status.toLowerCase()) && (
-                            <span className="text-yellow-400 font-bold flex items-center gap-2 border-l border-white/20 pl-6">
-                                <ClockIcon className="w-5 h-5"/>
+                            <span className="text-yellow-400 font-bold flex items-center gap-2 border-l border-white/20 pl-4 md:pl-6">
+                                <ClockIcon className="w-4 h-4 md:w-5 md:h-5"/>
                                 <Countdown targetDate={activeTask.start_time} />
                             </span>
                         )}
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-4 pt-4">
+                    <div className="flex flex-wrap items-center gap-3 md:gap-4 pt-4">
                         <a 
                             href={activeTask.live_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xl shadow-blue-600/30 transition-all transform hover:scale-105 hover:shadow-2xl"
+                            className="flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xl shadow-blue-600/30 transition-all transform hover:scale-105 hover:shadow-2xl"
                         >
-                            <PlayIcon className="w-6 h-6" />
-                            <span className="text-lg">{['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看回放/详情'}</span>
+                            <PlayIcon className="w-5 h-6" />
+                            <span className="text-base md:text-lg">{['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看回放/详情'}</span>
                         </a>
                         
                         {['finished', 'completed'].includes(activeTask.status.toLowerCase()) && (
                             <button 
                                 onClick={() => onViewReport(activeTask)}
-                                className="flex items-center gap-2 px-6 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-xl font-semibold border border-white/20 transition-all hover:border-white/40"
+                                className="flex items-center gap-2 px-4 md:px-6 py-3 md:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-xl font-semibold border border-white/20 transition-all hover:border-white/40"
                             >
                                 <DocumentTextIcon className="w-5 h-5" />
-                                阅读AI报告
+                                <span className="hidden sm:inline">阅读AI报告</span>
+                                <span className="sm:hidden">AI报告</span>
                             </button>
                         )}
                     </div>
@@ -260,12 +261,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
             {/* 4. Pagination Indicators (Dots) */}
             {hasMultiple && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                     {playlist.map((_, idx) => (
                         <button 
                             key={idx}
                             onClick={(e) => { e.stopPropagation(); setActiveIndex(idx); }}
-                            className={`w-2 h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-8' : 'bg-white/40 hover:bg-white/80'}`}
+                            className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-6 md:w-8' : 'bg-white/40 hover:bg-white/80'}`}
                         />
                     ))}
                 </div>

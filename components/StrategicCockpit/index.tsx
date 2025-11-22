@@ -7,6 +7,7 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered } from '../../api';
+import { ChevronLeftIcon } from '../icons';
 
 // --- Main Component ---
 export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
@@ -20,6 +21,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         value: '*', 
         label: '所有情报' 
     });
+
+    // Mobile View State: 'nav' (Compass) -> 'list' (IntelligenceCenter) -> 'detail' (EvidenceTrail)
+    const [mobileView, setMobileView] = useState<'nav' | 'list' | 'detail'>('nav');
 
     // Data fetching and display state
     const [articles, setArticles] = useState<InfoItem[]>([]);
@@ -56,9 +60,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 similarity_threshold: 0.35,
             };
             
-            // Only add source filter if we have subscriptions and query is general
-            // For semantic search (when query != *), we might want to broaden the scope or keep it strict.
-            // Let's keep it consistent with the dashboard logic.
             if (subscribedSourceNames.length > 0) {
                 params.source_names = subscribedSourceNames;
             }
@@ -70,11 +71,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             setArticles(response.items || []);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
-            // Auto-select first article only on initial load if none selected
-            if (page === 1 && response.items && response.items.length > 0 && !selectedArticle) {
-                setSelectedArticle(response.items[0]);
-            } else if (page === 1 && (!response.items || response.items.length === 0)) {
-                setSelectedArticle(null);
+            // On desktop: Auto-select first article only on initial load if none selected
+            // On mobile: Do NOT auto-select, as it would trigger a view transition unexpectedly
+            if (window.innerWidth >= 768) {
+                if (page === 1 && response.items && response.items.length > 0 && !selectedArticle) {
+                    setSelectedArticle(response.items[0]);
+                } else if (page === 1 && (!response.items || response.items.length === 0)) {
+                    setSelectedArticle(null);
+                }
             }
 
         } catch (err: any) {
@@ -82,7 +86,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         } finally {
             setIsLoading(false);
         }
-    }, [subscribedSourceNames]); // Removed selectedArticle from dependencies to prevent infinite loop
+    }, [subscribedSourceNames]); 
 
 
     useEffect(() => {
@@ -94,8 +98,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
-        // Reset selection on category change to avoid stale data display
         setSelectedArticle(null); 
+        setMobileView('list'); // Navigate to list on mobile
+    };
+
+    const handleArticleSelect = (article: InfoItem) => {
+        setSelectedArticle(article);
+        setMobileView('detail'); // Navigate to detail on mobile
     };
 
     const handlePageChange = (newPage: number) => {
@@ -125,13 +134,30 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         fetchPois(); 
     };
 
+    // Mobile Navigation Handlers
+    const backToNav = () => setMobileView('nav');
+    const backToList = () => {
+        setMobileView('list');
+        // Don't clear selectedArticle immediately to avoid flicker if user goes back forward? 
+        // Actually, clearing it might be safer for state consistency, but let's keep it for cache.
+    };
+
     return (
-        <div className="h-full flex flex-col bg-[#f8f9fa] p-4 gap-4 overflow-hidden">
-            <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
-                {/* Left Sidebar - Navigation Drawer (Material 3) */}
-                <aside className="w-72 flex-shrink-0 flex flex-col bg-white rounded-[24px] py-6 shadow-sm border border-gray-100/50">
+        <div className="h-full flex flex-col bg-[#f8f9fa] md:p-4 overflow-hidden relative">
+            <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative md:static">
+                {/* Left Sidebar - Navigation Drawer */}
+                <aside className={`
+                    w-full md:w-72 flex-shrink-0 flex flex-col bg-white md:rounded-[24px] py-6 shadow-sm border-r md:border border-gray-100/50
+                    absolute inset-0 z-10 md:static md:z-auto transition-transform duration-300 ease-out
+                    ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+                `}>
+                    {/* Mobile Header for Nav */}
+                    <div className="md:hidden px-6 mb-4 flex items-center justify-between">
+                         <h2 className="text-lg font-bold text-gray-800">AI情报洞察</h2>
+                    </div>
+
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                        <h2 className="text-sm font-bold text-gray-500 px-4 mb-4 uppercase tracking-wider">情报罗盘</h2>
+                        <h2 className="text-sm font-bold text-gray-500 px-4 mb-4 uppercase tracking-wider hidden md:block">情报罗盘</h2>
                         <StrategicCompass
                             categories={lookCategories}
                             selectedLook={selectedLook}
@@ -153,16 +179,26 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                 </aside>
 
                 {/* Main Content Area */}
-                 <main className="flex-1 flex gap-4 min-w-0">
+                 <main className="flex-1 flex gap-4 min-w-0 relative w-full md:static">
                     {/* List View */}
-                    <div className="w-[420px] flex-shrink-0 flex flex-col bg-white rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden">
+                    <div className={`
+                        w-full md:w-[420px] flex-shrink-0 flex flex-col bg-white md:rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden
+                        absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
+                        ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+                    `}>
+                        {/* Mobile Header for List */}
+                        <div className="md:hidden px-4 py-3 border-b border-gray-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
+                            <button onClick={backToNav} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-gray-600"/></button>
+                            <h3 className="font-bold text-gray-800 truncate flex-1">{activeQuery.label}</h3>
+                        </div>
+
                         <IntelligenceCenter
                             title={activeQuery.label}
                             articles={articles}
                             isLoading={isLoading}
                             error={error}
                             selectedArticleId={selectedArticle?.id || null}
-                            onSelectArticle={setSelectedArticle}
+                            onSelectArticle={handleArticleSelect}
                             currentPage={pagination.page}
                             totalPages={pagination.totalPages}
                             totalItems={pagination.total}
@@ -171,7 +207,16 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     </div>
                     
                     {/* Detail View */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-white rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden">
+                    <div className={`
+                        flex-1 flex flex-col min-w-0 bg-white md:rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden
+                        absolute inset-0 z-30 md:static md:z-auto transition-transform duration-300 ease-out
+                        ${mobileView === 'detail' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+                    `}>
+                         {/* Mobile Header for Detail */}
+                         <div className="md:hidden px-4 py-3 border-b border-gray-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
+                            <button onClick={backToList} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-gray-600"/></button>
+                            <h3 className="font-bold text-gray-800">情报详情</h3>
+                        </div>
                          <EvidenceTrail
                             selectedArticle={selectedArticle}
                         />
