@@ -1,14 +1,32 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <defs>
-    <linearGradient id="ai-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+    <linearGradient id="ai-gradient" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#4338ca" /> <!-- Indigo 700 -->
       <stop offset="50%" stop-color="#4f46e5" /> <!-- Indigo 600 -->
       <stop offset="100%" stop-color="#7c3aed" /> <!-- Violet 600 -->
     </linearGradient>
   </defs>
-  <!-- The 'A' Frame (Auto/Structure) -->
-  <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="url(#ai-gradient)" />
-  <!-- The 'I' Beam (Insight/Core) -->
-  <path d="M12 12L10 22H14L12 12Z" fill="#818cf8" fill-opacity="0.9" />
-  <!-- Optional: A subtle glow filter could be added here, but kept clean for vector usage -->
+  
+  <!-- 
+    iOS PWA ICON BACKGROUND 
+    iOS does not support transparent icons (it turns them black).
+    We add a white background here so it looks like a proper App Icon.
+  -->
+  <rect width="24" height="24" fill="#ffffff" />
+
+  <!-- Solid Base (Foundation) -->
+  <path d="M7.5 15 L5.5 20 H9.5 L10.5 17.5 H13.5 L14.5 20 H18.5 L16.5 15 Z" fill="url(#ai-gradient)" />
+  
+  <!-- Transition Zone (Dense Particles) -->
+  <circle cx="10" cy="13.5" r="0.9" fill="url(#ai-gradient)" />
+  <circle cx="14" cy="13.5" r="0.9" fill="url(#ai-gradient)" />
+  
+  <!-- Core Processing (Medium Particles) -->
+  <circle cx="11" cy="10.5" r="0.7" fill="url(#ai-gradient)" />
+  <circle cx="13" cy="10.5" r="0.7" fill="url(#ai-gradient)" />
+  
+  <!-- The Insight (Singularity Tip) -->
+  <circle cx="12" cy="7" r="0.6" fill="url(#ai-gradient)" />
+
+  <!-- The "I" Beam (Negative Space Visual Guide - Optional, implied by structure) -->
 </svg>
