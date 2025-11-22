@@ -1,7 +1,13 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+
+import React, { useMemo, useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { getLivestreamTaskById } from '../../api';
-import { CloseIcon, ServerIcon, FilmIcon, BrainIcon, CheckCircleIcon, ChevronDownIcon, ViewGridIcon, DocumentTextIcon, MicrophoneIcon, PhotoIcon } from '../icons';
+import { 
+    CloseIcon, ServerIcon, FilmIcon, BrainIcon,
+    ViewGridIcon, DocumentTextIcon, MicrophoneIcon, 
+    PhotoIcon, PlayIcon, RefreshIcon, StopIcon,
+    CheckIcon
+} from '../icons';
 
 interface StatsDisplayModalProps {
     task: LivestreamTask;
@@ -9,136 +15,155 @@ interface StatsDisplayModalProps {
     onReanalyze: (task: LivestreamTask, action: 'reprocess' | 'resummarize') => void;
 }
 
-// --- Sub-components for the new design ---
-
-const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
+// --- 1. 动态数字组件 (数码管风格) ---
+const AnimatedNumber: React.FC<{ value: number, colorClass?: string }> = ({ value, colorClass = "text-cyan-400" }) => {
     const [displayValue, setDisplayValue] = useState(value);
-    const prevValueRef = useRef(value);
-
+    
     useEffect(() => {
-        const startValue = prevValueRef.current;
-        const endValue = value;
-        prevValueRef.current = value;
-
-        if (startValue === endValue) {
-            setDisplayValue(endValue);
-            return;
-        }
-
-        let startTime: number | null = null;
+        let startTimestamp: number | null = null;
+        const startValue = displayValue;
         const duration = 800;
 
-        const animate = (timestamp: number) => {
-            if (!startTime) startTime = timestamp;
-            const progress = timestamp - startTime;
-            const percentage = Math.min(progress / duration, 1);
-            const easedPercentage = 1 - Math.pow(1 - percentage, 4); // easeOutQuart
-            const currentValue = Math.round(startValue + (endValue - startValue) * easedPercentage);
-            setDisplayValue(currentValue);
+        const step = (timestamp: number) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 3); 
+            
+            const current = Math.floor(startValue + (value - startValue) * ease);
+            setDisplayValue(current);
 
-            if (progress < duration) {
-                requestAnimationFrame(animate);
-            } else {
-                 setDisplayValue(endValue);
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
             }
         };
-        requestAnimationFrame(animate);
+        
+        if (value !== displayValue) {
+            window.requestAnimationFrame(step);
+        }
     }, [value]);
 
-    return <span>{displayValue.toLocaleString()}</span>;
+    return <span className={`font-mono tracking-wider ${colorClass}`}>{displayValue.toLocaleString()}</span>;
 };
 
-const PipelineNode: React.FC<{ 
-    icon: React.ReactNode; 
-    label: string; 
-    children: React.ReactNode; 
-    isFlowing?: boolean;
-    activeColor?: string; // 'blue' | 'green' | 'purple' etc.
-}> = ({ icon, label, children, isFlowing, activeColor = 'blue' }) => {
-    const colorClasses = {
-        blue: { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-600', ping: 'bg-blue-400/50' },
-        purple: { bg: 'bg-purple-100 border-purple-300', text: 'text-purple-600', ping: 'bg-purple-400/50' },
-        green: { bg: 'bg-green-100 border-green-300', text: 'text-green-600', ping: 'bg-green-400/50' },
-        indigo: { bg: 'bg-indigo-100 border-indigo-300', text: 'text-indigo-600', ping: 'bg-indigo-400/50' },
-    }[activeColor] || { bg: 'bg-blue-100 border-blue-300', text: 'text-blue-600', ping: 'bg-blue-400/50' };
+// --- 2. 赛博连接线 (SVG 粒子流) ---
+const CyberConnector: React.FC<{
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    active?: boolean;
+    color?: string; // Hex color
+}> = ({ startX, startY, endX, endY, active, color = '#22d3ee' }) => {
+    const controlPointOffset = Math.abs(endX - startX) / 2;
+    const pathData = `M ${startX} ${startY} C ${startX + controlPointOffset} ${startY}, ${endX - controlPointOffset} ${endY}, ${endX} ${endY}`;
 
     return (
-        <div className="flex flex-col items-center text-center w-full sm:w-auto z-10">
-            <div className={`relative p-3 rounded-full border-2 transition-colors duration-300 ${isFlowing ? colorClasses.bg : 'bg-slate-100 border-slate-200'}`}>
-                {isFlowing && <div className={`absolute inset-0 rounded-full animate-ping ${colorClasses.ping}`}></div>}
-                <div className={`relative transition-colors duration-300 ${isFlowing ? colorClasses.text : 'text-slate-600'}`}>{icon}</div>
-            </div>
-            <p className="mt-2 text-xs font-semibold text-slate-700 whitespace-nowrap">{label}</p>
-            <div className="mt-1 text-lg sm:text-xl font-bold text-slate-900">{children}</div>
-        </div>
+        <g>
+            {/* 底层暗线 */}
+            <path d={pathData} fill="none" stroke="#1e293b" strokeWidth="4" strokeLinecap="round" />
+            
+            {/* 激活时的流光效果 */}
+            {active && (
+                <>
+                    {/* 辉光背景 */}
+                    <path 
+                        d={pathData} 
+                        fill="none" 
+                        stroke={color} 
+                        strokeWidth="4" 
+                        strokeOpacity="0.15"
+                    />
+                    {/* 高亮流动粒子 */}
+                    <path 
+                        d={pathData} 
+                        fill="none" 
+                        stroke={color} 
+                        strokeWidth="2" 
+                        strokeDasharray="10 10" 
+                        className="animate-cyber-flow"
+                        strokeLinecap="round"
+                        filter="url(#glow)"
+                    />
+                </>
+            )}
+        </g>
     );
 };
 
-const PipelineConnector: React.FC<{ isFlowing?: boolean; vertical?: boolean }> = ({ isFlowing, vertical }) => {
-    if (vertical) {
-        return (
-            <div className="relative w-px h-8 bg-slate-200 my-1">
-                {isFlowing && (
-                    <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute w-full h-full bg-gradient-to-b from-transparent via-blue-400 to-transparent animate-flow-vertical"></div>
+// --- 3. 硬核节点组件 ---
+const TechNode: React.FC<{
+    x: number;
+    y: number;
+    icon: React.ReactNode;
+    label: string;
+    value?: number | string;
+    subLabel?: string;
+    active?: boolean;
+    statusColor: 'cyan' | 'purple' | 'blue' | 'emerald' | 'red';
+}> = ({ x, y, icon, label, value, subLabel, active, statusColor }) => {
+    
+    const styles = {
+        cyan: { text: 'text-cyan-400', border: 'border-cyan-500/50', shadow: 'shadow-cyan-500/20', bg: 'bg-cyan-950/30' },
+        purple: { text: 'text-purple-400', border: 'border-purple-500/50', shadow: 'shadow-purple-500/20', bg: 'bg-purple-950/30' },
+        blue: { text: 'text-blue-400', border: 'border-blue-500/50', shadow: 'shadow-blue-500/20', bg: 'bg-blue-950/30' },
+        emerald: { text: 'text-emerald-400', border: 'border-emerald-500/50', shadow: 'shadow-emerald-500/20', bg: 'bg-emerald-950/30' },
+        red: { text: 'text-red-400', border: 'border-red-500/50', shadow: 'shadow-red-500/20', bg: 'bg-red-950/30' },
+    }[statusColor];
+
+    return (
+        <div 
+            className="absolute transform -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center"
+            style={{ left: x, top: y }}
+        >
+            {/* Node Hexagon/Box */}
+            <div className={`
+                relative w-20 h-20 flex items-center justify-center transition-all duration-500
+                ${active ? `scale-110` : 'scale-100 opacity-60 grayscale'}
+            `}>
+                {/* Outer Ring Animation */}
+                {active && (
+                    <div className={`absolute inset-0 rounded-xl border ${styles.border} animate-ping opacity-20`}></div>
+                )}
+                
+                {/* Main Box */}
+                <div className={`
+                    relative w-full h-full bg-[#0f172a] border-2 rounded-xl flex items-center justify-center backdrop-blur-md shadow-2xl overflow-hidden
+                    ${active ? `${styles.border} ${styles.shadow}` : 'border-slate-700'}
+                `}>
+                    {/* Scanline Effect */}
+                    {active && <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent animate-scan-fast h-full w-full pointer-events-none"></div>}
+                    
+                    <div className={`w-8 h-8 ${active ? styles.text : 'text-slate-500'}`}>
+                        {icon}
+                    </div>
+
+                    {/* Tech Corners */}
+                    <div className={`absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 ${active ? styles.border : 'border-slate-600'}`}></div>
+                    <div className={`absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 ${active ? styles.border : 'border-slate-600'}`}></div>
+                    <div className={`absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 ${active ? styles.border : 'border-slate-600'}`}></div>
+                    <div className={`absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 ${active ? styles.border : 'border-slate-600'}`}></div>
+                </div>
+
+                {/* Connection Dot Points */}
+                <div className={`absolute -right-1.5 w-1.5 h-1.5 bg-[#0f172a] border ${active ? styles.border : 'border-slate-600'}`}></div>
+                <div className={`absolute -left-1.5 w-1.5 h-1.5 bg-[#0f172a] border ${active ? styles.border : 'border-slate-600'}`}></div>
+            </div>
+
+            {/* Label & Value */}
+            <div className={`mt-3 text-center transition-all duration-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-50 translate-y-1'}`}>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{label}</div>
+                {value !== undefined && (
+                    <div className={`text-xl font-mono font-bold leading-none drop-shadow-md ${active ? styles.text : 'text-slate-500'}`}>
+                        {typeof value === 'number' ? <AnimatedNumber value={value} colorClass={active ? styles.text : 'text-slate-500'} /> : value}
                     </div>
                 )}
-            </div>
-        );
-    }
-    return (
-        <div className="relative h-px flex-1 min-w-[20px] bg-slate-200 mx-2">
-            {isFlowing && (
-                <div className="absolute inset-0 overflow-hidden">
-                    <div className="absolute h-full w-full bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-flow-horizontal"></div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-
-const StatItem: React.FC<{ label: string; children: React.ReactNode; fullWidth?: boolean }> = ({ label, children, fullWidth }) => (
-    <div className={`py-2 ${fullWidth ? 'col-span-1 sm:col-span-2' : ''}`}>
-        <dt className="text-xs font-medium text-slate-500">{label}</dt>
-        <dd className="mt-0.5 text-slate-900">{children}</dd>
-    </div>
-);
-
-const CopyableText: React.FC<{ text: string }> = ({ text }) => {
-    const [copied, setCopied] = useState(false);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-    return (
-        <div className="flex items-center justify-between bg-slate-100 p-1.5 rounded-md border border-slate-200">
-            <span className="text-xs font-mono truncate text-gray-700">{text}</span>
-            <button onClick={handleCopy} className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex-shrink-0 ml-2 px-2 py-0.5 rounded bg-white hover:bg-blue-50 transition-colors">
-                {copied ? '已复制' : '复制'}
-            </button>
-        </div>
-    );
-};
-
-const ProgressBar: React.FC<{ value: number; max: number; label: string; colorClass?: string }> = ({ value, max, label, colorClass = 'bg-blue-600' }) => {
-    const percentage = max > 0 ? Math.min((value / max) * 100, 100) : 0;
-    return (
-        <div>
-            <div className="flex justify-between mb-1 text-xs">
-                <span className="font-medium text-slate-600">{label}</span>
-                <span className="text-slate-500 font-mono">{value.toLocaleString()} / {max.toLocaleString()}</span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                <div className={`h-2 rounded-full transition-all duration-500 ease-out ${colorClass}`} style={{ width: `${percentage}%` }}></div>
+                {subLabel && <div className="text-[9px] text-slate-600 mt-1 font-mono">{subLabel}</div>}
             </div>
         </div>
     );
 };
 
-
-// --- Main Modal Component ---
+// --- Main Modal ---
 export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onClose, onReanalyze }) => {
     const [liveTask, setLiveTask] = useState<LivestreamTask>(task);
 
@@ -150,10 +175,7 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
     }, [liveTask.stats_json]);
     
     const getStat = (key: string, defaultValue: any = 0) => stats?.[key] ?? defaultValue;
-
-    const taskStatus = useMemo(() => liveTask.status.toLowerCase(), [liveTask.status]);
-    const isTaskActive = useMemo(() => !['finished', 'failed'].includes(taskStatus), [taskStatus]);
-    const isReanalyzable = useMemo(() => ['finished', 'failed'].includes(taskStatus), [taskStatus]);
+    const isTaskActive = !['finished', 'failed', 'completed'].includes(liveTask.status.toLowerCase());
 
     useEffect(() => {
         if (!task.id || !isTaskActive) return;
@@ -162,202 +184,187 @@ export const StatsDisplayModal: React.FC<StatsDisplayModalProps> = ({ task, onCl
                 const updatedTask = await getLivestreamTaskById(task.id);
                 setLiveTask(updatedTask);
             } catch (error) { console.error("Failed to fetch live stats:", error); }
-        }, 3000);
+        }, 2000);
         return () => clearInterval(interval);
     }, [task.id, isTaskActive]);
 
-    const statusBadge = useMemo(() => {
-        if (taskStatus === 'recording' || taskStatus === 'downloading') return { text: '采集中', className: 'bg-red-100 text-red-800' };
-        if (taskStatus === 'listening' || taskStatus === 'scheduled') return { text: '待命中', className: 'bg-blue-100 text-blue-800' };
-        if (taskStatus === 'stopping') return { text: '停止中', className: 'bg-yellow-100 text-yellow-800' };
-        if (taskStatus === 'processing') return { text: 'AI总结中', className: 'bg-indigo-100 text-indigo-800' };
-        if (taskStatus === 'finished') return { text: '已结束', className: 'bg-green-100 text-green-800' };
-        if (taskStatus === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
-        return { text: taskStatus, className: 'bg-gray-100 text-gray-800' };
-    }, [taskStatus]);
-
-    // Determine flow states for parallel branches
-    const totalSegments = getStat('recorded_segments_total');
-    const segmentsExtracted = getStat('segments_extracted_done');
-    const uniqueImages = getStat('unique_images_total');
+    // --- Data Extraction ---
+    const ffmpegRunning = getStat('ffmpeg_running', false);
+    const segmentsTotal = getStat('recorded_segments_total', 0);
+    const segmentsExtracted = getStat('segments_extracted_done', 0);
     
-    const isSegmentationFlowing = isTaskActive;
-    const isProcessingFlowing = isTaskActive && totalSegments > 0;
-    const isVisualFlowing = isTaskActive && segmentsExtracted > 0;
-    const isAudioFlowing = isTaskActive && segmentsExtracted > 0; // Starts when extraction is done for a segment
+    // Visual
+    const uniqueImages = getStat('unique_images_total', 0);
+    const visualAiSuccess = getStat('ai_recognized_success_total', 0);
+    
+    // Audio
+    const asrSubmitted = getStat('asr_submitted_total', 0);
+    const asrSuccess = getStat('asr_success_total', 0);
+    const asrFinished = getStat('asr_finished', false);
+    const asrFailed = getStat('asr_failed_total', 0);
+
+    // Logic
+    const isIngesting = ffmpegRunning || isTaskActive;
+    const isSegmenting = segmentsTotal > 0;
+    const isVisualActive = segmentsExtracted > 0;
+    const isAudioActive = segmentsExtracted > 0 || asrSubmitted > 0; // Audio usually starts after extraction
+    const isMergeReady = visualAiSuccess > 0 || asrSuccess > 0;
+    const isFinished = ['finished', 'completed'].includes(liveTask.status.toLowerCase());
+
+    // --- Node Coordinates (Fixed for symmetry) ---
+    const coords = {
+        start: { x: 80, y: 250 },
+        segment: { x: 250, y: 250 },
+        visual1: { x: 450, y: 120 },
+        visual2: { x: 650, y: 120 },
+        audio1: { x: 450, y: 380 },
+        audio2: { x: 650, y: 380 },
+        merge: { x: 850, y: 250 },
+    };
 
     return (
-        <>
-            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
-                <div className="bg-slate-50 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95">
-                    <header className="p-5 border-b bg-white/70 backdrop-blur-sm flex justify-between items-center flex-shrink-0 rounded-t-2xl">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="p-2 bg-teal-100 text-teal-600 rounded-lg flex-shrink-0">
-                                <ServerIcon className="w-6 h-6" />
-                            </div>
-                            <div className="overflow-hidden">
-                                <h2 className="text-lg font-bold text-gray-900 truncate" title={task.task_name}>{task.task_name}</h2>
-                                <p className="text-sm text-gray-500">任务实时驾驶舱</p>
-                            </div>
-                        </div>
-                        <button onClick={onClose} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                            <CloseIcon className="w-5 h-5" />
-                        </button>
-                    </header>
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-in fade-in duration-300">
+            {/* Global Styles for Animation */}
+            <style>{`
+                @keyframes cyber-flow {
+                    to { stroke-dashoffset: -20; }
+                }
+                .animate-cyber-flow {
+                    animation: cyber-flow 0.8s linear infinite;
+                }
+                @keyframes scan-fast {
+                    0% { transform: translateY(-100%); }
+                    100% { transform: translateY(100%); }
+                }
+                .animate-scan-fast {
+                    animation: scan-fast 2s linear infinite;
+                }
+            `}</style>
 
-                    <main className="flex-1 overflow-y-auto p-6 space-y-6">
-                        {/* Core Info Section */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
-                                <div className="pr-4 space-y-2 pb-2 sm:pb-0">
-                                    <StatItem label="车企"><span className="font-semibold">{liveTask.company}</span></StatItem>
-                                    <StatItem label="任务状态">
-                                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span>
-                                    </StatItem>
-                                    <StatItem label="直播源"><CopyableText text={liveTask.live_url} /></StatItem>
-                                </div>
-                                <div className="pl-4 space-y-2 pt-2 sm:pt-0">
-                                    <StatItem label="开始时间">{new Date(liveTask.start_time).toLocaleString('zh-CN')}</StatItem>
-                                    <StatItem label="FFmpeg进程">
-                                        <span className={`font-semibold ${getStat('ffmpeg_running', false) ? 'text-green-600' : 'text-gray-600'}`}>{getStat('ffmpeg_running', false) ? '运行中' : '已停止'}</span>
-                                    </StatItem>
-                                    <StatItem label="实际拉流地址">{getStat('resolved_stream_url', '') ? <CopyableText text={getStat('resolved_stream_url', '')} /> : 'N/A'}</StatItem>
-                                </div>
-                            </dl>
-                        </div>
+            {/* SVG Filter Definitions */}
+            <svg width="0" height="0">
+                <defs>
+                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                </defs>
+            </svg>
 
-                        {/* Enhanced Pipeline Section */}
+            <div className="w-full max-w-6xl bg-[#020617] rounded-2xl border border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden h-[85vh] relative">
+                {/* Background Grid */}
+                <div className="absolute inset-0 opacity-20 pointer-events-none" 
+                     style={{ backgroundImage: 'linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)', backgroundSize: '40px 40px' }}>
+                </div>
+
+                {/* Header */}
+                <div className="px-8 py-5 border-b border-slate-800 bg-[#020617]/80 backdrop-blur flex justify-between items-center z-30">
+                    <div>
+                        <div className="flex items-center gap-3 mb-1">
+                            <span className="w-2 h-8 bg-blue-500 rounded-sm"></span>
+                            <h2 className="text-2xl font-bold text-white tracking-tight">{task.task_name}</h2>
+                            <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 text-slate-400 text-xs rounded font-mono uppercase">
+                                Task ID: {task.id.slice(0, 8)}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm ml-5">
+                            <span className="text-slate-400">{task.company}</span>
+                            <span className="text-slate-600">|</span>
+                            <span className="text-blue-400 font-mono">{stats.status_text || liveTask.status}</span>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
+                        <CloseIcon className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Main Visualization Area */}
+                <div className="flex-1 relative overflow-hidden">
+                    <div className="absolute inset-0 flex items-center justify-center min-w-[1000px] transform scale-95">
+                        
+                        {/* 1. Layer: SVG Connectors */}
+                        <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+                            {/* Ingest -> Segment */}
+                            <CyberConnector startX={coords.start.x + 40} startY={coords.start.y} endX={coords.segment.x - 40} endY={coords.segment.y} active={isIngesting} color="#3b82f6" />
+                            
+                            {/* Segment -> Visual Branch */}
+                            <CyberConnector startX={coords.segment.x + 40} startY={coords.segment.y} endX={coords.visual1.x - 40} endY={coords.visual1.y} active={isVisualActive} color="#06b6d4" />
+                            <CyberConnector startX={coords.visual1.x + 40} startY={coords.visual1.y} endX={coords.visual2.x - 40} endY={coords.visual2.y} active={uniqueImages > 0} color="#06b6d4" />
+                            
+                            {/* Segment -> Audio Branch */}
+                            <CyberConnector startX={coords.segment.x + 40} startY={coords.segment.y} endX={coords.audio1.x - 40} endY={coords.audio1.y} active={isAudioActive} color="#a855f7" />
+                            <CyberConnector startX={coords.audio1.x + 40} startY={coords.audio1.y} endX={coords.audio2.x - 40} endY={coords.audio2.y} active={asrSubmitted > 0} color="#a855f7" />
+
+                            {/* Merges */}
+                            <CyberConnector startX={coords.visual2.x + 40} startY={coords.visual2.y} endX={coords.merge.x - 40} endY={coords.merge.y} active={visualAiSuccess > 0} color="#06b6d4" />
+                            <CyberConnector startX={coords.audio2.x + 40} startY={coords.audio2.y} endX={coords.merge.x - 40} endY={coords.merge.y} active={asrSuccess > 0} color="#a855f7" />
+                        </svg>
+
+                        {/* 2. Layer: Nodes */}
+                        
+                        {/* Start */}
+                        <TechNode {...coords.start} icon={<PlayIcon className="w-8 h-8" />} label="信号接入" active={isIngesting} statusColor="blue" subLabel="Ingest" />
+                        
+                        {/* Segment */}
+                        <TechNode {...coords.segment} icon={<FilmIcon className="w-8 h-8" />} label="视频分段" value={segmentsTotal} active={isSegmenting} statusColor="blue" />
+
+                        {/* Visual Branch */}
+                        <div className="absolute left-[450px] top-[60px] transform -translate-x-1/2 text-cyan-500 font-mono text-xs tracking-[0.3em] opacity-70">VISUAL CORE</div>
+                        <TechNode {...coords.visual1} icon={<ViewGridIcon className="w-8 h-8" />} label="抽帧去重" value={uniqueImages} active={uniqueImages > 0} statusColor="cyan" />
+                        <TechNode {...coords.visual2} icon={<PhotoIcon className="w-8 h-8" />} label="视觉分析" value={visualAiSuccess} active={visualAiSuccess > 0} statusColor="cyan" />
+
+                        {/* Audio Branch */}
+                        <div className="absolute left-[450px] top-[450px] transform -translate-x-1/2 text-purple-500 font-mono text-xs tracking-[0.3em] opacity-70">AUDIO CORE</div>
+                        <TechNode {...coords.audio1} icon={<DocumentTextIcon className="w-8 h-8" />} label="音频提取" value={asrSubmitted} active={asrSubmitted > 0} statusColor="purple" />
+                        <TechNode {...coords.audio2} icon={<MicrophoneIcon className="w-8 h-8" />} label="语音转写" value={asrSuccess} active={asrSuccess > 0} statusColor="purple" subLabel={asrFailed > 0 ? `${asrFailed} Failed` : ''} />
+
+                        {/* Merge */}
+                        <TechNode {...coords.merge} icon={<BrainIcon className="w-9 h-9" />} label="智能总结" value={isFinished ? "已完成" : "等待中"} active={isFinished} statusColor="emerald" />
+
+                    </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="bg-slate-900/80 border-t border-slate-800 p-6 z-30 flex justify-between items-center">
+                    <div className="text-slate-500 text-xs font-mono flex gap-6">
                         <div>
-                            <h3 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
-                                <BrainIcon className="w-5 h-5 text-indigo-500" />
-                                并行处理流水线
-                            </h3>
-                            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                                
-                                {/* Phase 1: Linear Processing */}
-                                <div className="flex flex-col sm:flex-row items-center justify-center mb-6">
-                                    <PipelineNode label="视频分段" icon={<FilmIcon className="w-5 h-5"/>} isFlowing={isSegmentationFlowing} activeColor="blue">
-                                        <AnimatedNumber value={getStat('recorded_segments_total')} />
-                                    </PipelineNode>
-                                    <div className="w-full sm:w-16 flex justify-center items-center">
-                                        <PipelineConnector isFlowing={isSegmentationFlowing} />
-                                    </div>
-                                    <PipelineNode label="分段预处理" icon={<CheckCircleIcon className="w-5 h-5"/>} isFlowing={isProcessingFlowing} activeColor="blue">
-                                        <AnimatedNumber value={getStat('segments_extracted_done')} />
-                                    </PipelineNode>
-                                </div>
-
-                                {/* Branching Visuals */}
-                                <div className="relative hidden sm:block h-8 mb-4">
-                                    <div className={`absolute left-1/2 -translate-x-1/2 top-0 w-px h-full bg-slate-200`}></div>
-                                    <div className={`absolute left-[25%] right-[25%] top-full h-px bg-slate-200`}></div>
-                                    <div className={`absolute left-[25%] top-full h-8 w-px bg-slate-200`}></div>
-                                    <div className={`absolute right-[25%] top-full h-8 w-px bg-slate-200`}></div>
-                                    {/* Branching Animation */}
-                                    {isProcessingFlowing && (
-                                        <>
-                                            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-px h-full overflow-hidden"><div className="w-full h-full bg-blue-400 animate-flow-vertical"></div></div>
-                                            {/* Complex branching animation simplified: just showing active indicators in nodes below */}
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* Phase 2: Parallel Branches */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 sm:gap-4 relative">
-                                    
-                                    {/* Branch A: Visual Intelligence */}
-                                    <div className="relative p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 flex flex-col items-center">
-                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs font-bold text-indigo-500 tracking-wider border border-indigo-100 rounded-full">视觉识别通道</div>
-                                        
-                                        <div className="flex flex-col sm:flex-row items-center justify-around w-full mt-2">
-                                            <PipelineNode label="图像筛选" icon={<ViewGridIcon className="w-5 h-5"/>} isFlowing={isVisualFlowing} activeColor="indigo">
-                                                <AnimatedNumber value={getStat('unique_images_total')} />
-                                            </PipelineNode>
-                                            <div className="w-8 hidden sm:block"><PipelineConnector isFlowing={isVisualFlowing && uniqueImages > 0} /></div>
-                                            <div className="h-4 sm:hidden"><PipelineConnector isFlowing={isVisualFlowing && uniqueImages > 0} vertical /></div>
-                                            <PipelineNode label="AI 视觉分析" icon={<PhotoIcon className="w-5 h-5"/>} isFlowing={isVisualFlowing && uniqueImages > 0} activeColor="indigo">
-                                                <AnimatedNumber value={getStat('ai_recognized_success_total')} />
-                                            </PipelineNode>
-                                        </div>
-                                        
-                                        <div className="w-full mt-4 pt-3 border-t border-indigo-100">
-                                            <ProgressBar 
-                                                label="识别完成度" 
-                                                value={getStat('ai_recognized_success_total')} 
-                                                max={getStat('ai_recognized_total') || 1} 
-                                                colorClass="bg-indigo-500"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Branch B: Audio Intelligence */}
-                                    <div className="relative p-4 rounded-xl bg-green-50/50 border border-green-100 flex flex-col items-center">
-                                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-2 text-xs font-bold text-green-600 tracking-wider border border-green-100 rounded-full">语音识别通道</div>
-                                        
-                                        <div className="flex flex-col sm:flex-row items-center justify-around w-full mt-2">
-                                            <PipelineNode label="ASR 提交" icon={<DocumentTextIcon className="w-5 h-5"/>} isFlowing={isAudioFlowing} activeColor="green">
-                                                <AnimatedNumber value={getStat('asr_submitted_total')} />
-                                            </PipelineNode>
-                                            <div className="w-8 hidden sm:block"><PipelineConnector isFlowing={isAudioFlowing && getStat('asr_submitted_total') > 0} /></div>
-                                            <div className="h-4 sm:hidden"><PipelineConnector isFlowing={isAudioFlowing && getStat('asr_submitted_total') > 0} vertical /></div>
-                                            <PipelineNode label="ASR 成功" icon={<MicrophoneIcon className="w-5 h-5"/>} isFlowing={isAudioFlowing && getStat('asr_success_total') > 0} activeColor="green">
-                                                <AnimatedNumber value={getStat('asr_success_total')} />
-                                            </PipelineNode>
-                                        </div>
-
-                                        <div className="w-full mt-4 pt-3 border-t border-green-100">
-                                            <div className="flex justify-between items-end mb-1">
-                                                <ProgressBar 
-                                                    label="转写完成度" 
-                                                    value={getStat('asr_success_total')} 
-                                                    max={getStat('asr_submitted_total') || 1} 
-                                                    colorClass="bg-green-500"
-                                                />
-                                            </div>
-                                            {getStat('asr_failed_total') > 0 && (
-                                                <p className="text-[10px] text-red-500 mt-1 text-right">失败: {getStat('asr_failed_total')}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                </div>
-                            </div>
+                            <span className="text-slate-600 block mb-1">START TIME</span>
+                            <span className="text-slate-300">{new Date(liveTask.start_time).toLocaleString()}</span>
                         </div>
-                    </main>
+                        <div>
+                            <span className="text-slate-600 block mb-1">SOURCE URL</span>
+                            <span className="text-slate-300 max-w-[300px] block truncate" title={stats.resolved_stream_url || liveTask.live_url}>
+                                {stats.resolved_stream_url || liveTask.live_url}
+                            </span>
+                        </div>
+                    </div>
 
-                    <footer className="px-6 py-4 bg-white/70 backdrop-blur-sm border-t flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
-                        {isReanalyzable && (
+                    <div className="flex gap-4">
+                        {isFinished && (
                             <>
                                 <button 
                                     onClick={() => onReanalyze(liveTask, 'resummarize')}
-                                    className="px-4 py-2 text-sm font-semibold text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors"
+                                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-600 font-semibold text-sm transition-all flex items-center gap-2"
                                 >
-                                    重新总结
+                                    <RefreshIcon className="w-4 h-4" /> 重新总结
                                 </button>
                                 <button 
                                     onClick={() => onReanalyze(liveTask, 'reprocess')}
-                                    className="px-4 py-2 text-sm font-semibold text-indigo-700 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors"
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-lg shadow-blue-900/20 font-bold text-sm transition-all flex items-center gap-2"
                                 >
-                                    重新分析
+                                    <PlayIcon className="w-4 h-4" /> 重新分析
                                 </button>
                             </>
                         )}
-                        <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-100 transition-colors">
-                            关闭
-                        </button>
-                    </footer>
+                        {liveTask.status.toLowerCase() === 'recording' && (
+                             <div className="px-6 py-2.5 bg-red-500/10 text-red-500 border border-red-500/50 rounded-lg font-mono text-sm flex items-center gap-2 animate-pulse">
+                                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                LIVE RECORDING
+                             </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            <style>{`
-                @keyframes flow-vertical {
-                    from { transform: translateY(-100%); } to { transform: translateY(100%); }
-                }
-                @keyframes flow-horizontal {
-                    from { transform: translateX(-100%); } to { transform: translateX(100%); }
-                }
-                .animate-flow-vertical { animation: flow-vertical 2s ease-in-out infinite; }
-                .animate-flow-horizontal { animation: flow-horizontal 2s ease-in-out infinite; }
-            `}</style>
-        </>
+        </div>
     );
 };
