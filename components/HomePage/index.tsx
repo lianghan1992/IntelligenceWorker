@@ -326,26 +326,27 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
                             </span>
-                            <span className="text-xs font-bold text-blue-700 tracking-wide uppercase">Intelligence as a Service</span>
+                            <span className="text-xs font-bold text-blue-700 tracking-wide uppercase">AUTOMOTIVE INTELLIGENCE AUTOMATION</span>
                         </div>
                     </ScrollReveal>
 
                     {/* Main Headline */}
                     <ScrollReveal delay={100}>
                         <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-slate-900 sm:text-7xl leading-tight">
-                            您定义目标，
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mx-2">
-                                AI 交付结果
+                            全域情报自动精炼，
+                            <br className="hidden sm:block" />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                                AI 实时交付决策研报
                             </span>
                         </h1>
                     </ScrollReveal>
 
                     {/* Subhead */}
                     <ScrollReveal delay={200}>
-                        <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 leading-relaxed">
-                            告别繁琐的信息搜集与手动整理。
-                            <br className="hidden sm:block" />
-                            从海量数据到开箱即用的决策报告，我们为您省去中间的每一步。
+                        <p className="mx-auto mt-6 max-w-3xl text-lg text-slate-600 leading-relaxed">
+                            <strong className="text-slate-900 font-semibold">专为汽车行业打造。</strong> 覆盖 <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">前沿技术趋势</span>、<span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">竞品动态追踪</span> 与 <span className="text-blue-600 font-medium bg-blue-50 px-1 rounded">市场舆情监控</span>。
+                            <br/>
+                            告别繁琐的人工搜集，AI 为您完成从 <strong>全网感知、数据清洗到结构化报告</strong> 的最后一公里。
                         </p>
                     </ScrollReveal>
 
