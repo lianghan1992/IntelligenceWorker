@@ -504,7 +504,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                         <h1 className="mx-auto max-w-5xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl leading-[1.1] drop-shadow-sm">
                             全域情报自动精炼，
                             <br className="hidden sm:block" />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600">
                                 AI 实时交付决策研报
                             </span>
                         </h1>
@@ -609,7 +609,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             <footer className="bg-white py-12 text-center border-t border-slate-200 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-4 text-slate-400">
                     <LogoIcon className="w-6 h-6 text-slate-400"/>
-                    <span className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Auto Insight</span>
+                    <span className="font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600">Auto Insight</span>
                 </div>
                 <p className="text-sm text-slate-400">
                     &copy; 2024 Automotive Intelligence Platform. All rights reserved.

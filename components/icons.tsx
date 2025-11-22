@@ -63,21 +63,30 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <defs>
-      <linearGradient id="logo-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#4338ca" />
-        <stop offset="50%" stopColor="#4f46e5" />
-        <stop offset="100%" stopColor="#7c3aed" />
+      <linearGradient id="ai-gradient-icon" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#3730a3" />
+        <stop offset="40%" stopColor="#4f46e5" />
+        <stop offset="100%" stopColor="#8b5cf6" />
       </linearGradient>
     </defs>
-    {/* LiDAR Data Scan - The "Front" Elements */}
-    <path d="M8.5 3.5C9.5 2.5 10.8 2 12 2C13.2 2 14.5 2.5 15.5 3.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.8" />
-    <circle cx="12" cy="5" r="1" fill="#7c3aed" />
     
-    {/* The 'A' Frame - Shifted down to y=7 */}
-    <path d="M12 7L3 22H7.5L12 13L16.5 22H21L12 7Z" fill="url(#logo-gradient)" />
+    {/* Particle Tip (LiDAR) */}
+    <circle cx="12" cy="4" r="1.2" fill="url(#ai-gradient-icon)" />
     
-    {/* The 'I' Beam - Core */}
-    <path d="M12 15L11 22H13L12 15Z" fill="#a5b4fc" />
+    <circle cx="9.5" cy="8" r="1.1" fill="url(#ai-gradient-icon)" />
+    <circle cx="14.5" cy="8" r="1.1" fill="url(#ai-gradient-icon)" />
+    
+    <circle cx="7.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
+    <circle cx="10.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
+    <circle cx="13.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
+    <circle cx="16.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
+
+    {/* Solid Base */}
+    <path d="M5.5 14.5L3 22H9L10.5 14.5H5.5Z" fill="url(#ai-gradient-icon)" />
+    <path d="M18.5 14.5L21 22H15L13.5 14.5H18.5Z" fill="url(#ai-gradient-icon)" />
+    
+    {/* Subtle Bridge */}
+    <rect x="10" y="19" width="4" height="3" fill="url(#ai-gradient-icon)" rx="0.5" opacity="0.3" />
   </svg>
 );
 
@@ -283,7 +292,7 @@ export const DatabaseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
 
 export const ViewGridIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
     </Icon>
 );
 
