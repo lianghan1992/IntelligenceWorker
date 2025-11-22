@@ -15,14 +15,14 @@ interface HomePageProps {
 const BackgroundBlobs: React.FC = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
         {/* Noise Texture */}
-        <div className="absolute inset-0 z-0 opacity-[0.04] mix-blend-overlay" 
+        <div className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay" 
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
         </div>
         
         {/* Animated Blobs */}
-        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[100px] animate-blob"></div>
-        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/40 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob"></div>
+        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-4000"></div>
         
         <style>{`
             @keyframes blob {
@@ -48,7 +48,8 @@ const BackgroundBlobs: React.FC = () => (
 const HeroParticleConvergence: React.FC = () => {
     return (
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-            <svg className="w-full h-full opacity-80" preserveAspectRatio="xMidYMid slice">
+            {/* 使用固定的 viewBox 确保路径坐标准确 */}
+            <svg className="w-full h-full opacity-80" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice">
                 <defs>
                     <filter id="glow-strong" x="-50%" y="-50%" width="200%" height="200%">
                         <feGaussianBlur stdDeviation="3" result="blur" />
@@ -56,12 +57,12 @@ const HeroParticleConvergence: React.FC = () => {
                     </filter>
                 </defs>
                 
-                {/* 路径定义：从屏幕边缘汇聚到中心上方标题位置 (约 50% x, 35% y) */}
-                <path id="hero-p1" d="M 0,100 Q 300,200 50%,35%" fill="none" />
-                <path id="hero-p2" d="M 0,600 Q 300,400 50%,35%" fill="none" />
-                <path id="hero-p3" d="M 100%,100 Q calc(100% - 300px),200 50%,35%" fill="none" />
-                <path id="hero-p4" d="M 100%,600 Q calc(100% - 300px),400 50%,35%" fill="none" />
-                <path id="hero-p5" d="M 50%,0 Q 50%,200 50%,35%" fill="none" />
+                {/* 路径定义：从屏幕边缘汇聚到中心上方标题位置 (大约 x=720, y=300) */}
+                <path id="hero-p1" d="M 0,100 Q 360,200 720,300" fill="none" />
+                <path id="hero-p2" d="M 0,700 Q 360,500 720,300" fill="none" />
+                <path id="hero-p3" d="M 1440,100 Q 1080,200 720,300" fill="none" />
+                <path id="hero-p4" d="M 1440,700 Q 1080,500 720,300" fill="none" />
+                <path id="hero-p5" d="M 720,-50 Q 720,150 720,300" fill="none" />
 
                 {/* 粒子群 */}
                 <g filter="url(#glow-strong)">
@@ -73,13 +74,7 @@ const HeroParticleConvergence: React.FC = () => {
                         <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
                         <animate attributeName="r" values="2;5;0" dur="3s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="3" fill="#f87171" opacity="0.6">
-                        <animateMotion dur="3s" begin="1.5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
-                            <mpath href="#hero-p1"/>
-                        </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
-                    </circle>
-
+                    
                     {/* Blue Stream */}
                     <circle r="4" fill="#3b82f6">
                         <animateMotion dur="4s" begin="0.5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
@@ -104,7 +99,7 @@ const HeroParticleConvergence: React.FC = () => {
                         <animate attributeName="opacity" values="0;1;0" dur="3.5s" repeatCount="indefinite" />
                     </circle>
                     
-                    {/* Yellow/Orange Stream */}
+                    {/* Yellow Stream */}
                     <circle r="4" fill="#f59e0b">
                         <animateMotion dur="4.5s" begin="2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p5"/>
@@ -117,7 +112,7 @@ const HeroParticleConvergence: React.FC = () => {
     );
 };
 
-// --- 3. 视觉核心组件：AI 智能情报工厂 ---
+// --- 3. 视觉核心组件：AI 智能情报工厂 (开放式设计) ---
 const DataProcessingVisual: React.FC = () => {
     // Raw Data Items
     const rawData = [
@@ -128,7 +123,6 @@ const DataProcessingVisual: React.FC = () => {
         { icon: ChartIcon, text: "销量数据.xlsx", color: "text-green-600", bg: "bg-green-50", border: "border-green-100" },
         { icon: PhotoIcon, text: "新车谍照.jpg", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" },
     ];
-    // Duplicate for infinite scroll illusion
     const rawDataStream = [...rawData, ...rawData, ...rawData];
 
     // Deliverables
@@ -141,33 +135,30 @@ const DataProcessingVisual: React.FC = () => {
     const insightsStream = [...insights, ...insights, ...insights];
 
     return (
-        <div className="relative w-full max-w-6xl mx-auto mt-12 bg-white/60 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_20px_50px_rgb(0,0,0,0.1)] overflow-hidden flex flex-col md:flex-row h-[650px] md:h-[520px] ring-1 ring-white/80 z-20 group">
+        // 开放式布局，移除之前的白色背景框
+        <div className="relative w-full max-w-7xl mx-auto mt-16 flex flex-col md:flex-row h-[600px] md:h-[500px] z-20 group items-center justify-between gap-4 md:gap-12">
             
-            {/* Background Grid */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:24px_24px] opacity-50 pointer-events-none"></div>
-
             {/* 
                 ========================================
                 SVG DATA FLOW LAYER (Absolute Overlay) 
                 ========================================
-                This layer sits on top of the background but below the content text.
-                It draws lines FROM the Left Column TO the Center Core, and TO the Right Column.
+                层级 z-0，位于胶囊卡片 (z-10) 之下，但能够显示连线。
             */}
-            <div className="absolute inset-0 z-10 pointer-events-none w-full h-full">
+            <div className="absolute inset-0 z-0 pointer-events-none w-full h-full">
                 <svg className="w-full h-full overflow-visible">
                     <defs>
                         <linearGradient id="flow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.1" />
-                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.8" />
-                            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.1" />
+                            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0" />
+                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
+                            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                         </linearGradient>
                         <linearGradient id="flow-gradient-vertical" x1="0%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.1" />
-                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.8" />
-                            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.1" />
+                            <stop offset="0%" stopColor="#60a5fa" stopOpacity="0" />
+                            <stop offset="50%" stopColor="#3b82f6" stopOpacity="0.6" />
+                            <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                         </linearGradient>
-                        <filter id="glow-line">
-                            <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                        <filter id="glow-line-strong">
+                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
                             <feMerge>
                                 <feMergeNode in="coloredBlur"/>
                                 <feMergeNode in="SourceGraphic"/>
@@ -176,117 +167,104 @@ const DataProcessingVisual: React.FC = () => {
                     </defs>
 
                     {/* --- DESKTOP CONNECTIONS (Horizontal) --- */}
-                    {/* viewBox logic: 0..1200 width, 0..520 height. Center is 600, 260. Left Edge ~350. Right Edge ~850. */}
-                    <g className="hidden md:block" opacity="0.6">
-                        {/* Left -> Center Paths (Multiple entry points) */}
-                        {[80, 160, 240, 320, 400].map((y, i) => (
+                    {/* 
+                        桌面端路径：
+                        viewBox 基于 flex 容器尺寸。
+                        左侧胶囊区约宽 300px，中心 AI 区居中，右侧约宽 300px。
+                        假设容器宽 1280px (max-w-7xl)。
+                        左侧结束点 x~300，中心 x~640，右侧开始点 x~980。
+                    */}
+                    <g className="hidden md:block" opacity="0.8">
+                        {/* Left -> Center Paths */}
+                        {[100, 200, 300, 400].map((y, i) => (
                             <path 
                                 key={`in-${i}`}
-                                d={`M 330,${y} C 450,${y} 450,260 600,260`} 
+                                d={`M 300,${y} C 450,${y} 400,250 640,250`} 
                                 fill="none" 
                                 stroke="url(#flow-gradient)" 
                                 strokeWidth="1.5"
-                                strokeDasharray="6 6"
-                                filter="url(#glow-line)"
+                                strokeDasharray="4 4"
+                                filter="url(#glow-line-strong)"
                             >
-                                <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" repeatCount="indefinite" />
-                                <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
+                                <animate attributeName="stroke-dashoffset" from="16" to="0" dur="1.5s" repeatCount="indefinite" />
                             </path>
                         ))}
 
-                        {/* Center -> Right Paths (Multiple exit points) */}
-                        {[80, 160, 240, 320, 400].map((y, i) => (
+                        {/* Center -> Right Paths */}
+                        {[100, 200, 300, 400].map((y, i) => (
                             <path 
                                 key={`out-${i}`}
-                                d={`M 600,260 C 750,260 750,${y} 870,${y}`} 
+                                d={`M 640,250 C 880,250 830,${y} 980,${y}`} 
                                 fill="none" 
                                 stroke="url(#flow-gradient)" 
                                 strokeWidth="1.5"
-                                strokeDasharray="6 6"
-                                filter="url(#glow-line)"
+                                strokeDasharray="4 4"
+                                filter="url(#glow-line-strong)"
                             >
-                                <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="1s" repeatCount="indefinite" />
-                                <animate attributeName="opacity" values="0.2;0.8;0.2" dur={`${2 + i * 0.5}s`} repeatCount="indefinite" />
+                                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1.5s" repeatCount="indefinite" />
                             </path>
                         ))}
                         
-                        {/* Particles flowing */}
-                        <circle r="3" fill="#3b82f6">
-                            <animateMotion dur="2s" repeatCount="indefinite" path="M 330,160 C 450,160 450,260 600,260" />
+                        {/* Particles */}
+                        <circle r="3" fill="#60a5fa" filter="url(#glow-line-strong)">
+                            <animateMotion dur="2s" repeatCount="indefinite" path="M 300,200 C 450,200 400,250 640,250" />
                         </circle>
-                        <circle r="3" fill="#22d3ee">
-                            <animateMotion dur="2.5s" begin="0.5s" repeatCount="indefinite" path="M 330,320 C 450,320 450,260 600,260" />
-                        </circle>
-                        <circle r="3" fill="#10b981">
-                            <animateMotion dur="2s" repeatCount="indefinite" path="M 600,260 C 750,260 750,160 870,160" />
-                        </circle>
-                        <circle r="3" fill="#a855f7">
-                            <animateMotion dur="2.5s" begin="0.5s" repeatCount="indefinite" path="M 600,260 C 750,260 750,320 870,320" />
+                        <circle r="3" fill="#34d399" filter="url(#glow-line-strong)">
+                            <animateMotion dur="2s" begin="0.5s" repeatCount="indefinite" path="M 640,250 C 880,250 830,200 980,200" />
                         </circle>
                     </g>
 
                     {/* --- MOBILE CONNECTIONS (Vertical) --- */}
-                    {/* Mobile Height is ~650px. Input Top ~120. Center ~325. Output Bottom ~530. */}
-                    <g className="md:hidden" opacity="0.6">
-                        {/* Top -> Center */}
-                        {[20, 50, 80].map((offset, i) => (
-                            <path 
-                                key={`m-in-${i}`}
-                                d={`M ${100 + offset * 2},130 C ${100 + offset * 2},200 50%,250 50%,325`}
-                                fill="none"
-                                stroke="url(#flow-gradient-vertical)"
-                                strokeWidth="2"
-                                strokeDasharray="4 4"
-                            >
-                                <animate attributeName="stroke-dashoffset" from="16" to="0" dur="1s" repeatCount="indefinite" />
-                            </path>
-                        ))}
-
-                        {/* Center -> Bottom */}
-                        {[20, 50, 80].map((offset, i) => (
-                            <path 
-                                key={`m-out-${i}`}
-                                d={`M 50%,325 C 50%,400 ${100 + offset * 2},450 ${100 + offset * 2},530`}
-                                fill="none"
-                                stroke="url(#flow-gradient-vertical)"
-                                strokeWidth="2"
-                                strokeDasharray="4 4"
-                            >
-                                <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1s" repeatCount="indefinite" />
-                            </path>
+                    {/* 
+                       移动端路径：
+                       容器宽 ~350-400px。
+                       顶部胶囊区底部 y~150，中心 y~300，底部卡片区顶部 y~450。
+                    */}
+                    <g className="md:hidden" opacity="0.8">
+                        {[100, 200, 300].map((x, i) => (
+                            <React.Fragment key={i}>
+                                {/* Top -> Center */}
+                                <path 
+                                    d={`M ${x},150 C ${x},250 200,250 200,300`}
+                                    fill="none"
+                                    stroke="url(#flow-gradient-vertical)"
+                                    strokeWidth="2"
+                                    strokeDasharray="4 4"
+                                    filter="url(#glow-line-strong)"
+                                >
+                                    <animate attributeName="stroke-dashoffset" from="8" to="0" dur="1s" repeatCount="indefinite" />
+                                </path>
+                                {/* Center -> Bottom */}
+                                <path 
+                                    d={`M 200,300 C 200,350 ${x},350 ${x},450`}
+                                    fill="none"
+                                    stroke="url(#flow-gradient-vertical)"
+                                    strokeWidth="2"
+                                    strokeDasharray="4 4"
+                                    filter="url(#glow-line-strong)"
+                                >
+                                    <animate attributeName="stroke-dashoffset" from="0" to="-8" dur="1s" repeatCount="indefinite" />
+                                </path>
+                            </React.Fragment>
                         ))}
                     </g>
                 </svg>
             </div>
 
-            {/* --- Left/Top: Raw Data Stream --- */}
-            <div className="w-full md:w-[28%] h-32 md:h-full bg-slate-50/50 border-b md:border-b-0 md:border-r border-gray-200/50 relative z-20 flex flex-col">
-                <div className="absolute top-0 left-0 p-3 bg-white/80 backdrop-blur-sm z-30 shadow-sm border-b border-gray-100 w-full flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">RAW DATA STREAM</h3>
+            {/* --- Left: Raw Data Stream (Floating Pills) --- */}
+            <div className="w-full md:w-[300px] h-40 md:h-full relative z-10">
+                <div className="absolute -top-8 left-0 w-full text-center md:text-left">
+                    <span className="text-[10px] font-bold text-blue-400/80 uppercase tracking-[0.2em] animate-pulse">Raw Data Stream</span>
                 </div>
-                
-                {/* Desktop Vertical Scroll */}
-                <div className="hidden md:block flex-1 relative overflow-hidden mask-gradient-vertical">
-                    <div className="absolute inset-x-0 animate-scroll-up space-y-3 p-4 pt-16 w-full">
+                <div className="h-full w-full overflow-hidden mask-gradient-vertical">
+                    <div className="animate-scroll-up space-y-4 p-2 w-full">
                         {rawDataStream.map((item, i) => (
-                            <div key={i} className={`flex items-center gap-3 p-3 bg-white rounded-xl border ${item.border} shadow-sm transform transition-all hover:scale-102 hover:shadow-md`}>
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${item.bg} ${item.color}`}>
+                            <div 
+                                key={i} 
+                                className={`flex items-center gap-3 p-3 rounded-2xl backdrop-blur-md border bg-white/40 border-white/50 shadow-sm transform transition-all hover:scale-105 hover:bg-white/60 ${i % 2 === 0 ? 'md:mr-8' : 'md:ml-4'}`}
+                            >
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-white shadow-inner ${item.color}`}>
                                     <item.icon className="w-4 h-4" />
-                                </div>
-                                <span className="text-xs font-semibold text-slate-700 truncate">{item.text}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Mobile Horizontal Scroll */}
-                <div className="md:hidden flex-1 relative overflow-hidden flex items-center mask-gradient-horizontal pt-8">
-                    <div className="flex animate-scroll-left gap-3 px-4">
-                        {rawDataStream.map((item, i) => (
-                            <div key={`mob-${i}`} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-200 shadow-sm min-w-[140px]">
-                                <div className={`w-7 h-7 rounded flex items-center justify-center flex-shrink-0 ${item.bg} ${item.color}`}>
-                                    <item.icon className="w-3.5 h-3.5" />
                                 </div>
                                 <span className="text-xs font-semibold text-slate-700 truncate">{item.text}</span>
                             </div>
@@ -296,25 +274,25 @@ const DataProcessingVisual: React.FC = () => {
             </div>
 
             {/* --- Center: AI Neural Core --- */}
-            <div className="flex-1 relative flex items-center justify-center bg-transparent z-20">
+            <div className="flex-shrink-0 relative flex items-center justify-center z-20">
                 <div className="relative w-40 h-40 md:w-56 md:h-56 flex items-center justify-center">
                     {/* Pulsing Rings */}
                     <div className="absolute inset-0 border border-blue-100/50 rounded-full animate-ping-slow"></div>
                     <div className="absolute inset-4 border border-blue-200 rounded-full animate-spin-slow-reverse"></div>
                     <div className="absolute inset-8 border-2 border-dashed border-blue-300 rounded-full animate-spin-medium"></div>
-                    <div className="absolute inset-0 bg-blue-500/10 rounded-full filter blur-2xl animate-pulse"></div>
+                    <div className="absolute inset-0 bg-blue-500/10 rounded-full filter blur-3xl animate-pulse"></div>
                     
                     {/* Central Chip */}
-                    <div className="relative z-30 w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl shadow-[0_0_30px_rgba(59,130,246,0.3)] flex items-center justify-center border border-blue-50 transform rotate-45">
+                    <div className="relative z-30 w-20 h-20 md:w-24 md:h-24 bg-white rounded-2xl shadow-[0_0_40px_rgba(59,130,246,0.4)] flex items-center justify-center border border-blue-50 transform rotate-45">
                         <span className="transform -rotate-45 text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-indigo-600 font-black text-2xl md:text-3xl font-mono">AI</span>
                     </div>
                     
                     {/* Floating Orbiting Dots */}
                     <div className="absolute inset-0 animate-spin-slow pointer-events-none">
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-lg shadow-blue-500/50"></div>
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_15px_#3b82f6]"></div>
                     </div>
                 </div>
-                <div className="absolute bottom-8 md:bottom-16 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                <div className="absolute bottom-0 md:-bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 backdrop-blur border border-blue-200 text-blue-700 text-[10px] font-bold shadow-sm">
                         <SparklesIcon className="w-3 h-3 animate-spin-slow text-blue-500" />
                         NEURAL ENGINE ACTIVE
@@ -322,27 +300,24 @@ const DataProcessingVisual: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- Right/Bottom: Structured Insights --- */}
-            <div className="w-full md:w-[28%] h-48 md:h-full bg-slate-50/50 border-t md:border-t-0 md:border-l border-gray-200/50 relative z-20 flex flex-col">
-                <div className="absolute top-0 left-0 p-3 bg-white/80 backdrop-blur-sm z-30 shadow-sm border-b border-gray-100 w-full flex items-center justify-end gap-2">
-                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">INSIGHTS</h3>
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            {/* --- Right: Structured Insights (Floating Cards) --- */}
+            <div className="w-full md:w-[300px] h-48 md:h-full relative z-10">
+                <div className="absolute -top-8 left-0 w-full text-center md:text-right">
+                    <span className="text-[10px] font-bold text-green-500/80 uppercase tracking-[0.2em] animate-pulse">Actionable Insights</span>
                 </div>
-
-                {/* Vertical Scroll (Both Mobile/Desktop - Mobile height is larger here) */}
-                <div className="flex-1 relative overflow-hidden mask-gradient-vertical">
-                    <div className="absolute inset-x-0 animate-scroll-up space-y-3 p-4 pt-16 w-full">
+                <div className="h-full w-full overflow-hidden mask-gradient-vertical">
+                    <div className="animate-scroll-up space-y-4 p-2 w-full">
                         {insightsStream.map((item, i) => (
                             <div 
                                 key={i}
-                                className="w-full bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-start gap-3 transition-all duration-300 hover:shadow-lg hover:border-blue-200 hover:-translate-y-1 group cursor-pointer"
+                                className="w-full bg-white/80 backdrop-blur-xl rounded-2xl border border-white/60 shadow-lg p-4 flex items-start gap-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl group cursor-pointer"
                             >
-                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0 ${item.color}`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0 ${item.color}`}>
                                     {item.type}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="text-xs font-bold text-slate-800 truncate leading-tight mb-1 group-hover:text-blue-600">{item.title}</div>
-                                    <div className="text-[10px] text-slate-400 truncate">{item.desc}</div>
+                                    <div className="text-[10px] text-slate-500 truncate">{item.desc}</div>
                                 </div>
                                 <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity text-blue-500">
                                     <DownloadIcon className="w-4 h-4" />
@@ -369,7 +344,7 @@ const DataProcessingVisual: React.FC = () => {
                     100% { transform: translateX(-50%); }
                 }
                 .animate-scroll-up {
-                    animation: scroll-up 30s linear infinite;
+                    animation: scroll-up 40s linear infinite;
                 }
                 .animate-scroll-left {
                     animation: scroll-left 25s linear infinite;
