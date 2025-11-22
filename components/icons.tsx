@@ -62,10 +62,22 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
-    {/* Represents 'A' (Auto) and structure */}
-    <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="currentColor" />
-    {/* Represents 'I' (Insight) and core/beam */}
-    <path d="M12 12L10 22H14L12 12Z" fill="currentColor" fillOpacity="0.6" />
+    <defs>
+      <linearGradient id="logo-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#4338ca" />
+        <stop offset="50%" stopColor="#4f46e5" />
+        <stop offset="100%" stopColor="#7c3aed" />
+      </linearGradient>
+    </defs>
+    {/* LiDAR Data Scan - The "Front" Elements */}
+    <path d="M8.5 3.5C9.5 2.5 10.8 2 12 2C13.2 2 14.5 2.5 15.5 3.5" stroke="url(#logo-gradient)" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.8" />
+    <circle cx="12" cy="5" r="1" fill="#7c3aed" />
+    
+    {/* The 'A' Frame - Shifted down to y=7 */}
+    <path d="M12 7L3 22H7.5L12 13L16.5 22H21L12 7Z" fill="url(#logo-gradient)" />
+    
+    {/* The 'I' Beam - Core */}
+    <path d="M12 15L11 22H13L12 15Z" fill="#a5b4fc" />
   </svg>
 );
 
