@@ -1,195 +1,241 @@
 
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
     FeedIcon, DiveIcon, SparklesIcon, ArrowRightIcon, 
     CheckIcon, VideoCameraIcon, DocumentTextIcon, LogoIcon, 
-    TrendingUpIcon, ShieldCheckIcon, RssIcon, BrainIcon, GlobeIcon,
-    UsersIcon, PhotoIcon, MicrophoneIcon, ChartIcon
+    TrendingUpIcon, RssIcon, BrainIcon, GlobeIcon,
+    PhotoIcon, ChartIcon, DownloadIcon
 } from '../icons';
 
 interface HomePageProps {
     onEnter: () => void;
 }
 
-// --- 视觉组件：AI 智能精炼流水线 ---
+// --- 视觉组件：AI 智能情报工厂 (The Intelligence Factory) ---
 const DataProcessingVisual: React.FC = () => {
-    // 1. 左侧：高密度混沌数据粒子
-    const particleIcons = [
-        { icon: DocumentTextIcon, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
-        { icon: VideoCameraIcon, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-200' },
-        { icon: PhotoIcon, color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' },
-        { icon: MicrophoneIcon, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
-        { icon: GlobeIcon, color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-        { icon: ChartIcon, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+    
+    // 1. 左侧：原始数据 (Raw Data)
+    const rawData = [
+        { icon: VideoCameraIcon, text: "小米SU7发布会.mp4", color: "text-red-600", bg: "bg-red-50" },
+        { icon: DocumentTextIcon, text: "固态电池专利.pdf", color: "text-blue-600", bg: "bg-blue-50" },
+        { icon: GlobeIcon, text: "特斯拉Q3财报会议", color: "text-emerald-600", bg: "bg-emerald-50" },
+        { icon: RssIcon, text: "车主论坛舆情.json", color: "text-orange-600", bg: "bg-orange-50" },
+        { icon: ChartIcon, text: "4月销量数据.xlsx", color: "text-green-600", bg: "bg-green-50" },
+        { icon: PhotoIcon, text: "极氪001谍照.jpg", color: "text-purple-600", bg: "bg-purple-50" },
     ];
+    // 为了无限滚动，复制几份数据
+    const rawDataStream = [...rawData, ...rawData, ...rawData, ...rawData];
 
-    const particles = useMemo(() => Array.from({ length: 40 }).map((_, i) => {
-        const type = particleIcons[i % particleIcons.length];
-        return {
-            id: i,
-            ...type,
-            top: Math.random() * 90 + 5, // 5% - 95% vertical
-            left: Math.random() * 20 - 25, // Start off-screen left (-25% to -5%)
-            delay: Math.random() * 5,
-            duration: 3 + Math.random() * 2,
-            size: 24 + Math.random() * 20,
-            rotation: Math.random() * 360,
-        };
-    }), []);
-
-    // 2. 中间：神经网络节点生成
-    const neuralNodes = useMemo(() => {
-        return Array.from({ length: 12 }).map((_, i) => ({
-            cx: 20 + Math.random() * 60, // 20-80%
-            cy: 20 + Math.random() * 60,
-            r: 2 + Math.random() * 3,
-            delay: Math.random() * 2
-        }));
-    }, []);
-
-    // 3. 右侧：有序报告卡片
-    const cards = [
-        { title: '竞品分析报告', type: 'PDF', color: 'bg-red-100 text-red-600' },
-        { title: '行业趋势洞察', type: 'PPT', color: 'bg-orange-100 text-orange-600' },
-        { title: '技术路线图谱', type: 'DOC', color: 'bg-blue-100 text-blue-600' },
-        { title: '舆情监测摘要', type: 'AI',  color: 'bg-purple-100 text-purple-600' },
+    // 3. 右侧：成品交付物 (Deliverables)
+    const insights = [
+        { type: "PPT", title: "智能座舱趋势洞察.ppt", desc: "20页图表分析", color: "bg-orange-100 text-orange-700" },
+        { type: "PDF", title: "小米 vs 特斯拉对标.pdf", desc: "深度参数对比", color: "bg-red-100 text-red-700" },
+        { type: "DOC", title: "本周舆情综述.docx", desc: "关键事件汇总", color: "bg-blue-100 text-blue-700" },
+        { type: "XLS", title: "渗透率预测模型.csv", desc: "原始数据表", color: "bg-green-100 text-green-700" },
+        { type: "PDF", title: "华为智驾技术白皮书.pdf", desc: "技术路线拆解", color: "bg-red-100 text-red-700" },
     ];
+    const insightsStream = [...insights, ...insights, ...insights, ...insights];
 
     return (
-        <div className="relative w-full max-w-[1100px] h-[450px] mx-auto mt-16 perspective-1000 select-none overflow-visible">
+        <div className="relative w-full max-w-6xl mx-auto mt-16 bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-blue-900/10 overflow-hidden flex flex-col md:flex-row h-[500px] md:h-[460px]">
             
-            {/* 氛围背景光 */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-blue-100/20 blur-[80px] rounded-full pointer-events-none"></div>
+            {/* 背景网格 */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 pointer-events-none"></div>
 
-            {/* --- 1. 左侧：混沌数据流 (Input) --- */}
-            <div className="absolute inset-y-0 left-0 w-[45%] z-10 mask-image-fade-right overflow-hidden pointer-events-none">
-                {particles.map((p) => (
-                    <div 
-                        key={p.id}
-                        className={`absolute flex items-center justify-center ${p.bg} ${p.border} border shadow-sm rounded-lg animate-chaos-flow opacity-0`}
-                        style={{
-                            top: `${p.top}%`,
-                            width: p.size,
-                            height: p.size,
-                            '--tw-enter-opacity': '0',
-                            '--tw-enter-scale': '0.5',
-                            '--tw-enter-rotate': `${p.rotation}deg`,
-                            animationDelay: `${p.delay}s`,
-                            animationDuration: `${p.duration}s`
-                        } as React.CSSProperties}
-                    >
-                        <p.icon className={`w-[60%] h-[60%] ${p.color}`} />
-                    </div>
-                ))}
-            </div>
-
-            {/* --- 2. 中间：神经元推理核心 (Processing) --- */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center scale-110">
-                
-                {/* 外部能量轨道 */}
-                <div className="absolute w-[280px] h-[280px] rounded-full border border-blue-100/30 animate-spin-slow pointer-events-none"></div>
-                <div className="absolute w-[240px] h-[240px] rounded-full border border-dashed border-indigo-200/40 animate-spin-reverse-slower pointer-events-none"></div>
-                <div className="absolute w-[320px] h-[320px] bg-gradient-radial from-blue-500/5 to-transparent opacity-50 pointer-events-none"></div>
-
-                {/* 核心球体 */}
-                <div className="relative w-40 h-40 rounded-full bg-slate-900 shadow-[0_0_60px_rgba(59,130,246,0.4)] border border-slate-700/50 flex items-center justify-center z-20 overflow-hidden ring-1 ring-white/10">
-                    
-                    {/* 内部：动态神经网络 SVG */}
-                    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full opacity-60">
-                        {/* 连接线 */}
-                        {neuralNodes.map((node, i) => (
-                            neuralNodes.slice(i + 1, i + 4).map((target, j) => (
-                                <line 
-                                    key={`${i}-${j}`}
-                                    x1={node.cx} y1={node.cy}
-                                    x2={target.cx} y2={target.cy}
-                                    stroke="url(#lineGradient)"
-                                    strokeWidth="0.5"
-                                    className="animate-pulse"
-                                    style={{ animationDuration: `${1 + Math.random()}s` }}
-                                />
-                            ))
-                        ))}
-                        <defs>
-                            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-                                <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.8" />
-                                <stop offset="100%" stopColor="#818cf8" stopOpacity="0.2" />
-                            </linearGradient>
-                        </defs>
-                        {/* 节点 */}
-                        {neuralNodes.map((node, i) => (
-                            <circle 
-                                key={i} 
-                                cx={node.cx} cy={node.cy} r={node.r} 
-                                className="fill-blue-400 animate-ping-slow"
-                                style={{ animationDelay: `${node.delay}s` }}
-                            />
-                        ))}
-                    </svg>
-
-                    {/* 核心文字 */}
-                    <div className="relative z-10 text-center backdrop-blur-[1px]">
-                        <div className="text-xs font-mono text-blue-300 tracking-[0.2em] opacity-70 mb-1">NEURAL</div>
-                        <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
-                            AI
-                        </h2>
-                        <div className="h-0.5 w-12 bg-blue-500 rounded-full mt-2 mx-auto animate-pulse"></div>
-                    </div>
-
-                    {/* 表面光泽 */}
-                    <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
-                </div>
-                
-                {/* 底部倒影 */}
-                <div className="absolute -bottom-16 w-32 h-4 bg-black/20 blur-xl rounded-[100%]"></div>
-            </div>
-
-            {/* --- 3. 右侧：有序情报输出 (Output) --- */}
-            <div className="absolute inset-y-0 right-0 w-[42%] z-20 flex items-center pl-8 mask-image-fade-left">
-                <div className="relative w-full h-[300px] flex flex-col justify-center gap-4">
-                    {cards.map((card, i) => (
-                        <div 
-                            key={i}
-                            className="relative flex items-center gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-xl border border-white/50 animate-card-slide-out hover:scale-105 transition-transform duration-300"
-                            style={{
-                                animationDelay: `${1.5 + i * 1.2}s`,
-                                animationFillMode: 'both',
-                                zIndex: 10 - i
-                            }}
-                        >
-                            {/* 左侧图标 */}
-                            <div className={`flex-shrink-0 w-12 h-12 ${card.color} rounded-lg flex items-center justify-center text-xs font-bold border border-white shadow-sm`}>
-                                {card.type}
-                            </div>
-                            
-                            {/* 右侧内容骨架 */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="h-2.5 w-24 bg-slate-800 rounded-full"></div>
-                                    <div className="flex gap-1">
-                                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                                        <div className="w-1.5 h-1.5 bg-slate-200 rounded-full"></div>
-                                    </div>
-                                </div>
-                                <div className="h-1.5 w-full bg-slate-200 rounded-full mb-1.5"></div>
-                                <div className="h-1.5 w-4/5 bg-slate-200 rounded-full"></div>
-                            </div>
-
-                            {/* 标签 */}
-                            <div className="absolute -top-3 left-4 px-2 py-0.5 bg-white border border-gray-100 text-[10px] font-semibold text-gray-500 rounded-md shadow-sm whitespace-nowrap">
-                                {card.title}
-                            </div>
+            {/* --- 左侧：全源数据接入 (Ingestion) --- */}
+            <div className="w-full md:w-[28%] bg-slate-50/50 border-r border-slate-100 relative flex flex-col z-10">
+                <div className="p-4 border-b border-slate-100 bg-white/90 backdrop-blur z-20 shadow-sm">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <div className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                         </div>
-                    ))}
+                        RAW DATA STREAM
+                    </h3>
+                </div>
+                
+                {/* 垂直无限滚动 */}
+                <div className="flex-1 relative overflow-hidden mask-gradient-vertical">
+                    <div className="absolute inset-x-0 animate-scroll-up space-y-3 p-4 w-full">
+                        {rawDataStream.map((item, i) => (
+                            <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm transform transition-all hover:scale-102 hover:shadow-md hover:border-blue-200">
+                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${item.bg} ${item.color}`}>
+                                    <item.icon className="w-5 h-5" />
+                                </div>
+                                <span className="text-xs font-semibold text-slate-600 truncate flex-1">{item.text}</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
+            {/* --- 中间：Sci-Fi AI Core (The Reactor) --- */}
+            <div className="flex-1 relative flex flex-col items-center justify-center p-0 overflow-hidden bg-gradient-to-b from-white via-blue-50/30 to-white">
+                
+                {/* 光晕背景 */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-400/5 rounded-full blur-3xl animate-pulse-slow"></div>
+
+                {/* 复杂的 SVG 动画核心 */}
+                <div className="relative w-full h-full max-w-lg">
+                    <svg className="w-full h-full" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            {/* 渐变定义 */}
+                            <linearGradient id="beam-grad-left" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#94a3b8" stopOpacity="0" />
+                                <stop offset="100%" stopColor="#3b82f6" stopOpacity="1" />
+                            </linearGradient>
+                            <linearGradient id="beam-grad-right" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
+                                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                            </linearGradient>
+                            <filter id="glow-core">
+                                <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                                <feMerge>
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                        </defs>
+
+                        {/* --- 连线路径 (贝塞尔曲线) --- */}
+                        {/* 左侧输入路径 */}
+                        <path id="path-in-1" d="M 0,60 C 100,60 100,150 200,150" fill="none" stroke="url(#beam-grad-left)" strokeWidth="1" strokeOpacity="0.3" />
+                        <path id="path-in-2" d="M 0,150 C 80,150 120,150 200,150" fill="none" stroke="url(#beam-grad-left)" strokeWidth="1" strokeOpacity="0.3" />
+                        <path id="path-in-3" d="M 0,240 C 100,240 100,150 200,150" fill="none" stroke="url(#beam-grad-left)" strokeWidth="1" strokeOpacity="0.3" />
+
+                        {/* 右侧输出路径 */}
+                        <path id="path-out-1" d="M 200,150 C 300,150 300,60 400,60" fill="none" stroke="url(#beam-grad-right)" strokeWidth="1" strokeOpacity="0.3" />
+                        <path id="path-out-2" d="M 200,150 C 320,150 320,150 400,150" fill="none" stroke="url(#beam-grad-right)" strokeWidth="1" strokeOpacity="0.3" />
+                        <path id="path-out-3" d="M 200,150 C 300,150 300,240 400,240" fill="none" stroke="url(#beam-grad-right)" strokeWidth="1" strokeOpacity="0.3" />
+
+                        {/* --- 粒子流动画 (Traffic) --- */}
+                        {/* 输入粒子 */}
+                        <circle r="3" fill="#3b82f6" filter="url(#glow-core)">
+                            <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-in-1"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle r="2" fill="#60a5fa" filter="url(#glow-core)">
+                            <animateMotion dur="2.5s" begin="1s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-in-2"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle r="3" fill="#2563eb" filter="url(#glow-core)">
+                            <animateMotion dur="3.5s" begin="0.5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-in-3"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="3.5s" repeatCount="indefinite"/>
+                        </circle>
+
+                        {/* 输出粒子 */}
+                        <circle r="3" fill="#10b981" filter="url(#glow-core)">
+                            <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-out-1"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle r="2" fill="#34d399" filter="url(#glow-core)">
+                            <animateMotion dur="2.5s" begin="0.8s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-out-2"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite"/>
+                        </circle>
+                        <circle r="3" fill="#059669" filter="url(#glow-core)">
+                            <animateMotion dur="3.2s" begin="0.2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+                                <mpath href="#path-out-3"/>
+                            </animateMotion>
+                            <animate attributeName="opacity" values="0;1;0" dur="3.2s" repeatCount="indefinite"/>
+                        </circle>
+
+                        {/* --- 中央 AI 核心 (Core) --- */}
+                        <g transform="translate(200, 150)">
+                            {/* 外圈：慢速反向旋转 */}
+                            <circle r="55" fill="none" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="20 10" className="animate-spin-slow-reverse" opacity="0.6" />
+                            
+                            {/* 中圈：中速旋转扫描 */}
+                            <circle r="42" fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="60 100" strokeLinecap="round" className="animate-spin-medium" filter="url(#glow-core)" opacity="0.8" />
+                            
+                            {/* 内圈：快速脉冲 */}
+                            <circle r="30" fill="#eff6ff" stroke="#60a5fa" strokeWidth="1" className="animate-pulse-fast" />
+                            
+                            {/* 核心文本 */}
+                            <text x="0" y="5" textAnchor="middle" fill="#1d4ed8" fontSize="14" fontWeight="800" style={{fontFamily: 'monospace'}}>AI</text>
+                        </g>
+                    </svg>
+                </div>
+
+                {/* 状态标签 */}
+                <div className="absolute bottom-8 z-20">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 backdrop-blur border border-blue-100 text-blue-700 text-xs font-bold shadow-lg">
+                        <SparklesIcon className="w-3.5 h-3.5 animate-spin-slow" />
+                        NEURAL PROCESSING
+                    </div>
+                </div>
+            </div>
+
+            {/* --- 右侧：成品交付 (Actionable Insights) --- */}
+            <div className="w-full md:w-[28%] bg-slate-50/50 border-l border-slate-100 relative flex flex-col z-10">
+                <div className="p-4 border-b border-slate-100 bg-white/90 backdrop-blur z-20 shadow-sm text-right">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center justify-end gap-2">
+                        ACTIONABLE INSIGHTS
+                        <div className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </div>
+                    </h3>
+                </div>
+
+                {/* 垂直无限滚动 (同步) */}
+                <div className="flex-1 relative overflow-hidden mask-gradient-vertical">
+                    <div className="absolute inset-x-0 animate-scroll-up space-y-4 p-4 w-full" style={{ animationDelay: '-2s' }}> {/* Offset to look organic */}
+                        {insightsStream.map((item, i) => (
+                            <div 
+                                key={i}
+                                className="w-full bg-white rounded-xl border border-slate-200 shadow-sm p-3 flex items-start gap-3 transition-all duration-300 hover:shadow-md hover:border-green-200 hover:-translate-y-1 group cursor-pointer"
+                            >
+                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0 ${item.color} border border-white`}>
+                                    {item.type}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-bold text-slate-800 truncate leading-tight mb-1 group-hover:text-blue-600">{item.title}</div>
+                                    <div className="text-[10px] text-slate-400">{item.desc}</div>
+                                </div>
+                                <button className="text-slate-300 hover:text-blue-600 transition-colors self-center opacity-0 group-hover:opacity-100">
+                                    <DownloadIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <style>{`
+                .mask-gradient-vertical {
+                    mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+                }
+                @keyframes scroll-up {
+                    0% { transform: translateY(0); }
+                    100% { transform: translateY(-50%); }
+                }
+                .animate-scroll-up {
+                    animation: scroll-up 30s linear infinite;
+                }
+                /* Custom Animation Speeds */
+                .animate-spin-slow { animation: spin 10s linear infinite; }
+                .animate-spin-medium { animation: spin 3s linear infinite; }
+                .animate-spin-slow-reverse { animation: spin 15s linear infinite reverse; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                
+                .animate-pulse-fast { animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+                .animate-pulse-slow { animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+            `}</style>
         </div>
     );
 };
 
-// --- 滚动显现容器 ---
+// --- 辅助组件：滚动显现 ---
 const ScrollReveal: React.FC<{ children: React.ReactNode; delay?: number }> = ({ children, delay = 0 }) => {
     const [isVisible, setIsVisible] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -221,7 +267,7 @@ const ScrollReveal: React.FC<{ children: React.ReactNode; delay?: number }> = ({
     );
 };
 
-// --- Bento Grid Card ---
+// --- 辅助组件：Bento Grid Card ---
 const BentoCard: React.FC<{ 
     title: string; 
     desc: string; 
@@ -249,267 +295,212 @@ const BentoCard: React.FC<{
     </div>
 );
 
-const StatBadge: React.FC<{ label: string; value: string; icon: React.ReactNode }> = ({ label, value, icon }) => (
-    <div className="flex items-center gap-3 rounded-xl bg-white border border-slate-200 px-5 py-3 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-            {icon}
-        </div>
-        <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-            <p className="text-lg font-extrabold text-slate-900">{value}</p>
-        </div>
-    </div>
+// --- 图标组件 (Internal Helper for those not in main icons file) ---
+const FunnelIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8Zm4-11h-2.53l-2.53 4.23a.93.93 0 0 1-.76.47h-.05a.94.94 0 0 1-.77-.49L6.64 9H4.1l3.7 6h8.32Z"/></svg>
+);
+const ViewGridIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg {...props} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" /></svg>
 );
 
+
+// --- 主页面组件 ---
 export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
     return (
-        <div className="min-h-screen w-full bg-slate-50 text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+        <div className="min-h-screen w-full bg-white text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
             
             {/* --- Hero Section --- */}
             <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-24 overflow-hidden">
-                {/* Light Mode Technical Background */}
-                <div className="absolute inset-0 z-0">
-                    {/* Grid Pattern */}
-                    <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-                    <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-blue-400 opacity-20 blur-[100px]"></div>
-                    <div className="absolute right-0 bottom-0 -z-10 h-[400px] w-[400px] rounded-full bg-purple-300 opacity-20 blur-[120px]"></div>
+                
+                {/* Background Elements */}
+                <div className="absolute inset-0 -z-10">
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-blue-50 to-transparent opacity-60 rounded-[100%] blur-3xl"></div>
                 </div>
 
                 <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+                    
+                    {/* Tagline */}
                     <ScrollReveal>
-                        <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-blue-200 bg-blue-50/50 px-3 py-1 backdrop-blur-sm">
-                            <span className="mr-2 flex h-2 w-2">
-                                <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-blue-400 opacity-75"></span>
-                                <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500"></span>
+                        <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5">
+                            <span className="flex h-2 w-2 mr-2 relative">
+                                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
                             </span>
-                            <span className="text-xs font-semibold text-blue-700 tracking-wide uppercase">Intelligence as a Service</span>
+                            <span className="text-xs font-bold text-blue-700 tracking-wide uppercase">Intelligence as a Service</span>
                         </div>
                     </ScrollReveal>
 
+                    {/* Main Headline */}
                     <ScrollReveal delay={100}>
                         <h1 className="mx-auto max-w-5xl text-5xl font-extrabold tracking-tight text-slate-900 sm:text-7xl leading-tight">
-                            从
-                            <span className="relative whitespace-nowrap text-blue-600 mx-2">
-                                <svg aria-hidden="true" viewBox="0 0 418 42" className="absolute top-2/3 left-0 h-[0.58em] w-full fill-blue-200/50" preserveAspectRatio="none"><path d="M203.371.916c-26.013-2.078-76.686 1.963-124.73 9.946L67.3 12.749C61.669 13.798 24.659 16.218 3.042 19.36c-3.825.557-3.825 6.496 0 7.054 65.22 9.47 203.367 12.394 270.246 3.793 56.973-7.327 136.678-22.429 142.365-24.576 3.045-1.15 1.956-6.233-1.956-6.233-54.369 0-110.095 1.268-210.326 1.518Z"></path></svg>
-                                <span className="relative">信息海洋</span>
+                            您定义目标，
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 mx-2">
+                                AI 交付结果
                             </span>
-                            提炼
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 ml-2">决策信号</span>
                         </h1>
                     </ScrollReveal>
 
+                    {/* Subhead */}
                     <ScrollReveal delay={200}>
                         <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-600 leading-relaxed">
-                            我们利用先进的 AI 引擎，全天候监控数万个行业渠道。
+                            告别繁琐的信息搜集与手动整理。
                             <br className="hidden sm:block" />
-                            主动感知、深度去噪、自动分析，将海量数据转化为开箱即用的结构化情报。
+                            从海量数据到开箱即用的决策报告，我们为您省去中间的每一步。
                         </p>
                     </ScrollReveal>
 
+                    {/* Visual Core */}
                     <ScrollReveal delay={300}>
                         <DataProcessingVisual />
                     </ScrollReveal>
 
+                    {/* CTA Buttons */}
                     <ScrollReveal delay={400}>
-                        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+                        <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
                             <button
                                 onClick={onEnter}
-                                className="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full bg-blue-600 px-8 font-medium text-white shadow-lg shadow-blue-500/30 transition-all duration-300 hover:bg-blue-700 hover:scale-105 hover:shadow-blue-500/50 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                                className="group relative inline-flex h-14 items-center justify-center overflow-hidden rounded-full bg-slate-900 px-10 font-medium text-white shadow-2xl shadow-slate-900/30 transition-all duration-300 hover:bg-blue-600 hover:scale-105 hover:shadow-blue-500/40 focus:outline-none"
                             >
-                                <span className="mr-2">进入工作台</span>
-                                <ArrowRightIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                                <span className="mr-2 text-lg">进入工作台</span>
+                                <ArrowRightIcon className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                             </button>
-                            <button className="inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white px-8 font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2">
-                                <VideoCameraIcon className="mr-2 h-4 w-4 text-slate-500" />
+                            <button className="inline-flex h-14 items-center justify-center rounded-full border border-slate-200 bg-white px-8 font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-none">
+                                <VideoCameraIcon className="mr-2 h-5 w-5 text-slate-500" />
                                 观看演示
                             </button>
                         </div>
-                    </ScrollReveal>
-
-                    <ScrollReveal delay={500}>
-                        <div className="mt-16 flex flex-wrap justify-center gap-6 sm:gap-8">
-                            <StatBadge label="日处理数据" value="100,000+" icon={<TrendingUpIcon className="w-5 h-5" />} />
-                            <StatBadge label="覆盖渠道源" value="5,000+" icon={<RssIcon className="w-5 h-5" />} />
-                            <StatBadge label="AI 准确率" value="98.5%" icon={<ShieldCheckIcon className="w-5 h-5" />} />
-                        </div>
+                        <p className="mt-4 text-sm text-slate-400">无需信用卡 · 免费试用核心功能</p>
                     </ScrollReveal>
                 </div>
             </section>
 
-            {/* --- Features Section --- */}
-            <section className="relative py-24 bg-white">
+            {/* --- Features Section (Bento Grid) --- */}
+            <section className="relative py-24 bg-slate-50">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <ScrollReveal>
-                        <div className="mb-16 text-center">
-                            <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                                全维度的情报生产管线
-                            </h2>
-                            <p className="mt-4 text-lg text-slate-600">
-                                告别繁琐的手工检索，让 AI 成为您的超级分析师
-                            </p>
-                        </div>
-                    </ScrollReveal>
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl font-bold text-slate-900">不只是搜索，是全流程的智能代劳</h2>
+                        <p className="mt-4 text-lg text-slate-600">我们将分析师的思维模型代码化，为您提供 24/7 的情报服务</p>
+                    </div>
 
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2">
-                        {/* Feature 1: Big Card */}
-                        <div className="col-span-1 sm:col-span-2 row-span-2">
-                            <ScrollReveal delay={100}>
-                                <BentoCard 
-                                    title="实时情报追踪" 
-                                    desc="不仅仅是搜索，更是主动感知。系统实时聚合全网新闻、公告、研报与社交媒体。自动去重、摘要，并根据您的关注点生成个性化简报。我们帮您从噪音中识别信号。"
-                                    icon={<FeedIcon className="w-6 h-6" />}
-                                    className="h-full min-h-[320px] bg-gradient-to-br from-white to-blue-50/50"
-                                />
-                            </ScrollReveal>
-                        </div>
-
-                        {/* Feature 2 */}
-                        <div className="col-span-1">
-                            <ScrollReveal delay={200}>
-                                <BentoCard 
-                                    title="深度洞察专题" 
-                                    desc="针对特定技术路线（如固态电池、NOA）的持续追踪报告。像维基百科一样不断自我更新的活文档。"
-                                    icon={<DiveIcon className="w-6 h-6" />}
-                                    className="h-full min-h-[240px]"
-                                />
-                            </ScrollReveal>
-                        </div>
-
-                        {/* Feature 3 */}
-                        <div className="col-span-1">
-                            <ScrollReveal delay={300}>
-                                <BentoCard 
-                                    title="全自动事件解读" 
-                                    desc="发布会刚结束，深度报告已生成。AI 自动分段录制、抽帧分析、提取关键参数，不错过任何细节。"
-                                    icon={<VideoCameraIcon className="w-6 h-6" />}
-                                    className="h-full min-h-[240px]"
-                                />
-                            </ScrollReveal>
-                        </div>
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 lg:grid-rows-2 h-auto lg:h-[600px]">
                         
-                        {/* Feature 4 */}
-                        <div className="col-span-1 sm:col-span-2 lg:col-span-1">
-                             <ScrollReveal delay={400}>
-                                <BentoCard 
-                                    title="AI 报告生成" 
-                                    desc="只需一个想法，AI 即可为您生成结构完整的行业分析报告或 PPT 大纲。支持上传私有数据进行增强分析。"
-                                    icon={<SparklesIcon className="w-6 h-6" />}
-                                    className="h-full min-h-[240px] bg-gradient-to-tl from-white to-purple-50/50"
-                                />
-                            </ScrollReveal>
+                        {/* Feature 1: Large Vertical */}
+                        <div className="sm:col-span-1 lg:row-span-2">
+                            <BentoCard 
+                                title="全自动事件解读" 
+                                desc="发布会直播刚结束，深度报告已生成。AI 自动分段录制、抽帧分析、提取关键参数。您无需守在屏幕前，我们帮您看，帮您记，帮您总结。"
+                                icon={<VideoCameraIcon className="w-6 h-6" />}
+                                className="h-full bg-white"
+                                delay={100}
+                            />
+                        </div>
+
+                        {/* Feature 2: Wide Horizontal */}
+                        <div className="sm:col-span-2 lg:col-span-2 lg:row-span-1">
+                            <BentoCard 
+                                title="深度洞察专题" 
+                                desc="针对特定技术路线（如固态电池、NOA）的持续追踪。像维基百科一样自我更新的活文档，自动关联全网最新证据链，助您看清技术演进方向。"
+                                icon={<DiveIcon className="w-6 h-6" />}
+                                className="h-full bg-gradient-to-br from-white to-blue-50"
+                                delay={200}
+                            />
+                        </div>
+
+                        {/* Feature 3: Standard */}
+                        <div className="sm:col-span-1 lg:row-span-1">
+                            <BentoCard 
+                                title="AI 报告生成" 
+                                desc="一句话生成结构化研报。支持上传私有文档进行增强分析，快速输出 PPT 大纲。"
+                                icon={<SparklesIcon className="w-6 h-6" />}
+                                className="h-full bg-white"
+                                delay={300}
+                            />
+                        </div>
+
+                        {/* Feature 4: Standard */}
+                        <div className="sm:col-span-1 lg:row-span-1">
+                            <BentoCard 
+                                title="实时情报雷达" 
+                                desc="全天候监控竞对动态、政策法规与舆情风向。自动去重、摘要，早报推送到手。"
+                                icon={<FeedIcon className="w-6 h-6" />}
+                                className="h-full bg-white"
+                                delay={400}
+                            />
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* --- Value Proposition (Target Audience) --- */}
-            <section className="py-24 bg-slate-50 border-t border-slate-200">
+            {/* --- Value Proposition Section --- */}
+            <section className="py-24 bg-white border-t border-slate-100">
                 <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="grid grid-cols-1 gap-16 lg:grid-cols-2 items-center">
-                        <ScrollReveal>
-                            <div>
-                                <div className="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 mb-6">
-                                    <UsersIcon className="mr-1.5 h-3.5 w-3.5" />
-                                    为专业决策者打造
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                        <div>
+                            <h2 className="text-3xl font-bold text-slate-900 mb-6">为专业决策者设计</h2>
+                            <div className="space-y-8">
+                                <div className="flex gap-4">
+                                    <div className="mt-1 flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                                        <BrainIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900">战略规划专家</h3>
+                                        <p className="mt-1 text-slate-600">缩短 90% 的信息收集时间，将精力聚焦于推演与判断，而非数据搬运。</p>
+                                    </div>
                                 </div>
-                                <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl mb-6">
-                                    赋能每一个关键角色
-                                </h2>
-                                <div className="space-y-8">
-                                    {[
-                                        { title: "战略规划专家", desc: "缩短 90% 的信息收集时间，将精力聚焦于推演与判断。" },
-                                        { title: "市场销售总监", desc: "比竞争对手提前 48 小时捕获关键商机，提升线索转化率。" },
-                                        { title: "证券行业分析师", desc: "自动过滤 99% 的市场噪音，直达核心逻辑与数据真相。" }
-                                    ].map((item, idx) => (
-                                        <div key={idx} className="flex gap-4">
-                                            <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 shadow-sm text-blue-600">
-                                                <CheckIcon className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <h3 className="text-lg font-bold text-slate-900">{item.title}</h3>
-                                                <p className="mt-1 text-slate-600 leading-relaxed">{item.desc}</p>
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="flex gap-4">
+                                    <div className="mt-1 flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">
+                                        <TrendingUpIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900">市场/公关总监</h3>
+                                        <p className="mt-1 text-slate-600">比竞争对手提前 48 小时捕获关键商机与风险信号，从被动应对转为主动出击。</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="mt-1 flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
+                                        <ChartIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900">证券行业分析师</h3>
+                                        <p className="mt-1 text-slate-600">自动过滤 99% 的市场噪音，建立基于事实的完整证据链，直达核心逻辑。</p>
+                                    </div>
                                 </div>
                             </div>
-                        </ScrollReveal>
+                        </div>
                         
-                        <ScrollReveal delay={200}>
-                            <div className="relative rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl">
-                                <div className="relative rounded-xl bg-slate-50 overflow-hidden aspect-video flex items-center justify-center border border-slate-100">
-                                    {/* Abstract UI Representation */}
-                                    <div className="w-full h-full p-8 relative flex flex-col">
-                                        {/* Header Skeleton */}
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100"></div>
-                                            <div className="h-4 w-1/3 bg-slate-200 rounded"></div>
+                        {/* Right Side Visual */}
+                        <div className="relative">
+                            <div className="absolute -inset-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-20 blur-xl"></div>
+                            <div className="relative bg-slate-50 border border-slate-200 rounded-2xl p-8 shadow-xl">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">AI</div>
+                                        <div>
+                                            <div className="text-sm font-bold text-slate-900">智能情报助手</div>
+                                            <div className="text-xs text-slate-500">刚刚 • AI 生成完毕</div>
                                         </div>
-                                        {/* Content Skeleton */}
-                                        <div className="flex gap-6 h-full">
-                                            <div className="w-1/4 bg-white border border-slate-200 rounded-lg shadow-sm p-3 space-y-3">
-                                                <div className="h-3 w-full bg-slate-100 rounded"></div>
-                                                <div className="h-3 w-4/5 bg-slate-100 rounded"></div>
-                                                <div className="h-3 w-2/3 bg-slate-100 rounded"></div>
-                                            </div>
-                                            <div className="flex-1 flex flex-col gap-4">
-                                                <div className="h-32 bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-lg p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <SparklesIcon className="w-4 h-4 text-blue-500" />
-                                                        <div className="h-3 w-24 bg-blue-200 rounded"></div>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <div className="h-2 w-full bg-slate-100 rounded"></div>
-                                                        <div className="h-2 w-full bg-slate-100 rounded"></div>
-                                                        <div className="h-2 w-3/4 bg-slate-100 rounded"></div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex-1 bg-white border border-slate-200 rounded-lg"></div>
-                                            </div>
+                                    </div>
+                                    <div className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1">
+                                        <CheckIcon className="w-3 h-3" /> 已验证
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                                    <div className="h-4 bg-slate-200 rounded w-full"></div>
+                                    <div className="h-4 bg-slate-200 rounded w-5/6"></div>
+                                    <div className="p-4 bg-white border border-slate-200 rounded-xl flex gap-4 mt-4">
+                                        <div className="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                            <span className="text-xs font-bold text-red-600">PDF</span>
                                         </div>
-                                        {/* Overlay Badge */}
-                                        <div className="absolute bottom-8 right-8 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center gap-2 animate-bounce-slow">
-                                            <SparklesIcon className="w-4 h-4 text-yellow-400" />
-                                            AI 深度分析完成
+                                        <div>
+                                            <div className="text-sm font-bold text-slate-900">小米SU7 vs Model 3 深度对标.pdf</div>
+                                            <div className="text-xs text-slate-500 mt-1">12.5 MB • 包含 35 页详细分析</div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </ScrollReveal>
-                    </div>
-                </div>
-            </section>
-
-            {/* --- CTA Section --- */}
-            <section className="relative py-24 overflow-hidden">
-                <div className="absolute inset-0 bg-blue-600">
-                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-                    {/* Abstract Circles */}
-                    <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-blue-500 blur-3xl opacity-50"></div>
-                    <div className="absolute bottom-0 right-0 h-64 w-64 rounded-full bg-indigo-500 blur-3xl opacity-50"></div>
-                </div>
-                
-                <div className="relative z-10 mx-auto max-w-4xl px-4 text-center">
-                    <ScrollReveal>
-                        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-5xl mb-6">
-                            准备好升级您的情报系统了吗？
-                        </h2>
-                        <p className="mx-auto max-w-2xl text-xl text-blue-100 mb-10">
-                            加入行业领先企业的行列，体验数据转化为洞察的极速快感。
-                        </p>
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <button
-                                onClick={onEnter}
-                                className="min-w-[200px] rounded-full bg-white px-8 py-4 text-base font-bold text-blue-900 shadow-xl transition-transform hover:scale-105 hover:bg-blue-50"
-                            >
-                                免费开始使用
-                            </button>
-                            <button className="min-w-[200px] rounded-full border border-white/30 bg-blue-700/50 px-8 py-4 text-base font-bold text-white backdrop-blur-sm transition-colors hover:bg-blue-700">
-                                联系企业服务
-                            </button>
                         </div>
-                        <p className="mt-6 text-sm text-blue-200/80">无需绑定信用卡 · 14天专业版免费试用</p>
-                    </ScrollReveal>
+                    </div>
                 </div>
             </section>
 
@@ -523,49 +514,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                     &copy; 2024 Automotive Intelligence Platform. All rights reserved.
                 </p>
             </footer>
-
-            <style>{`
-                /* --- 动画关键帧定义 --- */
-                
-                @keyframes chaos-flow {
-                    0% { transform: translate(0, 0) scale(0.5) rotate(0deg); opacity: 0; }
-                    10% { opacity: 1; }
-                    100% { transform: translate(600px, 50px) scale(0.1) rotate(180deg); opacity: 0; }
-                }
-
-                @keyframes spin-slow {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
-                @keyframes spin-reverse-slower {
-                    from { transform: rotate(360deg); }
-                    to { transform: rotate(0deg); }
-                }
-
-                @keyframes card-slide-out {
-                    0% { transform: translateX(-100px) scale(0.8); opacity: 0; }
-                    20% { opacity: 1; transform: translateX(0) scale(1); }
-                    80% { opacity: 1; transform: translateX(0) scale(1); }
-                    100% { transform: translateX(200px) scale(0.9); opacity: 0; }
-                }
-
-                @keyframes ping-slow {
-                    0% { transform: scale(1); opacity: 0.8; }
-                    75%, 100% { transform: scale(2); opacity: 0; }
-                }
-
-                /* 类名绑定 */
-                .animate-chaos-flow { animation-name: chaos-flow; animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); animation-iteration-count: infinite; }
-                .animate-spin-slow { animation: spin-slow 15s linear infinite; }
-                .animate-spin-reverse-slower { animation: spin-reverse-slower 20s linear infinite; }
-                .animate-card-slide-out { animation: card-slide-out 6s ease-in-out infinite; }
-                .animate-ping-slow { animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
-                
-                .perspective-1000 { perspective: 1000px; }
-                .mask-image-fade-right { mask-image: linear-gradient(to right, black 0%, transparent 100%); }
-                .mask-image-fade-left { mask-image: linear-gradient(to right, transparent 0%, black 20%); }
-                .bg-gradient-radial { background-image: radial-gradient(var(--tw-gradient-stops)); }
-            `}</style>
         </div>
     );
 };
