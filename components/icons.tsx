@@ -62,31 +62,10 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
-    <defs>
-      <linearGradient id="ai-gradient-icon" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#3730a3" />
-        <stop offset="40%" stopColor="#4f46e5" />
-        <stop offset="100%" stopColor="#8b5cf6" />
-      </linearGradient>
-    </defs>
-    
-    {/* Particle Tip (LiDAR) */}
-    <circle cx="12" cy="4" r="1.2" fill="url(#ai-gradient-icon)" />
-    
-    <circle cx="9.5" cy="8" r="1.1" fill="url(#ai-gradient-icon)" />
-    <circle cx="14.5" cy="8" r="1.1" fill="url(#ai-gradient-icon)" />
-    
-    <circle cx="7.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
-    <circle cx="10.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
-    <circle cx="13.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
-    <circle cx="16.5" cy="11.5" r="1" fill="url(#ai-gradient-icon)" />
-
-    {/* Solid Base */}
-    <path d="M5.5 14.5L3 22H9L10.5 14.5H5.5Z" fill="url(#ai-gradient-icon)" />
-    <path d="M18.5 14.5L21 22H15L13.5 14.5H18.5Z" fill="url(#ai-gradient-icon)" />
-    
-    {/* Subtle Bridge */}
-    <rect x="10" y="19" width="4" height="3" fill="url(#ai-gradient-icon)" rx="0.5" opacity="0.3" />
+    {/* Represents 'A' (Auto) and structure */}
+    <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="currentColor" />
+    {/* Represents 'I' (Insight) and core/beam */}
+    <path d="M12 12L10 22H14L12 12Z" fill="currentColor" fillOpacity="0.6" />
   </svg>
 );
 
@@ -292,7 +271,7 @@ export const DatabaseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
 
 export const ViewGridIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
     </Icon>
 );
 

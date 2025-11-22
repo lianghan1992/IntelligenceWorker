@@ -77,11 +77,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                     <div className="flex items-center space-x-8">
                         <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => onNavigate('dashboard')}>
                             <div className="relative flex items-center justify-center w-9 h-9">
-                                <LogoIcon className="w-9 h-9 transition-transform duration-300 group-hover:scale-110 filter drop-shadow-sm" />
+                                <LogoIcon className="w-9 h-9 text-indigo-600 transition-transform duration-300 group-hover:scale-110 filter drop-shadow-sm" />
                             </div>
-                            <span className="font-extrabold text-xl tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-600">
-                                Auto Insight
-                            </span>
+                            <span className="font-extrabold text-xl tracking-tight text-slate-900">Auto Insight</span>
                         </div>
                         <nav className="hidden md:flex items-center space-x-1">
                             {finalNavItems.map(item => (
