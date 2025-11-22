@@ -1,83 +1,190 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { 
-    FeedIcon, DiveIcon, ChartIcon, SparklesIcon, ArrowRightIcon, 
+    FeedIcon, DiveIcon, SparklesIcon, ArrowRightIcon, 
     CheckIcon, VideoCameraIcon, DocumentTextIcon, LogoIcon, 
     TrendingUpIcon, ShieldCheckIcon, RssIcon, BrainIcon, GlobeIcon,
-    UsersIcon
+    UsersIcon, PhotoIcon, MicrophoneIcon, ChartIcon
 } from '../icons';
 
 interface HomePageProps {
     onEnter: () => void;
 }
 
-// --- 视觉组件：数据处理引擎动画 ---
+// --- 视觉组件：AI 智能精炼流水线 ---
 const DataProcessingVisual: React.FC = () => {
+    // 1. 左侧：高密度混沌数据粒子
+    const particleIcons = [
+        { icon: DocumentTextIcon, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-200' },
+        { icon: VideoCameraIcon, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-200' },
+        { icon: PhotoIcon, color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-200' },
+        { icon: MicrophoneIcon, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-200' },
+        { icon: GlobeIcon, color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+        { icon: ChartIcon, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-200' },
+    ];
+
+    const particles = useMemo(() => Array.from({ length: 40 }).map((_, i) => {
+        const type = particleIcons[i % particleIcons.length];
+        return {
+            id: i,
+            ...type,
+            top: Math.random() * 90 + 5, // 5% - 95% vertical
+            left: Math.random() * 20 - 25, // Start off-screen left (-25% to -5%)
+            delay: Math.random() * 5,
+            duration: 3 + Math.random() * 2,
+            size: 24 + Math.random() * 20,
+            rotation: Math.random() * 360,
+        };
+    }), []);
+
+    // 2. 中间：神经网络节点生成
+    const neuralNodes = useMemo(() => {
+        return Array.from({ length: 12 }).map((_, i) => ({
+            cx: 20 + Math.random() * 60, // 20-80%
+            cy: 20 + Math.random() * 60,
+            r: 2 + Math.random() * 3,
+            delay: Math.random() * 2
+        }));
+    }, []);
+
+    // 3. 右侧：有序报告卡片
+    const cards = [
+        { title: '竞品分析报告', type: 'PDF', color: 'bg-red-100 text-red-600' },
+        { title: '行业趋势洞察', type: 'PPT', color: 'bg-orange-100 text-orange-600' },
+        { title: '技术路线图谱', type: 'DOC', color: 'bg-blue-100 text-blue-600' },
+        { title: '舆情监测摘要', type: 'AI',  color: 'bg-purple-100 text-purple-600' },
+    ];
+
     return (
-        <div className="relative w-full max-w-[800px] h-[400px] mx-auto mt-12 perspective-1000">
-            {/* 1. 核心：AI 处理器 */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 z-20">
-                {/* 核心光晕 */}
-                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse-slow"></div>
-                {/* 物理核心 */}
-                <div className="relative w-full h-full bg-white rounded-full border border-blue-100 shadow-[0_0_30px_rgba(59,130,246,0.3)] flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-tr from-blue-50 to-white"></div>
-                    <div className="relative z-10 text-blue-600">
-                        <BrainIcon className="w-12 h-12 animate-pulse" />
+        <div className="relative w-full max-w-[1100px] h-[450px] mx-auto mt-16 perspective-1000 select-none overflow-visible">
+            
+            {/* 氛围背景光 */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-blue-100/20 blur-[80px] rounded-full pointer-events-none"></div>
+
+            {/* --- 1. 左侧：混沌数据流 (Input) --- */}
+            <div className="absolute inset-y-0 left-0 w-[45%] z-10 mask-image-fade-right overflow-hidden pointer-events-none">
+                {particles.map((p) => (
+                    <div 
+                        key={p.id}
+                        className={`absolute flex items-center justify-center ${p.bg} ${p.border} border shadow-sm rounded-lg animate-chaos-flow opacity-0`}
+                        style={{
+                            top: `${p.top}%`,
+                            width: p.size,
+                            height: p.size,
+                            '--tw-enter-opacity': '0',
+                            '--tw-enter-scale': '0.5',
+                            '--tw-enter-rotate': `${p.rotation}deg`,
+                            animationDelay: `${p.delay}s`,
+                            animationDuration: `${p.duration}s`
+                        } as React.CSSProperties}
+                    >
+                        <p.icon className={`w-[60%] h-[60%] ${p.color}`} />
                     </div>
-                    {/* 扫描线 */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-blue-400/50 shadow-[0_0_10px_rgba(59,130,246,0.8)] animate-scan"></div>
+                ))}
+            </div>
+
+            {/* --- 2. 中间：神经元推理核心 (Processing) --- */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center justify-center scale-110">
+                
+                {/* 外部能量轨道 */}
+                <div className="absolute w-[280px] h-[280px] rounded-full border border-blue-100/30 animate-spin-slow pointer-events-none"></div>
+                <div className="absolute w-[240px] h-[240px] rounded-full border border-dashed border-indigo-200/40 animate-spin-reverse-slower pointer-events-none"></div>
+                <div className="absolute w-[320px] h-[320px] bg-gradient-radial from-blue-500/5 to-transparent opacity-50 pointer-events-none"></div>
+
+                {/* 核心球体 */}
+                <div className="relative w-40 h-40 rounded-full bg-slate-900 shadow-[0_0_60px_rgba(59,130,246,0.4)] border border-slate-700/50 flex items-center justify-center z-20 overflow-hidden ring-1 ring-white/10">
+                    
+                    {/* 内部：动态神经网络 SVG */}
+                    <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full opacity-60">
+                        {/* 连接线 */}
+                        {neuralNodes.map((node, i) => (
+                            neuralNodes.slice(i + 1, i + 4).map((target, j) => (
+                                <line 
+                                    key={`${i}-${j}`}
+                                    x1={node.cx} y1={node.cy}
+                                    x2={target.cx} y2={target.cy}
+                                    stroke="url(#lineGradient)"
+                                    strokeWidth="0.5"
+                                    className="animate-pulse"
+                                    style={{ animationDuration: `${1 + Math.random()}s` }}
+                                />
+                            ))
+                        ))}
+                        <defs>
+                            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+                                <stop offset="50%" stopColor="#60a5fa" stopOpacity="0.8" />
+                                <stop offset="100%" stopColor="#818cf8" stopOpacity="0.2" />
+                            </linearGradient>
+                        </defs>
+                        {/* 节点 */}
+                        {neuralNodes.map((node, i) => (
+                            <circle 
+                                key={i} 
+                                cx={node.cx} cy={node.cy} r={node.r} 
+                                className="fill-blue-400 animate-ping-slow"
+                                style={{ animationDelay: `${node.delay}s` }}
+                            />
+                        ))}
+                    </svg>
+
+                    {/* 核心文字 */}
+                    <div className="relative z-10 text-center backdrop-blur-[1px]">
+                        <div className="text-xs font-mono text-blue-300 tracking-[0.2em] opacity-70 mb-1">NEURAL</div>
+                        <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
+                            AI
+                        </h2>
+                        <div className="h-0.5 w-12 bg-blue-500 rounded-full mt-2 mx-auto animate-pulse"></div>
+                    </div>
+
+                    {/* 表面光泽 */}
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
                 </div>
-                {/* 轨道环 */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-blue-200/50 rounded-full animate-spin-slow"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border border-dashed border-blue-200/30 rounded-full animate-spin-reverse-slower"></div>
+                
+                {/* 底部倒影 */}
+                <div className="absolute -bottom-16 w-32 h-4 bg-black/20 blur-xl rounded-[100%]"></div>
             </div>
 
-            {/* 2. 左侧：杂乱的数据海洋 (Input) */}
-            <div className="absolute top-0 left-0 w-1/2 h-full overflow-hidden z-10 mask-image-linear-gradient-to-r">
-                {/* 漂浮的粒子：代表原始数据 */}
-                {[...Array(8)].map((_, i) => (
-                    <div 
-                        key={`in-${i}`}
-                        className="absolute flex items-center justify-center w-10 h-10 bg-white border border-gray-200 rounded-lg shadow-sm text-gray-400 animate-float-in"
-                        style={{
-                            top: `${Math.random() * 80 + 10}%`,
-                            left: `-${Math.random() * 20 + 10}%`,
-                            animationDelay: `${Math.random() * 2}s`,
-                            animationDuration: `${3 + Math.random() * 2}s`
-                        }}
-                    >
-                        {i % 4 === 0 ? <DocumentTextIcon className="w-5 h-5" /> : 
-                         i % 4 === 1 ? <RssIcon className="w-5 h-5" /> :
-                         i % 4 === 2 ? <VideoCameraIcon className="w-5 h-5" /> :
-                         <GlobeIcon className="w-5 h-5" />}
-                    </div>
-                ))}
+            {/* --- 3. 右侧：有序情报输出 (Output) --- */}
+            <div className="absolute inset-y-0 right-0 w-[42%] z-20 flex items-center pl-8 mask-image-fade-left">
+                <div className="relative w-full h-[300px] flex flex-col justify-center gap-4">
+                    {cards.map((card, i) => (
+                        <div 
+                            key={i}
+                            className="relative flex items-center gap-4 p-4 bg-white/90 backdrop-blur-sm rounded-xl shadow-xl border border-white/50 animate-card-slide-out hover:scale-105 transition-transform duration-300"
+                            style={{
+                                animationDelay: `${1.5 + i * 1.2}s`,
+                                animationFillMode: 'both',
+                                zIndex: 10 - i
+                            }}
+                        >
+                            {/* 左侧图标 */}
+                            <div className={`flex-shrink-0 w-12 h-12 ${card.color} rounded-lg flex items-center justify-center text-xs font-bold border border-white shadow-sm`}>
+                                {card.type}
+                            </div>
+                            
+                            {/* 右侧内容骨架 */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="h-2.5 w-24 bg-slate-800 rounded-full"></div>
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                                        <div className="w-1.5 h-1.5 bg-slate-200 rounded-full"></div>
+                                    </div>
+                                </div>
+                                <div className="h-1.5 w-full bg-slate-200 rounded-full mb-1.5"></div>
+                                <div className="h-1.5 w-4/5 bg-slate-200 rounded-full"></div>
+                            </div>
+
+                            {/* 标签 */}
+                            <div className="absolute -top-3 left-4 px-2 py-0.5 bg-white border border-gray-100 text-[10px] font-semibold text-gray-500 rounded-md shadow-sm whitespace-nowrap">
+                                {card.title}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
-            {/* 3. 右侧：结构化的情报 (Output) */}
-            <div className="absolute top-0 right-0 w-1/2 h-full z-10">
-                {/* 发射出的卡片：代表成品情报 */}
-                {[...Array(6)].map((_, i) => (
-                    <div 
-                        key={`out-${i}`}
-                        className="absolute flex items-center gap-2 px-3 py-2 bg-white/90 backdrop-blur-sm border border-blue-100 rounded-lg shadow-md text-blue-900 animate-float-out opacity-0"
-                        style={{
-                            top: `${20 + i * 12}%`, // 更有序的排列
-                            left: '50%',
-                            animationDelay: `${1.5 + Math.random() * 1.5}s`,
-                            animationDuration: '4s'
-                        }}
-                    >
-                        <CheckIcon className="w-4 h-4 text-green-500" />
-                        <div className="h-2 w-24 bg-blue-100 rounded-full"></div>
-                    </div>
-                ))}
-            </div>
-
-            {/* 连接线 */}
-            <div className="absolute top-1/2 left-0 w-1/2 h-px bg-gradient-to-r from-transparent via-blue-200 to-transparent"></div>
-            <div className="absolute top-1/2 right-0 w-1/2 h-px bg-gradient-to-r from-transparent via-blue-200 to-transparent"></div>
         </div>
     );
 };
@@ -418,46 +525,46 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             </footer>
 
             <style>{`
-                /* 核心动画定义 */
-                @keyframes scan {
-                    0% { top: 0; opacity: 0; }
+                /* --- 动画关键帧定义 --- */
+                
+                @keyframes chaos-flow {
+                    0% { transform: translate(0, 0) scale(0.5) rotate(0deg); opacity: 0; }
                     10% { opacity: 1; }
-                    90% { opacity: 1; }
-                    100% { top: 100%; opacity: 0; }
-                }
-                @keyframes float-in {
-                    0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
-                    20% { opacity: 1; }
-                    100% { transform: translate(200px, 100px) scale(0); opacity: 0; } /* 向中心汇聚 */
-                }
-                @keyframes float-out {
-                    0% { transform: translate(-50px, 0) scale(0.5); opacity: 0; }
-                    30% { opacity: 1; transform: translate(0, 0) scale(1); }
-                    90% { opacity: 1; transform: translate(150px, 0); }
-                    100% { transform: translate(180px, 0); opacity: 0; }
-                }
-                @keyframes spin-slow {
-                    from { transform: translate(-50%, -50%) rotate(0deg); }
-                    to { transform: translate(-50%, -50%) rotate(360deg); }
-                }
-                @keyframes spin-reverse-slower {
-                    from { transform: translate(-50%, -50%) rotate(360deg); }
-                    to { transform: translate(-50%, -50%) rotate(0deg); }
-                }
-                @keyframes bounce-slow {
-                    0%, 100% { transform: translateY(0); }
-                    50% { transform: translateY(-5px); }
+                    100% { transform: translate(600px, 50px) scale(0.1) rotate(180deg); opacity: 0; }
                 }
 
-                .animate-scan { animation: scan 3s ease-in-out infinite; }
-                .animate-float-in { animation-name: float-in; animation-timing-function: ease-in; animation-iteration-count: infinite; }
-                .animate-float-out { animation-name: float-out; animation-timing-function: ease-out; animation-iteration-count: infinite; }
-                .animate-spin-slow { animation: spin-slow 10s linear infinite; }
+                @keyframes spin-slow {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes spin-reverse-slower {
+                    from { transform: rotate(360deg); }
+                    to { transform: rotate(0deg); }
+                }
+
+                @keyframes card-slide-out {
+                    0% { transform: translateX(-100px) scale(0.8); opacity: 0; }
+                    20% { opacity: 1; transform: translateX(0) scale(1); }
+                    80% { opacity: 1; transform: translateX(0) scale(1); }
+                    100% { transform: translateX(200px) scale(0.9); opacity: 0; }
+                }
+
+                @keyframes ping-slow {
+                    0% { transform: scale(1); opacity: 0.8; }
+                    75%, 100% { transform: scale(2); opacity: 0; }
+                }
+
+                /* 类名绑定 */
+                .animate-chaos-flow { animation-name: chaos-flow; animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); animation-iteration-count: infinite; }
+                .animate-spin-slow { animation: spin-slow 15s linear infinite; }
                 .animate-spin-reverse-slower { animation: spin-reverse-slower 20s linear infinite; }
-                .animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
+                .animate-card-slide-out { animation: card-slide-out 6s ease-in-out infinite; }
+                .animate-ping-slow { animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
                 
                 .perspective-1000 { perspective: 1000px; }
-                .mask-image-linear-gradient-to-r { mask-image: linear-gradient(to right, black 0%, transparent 100%); }
+                .mask-image-fade-right { mask-image: linear-gradient(to right, black 0%, transparent 100%); }
+                .mask-image-fade-left { mask-image: linear-gradient(to right, transparent 0%, black 20%); }
+                .bg-gradient-radial { background-image: radial-gradient(var(--tw-gradient-stops)); }
             `}</style>
         </div>
     );
