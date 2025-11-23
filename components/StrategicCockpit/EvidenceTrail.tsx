@@ -3,18 +3,11 @@ import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
 import { getArticleHtml } from '../../api/intelligence';
 
-// 为从CDN加载的 `marked` 和 `html2pdf` 库提供类型声明
+// 为从CDN加载的 `marked` 库提供类型声明
 declare global {
   interface Window {
     marked?: {
       parse(markdownString: string): string;
-    };
-    html2pdf?: () => {
-        from: (element: HTMLElement) => {
-            set: (opt: any) => {
-                save: () => Promise<void>;
-            };
-        };
     };
   }
 }
@@ -26,7 +19,6 @@ interface EvidenceTrailProps {
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [isLoadingHtml, setIsLoadingHtml] = useState(false);
-    const [isDownloading, setIsDownloading] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +38,38 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             setIsLoadingHtml(true);
             getArticleHtml(selectedArticle.id)
                 .then((html) => {
-                    setHtmlContent(html);
+                    if (html) {
+                        // Inject specific print styles to ensure high quality PDF output
+                        const printStyles = `
+                            <style>
+                                @media print {
+                                    @page { margin: 20mm; size: A4; }
+                                    body { 
+                                        font-family: "Microsoft YaHei", -apple-system, sans-serif; 
+                                        -webkit-print-color-adjust: exact; 
+                                        print-color-adjust: exact;
+                                        background-color: white;
+                                    }
+                                    img { max-width: 100%; page-break-inside: avoid; break-inside: avoid; }
+                                    h1, h2, h3, h4, h5, h6 { page-break-after: avoid; break-after: avoid; page-break-inside: avoid; }
+                                    p { orphans: 2; widows: 2; }
+                                    blockquote { page-break-inside: avoid; }
+                                    pre { white-space: pre-wrap; word-wrap: break-word; }
+                                    a { text-decoration: none; color: #2563eb; }
+                                }
+                                /* Enhanced Web View Styles */
+                                body { font-family: system-ui, sans-serif; line-height: 1.6; color: #333; padding: 20px; max-width: 900px; margin: 0 auto; }
+                                img { border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin: 20px 0; }
+                                blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; color: #1e40af; }
+                            </style>
+                        `;
+                        // If the HTML doesn't have a head, wrap it or just prepend style
+                        // Assuming backend returns full HTML or fragment. 
+                        // Safest is to prepend style to the whole string.
+                        setHtmlContent(printStyles + html);
+                    } else {
+                        setHtmlContent(null);
+                    }
                 })
                 .catch((err) => {
                     console.error("Failed to fetch article HTML", err);
@@ -57,40 +80,21 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         }
     }, [selectedArticle]);
 
-    // Handle Export PDF using html2pdf.js
-    const handleDownloadPdf = async () => {
-        if (!iframeRef.current || !iframeRef.current.contentDocument) {
+    // Handle Export PDF using Native Browser Print
+    // This provides the highest fidelity, editable text, and perfect CSS support.
+    const handleDownloadPdf = () => {
+        if (!iframeRef.current || !iframeRef.current.contentWindow) {
             alert("文档尚未加载完成，无法导出。");
             return;
         }
         
-        if (!window.html2pdf) {
-            alert("PDF 生成组件加载失败，请检查网络或刷新页面。");
-            return;
-        }
-
-        setIsDownloading(true);
-        
         try {
-            // Get the body of the iframe
-            const element = iframeRef.current.contentDocument.body;
-            const opt = {
-                margin:       [10, 10, 10, 10], // top, left, bottom, right
-                filename:     `${selectedArticle?.title || 'report'}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-            };
-
-            // Execute generation
-            await window.html2pdf().from(element).set(opt).save();
-            
+            // Focus and print the iframe window directly
+            iframeRef.current.contentWindow.focus();
+            iframeRef.current.contentWindow.print();
         } catch (e) {
-            console.error("PDF Export failed", e);
-            alert("导出 PDF 失败，请重试。");
-        } finally {
-            setIsDownloading(false);
+            console.error("Print failed", e);
+            alert("打印调起失败，请尝试手动使用浏览器的打印功能 (Ctrl+P)。");
         }
     };
 
@@ -162,23 +166,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                     {htmlContent && (
                         <button 
                             onClick={handleDownloadPdf}
-                            disabled={isDownloading}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
+                            title="生成高质量矢量 PDF"
                         >
-                            {isDownloading ? (
-                                <>
-                                    <svg className="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    生成中...
-                                </>
-                            ) : (
-                                <>
-                                    <DownloadIcon className="w-4 h-4" />
-                                    下载 PDF
-                                </>
-                            )}
+                            <DownloadIcon className="w-4 h-4" />
+                            打印 / 另存为 PDF
                         </button>
                     )}
                 </div>
