@@ -159,6 +159,30 @@ export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => 
     }, 1500));
 };
 
+// --- HTML Report API ---
+export const getArticleHtml = async (articleId: string): Promise<string | null> => {
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}/html`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (response.status === 404) {
+        return null; // HTML report not generated yet
+    }
+
+    if (!response.ok) {
+        // Silently fail or log, allowing fallback to markdown
+        console.warn(`Failed to fetch HTML for article ${articleId}: ${response.status}`);
+        return null;
+    }
+
+    return response.text();
+};
+
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
     // Use /search/combined for chunks as well to ensure consistency

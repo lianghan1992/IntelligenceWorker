@@ -8,6 +8,21 @@
 
 ## 接口列表
 
+### 获取文章HTML报告
+- 路径：`/crawler/articles/{article_id}/html`
+- 方法：`GET`
+- 认证：需要Bearer Token
+- 响应：
+  - `200`：返回该文章的HTML内容（`text/html`）
+  - `404`：未找到对应的HTML报告文件
+  - `500`：服务器读取失败
+
+**cURL示例**
+```bash
+curl -X GET "http://127.0.0.1:7657/crawler/articles/<article_id>/html" \
+ -H "Authorization: Bearer <token>"
+```
+
 ### 获取任务统计
 - 路径：`/crawler/tasks/stats`
 - 方法：`GET`

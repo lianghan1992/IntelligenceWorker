@@ -1,6 +1,7 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon } from '../icons';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
+import { getArticleHtml } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -16,15 +17,54 @@ interface EvidenceTrailProps {
 }
 
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
-    
-    const contentRef = React.useRef<HTMLDivElement>(null);
+    const [htmlContent, setHtmlContent] = useState<string | null>(null);
+    const [isLoadingHtml, setIsLoadingHtml] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    // Reset view when article changes and fetch HTML
     useEffect(() => {
         if (contentRef.current) {
             contentRef.current.scrollTop = 0;
         }
+        
+        setHtmlContent(null);
+        
+        if (selectedArticle) {
+            setIsLoadingHtml(true);
+            getArticleHtml(selectedArticle.id)
+                .then((html) => {
+                    setHtmlContent(html);
+                })
+                .catch((err) => {
+                    console.error("Failed to fetch article HTML", err);
+                })
+                .finally(() => {
+                    setIsLoadingHtml(false);
+                });
+        }
     }, [selectedArticle]);
 
-    const articleHtml = useMemo(() => {
+    // Handle Print/Export PDF
+    const handleDownloadPdf = () => {
+        if (!iframeRef.current || !iframeRef.current.contentWindow) {
+            alert("文档尚未加载完成，无法导出。");
+            return;
+        }
+        setIsPrinting(true);
+        try {
+            iframeRef.current.contentWindow.focus();
+            iframeRef.current.contentWindow.print();
+        } catch (e) {
+            console.error("Print failed", e);
+            alert("导出 PDF 失败，请重试。");
+        } finally {
+            setIsPrinting(false);
+        }
+    };
+
+    const fallbackArticleHtml = useMemo(() => {
         if (!selectedArticle || !selectedArticle.content) {
             return '';
         }
@@ -61,9 +101,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     }
 
     return (
-        <aside className="h-full flex flex-col bg-white overflow-hidden transition-all duration-500">
-            {/* Header Area with Material Surface Color */}
-            <div className="p-8 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
+        <aside className="h-full flex flex-col bg-white overflow-hidden transition-all duration-500 relative">
+            {/* Header Area */}
+            <div className="p-6 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2 mb-3">
@@ -74,35 +114,74 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                 {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN')}
                             </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 text-2xl leading-tight line-clamp-3">
+                        <h3 className="font-bold text-gray-900 text-2xl leading-tight line-clamp-2">
                             {selectedArticle.title}
                         </h3>
                     </div>
                 </div>
-                <div className="mt-6">
+                <div className="mt-6 flex flex-wrap items-center gap-3">
                      <a 
                         href={selectedArticle.original_url} 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-full hover:bg-gray-100 transition-colors shadow-sm"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
                     >
-                        访问原始链接 <ArrowRightIcon className="w-4 h-4" />
+                        阅读原文 <ArrowRightIcon className="w-4 h-4" />
                     </a>
+                    
+                    {htmlContent && (
+                        <button 
+                            onClick={handleDownloadPdf}
+                            disabled={isPrinting}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
+                        >
+                            <DownloadIcon className="w-4 h-4" />
+                            {isPrinting ? '正在准备...' : '下载 PDF'}
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Content Area */}
-            <div ref={contentRef} className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar">
-                <article 
-                    className="prose prose-slate max-w-none 
-                        prose-headings:font-bold prose-headings:text-gray-900 
-                        prose-p:text-gray-600 prose-p:leading-8 prose-p:mb-6 prose-p:text-base
-                        prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                        prose-strong:text-gray-800 prose-strong:font-semibold
-                        prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
-                        prose-li:marker:text-blue-500"
-                    dangerouslySetInnerHTML={{ __html: articleHtml }}
-                />
+            <div ref={contentRef} className="flex-1 bg-white overflow-hidden relative">
+                {isLoadingHtml ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p className="text-sm text-gray-500">正在加载美化报告...</p>
+                        </div>
+                    </div>
+                ) : htmlContent ? (
+                    <iframe 
+                        ref={iframeRef}
+                        title="Article Content"
+                        srcDoc={htmlContent}
+                        className="w-full h-full border-none block"
+                        sandbox="allow-same-origin allow-scripts allow-popups"
+                    />
+                ) : (
+                    <div className="h-full overflow-y-auto p-8 md:p-10 custom-scrollbar">
+                        {/* Fallback Message */}
+                        <div className="mb-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex items-start gap-3">
+                            <SparklesIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <p className="text-sm font-semibold text-yellow-800">美化报告生成中</p>
+                                <p className="text-xs text-yellow-700 mt-1">系统正在后台生成排版精美的 HTML 报告。当前展示的是原始文本内容。</p>
+                            </div>
+                        </div>
+
+                        <article 
+                            className="prose prose-slate max-w-none 
+                                prose-headings:font-bold prose-headings:text-gray-900 
+                                prose-p:text-gray-600 prose-p:leading-8 prose-p:mb-6 prose-p:text-base
+                                prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
+                                prose-strong:text-gray-800 prose-strong:font-semibold
+                                prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
+                                prose-li:marker:text-blue-500"
+                            dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
+                        />
+                    </div>
+                )}
             </div>
         </aside>
     );
