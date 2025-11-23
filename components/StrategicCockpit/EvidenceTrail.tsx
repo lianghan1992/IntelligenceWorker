@@ -62,7 +62,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             iframeRef.current.contentWindow.print();
         } catch (e) {
             console.error("Print failed", e);
-            alert("导出 PDF 失败，请重试。");
+            alert("导出 PDF 失败，请确保浏览器允许弹窗或使用 Chrome/Edge 等现代浏览器。");
         } finally {
             setIsPrinting(false);
         }
@@ -161,7 +161,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         title="Article Content"
                         srcDoc={htmlContent}
                         className="w-full h-full border-none block"
-                        sandbox="allow-same-origin allow-scripts allow-popups"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                     />
                 ) : (
                     <div className="h-full overflow-y-auto p-8 md:p-10 custom-scrollbar">
