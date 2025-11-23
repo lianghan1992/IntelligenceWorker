@@ -126,7 +126,8 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
 
         // Map semantic results to SearchResult format
         const items = (response.items || []).map((item: any) => ({
-            id: item.article_id || String(Math.random()),
+            // Prioritize article_id or id. Fallback to a temp_ ID to prevent invalid API calls.
+            id: item.article_id ? String(item.article_id) : (item.id ? String(item.id) : `temp_${Math.random()}`),
             title: item.title || item.article_title || '相关情报片段',
             content: item.content_chunk || item.content || '', // Use chunk as content preview
             original_url: item.original_url || item.article_url || '#',
