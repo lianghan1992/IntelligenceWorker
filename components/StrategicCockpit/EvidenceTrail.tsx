@@ -3,11 +3,18 @@ import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
 import { getArticleHtml } from '../../api/intelligence';
 
-// 为从CDN加载的 `marked` 库提供类型声明
+// 为从CDN加载的 `marked` 和 `html2pdf` 库提供类型声明
 declare global {
   interface Window {
     marked?: {
       parse(markdownString: string): string;
+    };
+    html2pdf?: () => {
+        from: (element: HTMLElement) => {
+            set: (opt: any) => {
+                save: () => Promise<void>;
+            };
+        };
     };
   }
 }
@@ -19,7 +26,7 @@ interface EvidenceTrailProps {
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [isLoadingHtml, setIsLoadingHtml] = useState(false);
-    const [isPrinting, setIsPrinting] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -50,21 +57,40 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         }
     }, [selectedArticle]);
 
-    // Handle Print/Export PDF
-    const handleDownloadPdf = () => {
-        if (!iframeRef.current || !iframeRef.current.contentWindow) {
+    // Handle Export PDF using html2pdf.js
+    const handleDownloadPdf = async () => {
+        if (!iframeRef.current || !iframeRef.current.contentDocument) {
             alert("文档尚未加载完成，无法导出。");
             return;
         }
-        setIsPrinting(true);
+        
+        if (!window.html2pdf) {
+            alert("PDF 生成组件加载失败，请检查网络或刷新页面。");
+            return;
+        }
+
+        setIsDownloading(true);
+        
         try {
-            iframeRef.current.contentWindow.focus();
-            iframeRef.current.contentWindow.print();
+            // Get the body of the iframe
+            const element = iframeRef.current.contentDocument.body;
+            const opt = {
+                margin:       [10, 10, 10, 10], // top, left, bottom, right
+                filename:     `${selectedArticle?.title || 'report'}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            // Execute generation
+            await window.html2pdf().from(element).set(opt).save();
+            
         } catch (e) {
-            console.error("Print failed", e);
-            alert("导出 PDF 失败，请确保浏览器允许弹窗或使用 Chrome/Edge 等现代浏览器。");
+            console.error("PDF Export failed", e);
+            alert("导出 PDF 失败，请重试。");
         } finally {
-            setIsPrinting(false);
+            setIsDownloading(false);
         }
     };
 
@@ -136,11 +162,23 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                     {htmlContent && (
                         <button 
                             onClick={handleDownloadPdf}
-                            disabled={isPrinting}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
+                            disabled={isDownloading}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            <DownloadIcon className="w-4 h-4" />
-                            {isPrinting ? '正在准备...' : '下载 PDF'}
+                            {isDownloading ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    生成中...
+                                </>
+                            ) : (
+                                <>
+                                    <DownloadIcon className="w-4 h-4" />
+                                    下载 PDF
+                                </>
+                            )}
                         </button>
                     )}
                 </div>
