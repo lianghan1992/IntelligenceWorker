@@ -56,57 +56,64 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     ];
 
     return (
-        <div className="w-full max-w-6xl mx-auto mb-8 px-4">
-            <div className="grid grid-cols-5 gap-2 md:gap-4 relative">
-                {/* Background Connecting Line */}
-                <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 -z-10 rounded-full"></div>
+        <div className="w-full max-w-5xl mx-auto mb-10 px-4">
+            <div className="relative">
+                {/* Connecting Line Background */}
+                <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200 -translate-y-1/2 rounded-full hidden md:block"></div>
                 
-                {steps.map((step, i) => {
-                    const isActive = currentStep === step.id;
-                    const isCompleted = currentStep > step.id;
-                    const isPending = currentStep < step.id;
+                {/* Steps Grid */}
+                <div className="grid grid-cols-5 gap-2 md:gap-4 relative z-10">
+                    {steps.map((step, i) => {
+                        const isActive = currentStep === step.id;
+                        const isCompleted = currentStep > step.id;
+                        const isPending = currentStep < step.id;
 
-                    return (
-                        <div 
-                            key={step.id} 
-                            className={`relative flex flex-col items-center text-center transition-all duration-500 ${isPending ? 'opacity-50 grayscale' : 'opacity-100'}`}
-                        >
-                            {/* Connector Progress */}
-                            {i < steps.length - 1 && (
-                                <div className={`hidden md:block absolute top-1/2 left-[50%] w-full h-1 -translate-y-1/2 -z-10 transition-colors duration-700 ${isCompleted ? 'bg-indigo-500' : 'bg-transparent'}`}></div>
-                            )}
+                        return (
+                            <div 
+                                key={step.id} 
+                                className={`flex flex-col items-center text-center transition-all duration-500 ${isPending ? 'opacity-60 grayscale' : 'opacity-100'}`}
+                            >
+                                {/* Connector Progress (Active Line) */}
+                                {i < steps.length - 1 && isCompleted && (
+                                    <div className="hidden md:block absolute top-1/2 left-[10%] w-[20%] h-1 -translate-y-1/2 bg-indigo-500 transition-all duration-1000" style={{ left: `${(i * 20) + 10}%` }}></div>
+                                )}
 
-                            {/* Card Body */}
-                            <div className={`
-                                relative z-10 w-full p-3 rounded-xl border transition-all duration-500 flex flex-col items-center justify-center gap-2 min-h-[100px]
-                                ${isActive 
-                                    ? `bg-white ${step.border} shadow-lg scale-105 ring-2 ring-indigo-500 ring-offset-2` 
-                                    : isCompleted 
-                                        ? 'bg-white border-gray-200 shadow-sm' 
-                                        : 'bg-gray-50 border-transparent'
-                                }
-                            `}>
+                                {/* Card/Icon Node */}
                                 <div className={`
-                                    p-2 rounded-full transition-colors duration-300
-                                    ${isActive || isCompleted ? step.bg : 'bg-gray-200'}
-                                    ${isActive || isCompleted ? step.color : 'text-gray-400'}
+                                    relative w-12 h-12 md:w-16 md:h-16 rounded-2xl border-2 flex items-center justify-center transition-all duration-300
+                                    ${isActive 
+                                        ? `bg-white ${step.border} shadow-[0_0_20px_rgba(0,0,0,0.1)] scale-110 z-20 ring-4 ring-white` 
+                                        : isCompleted 
+                                            ? 'bg-white border-indigo-200 text-indigo-600 shadow-sm' 
+                                            : 'bg-gray-50 border-transparent text-gray-400'
+                                    }
                                 `}>
-                                    {isCompleted ? <CheckIcon className="w-5 h-5" /> : <step.icon className="w-5 h-5" />}
+                                    <div className={`
+                                        transition-colors duration-300
+                                        ${isActive ? step.color : ''}
+                                    `}>
+                                        {isCompleted ? <CheckIcon className="w-6 h-6" /> : <step.icon className="w-6 h-6" />}
+                                    </div>
+                                    
+                                    {/* Pulse Effect for Active */}
+                                    {isActive && (
+                                        <span className={`absolute inset-0 rounded-2xl ${step.bg} opacity-30 animate-ping`}></span>
+                                    )}
                                 </div>
                                 
-                                <div className="hidden md:block">
-                                    <h4 className={`font-bold text-xs md:text-sm ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{step.title}</h4>
-                                    {isActive && <p className="text-[10px] text-indigo-500 font-medium animate-pulse">{step.desc}</p>}
+                                {/* Text Labels */}
+                                <div className="mt-3 md:mt-4 space-y-0.5">
+                                    <h4 className={`text-[10px] md:text-sm font-bold transition-colors ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
+                                        {step.title}
+                                    </h4>
+                                    <p className={`hidden md:block text-xs font-medium ${isActive ? step.color : 'text-transparent'}`}>
+                                        {step.desc}
+                                    </p>
                                 </div>
                             </div>
-                            
-                            {/* Mobile Label (Only for Active) */}
-                            <div className="md:hidden mt-1">
-                                {isActive && <span className="text-[10px] font-bold text-indigo-600">{step.title}</span>}
-                            </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
         </div>
     );
@@ -148,17 +155,17 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
 
     return (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/20 relative">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/20 relative animate-in zoom-in-95 duration-300">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50/50 to-white">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-100 text-purple-600 rounded-xl shadow-sm">
                             <SparklesIcon className="w-6 h-6" />
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-gray-900">知识库语义检索</h3>
-                            <p className="text-xs text-gray-500">基于向量相似度匹配的高价值情报片段</p>
+                            <p className="text-xs text-gray-500 mt-0.5">基于向量相似度匹配，为您精准定位高价值情报片段</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
@@ -167,21 +174,21 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 </div>
 
                 {/* Search Bar */}
-                <div className="p-6 bg-white">
-                    <form onSubmit={handleSearch} className="relative">
-                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="p-6 bg-white shadow-sm z-10">
+                    <form onSubmit={handleSearch} className="relative group">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-purple-500 transition-colors" />
                         <input
                             type="text"
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="输入关键词或描述，例如 '固态电池最新进展'..."
-                            className="w-full bg-gray-50 border border-gray-300 rounded-xl py-3.5 pl-12 pr-32 text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all shadow-sm"
+                            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-4 pl-12 pr-32 text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:bg-white focus:border-purple-500 transition-all shadow-inner"
                             autoFocus
                         />
                         <button 
                             type="submit" 
                             disabled={isLoading || !query.trim()}
-                            className="absolute right-2 top-2 bottom-2 px-6 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed transition-colors"
+                            className="absolute right-2 top-2 bottom-2 px-6 bg-purple-600 text-white font-bold text-sm rounded-lg hover:bg-purple-700 disabled:bg-purple-200 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg active:scale-95"
                         >
                             {isLoading ? '搜索中...' : '检索'}
                         </button>
@@ -189,42 +196,48 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 </div>
 
                 {/* Results Area */}
-                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50 custom-scrollbar">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-64 text-gray-400 space-y-4">
                             <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-600"></div>
-                            <p>AI 正在扫描知识库...</p>
+                            <p>AI 正在扫描向量数据库...</p>
                         </div>
                     ) : !hasSearched ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4 opacity-60">
-                            <DocumentTextIcon className="w-16 h-16 text-gray-300" />
+                            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                                <DocumentTextIcon className="w-10 h-10 text-gray-300" />
+                            </div>
                             <p>输入关键词开始检索</p>
                         </div>
                     ) : results.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
                             <p className="text-lg font-medium">未找到相关内容</p>
-                            <p className="text-sm mt-2">尝试更换关键词或降低相似度阈值</p>
+                            <p className="text-sm mt-2 text-gray-400">尝试更换关键词或降低相似度阈值</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
                             {results.map((item, index) => (
-                                <div key={`${item.article_id}-${index}`} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group relative">
+                                <div key={`${item.article_id}-${index}`} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-purple-200 transition-all group relative">
                                     {/* Score Badge */}
                                     <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="text-xs font-bold px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-100">
+                                        <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="flex-shrink-0 text-xs font-bold px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-100">
                                                 置信度: {(item.similarity_score * 100).toFixed(1)}%
                                             </div>
                                             {item.similarity_score > 0.8 && (
-                                                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                                <span className="flex-shrink-0 text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
                                                     强相关
                                                 </span>
                                             )}
-                                            <span className="text-xs text-gray-400 truncate max-w-[150px]">{item.article_title}</span>
+                                            <span className="text-xs text-gray-400 truncate font-medium">{item.article_title}</span>
                                         </div>
                                         <button 
                                             onClick={() => handleCopy(item.chunk_text, index)}
-                                            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${copiedIndex === index ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
+                                            className={`flex-shrink-0 flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-all border ${
+                                                copiedIndex === index 
+                                                    ? 'text-green-700 bg-green-50 border-green-200' 
+                                                    : 'text-gray-500 bg-white border-gray-200 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50'
+                                            }`}
                                         >
                                             {copiedIndex === index ? <CheckIcon className="w-3.5 h-3.5" /> : <DocumentTextIcon className="w-3.5 h-3.5" />}
                                             {copiedIndex === index ? '已复制' : '复制引用'}
@@ -232,15 +245,18 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                     </div>
                                     
                                     {/* Content */}
-                                    <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-6 group-hover:line-clamp-none transition-all">
+                                    <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-4 group-hover:line-clamp-none transition-all duration-300 relative">
                                         {item.chunk_text}
                                     </div>
                                     
-                                    {/* ID Reference (Optional) */}
-                                    <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
-                                        <span className="text-[10px] text-gray-400 font-mono">Ref ID: {item.article_id}</span>
+                                    {/* Footer Metadata */}
+                                    <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                                            <span className="text-[10px] text-gray-400 font-mono">Ref ID: {item.article_id.slice(0,8)}</span>
+                                        </div>
                                         {item.article_publish_date && (
-                                            <span className="text-[10px] text-gray-400">发布于: {new Date(item.article_publish_date).toLocaleDateString()}</span>
+                                            <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded">发布于: {new Date(item.article_publish_date).toLocaleDateString()}</span>
                                         )}
                                     </div>
                                 </div>
@@ -250,8 +266,9 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                 </div>
                 
                 {/* Footer Info */}
-                <div className="p-3 bg-white border-t border-gray-200 text-center">
-                    <p className="text-xs text-gray-400">共检索到 {results.length} 条相关片段 (Min Score: 0.5)</p>
+                <div className="p-3 bg-white border-t border-gray-200 text-center flex justify-between px-6">
+                    <span className="text-xs text-gray-400">Auto Insight Knowledge Base</span>
+                    <span className="text-xs text-gray-400">共检索到 {results.length} 条相关片段</span>
                 </div>
             </div>
         </div>
@@ -264,45 +281,47 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
     const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
     return (
-        <div className="flex flex-col items-center justify-start h-full overflow-y-auto pb-20 pt-4 sm:pt-10 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-            <div className="w-full max-w-3xl text-center px-4">
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">从一个想法开始</h1>
-                <p className="mt-4 text-lg text-gray-600">描述您报告的核心概念，让我们的AI为您构建基础。</p>
-                <p className="mt-1 text-sm text-gray-500">支持上传用户私有数据，使报告内容更聚焦，支持格式为: TXT, MD, PDF, DOCX</p>
+        <div className="flex flex-col items-center justify-start h-full overflow-y-auto pb-20 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
+            
+            <div className="w-full max-w-3xl text-center px-4 mt-4 md:mt-8">
+                <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight mb-4">从一个想法开始</h1>
+                <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                    描述您报告的核心概念，AI 将为您完成从<span className="text-indigo-600 font-semibold">知识检索</span>到<span className="text-indigo-600 font-semibold">逻辑构建</span>的全过程。
+                </p>
+                <p className="mt-2 text-sm text-gray-400">支持格式: TXT, MD, PDF, DOCX · 支持粘贴大纲</p>
                 
-                <div className="mt-8">
-                     <a href="#" className="text-blue-600 font-semibold hover:underline">如您已有大纲或完整PPT每页内容，请直接粘贴，AI将自动为您解析</a>
-                </div>
-
-                <div className="mt-4 relative">
+                <div className="mt-8 relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-[20px] opacity-20 group-hover:opacity-40 transition duration-500 blur-lg"></div>
                     <textarea
                         value={idea}
                         onChange={(e) => setIdea(e.target.value)}
-                        placeholder="例如，‘从一位智能汽车行业研究专家的角度编写一份10页左右关于端到端自动驾驶技术未来3-5年的技术路线报告，汇报对象为集团高层和技术专家’"
-                        className="w-full h-48 p-6 text-base bg-white rounded-2xl shadow-lg border border-gray-200 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        placeholder="例如：‘从一位智能汽车行业研究专家的角度编写一份10页左右关于端到端自动驾驶技术未来3-5年的技术路线报告，汇报对象为集团高层和技术专家’"
+                        className="relative w-full h-48 p-6 text-base bg-white rounded-2xl shadow-xl border border-gray-100 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
                     />
                 </div>
 
                 <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-                    <button className="w-full sm:w-auto px-6 py-3 border border-gray-300 bg-white text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition">
+                    <button className="w-full sm:w-auto px-6 py-3 border border-gray-200 bg-white text-gray-600 font-semibold rounded-xl shadow-sm hover:bg-gray-50 hover:text-gray-900 transition-all flex items-center justify-center gap-2">
+                        <DocumentTextIcon className="w-5 h-5" />
                         上传辅助文件 (可选)
                     </button>
                     
                     {/* Knowledge Base Search Button */}
                     <button 
                         onClick={() => setIsSearchModalOpen(true)}
-                        className="w-full sm:w-auto px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-lg shadow-sm hover:bg-purple-100 transition flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-xl shadow-sm hover:bg-purple-100 hover:shadow-md transition-all flex items-center justify-center gap-2 group"
                     >
-                        <SearchIcon className="w-4 h-4" />
+                        <SearchIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                         检索知识库
                     </button>
 
                     <button 
                         onClick={() => onGenerate(idea)}
                         disabled={!idea.trim()}
-                        className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition transform hover:scale-105 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all flex items-center justify-center gap-2"
                     >
-                        生成 <ArrowRightIcon className="w-5 h-5" />
+                        <SparklesIcon className="w-5 h-5" />
+                        立即生成
                     </button>
                 </div>
             </div>
@@ -338,15 +357,21 @@ ${mockAiThoughtProcess}`;
     }, []);
 
     return (
-         <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
-            <div className="w-full max-w-2xl bg-gray-800 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                <div className="p-4 bg-gray-900/50">
-                     <h2 className="text-lg font-bold text-white text-center">{title}</h2>
+         <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
+            <div className="w-full max-w-2xl bg-black border border-gray-800 rounded-xl shadow-2xl overflow-hidden font-mono">
+                <div className="p-3 bg-gray-900 border-b border-gray-800 flex justify-between items-center">
+                     <div className="flex gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                     </div>
+                     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{title}</h2>
+                     <div className="w-12"></div>
                 </div>
-                <div className="p-6 h-96 overflow-y-auto">
-                    <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+                <div className="p-6 h-96 overflow-y-auto text-sm">
+                    <pre className="text-green-400/90 whitespace-pre-wrap">
                         {log}
-                        <span className="inline-block w-2 h-4 bg-green-400 animate-pulse ml-1" />
+                        <span className="inline-block w-2 h-4 bg-green-500 animate-pulse ml-1 align-middle" />
                     </pre>
                 </div>
             </div>
@@ -356,40 +381,47 @@ ${mockAiThoughtProcess}`;
 
 // --- 阶段3: 大纲审查 ---
 const OutlineEditor: React.FC<{ outline: Slide[]; onGenerateContent: () => void }> = ({ outline, onGenerateContent }) => (
-    <div className="max-w-4xl mx-auto animate-in fade-in-0">
-        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">报告标题</h2>
-            <p className="text-blue-600 text-lg">PPT编写技巧指南</p>
+    <div className="max-w-4xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-500 pb-20">
+        <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg mb-8 text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">PPT编写技巧指南</h2>
+            <p className="text-gray-500">共 {outline.length} 页 · 预计阅读时间 5 分钟</p>
         </div>
         
         <div className="space-y-4 mb-8">
             {outline.map((slide, index) => (
-                <div key={slide.id} className="bg-white p-5 rounded-xl border border-gray-200 flex items-start gap-4 shadow-sm">
-                    <div className="flex-shrink-0 bg-gray-100 text-gray-600 font-bold rounded-full h-8 w-8 flex items-center justify-center border">{index + 1}</div>
-                    <div>
-                        <h3 className="font-bold text-gray-800 text-lg">{slide.title}</h3>
-                        <p className="text-gray-600 mt-1">{slide.content}</p>
+                <div key={slide.id} className="bg-white p-6 rounded-xl border border-gray-200 flex items-start gap-5 shadow-sm hover:shadow-md transition-shadow group">
+                    <div className="flex-shrink-0 w-10 h-10 bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 font-bold rounded-xl flex items-center justify-center border border-gray-100 group-hover:border-indigo-100 transition-colors">
+                        {String(index + 1).padStart(2, '0')}
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-indigo-700 transition-colors">{slide.title}</h3>
+                        <p className="text-gray-600 text-sm leading-relaxed">{slide.content}</p>
                     </div>
                 </div>
             ))}
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <SparklesIcon className="w-6 h-6 text-blue-500" />
+        <div className="bg-gradient-to-br from-white to-indigo-50 p-6 rounded-2xl border border-indigo-100 shadow-lg sticky bottom-6">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <div className="p-1.5 bg-indigo-100 rounded-lg">
+                    <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                </div>
                 AI 智能修订
             </h3>
-            <textarea
-                placeholder="请输入您对大纲的整体修改意见。例如：“增加一个市场竞争分析章节”或“将技术挑战和商业化前景合并”"
-                className="w-full h-24 mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <div className="mt-4 flex justify-end">
-                <button 
-                    onClick={onGenerateContent}
-                    className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 transition transform hover:scale-105"
-                >
-                    生成内容
-                </button>
+            <div className="relative">
+                <textarea
+                    placeholder="请输入您对大纲的整体修改意见。例如：“增加一个市场竞争分析章节”或“将技术挑战和商业化前景合并”"
+                    className="w-full h-24 p-4 pr-32 bg-white border border-indigo-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-sm"
+                />
+                <div className="absolute bottom-3 right-3">
+                    <button 
+                        onClick={onGenerateContent}
+                        className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700 transition transform hover:scale-105 flex items-center gap-2"
+                    >
+                        生成内容 <ArrowRightIcon className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -427,33 +459,55 @@ const ContentGeneratorView: React.FC<{ slides: Slide[]; onComplete: () => void }
     }, []);
 
     return (
-        <div className="max-w-4xl mx-auto animate-in fade-in-0">
-            <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm mb-6">
-                 <h2 className="text-2xl font-bold text-gray-900">内容生成</h2>
-                 <p className="text-gray-600">实时跟踪您的报告生成进度。</p>
+        <div className="max-w-4xl mx-auto animate-in fade-in-0 pb-20">
+            <div className="flex items-center justify-between mb-6">
+                 <div>
+                    <h2 className="text-2xl font-bold text-gray-900">正在生成内容...</h2>
+                    <p className="text-gray-500 text-sm mt-1">AI 正在逐页撰写详细报告内容，请稍候</p>
+                 </div>
+                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
             </div>
+            
             <div className="space-y-4">
-                {slides.map(slide => (
-                    <div key={slide.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex justify-between items-center mb-3">
-                            <h3 className="font-bold text-gray-800 text-lg">{slide.title}</h3>
-                            {slide.status === 'done' && <span className="px-3 py-1 text-xs font-bold text-green-700 bg-green-100 rounded-full">已完成</span>}
-                            {slide.status === 'generating' && <span className="px-3 py-1 text-xs font-bold text-blue-700 bg-blue-100 rounded-full animate-pulse">生成中...</span>}
-                            {slide.status === 'queued' && <span className="px-3 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded-full">排队中</span>}
-                        </div>
-                         <div className="bg-gray-900 text-gray-300 font-mono text-sm rounded-lg p-4 h-32 overflow-y-auto">
-                            {slide.status === 'generating' && <><span>{'>'} 正在连接AI模型 (zhipu@glm-4.5-flash)...</span><br/><span>{'>'} 分析页面主题：“{slide.title}”</span><br/><span>{'>'} 生成草稿...</span><span className="inline-block w-2 h-4 bg-green-400 animate-pulse ml-1" /></>}
-                            {slide.status === 'queued' && <span>{'>'} 排队等待生成...</span>}
-                            {slide.status === 'done' && <span>{'>'} 页面内容生成完毕。</span>}
-                        </div>
-                        {slide.status === 'done' && 
-                            <div className="mt-4 flex justify-end">
-                                <button className="px-4 py-2 bg-blue-100 text-blue-700 font-semibold rounded-lg hover:bg-blue-200 text-sm">
-                                    <SparklesIcon className="w-4 h-4 inline-block mr-1" />
-                                    AI 修改
-                                </button>
+                {slides.map((slide, index) => (
+                    <div key={slide.id} className={`
+                        bg-white p-6 rounded-xl border shadow-sm transition-all duration-500
+                        ${slide.status === 'generating' ? 'border-indigo-500 ring-2 ring-indigo-100 scale-[1.02]' : 'border-gray-200'}
+                    `}>
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex items-center gap-3">
+                                <span className={`text-xs font-bold px-2 py-1 rounded-md ${slide.status === 'done' ? 'bg-green-100 text-green-700' : slide.status === 'generating' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    P{index + 1}
+                                </span>
+                                <h3 className="font-bold text-gray-800 text-lg">{slide.title}</h3>
                             </div>
-                        }
+                            {slide.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500" />}
+                            {slide.status === 'generating' && <span className="text-xs font-bold text-indigo-600 animate-pulse">生成中...</span>}
+                            {slide.status === 'queued' && <span className="text-xs text-gray-400">排队中</span>}
+                        </div>
+                        
+                        {/* Terminal-like Output Area */}
+                        <div className={`
+                            bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-hidden transition-all duration-500
+                            ${slide.status === 'queued' ? 'h-0 p-0 opacity-0' : 'h-auto opacity-100'}
+                        `}>
+                            {slide.status === 'generating' && (
+                                <div className="text-blue-300">
+                                    <p>{'>'} 正在连接AI模型 (zhipu@glm-4.5-flash)...</p>
+                                    <p>{'>'} 分析页面主题：“{slide.title}”</p>
+                                    <p>{'>'} 检索相关知识库片段...</p>
+                                    <p className="flex items-center gap-2">
+                                        {'>'} 生成草稿... <span className="w-2 h-4 bg-blue-400 animate-pulse block"></span>
+                                    </p>
+                                </div>
+                            )}
+                            {slide.status === 'done' && (
+                                <div className="text-green-400">
+                                    <p>{'>'} 内容生成完毕。</p>
+                                    <p className="text-gray-400 mt-2 line-clamp-2 opacity-80">{slide.content}</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -474,36 +528,75 @@ const ReportPreview: React.FC<{ slides: Slide[]; onStartOver: () => void }> = ({
     const goToPrev = () => setCurrentIndex(prev => (prev - 1 + slides.length) % slides.length);
 
     return (
-        <div className="max-w-6xl mx-auto animate-in fade-in-0">
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={onStartOver} className="flex items-center gap-2 px-4 py-2 bg-white border rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
+        <div className="max-w-6xl mx-auto animate-in fade-in-0 pb-10 h-full flex flex-col">
+            <div className="flex justify-between items-center mb-6 px-4 sm:px-0">
+                <button onClick={onStartOver} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors shadow-sm">
                     <ArrowLeftIcon className="w-4 h-4"/>
                     重新开始
                 </button>
-                <h2 className="text-xl font-bold text-gray-800">报告预览</h2>
-                <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
-                    <DownloadIcon className="w-4 h-4"/>
-                    导出为PDF
-                </button>
-            </div>
-            
-            {/* Slide */}
-            <div className="aspect-video w-full bg-white rounded-xl shadow-lg border p-8 sm:p-12 flex flex-col">
-                <h3 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-6">{slides[currentIndex].title}</h3>
-                <div className="text-base sm:text-lg text-gray-700 leading-relaxed prose max-w-none">
-                    <p>{slides[currentIndex].content}</p>
+                
+                <div className="flex gap-3">
+                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors shadow-sm">
+                        <SparklesIcon className="w-4 h-4 text-purple-600"/>
+                        AI 润色
+                    </button>
+                    <button onClick={handleExport} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                        <DownloadIcon className="w-4 h-4"/>
+                        导出 PDF
+                    </button>
                 </div>
             </div>
+            
+            {/* Slide Viewer */}
+            <div className="flex-1 flex gap-6 overflow-hidden px-4 sm:px-0">
+                {/* Thumbnails Sidebar */}
+                <div className="hidden md:flex flex-col w-48 gap-3 overflow-y-auto pr-2 custom-scrollbar">
+                    {slides.map((slide, idx) => (
+                        <div 
+                            key={slide.id}
+                            onClick={() => setCurrentIndex(idx)}
+                            className={`
+                                p-3 rounded-lg border cursor-pointer transition-all
+                                ${idx === currentIndex ? 'bg-indigo-50 border-indigo-500 ring-1 ring-indigo-500' : 'bg-white border-gray-200 hover:border-gray-300'}
+                            `}
+                        >
+                            <div className="text-[10px] font-bold text-gray-400 mb-1">PAGE {idx + 1}</div>
+                            <div className="text-xs font-semibold text-gray-800 line-clamp-2">{slide.title}</div>
+                        </div>
+                    ))}
+                </div>
 
-            {/* Navigation */}
-            <div className="flex justify-between items-center mt-4">
-                <button onClick={goToPrev} className="p-3 bg-white border rounded-full shadow-sm hover:bg-gray-100">
-                    <ArrowLeftIcon className="w-5 h-5"/>
-                </button>
-                <span className="font-semibold text-gray-700">{currentIndex + 1} / {slides.length}</span>
-                <button onClick={goToNext} className="p-3 bg-white border rounded-full shadow-sm hover:bg-gray-100">
-                    <ArrowRightIcon className="w-5 h-5"/>
-                </button>
+                {/* Main Slide Area */}
+                <div className="flex-1 flex flex-col">
+                    <div className="aspect-video w-full bg-white rounded-2xl shadow-xl border border-gray-200 p-8 sm:p-12 md:p-16 flex flex-col relative overflow-hidden group">
+                        {/* Slide Number */}
+                        <div className="absolute bottom-6 right-8 text-gray-300 font-bold text-4xl opacity-20 pointer-events-none">
+                            {currentIndex + 1}
+                        </div>
+
+                        <h3 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-8 leading-tight">{slides[currentIndex].title}</h3>
+                        <div className="text-base sm:text-lg text-gray-600 leading-relaxed prose max-w-none flex-1 overflow-y-auto custom-scrollbar">
+                            <p>{slides[currentIndex].content}</p>
+                        </div>
+                        
+                        {/* Hover Navigation Overlay */}
+                        <div className="absolute inset-0 pointer-events-none flex justify-between items-center px-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <button onClick={goToPrev} className="pointer-events-auto p-3 bg-black/5 hover:bg-black/10 rounded-full backdrop-blur-sm transition-colors">
+                                <ArrowLeftIcon className="w-6 h-6 text-gray-600" />
+                            </button>
+                            <button onClick={goToNext} className="pointer-events-auto p-3 bg-black/5 hover:bg-black/10 rounded-full backdrop-blur-sm transition-colors">
+                                <ArrowRightIcon className="w-6 h-6 text-gray-600" />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {/* Mobile Navigation Controls */}
+                    <div className="md:hidden flex justify-between items-center mt-4 bg-white p-3 rounded-xl shadow-sm border">
+                        <button onClick={goToPrev} className="p-2"><ArrowLeftIcon className="w-5 h-5"/></button>
+                        <span className="font-bold text-gray-700">{currentIndex + 1} / {slides.length}</span>
+                        <button onClick={goToNext} className="p-2"><ArrowRightIcon className="w-5 h-5"/></button>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -550,30 +643,17 @@ export const ReportGenerator: React.FC = () => {
         }
     };
 
-    const renderContent = () => {
-        switch (flowState) {
-            case 'idea':
-                return <IdeaInput onGenerate={handleStartOutlineGeneration} />;
-            case 'generatingOutline':
-                return <GenerationProgress title="正在生成大纲..." onComplete={handleOutlineGenerated} />;
-            case 'outlineReview':
-                return <OutlineEditor outline={slides} onGenerateContent={handleStartContentGeneration} />;
-            case 'generatingContent':
-                return <ContentGeneratorView slides={slides} onComplete={() => setFlowState('preview')} />;
-            case 'preview':
-                return <ReportPreview slides={slides} onStartOver={handleStartOver} />;
-            default:
-                return <IdeaInput onGenerate={handleStartOutlineGeneration} />;
-        }
-    };
-
     return (
-        <div className="p-4 sm:p-6 bg-gray-50/50 min-h-full flex flex-col">
-            {/* Process Flow Tracker (Sticky Top) */}
+        <div className="p-4 sm:p-6 bg-gray-50/50 min-h-full flex flex-col font-sans">
+            {/* Global Process Flow Tracker (Sticky Top) */}
             <ProcessFlowCards currentStep={getStepFromState(flowState)} />
             
-            <div className="flex-1">
-                {renderContent()}
+            <div className="flex-1 relative">
+                {flowState === 'idea' && <IdeaInput onGenerate={handleStartOutlineGeneration} />}
+                {flowState === 'generatingOutline' && <GenerationProgress title="AI 深度推理中..." onComplete={handleOutlineGenerated} />}
+                {flowState === 'outlineReview' && <OutlineEditor outline={slides} onGenerateContent={handleStartContentGeneration} />}
+                {flowState === 'generatingContent' && <ContentGeneratorView slides={slides} onComplete={() => setFlowState('preview')} />}
+                {flowState === 'preview' && <ReportPreview slides={slides} onStartOver={handleStartOver} />}
             </div>
         </div>
     );

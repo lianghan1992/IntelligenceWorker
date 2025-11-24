@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../../types';
-import { getDeepInsightTasks, uploadDeepInsightTask, getDeepInsightCategories } from '../../../api';
-import { PlusIcon, RefreshIcon, DocumentTextIcon, ChartIcon } from '../../icons';
+import { 
+    getDeepInsightTasks, 
+    uploadDeepInsightTask, 
+    getDeepInsightCategories,
+    getDeepInsightTasksStats,
+    deleteDeepInsightTask
+} from '../../../api';
+import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon } from '../../icons';
 import { TaskDetail } from './TaskDetail';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -33,17 +40,30 @@ export const TaskManager: React.FC = () => {
     
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
     const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
+    const [stats, setStats] = useState<{ total: number; completed: number; failed: number; processing: number; pending: number } | null>(null);
+    
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState('');
+    const [deleteId, setDeleteId] = useState<string | null>(null);
     
     const [uploadCategoryId, setUploadCategoryId] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const fetchStats = useCallback(async () => {
+        try {
+            const data = await getDeepInsightTasksStats();
+            setStats(data);
+        } catch (e) { console.error("Failed to fetch stats", e); }
+    }, []);
 
     const fetchTasks = useCallback(async () => {
         setIsLoading(true);
         setError('');
         try {
+            // Fetch stats in parallel or sequentially
+            fetchStats();
+
             // Assuming pagination params are supported, default to page 1
             const response = await getDeepInsightTasks({ page: 1, limit: 50 });
             // Handle API response structure compatibility
@@ -55,16 +75,12 @@ export const TaskManager: React.FC = () => {
                 setTasks([]);
             }
         } catch (err: any) {
-            // If endpoint not found, it might be just not implemented on backend yet as per doc ambiguity.
-            // But we show error.
             console.warn("Fetch tasks warning:", err);
-            // Mock empty if fail for demo UI
-            // setTasks([]);
-            setError(err.message || '获取任务列表失败 (API可能未就绪)');
+            setError(err.message || '获取任务列表失败');
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [fetchStats]);
 
     const fetchCategories = useCallback(async () => {
         try {
@@ -95,6 +111,17 @@ export const TaskManager: React.FC = () => {
         }
     };
 
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await deleteDeepInsightTask(deleteId);
+            setDeleteId(null);
+            fetchTasks();
+        } catch (err: any) {
+            setError(err.message || '删除失败');
+        }
+    };
+
     const handleTaskClick = (id: string) => {
         setSelectedTaskId(id);
         setViewState('detail');
@@ -106,6 +133,32 @@ export const TaskManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col">
+            {/* Stats Overview */}
+            {stats && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
+                        <span className="text-2xl font-bold text-gray-800">{stats.total}</span>
+                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">总任务</span>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
+                        <span className="text-2xl font-bold text-yellow-600">{stats.pending}</span>
+                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">等待中</span>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
+                        <span className="text-2xl font-bold text-blue-600">{stats.processing}</span>
+                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">处理中</span>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
+                        <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
+                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">已完成</span>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg border shadow-sm flex flex-col items-center">
+                        <span className="text-2xl font-bold text-red-600">{stats.failed}</span>
+                        <span className="text-xs text-gray-500 uppercase font-medium mt-1">失败</span>
+                    </div>
+                </div>
+            )}
+
             {/* Toolbar */}
             <div className="bg-white p-4 rounded-lg border mb-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -174,12 +227,21 @@ export const TaskManager: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
                                         <td className="px-6 py-4 text-center">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); handleTaskClick(task.id); }}
-                                                className="text-blue-600 hover:underline font-medium"
-                                            >
-                                                查看详情
-                                            </button>
+                                            <div className="flex items-center justify-center gap-3">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleTaskClick(task.id); }}
+                                                    className="text-blue-600 hover:underline font-medium"
+                                                >
+                                                    详情
+                                                </button>
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setDeleteId(task.id); }}
+                                                    className="text-red-600 hover:bg-red-50 p-1.5 rounded transition-colors"
+                                                    title="删除任务"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -188,6 +250,15 @@ export const TaskManager: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {deleteId && (
+                <ConfirmationModal
+                    title="删除任务"
+                    message="确定要删除此任务及其所有处理数据吗？此操作不可撤销。"
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeleteId(null)}
+                />
+            )}
         </div>
     );
 };

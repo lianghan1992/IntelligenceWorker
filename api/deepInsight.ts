@@ -80,6 +80,19 @@ export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> =
     return response.blob();
 };
 
+// --- New Admin APIs (Stats & Management) ---
+export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
+    apiFetch<{ total: number; completed: number; failed: number; processing: number; pending: number }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/stats`);
+
+export const deleteDeepInsightTask = (taskId: string): Promise<{ ok: boolean }> =>
+    apiFetch<{ ok: boolean }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}`, {
+        method: 'DELETE',
+    });
+
+export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
+    apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/status`);
+
+
 // --- Gemini ---
 export const updateDeepInsightGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ ok: boolean; message: string }> => {
     const formData = new FormData();

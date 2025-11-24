@@ -144,3 +144,24 @@
 ## 备注
 - 未完成任务可在服务重启后继续，处理状态存于数据库与存储目录。
 - 数据表：`deep_insight_categories`、`deep_insight_tasks`、`deep_insight_pages`。
+## 任务管理
+
+- 列表（分页）：`GET /deep_insight/tasks?page=1&limit=20`
+- 详情：`GET /deep_insight/tasks/{task_id}`
+- 状态快照：`GET /deep_insight/tasks/{task_id}/status`
+  - 返回字段：`status`、`total_pages`、`processed_pages`、`last_processed_page`、`result_bundle_pdf`
+- 任务统计：`GET /deep_insight/tasks/stats`
+  - 返回：`{"total":N, "completed":A, "failed":B, "processing":C, "pending":D}`
+- 删除任务：`DELETE /deep_insight/tasks/{task_id}`
+  - 行为：删除数据库记录并尝试删除 `storage` 目录
+  - 返回：`{"ok":true}`
+
+## 页面与合稿下载
+
+- 下载单页 PDF：`GET /deep_insight/tasks/{task_id}/pages/{page_index}/pdf`
+- 下载合并总 PDF：`GET /deep_insight/tasks/{task_id}/bundle`
+
+## 失败处理与降级逻辑
+
+- 若视觉识别返回空或异常，系统自动以图片为主体生成简单 HTML，并转换为 PDF，避免页面全部失败。
+- 若 Markdown→HTML 渠道不可用，尝试本地 `markdown` 渲染再转换 PDF。
