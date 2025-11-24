@@ -277,6 +277,37 @@ curl -X POST "http://127.0.0.1:7657/crawler/search/combined" \
     }
     ```
 
+### 实时更新 Gemini Cookie
+- 路径：`/crawler/gemini/cookies`
+- 方法：`POST`
+- 认证：需要Bearer Token
+- 请求：
+  ```json
+  {
+    "secure_1psid": "<__Secure-1PSID>",
+    "secure_1psidts": "<__Secure-1PSIDTS>",
+    "http_proxy": "http://127.0.0.1:20171"
+  }
+  ```
+- 响应：
+  - `200`：`{"message": "Gemini cookies updated", "initialized": true}`
+  - `400`：更新失败，返回错误原因
+- 说明：
+  - 该接口会在不重启服务的情况下，重建 Gemini 客户端并在持久事件循环中进行初始化（最多两次）；成功后立即生效。
+  - 若 `.env` 中已启用代理，则无需传 `http_proxy`。
+  
+**cURL示例**
+```bash
+curl -X POST "http://127.0.0.1:7657/crawler/gemini/cookies" \
+ -H "Authorization: Bearer <token>" \
+ -H "Content-Type: application/json" \
+ -d '{
+  "secure_1psid": "sid...",
+  "secure_1psidts": "sidts...",
+  "http_proxy": "http://127.0.0.1:20171"
+}'
+```
+
 ## 说明与约束
 - 分页参数：`page` 从 1 开始，`limit` 建议不超过 50。
 - 时间字段：遵循 ISO 8601 格式，示例 `YYYY-MM-DDTHH:mm:ss`。
@@ -285,3 +316,18 @@ curl -X POST "http://127.0.0.1:7657/crawler/search/combined" \
 
 ## 版本
 - v1.0.0（与当前代码一致）
+### 下载文章PDF（HTML已生成的前提下）
+- 路径：`/crawler/articles/{article_id}/pdf`
+- 方法：`GET`
+- 认证：需要Bearer Token
+- 行为：仅当对应文章的HTML已存在时才进行转换；每次请求若未存在PDF则即时转换并返回文件下载。
+- 响应：
+  - `200`：返回PDF二进制文件
+  - `404`：未找到对应的HTML报告文件（不进行转换）
+  - `500`：服务端转换失败
+
+**cURL示例**
+```bash
+curl -X GET "http://127.0.0.1:7657/crawler/articles/<article_id>/pdf" \
+ -H "Authorization: Bearer <token>" -o <article_id>.pdf
+```

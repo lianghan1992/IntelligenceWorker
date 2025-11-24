@@ -184,6 +184,28 @@ export const getArticleHtml = async (articleId: string): Promise<string | null> 
     return response.text();
 };
 
+export const downloadArticlePdf = async (articleId: string): Promise<Blob> => {
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}/pdf`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (response.status === 404) {
+        throw new Error("报告尚未生成，请稍后再试");
+    }
+
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '下载失败');
+        throw new Error(errorText || `下载失败: ${response.status}`);
+    }
+
+    return response.blob();
+};
+
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
     // Use /search/combined for chunks as well to ensure consistency

@@ -1,7 +1,8 @@
+
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
-import { getArticleHtml } from '../../api/intelligence';
+import { getArticleHtml, downloadArticlePdf } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -9,7 +10,6 @@ declare global {
     marked?: {
       parse(markdownString: string): string;
     };
-    html2pdf?: any;
   }
 }
 
@@ -84,46 +84,33 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         }
     }, [selectedArticle]);
 
-    // Handle Export PDF using html2pdf.js
-    const handleDownloadPdf = () => {
-        if (!iframeRef.current || !iframeRef.current.contentDocument) {
-            alert("文档尚未加载完成，无法导出。");
-            return;
-        }
+    // Handle Export PDF using Backend API
+    const handleDownloadPdf = async () => {
+        if (!selectedArticle) return;
         
-        if (!window.html2pdf) {
-            alert("PDF生成组件加载失败，请刷新页面重试。");
-            return;
+        // Check for temp ID
+        if (String(selectedArticle.id).startsWith('temp_')) {
+             alert("该内容尚未入库，无法生成PDF。");
+             return;
         }
 
         setIsDownloading(true);
-
-        // Get the body from the iframe
-        const element = iframeRef.current.contentDocument.body;
-        
-        const opt = {
-            margin: [10, 10, 10, 10], // top, left, bottom, right in mm
-            filename: `${selectedArticle?.title || 'report'}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { 
-                scale: 2, // Higher scale for better resolution
-                useCORS: true, 
-                logging: false,
-                letterRendering: true 
-            },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-
-        // Use a small timeout to allow UI to update
-        setTimeout(() => {
-            window.html2pdf().set(opt).from(element).save().then(() => {
-                setIsDownloading(false);
-            }).catch((err: any) => {
-                console.error("PDF Generation Error:", err);
-                alert("PDF 生成失败，请重试。");
-                setIsDownloading(false);
-            });
-        }, 100);
+        try {
+            const blob = await downloadArticlePdf(selectedArticle.id);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${selectedArticle.title || 'report'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err: any) {
+            console.error("PDF Download Error:", err);
+            alert(err.message || "PDF 下载失败，请重试。");
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     const fallbackArticleHtml = useMemo(() => {
