@@ -150,6 +150,17 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
     }
 };
 
+export const searchSemantic = (query: string, top_k: number = 20, min_score: number = 0.5): Promise<{ items: { article_id: string; content_chunk: string; score: number }[] }> => {
+    return apiFetch<{ items: { article_id: string; content_chunk: string; score: number }[] }>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
+        method: 'POST',
+        body: JSON.stringify({
+            query,
+            top_k,
+            min_score
+        }),
+    });
+};
+
 export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
     setFeedback('正在抓取URL内容...');
     return new Promise(resolve => setTimeout(() => {

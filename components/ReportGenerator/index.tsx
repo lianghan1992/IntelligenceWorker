@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons';
+import { SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, CloseIcon, DocumentTextIcon, CheckIcon } from '../icons';
 import { Slide } from '../../types';
+import { searchSemantic } from '../../api';
 
 // 模拟的AI思考过程和JSON输出
 const mockAiThoughtProcess = `
@@ -39,9 +41,150 @@ const mockAiThoughtProcess = `
 }
 `;
 
+// --- 知识库检索模态框 ---
+const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<{ article_id: string; content_chunk: string; score: number }[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
+    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+    const handleSearch = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!query.trim()) return;
+
+        setIsLoading(true);
+        setHasSearched(true);
+        try {
+            // Top K: 20, Min Score: 0.5 as requested
+            const response = await searchSemantic(query, 20, 0.5);
+            setResults(response.items || []);
+        } catch (error) {
+            console.error("Search failed:", error);
+            setResults([]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCopy = (text: string, index: number) => {
+        navigator.clipboard.writeText(text);
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+    };
+
+    return (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/20 relative">
+                {/* Header */}
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                            <SparklesIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-gray-900">知识库语义检索</h3>
+                            <p className="text-xs text-gray-500">基于向量相似度匹配的高价值情报片段</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors">
+                        <CloseIcon className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="p-6 bg-white">
+                    <form onSubmit={handleSearch} className="relative">
+                        <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="输入关键词或描述，例如 '固态电池最新进展'..."
+                            className="w-full bg-gray-50 border border-gray-300 rounded-xl py-3.5 pl-12 pr-32 text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all shadow-sm"
+                            autoFocus
+                        />
+                        <button 
+                            type="submit" 
+                            disabled={isLoading || !query.trim()}
+                            className="absolute right-2 top-2 bottom-2 px-6 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isLoading ? '搜索中...' : '检索'}
+                        </button>
+                    </form>
+                </div>
+
+                {/* Results Area */}
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-gray-400 space-y-4">
+                            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-600"></div>
+                            <p>AI 正在扫描知识库...</p>
+                        </div>
+                    ) : !hasSearched ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400 space-y-4 opacity-60">
+                            <DocumentTextIcon className="w-16 h-16 text-gray-300" />
+                            <p>输入关键词开始检索</p>
+                        </div>
+                    ) : results.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                            <p className="text-lg font-medium">未找到相关内容</p>
+                            <p className="text-sm mt-2">尝试更换关键词或降低相似度阈值</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-4">
+                            {results.map((item, index) => (
+                                <div key={index} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group relative">
+                                    {/* Score Badge */}
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-xs font-bold px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-100">
+                                                置信度: {(item.score * 100).toFixed(1)}%
+                                            </div>
+                                            {item.score > 0.8 && (
+                                                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                                    强相关
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button 
+                                            onClick={() => handleCopy(item.content_chunk, index)}
+                                            className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${copiedIndex === index ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
+                                        >
+                                            {copiedIndex === index ? <CheckIcon className="w-3.5 h-3.5" /> : <DocumentTextIcon className="w-3.5 h-3.5" />}
+                                            {copiedIndex === index ? '已复制' : '复制引用'}
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Content */}
+                                    <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-6 group-hover:line-clamp-none transition-all">
+                                        {item.content_chunk}
+                                    </div>
+                                    
+                                    {/* ID Reference (Optional) */}
+                                    <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
+                                        <span className="text-[10px] text-gray-400 font-mono">Ref ID: {item.article_id}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                
+                {/* Footer Info */}
+                <div className="p-3 bg-white border-t border-gray-200 text-center">
+                    <p className="text-xs text-gray-400">共检索到 {results.length} 条相关片段 (Min Score: 0.5)</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- 阶段1: 创意输入 ---
 const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerate }) => {
     const [idea, setIdea] = useState('');
+    const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
     return (
         <div className="flex flex-col items-center justify-center h-full pt-10 sm:pt-20">
             <div className="w-full max-w-3xl text-center">
@@ -66,6 +209,16 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
                     <button className="px-6 py-3 border border-gray-300 bg-white text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition">
                         上传辅助文件 (可选)
                     </button>
+                    
+                    {/* NEW: Knowledge Base Search Button */}
+                    <button 
+                        onClick={() => setIsSearchModalOpen(true)}
+                        className="px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-lg shadow-sm hover:bg-purple-100 transition flex items-center gap-2"
+                    >
+                        <SearchIcon className="w-4 h-4" />
+                        检索知识库
+                    </button>
+
                     <button 
                         onClick={() => onGenerate(idea)}
                         disabled={!idea.trim()}
@@ -75,6 +228,11 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
                     </button>
                 </div>
             </div>
+            
+            {/* Search Modal */}
+            {isSearchModalOpen && (
+                <KnowledgeSearchModal onClose={() => setIsSearchModalOpen(false)} />
+            )}
         </div>
     );
 };
