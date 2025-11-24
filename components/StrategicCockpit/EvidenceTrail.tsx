@@ -41,26 +41,33 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             getArticleHtml(selectedArticle.id)
                 .then((html) => {
                     if (html) {
-                        // Inject specific print styles to ensure high quality PDF output
+                        // Inject specific styles. 
+                        // Updated: Set max-width to 100% to fill the container instead of fixed 800px.
                         const printStyles = `
                             <style>
                                 body { 
                                     font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; 
                                     line-height: 1.6; 
                                     color: #333; 
-                                    padding: 40px; 
-                                    max-width: 800px; 
-                                    margin: 0 auto;
+                                    padding: 20px 30px;
+                                    max-width: 100%; 
+                                    margin: 0;
                                     background-color: white;
+                                    box-sizing: border-box;
                                 }
                                 img { max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin: 20px 0; }
-                                h1 { font-size: 24px; color: #111; margin-bottom: 10px; }
+                                h1 { font-size: 24px; color: #111; margin-bottom: 15px; }
                                 h2 { font-size: 20px; color: #333; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
                                 p { margin-bottom: 15px; text-align: justify; }
                                 blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; color: #1e40af; }
                                 table { border-collapse: collapse; width: 100%; margin: 20px 0; }
                                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                                 th { background-color: #f8f9fa; font-weight: bold; }
+                                
+                                /* Optimize for printing */
+                                @media print {
+                                    body { padding: 0; margin: 0; }
+                                }
                             </style>
                         `;
                         setHtmlContent(printStyles + html);
@@ -95,7 +102,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         const element = iframeRef.current.contentDocument.body;
         
         const opt = {
-            margin: [10, 15, 15, 15], // top, left, bottom, right in mm
+            margin: [10, 10, 10, 10], // top, left, bottom, right in mm
             filename: `${selectedArticle?.title || 'report'}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { 
@@ -231,8 +238,8 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         <div className="mb-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex items-start gap-3">
                             <SparklesIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-sm font-semibold text-yellow-800">美化报告生成中</p>
-                                <p className="text-xs text-yellow-700 mt-1">系统正在后台生成排版精美的 HTML 报告。当前展示的是原始文本内容。</p>
+                                <p className="text-sm font-semibold text-yellow-800">开箱即用报告生成中</p>
+                                <p className="text-xs text-yellow-700 mt-1">请稍后再来看看。</p>
                             </div>
                         </div>
 
