@@ -5,8 +5,8 @@ import {
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon 
 } from '../icons';
-import { Slide } from '../../types';
-import { searchSemantic } from '../../api';
+import { Slide, SearchChunkResult } from '../../types';
+import { searchChunks } from '../../api';
 
 // 模拟的AI思考过程和JSON输出
 const mockAiThoughtProcess = `
@@ -101,7 +101,7 @@ const ProcessFlowCards: React.FC = () => {
 // --- 知识库检索模态框 ---
 const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<{ article_id: string; content_chunk: string; score: number }[]>([]);
+    const [results, setResults] = useState<SearchChunkResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -113,9 +113,12 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         setIsLoading(true);
         setHasSearched(true);
         try {
-            // Top K: 20, Min Score: 0.5 as requested
-            const response = await searchSemantic(query, 20, 0.5);
-            setResults(response.items || []);
+            const response = await searchChunks({
+                query_text: query,
+                top_k: 20,
+                similarity_threshold: 0.5
+            });
+            setResults(response.results || []);
         } catch (error) {
             console.error("Search failed:", error);
             setResults([]);
@@ -191,21 +194,22 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
                             {results.map((item, index) => (
-                                <div key={index} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group relative">
+                                <div key={`${item.article_id}-${index}`} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all group relative">
                                     {/* Score Badge */}
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
                                             <div className="text-xs font-bold px-2 py-1 bg-purple-50 text-purple-700 rounded border border-purple-100">
-                                                置信度: {(item.score * 100).toFixed(1)}%
+                                                置信度: {(item.similarity_score * 100).toFixed(1)}%
                                             </div>
-                                            {item.score > 0.8 && (
+                                            {item.similarity_score > 0.8 && (
                                                 <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
                                                     强相关
                                                 </span>
                                             )}
+                                            <span className="text-xs text-gray-400 truncate max-w-[150px]">{item.article_title}</span>
                                         </div>
                                         <button 
-                                            onClick={() => handleCopy(item.content_chunk, index)}
+                                            onClick={() => handleCopy(item.chunk_text, index)}
                                             className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${copiedIndex === index ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
                                         >
                                             {copiedIndex === index ? <CheckIcon className="w-3.5 h-3.5" /> : <DocumentTextIcon className="w-3.5 h-3.5" />}
@@ -215,12 +219,15 @@ const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) =>
                                     
                                     {/* Content */}
                                     <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap line-clamp-6 group-hover:line-clamp-none transition-all">
-                                        {item.content_chunk}
+                                        {item.chunk_text}
                                     </div>
                                     
                                     {/* ID Reference (Optional) */}
                                     <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
                                         <span className="text-[10px] text-gray-400 font-mono">Ref ID: {item.article_id}</span>
+                                        {item.article_publish_date && (
+                                            <span className="text-[10px] text-gray-400">发布于: {new Date(item.article_publish_date).toLocaleDateString()}</span>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -267,7 +274,7 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
                         上传辅助文件 (可选)
                     </button>
                     
-                    {/* NEW: Knowledge Base Search Button */}
+                    {/* Knowledge Base Search Button */}
                     <button 
                         onClick={() => setIsSearchModalOpen(true)}
                         className="w-full sm:w-auto px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-lg shadow-sm hover:bg-purple-100 transition flex items-center justify-center gap-2"
