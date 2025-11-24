@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DocumentTextIcon, RssIcon, TrendingUpIcon } from '../icons';
 import { BookmarkIcon } from './icons';
@@ -41,65 +42,53 @@ const StatCard: React.FC<{
     title: string; 
     value: number | string | null; 
     description: string; 
-    colorTheme: 'primary' | 'tertiary' | 'secondary' | 'error'; 
+    colorTheme: 'blue' | 'green' | 'purple' | 'rose'; 
     isLoading: boolean;
 }> = ({ icon, title, value, description, colorTheme, isLoading }) => {
     
-    // Material 3 Color Mappings (Approximate with Tailwind)
     const themes = {
-        primary: { 
-            bg: 'bg-blue-50', 
-            text: 'text-blue-900', 
-            container: 'bg-blue-100', 
-            onContainer: 'text-blue-700',
-            decoration: 'bg-blue-200'
+        blue: {
+            iconBg: 'bg-blue-50',
+            iconColor: 'text-blue-600',
+            borderColor: 'border-blue-100', // Optional
         },
-        secondary: { 
-            bg: 'bg-purple-50', 
-            text: 'text-purple-900', 
-            container: 'bg-purple-100', 
-            onContainer: 'text-purple-700',
-            decoration: 'bg-purple-200'
+        green: {
+            iconBg: 'bg-emerald-50',
+            iconColor: 'text-emerald-600',
+            borderColor: 'border-emerald-100',
         },
-        tertiary: { 
-            bg: 'bg-teal-50', 
-            text: 'text-teal-900', 
-            container: 'bg-teal-100', 
-            onContainer: 'text-teal-700',
-            decoration: 'bg-teal-200'
+        purple: {
+            iconBg: 'bg-purple-50',
+            iconColor: 'text-purple-600',
+            borderColor: 'border-purple-100',
         },
-        error: { 
-            bg: 'bg-rose-50', 
-            text: 'text-rose-900', 
-            container: 'bg-rose-100', 
-            onContainer: 'text-rose-700',
-            decoration: 'bg-rose-200'
+        rose: {
+            iconBg: 'bg-rose-50',
+            iconColor: 'text-rose-600',
+            borderColor: 'border-rose-100',
         },
     }[colorTheme];
 
     return (
-        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-500 hover:shadow-lg hover:-translate-y-1 group ${themes.bg}`}>
-            <div className="flex justify-between items-start z-10 relative">
-                <div>
-                    <p className={`text-sm font-medium opacity-70 tracking-wide ${themes.text}`}>{title}</p>
-                    <p className={`text-4xl font-normal mt-2 ${themes.text} font-sans`}>
-                        {isLoading ? (
-                            <span className="inline-block w-16 h-8 bg-current opacity-20 rounded animate-pulse"></span>
-                        ) : (
-                            typeof value === 'number' ? <AnimatedNumber value={value} /> : value
-                        )}
-                    </p>
-                </div>
-                <div className={`p-4 rounded-[16px] ${themes.container} ${themes.onContainer} shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 group">
+            <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 rounded-xl ${themes.iconBg} flex items-center justify-center ${themes.iconColor} transition-transform group-hover:scale-110`}>
                     {icon}
                 </div>
+                {/* Optional: Trend Indicator can go here */}
             </div>
-            <p className={`text-xs mt-4 opacity-60 font-medium ${themes.text} flex items-center gap-1`}>
-                {description}
-            </p>
             
-            {/* Decorative Circle */}
-            <div className={`absolute -bottom-4 -right-4 w-32 h-32 rounded-full opacity-20 ${themes.decoration} group-hover:scale-125 transition-transform duration-700 ease-out`}></div>
+            <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+                <div className="text-3xl font-bold text-gray-900 tracking-tight font-sans">
+                    {isLoading ? (
+                        <div className="h-9 w-24 bg-gray-100 rounded animate-pulse"></div>
+                    ) : (
+                        typeof value === 'number' ? <AnimatedNumber value={value} /> : value
+                    )}
+                </div>
+                <p className="text-xs text-gray-400 mt-2 font-medium">{description}</p>
+            </div>
         </div>
     );
 };
@@ -162,13 +151,13 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
     }, [subscriptions]);
     
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <StatCard 
                 icon={<DocumentTextIcon className="w-6 h-6" />}
                 title="今日新增情报"
                 value={stats.articlesToday}
                 description="平台今日收录总量"
-                colorTheme="primary"
+                colorTheme="blue"
                 isLoading={isLoading}
             />
             <StatCard 
@@ -176,7 +165,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 title="有动态的情报点"
                 value={stats.pointsWithUpdates}
                 description="今日有更新的监控项"
-                colorTheme="tertiary"
+                colorTheme="green"
                 isLoading={isLoading}
             />
             <StatCard 
@@ -184,7 +173,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 title="情报点总数"
                 value={stats.totalPoints}
                 description="当前配置的追踪目标"
-                colorTheme="secondary"
+                colorTheme="purple"
                 isLoading={isLoading}
             />
             <StatCard 
@@ -192,7 +181,7 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 title="情报源总数"
                 value={stats.totalSources}
                 description="已连接的信息渠道"
-                colorTheme="error"
+                colorTheme="rose"
                 isLoading={isLoading}
             />
         </div>

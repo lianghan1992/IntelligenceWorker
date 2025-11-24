@@ -77,6 +77,15 @@
       background: #94a3b8;
     }
 
+    /* 隐藏滚动条但保留功能 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+
     .prose {
       max-width: 65ch;
       color: #374151;
