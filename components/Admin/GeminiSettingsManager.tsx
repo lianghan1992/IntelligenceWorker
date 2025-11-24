@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { updateGeminiCookies } from '../../api';
-import { SparklesIcon, ServerIcon } from '../icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { updateGeminiCookies, checkGeminiCookies } from '../../api';
+import { SparklesIcon, ServerIcon, CheckCircleIcon, ShieldExclamationIcon, QuestionMarkCircleIcon, RefreshIcon } from '../icons';
 
 export const GeminiSettingsManager: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -10,7 +10,26 @@ export const GeminiSettingsManager: React.FC = () => {
         http_proxy: ''
     });
     const [isLoading, setIsLoading] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
+    const [cookieStatus, setCookieStatus] = useState<{ has_cookie: boolean; valid: boolean } | null>(null);
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+    const checkStatus = useCallback(async () => {
+        setIsChecking(true);
+        try {
+            const res = await checkGeminiCookies();
+            setCookieStatus(res);
+        } catch (error) {
+            console.error("Failed to check Gemini cookie status:", error);
+            setCookieStatus(null);
+        } finally {
+            setIsChecking(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        checkStatus();
+    }, [checkStatus]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,12 +46,57 @@ export const GeminiSettingsManager: React.FC = () => {
                 type: 'success', 
                 message: `更新成功: ${response.message} (初始化状态: ${response.initialized ? '成功' : '失败'})` 
             });
+            // Refresh status after successful update
+            await checkStatus();
         } catch (err: any) {
             setStatus({ type: 'error', message: err.message || '更新失败' });
         } finally {
             setIsLoading(false);
         }
     };
+
+    const getStatusDisplay = () => {
+        if (!cookieStatus) {
+            return {
+                bg: 'bg-gray-50',
+                border: 'border-gray-200',
+                text: 'text-gray-600',
+                icon: QuestionMarkCircleIcon,
+                label: '状态未知',
+                desc: '无法获取当前配置状态'
+            };
+        }
+        if (!cookieStatus.has_cookie) {
+            return {
+                bg: 'bg-yellow-50',
+                border: 'border-yellow-200',
+                text: 'text-yellow-700',
+                icon: QuestionMarkCircleIcon,
+                label: '未配置',
+                desc: '系统未检测到 Gemini Cookies'
+            };
+        }
+        if (cookieStatus.valid) {
+            return {
+                bg: 'bg-green-50',
+                border: 'border-green-200',
+                text: 'text-green-700',
+                icon: CheckCircleIcon,
+                label: '运行正常',
+                desc: 'Cookies 有效，服务可用'
+            };
+        }
+        return {
+            bg: 'bg-red-50',
+            border: 'border-red-200',
+            text: 'text-red-700',
+            icon: ShieldExclamationIcon,
+            label: '配置失效',
+            desc: 'Cookies 已过期或不可用，请重新配置'
+        };
+    };
+
+    const statusDisplay = getStatusDisplay();
 
     return (
         <div className="p-6 max-w-2xl">
@@ -41,15 +105,39 @@ export const GeminiSettingsManager: React.FC = () => {
                     <div className="p-2 bg-purple-100 rounded-lg">
                         <SparklesIcon className="w-6 h-6 text-purple-600" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <h2 className="text-lg font-bold text-gray-800">Gemini Cookie 实时更新</h2>
                         <p className="text-xs text-gray-500">无需重启服务即可重建 Gemini 客户端连接</p>
                     </div>
                 </div>
 
+                {/* Status Section */}
+                <div className={`mb-6 p-4 rounded-lg border ${statusDisplay.bg} ${statusDisplay.border} flex items-start justify-between`}>
+                    <div className="flex items-start gap-3">
+                        <statusDisplay.icon className={`w-5 h-5 mt-0.5 ${statusDisplay.text}`} />
+                        <div>
+                            <h3 className={`text-sm font-bold ${statusDisplay.text}`}>{statusDisplay.label}</h3>
+                            <p className={`text-xs mt-1 opacity-80 ${statusDisplay.text}`}>{statusDisplay.desc}</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={checkStatus} 
+                        disabled={isChecking}
+                        className={`p-1.5 rounded-md hover:bg-white/50 transition-colors ${statusDisplay.text}`}
+                        title="刷新状态"
+                    >
+                        <RefreshIcon className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
+
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {status && (
-                        <div className={`p-4 rounded-lg text-sm ${status.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    {status && status.type === 'error' && (
+                        <div className="p-4 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200">
+                            {status.message}
+                        </div>
+                    )}
+                    {status && status.type === 'success' && (
+                        <div className="p-4 rounded-lg text-sm bg-green-50 text-green-700 border border-green-200">
                             {status.message}
                         </div>
                     )}

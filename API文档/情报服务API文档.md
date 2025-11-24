@@ -146,6 +146,31 @@ curl -X GET "http://127.0.0.1:7657/crawler/articles/<article_id>/html" \
   ]
   ```
 
+### Gemini Cookie 管理
+- 检查 Cookie 是否有效：`GET /crawler/gemini/cookies/check`
+  - 返回：
+    ```json
+    {"has_cookie":true, "valid":true}
+    ```
+  - cURL：
+    ```bash
+    curl -X GET http://127.0.0.1:7657/api/crawler/gemini/cookies/check \
+      -H "Authorization: Bearer <token>"
+    ```
+
+- 更新 Cookie：`POST /crawler/gemini/cookies`
+  - 请求：`multipart/form-data`
+    - 字段：`secure_1psid`, `secure_1psidts`, `http_proxy`(可选)
+  - 返回：
+    ```json
+    {"ok":true}
+    ```
+  - cURL：
+    ```bash
+    curl -X POST http://127.0.0.1:7657/api/crawler/gemini/cookies \
+      -H "Authorization: Bearer <token>" \
+      -F "secure_1psid=<cookie>" -F "secure_1psidts=<cookie_ts>"
+    ```
 ### 文章检索（分页）
 - 路径：`/crawler/articles`
 - 方法：`POST`

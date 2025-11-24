@@ -306,3 +306,6 @@ export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts
         method: 'POST',
         body: JSON.stringify(data),
     });
+
+export const checkGeminiCookies = (): Promise<{ has_cookie: boolean; valid: boolean }> =>
+    apiFetch<{ has_cookie: boolean; valid: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies/check`);
