@@ -9,6 +9,7 @@ declare global {
     marked?: {
       parse(markdownString: string): string;
     };
+    html2pdf?: any;
   }
 }
 
@@ -19,6 +20,7 @@ interface EvidenceTrailProps {
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [isLoadingHtml, setIsLoadingHtml] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -42,30 +44,25 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         // Inject specific print styles to ensure high quality PDF output
                         const printStyles = `
                             <style>
-                                @media print {
-                                    @page { margin: 20mm; size: A4; }
-                                    body { 
-                                        font-family: "Microsoft YaHei", -apple-system, sans-serif; 
-                                        -webkit-print-color-adjust: exact; 
-                                        print-color-adjust: exact;
-                                        background-color: white;
-                                    }
-                                    img { max-width: 100%; page-break-inside: avoid; break-inside: avoid; }
-                                    h1, h2, h3, h4, h5, h6 { page-break-after: avoid; break-after: avoid; page-break-inside: avoid; }
-                                    p { orphans: 2; widows: 2; }
-                                    blockquote { page-break-inside: avoid; }
-                                    pre { white-space: pre-wrap; word-wrap: break-word; }
-                                    a { text-decoration: none; color: #2563eb; }
+                                body { 
+                                    font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; 
+                                    line-height: 1.6; 
+                                    color: #333; 
+                                    padding: 40px; 
+                                    max-width: 800px; 
+                                    margin: 0 auto;
+                                    background-color: white;
                                 }
-                                /* Enhanced Web View Styles */
-                                body { font-family: system-ui, sans-serif; line-height: 1.6; color: #333; padding: 20px; max-width: 900px; margin: 0 auto; }
-                                img { border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin: 20px 0; }
+                                img { max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin: 20px 0; }
+                                h1 { font-size: 24px; color: #111; margin-bottom: 10px; }
+                                h2 { font-size: 20px; color: #333; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+                                p { margin-bottom: 15px; text-align: justify; }
                                 blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; color: #1e40af; }
+                                table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                                th { background-color: #f8f9fa; font-weight: bold; }
                             </style>
                         `;
-                        // If the HTML doesn't have a head, wrap it or just prepend style
-                        // Assuming backend returns full HTML or fragment. 
-                        // Safest is to prepend style to the whole string.
                         setHtmlContent(printStyles + html);
                     } else {
                         setHtmlContent(null);
@@ -80,22 +77,46 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         }
     }, [selectedArticle]);
 
-    // Handle Export PDF using Native Browser Print
-    // This provides the highest fidelity, editable text, and perfect CSS support.
+    // Handle Export PDF using html2pdf.js
     const handleDownloadPdf = () => {
-        if (!iframeRef.current || !iframeRef.current.contentWindow) {
+        if (!iframeRef.current || !iframeRef.current.contentDocument) {
             alert("文档尚未加载完成，无法导出。");
             return;
         }
         
-        try {
-            // Focus and print the iframe window directly
-            iframeRef.current.contentWindow.focus();
-            iframeRef.current.contentWindow.print();
-        } catch (e) {
-            console.error("Print failed", e);
-            alert("打印调起失败，请尝试手动使用浏览器的打印功能 (Ctrl+P)。");
+        if (!window.html2pdf) {
+            alert("PDF生成组件加载失败，请刷新页面重试。");
+            return;
         }
+
+        setIsDownloading(true);
+
+        // Get the body from the iframe
+        const element = iframeRef.current.contentDocument.body;
+        
+        const opt = {
+            margin: [10, 15, 15, 15], // top, left, bottom, right in mm
+            filename: `${selectedArticle?.title || 'report'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+                scale: 2, // Higher scale for better resolution
+                useCORS: true, 
+                logging: false,
+                letterRendering: true 
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        // Use a small timeout to allow UI to update
+        setTimeout(() => {
+            window.html2pdf().set(opt).from(element).save().then(() => {
+                setIsDownloading(false);
+            }).catch((err: any) => {
+                console.error("PDF Generation Error:", err);
+                alert("PDF 生成失败，请重试。");
+                setIsDownloading(false);
+            });
+        }, 100);
     };
 
     const fallbackArticleHtml = useMemo(() => {
@@ -137,42 +158,53 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden transition-all duration-500 relative">
             {/* Header Area */}
-            <div className="p-6 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
-                <div className="flex items-start justify-between gap-4">
+            <div className="p-4 md:p-6 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
+                <div className="flex flex-col gap-4">
                     <div>
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
                                 {selectedArticle.source_name}
                             </span>
                             <span className="text-xs text-gray-500 font-medium">
                                 {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN')}
                             </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 text-2xl leading-tight line-clamp-2">
+                        <h3 className="font-bold text-gray-900 text-xl md:text-2xl leading-tight line-clamp-2">
                             {selectedArticle.title}
                         </h3>
                     </div>
-                </div>
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                     <a 
-                        href={selectedArticle.original_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-                    >
-                        阅读原文 <ArrowRightIcon className="w-4 h-4" />
-                    </a>
                     
-                    {htmlContent && (
-                        <button 
-                            onClick={handleDownloadPdf}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm"
-                            title="生成高质量矢量 PDF"
+                    <div className="flex flex-wrap items-center gap-3">
+                         <a 
+                            href={selectedArticle.original_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-xs md:text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
                         >
-                            <DownloadIcon className="w-4 h-4" />
-                            打印 / 另存为 PDF
-                        </button>
-                    )}
+                            阅读原文 <ArrowRightIcon className="w-3.5 h-3.5" />
+                        </a>
+                        
+                        {htmlContent && (
+                            <button 
+                                onClick={handleDownloadPdf}
+                                disabled={isDownloading}
+                                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-xs md:text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait"
+                                title="生成 PDF"
+                            >
+                                {isDownloading ? (
+                                    <>
+                                        <div className="animate-spin w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                                        生成中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <DownloadIcon className="w-3.5 h-3.5" />
+                                        下载 PDF
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -190,11 +222,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         ref={iframeRef}
                         title="Article Content"
                         srcDoc={htmlContent}
-                        className="w-full h-full border-none block"
+                        className="w-full h-full border-none block bg-white"
                         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                     />
                 ) : (
-                    <div className="h-full overflow-y-auto p-8 md:p-10 custom-scrollbar">
+                    <div className="h-full overflow-y-auto p-6 md:p-10 custom-scrollbar">
                         {/* Fallback Message */}
                         <div className="mb-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex items-start gap-3">
                             <SparklesIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />

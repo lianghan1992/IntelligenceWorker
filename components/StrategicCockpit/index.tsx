@@ -138,8 +138,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     const backToNav = () => setMobileView('nav');
     const backToList = () => {
         setMobileView('list');
-        // Don't clear selectedArticle immediately to avoid flicker if user goes back forward? 
-        // Actually, clearing it might be safer for state consistency, but let's keep it for cache.
     };
 
     return (

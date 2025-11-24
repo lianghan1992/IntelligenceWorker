@@ -13,15 +13,15 @@ const TaskSection: React.FC<{ title: string; tasks: LivestreamTask[]; onCardClic
     }
     return (
         <section className="animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center gap-4 mb-6 relative">
+            <div className="flex items-center gap-4 mb-4 md:mb-6 relative">
                 <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className={`w-1 h-7 rounded-full`} style={{ backgroundColor: color }}></div>
-                    <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+                    <div className={`w-1 h-5 md:h-7 rounded-full`} style={{ backgroundColor: color }}></div>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-800">{title}</h2>
                 </div>
                 <div className="flex-grow h-px bg-gray-200/60"></div>
                 <span className="text-xs text-gray-400 font-medium bg-gray-50 px-2 rounded-full">{tasks.length}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
                 {tasks.map((task) => (
                     <TaskCard key={task.id} task={task} onViewReport={() => onCardClick(task)} />
                 ))}
@@ -131,7 +131,7 @@ export const IndustryEvents: React.FC = () => {
         // and we render the full categorized list below for comprehensive browsing.
         
         return (
-            <div className="space-y-6 md:space-y-10 pb-20">
+            <div className="space-y-6 md:space-y-10 pb-20 md:pb-20">
                 {/* 1. Immersive Hero Area */}
                 <HeroSection tasks={tasks} onViewReport={handleTaskCardClick} />
 

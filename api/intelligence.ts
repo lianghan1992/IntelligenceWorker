@@ -176,7 +176,6 @@ export const getArticleHtml = async (articleId: string): Promise<string | null> 
     }
 
     if (!response.ok) {
-        // Silently fail or log, allowing fallback to markdown
         console.warn(`Failed to fetch HTML for article ${articleId}: ${response.status}`);
         return null;
     }
@@ -191,7 +190,7 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
         query_text, 
         top_k, 
         similarity_threshold, 
-        source_names,
+        source_names, 
         publish_date_start,
         publish_date_end
     } = params;

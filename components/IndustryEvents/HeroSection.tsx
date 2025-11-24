@@ -22,15 +22,15 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
     if (['recording', 'downloading', 'stopping'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse shadow-lg shadow-red-900/20">
-                <span className="w-2 h-2 bg-white rounded-full"></span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-red-600 text-white text-[10px] md:text-xs font-bold rounded-full animate-pulse shadow-lg shadow-red-900/20">
+                <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-white rounded-full"></span>
                 LIVE 直播中
             </span>
         );
     }
     if (['listening', 'scheduled', 'pending'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-lg shadow-blue-900/20">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-blue-600 text-white text-[10px] md:text-xs font-bold rounded-full shadow-lg shadow-blue-900/20">
                 <ClockIcon className="w-3 h-3" />
                 即将开始
             </span>
@@ -38,14 +38,14 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     }
     if (s === 'processing') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-600 text-white text-xs font-bold rounded-full shadow-lg">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-indigo-600 text-white text-[10px] md:text-xs font-bold rounded-full shadow-lg">
                 <SparklesIcon className="w-3 h-3" />
                 AI生成中
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-700/80 backdrop-blur text-white text-xs font-bold rounded-full">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-gray-700/80 backdrop-blur text-white text-[10px] md:text-xs font-bold rounded-full">
             精彩回放
         </span>
     );
@@ -159,7 +159,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
     return (
         <div 
-            className="relative w-full overflow-hidden md:rounded-3xl bg-gray-900 shadow-2xl mb-6 md:mb-10 group h-[450px] md:h-[500px] lg:h-[550px]"
+            className="relative w-full overflow-hidden md:rounded-3xl bg-gray-900 shadow-2xl mb-6 md:mb-10 group h-[280px] sm:h-[400px] md:h-[500px] lg:h-[550px]"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -202,55 +202,55 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
             )}
 
             {/* 3. Content Container */}
-            <div className="relative z-10 flex flex-col justify-end h-full p-6 sm:p-12 lg:p-16 max-w-5xl pointer-events-none">
+            <div className="relative z-10 flex flex-col justify-end h-full p-4 sm:p-6 md:p-12 lg:p-16 max-w-5xl pointer-events-none">
                 {/* Content wrapper with pointer-events-auto to allow clicking buttons */}
-                <div className="space-y-4 md:space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
+                <div className="space-y-2 md:space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
                     {/* Metadata Row */}
-                    <div className="flex items-center flex-wrap gap-3 mb-2">
+                    <div className="flex items-center flex-wrap gap-2 md:gap-3 mb-1">
                         <StatusBadge status={activeTask.status} />
-                        <span className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-blue-100 font-bold text-xs tracking-wide uppercase border border-white/10 flex items-center gap-2">
+                        <span className="px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-white/10 backdrop-blur-md text-blue-100 font-bold text-[10px] md:text-xs tracking-wide uppercase border border-white/10 flex items-center gap-2">
                             <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
                             {activeTask.company}
                         </span>
                     </div>
                     
                     {/* Title */}
-                    <h1 className="text-2xl sm:text-4xl lg:text-6xl font-extrabold text-white leading-tight drop-shadow-2xl line-clamp-2">
+                    <h1 className="text-xl sm:text-3xl md:text-4xl lg:text-6xl font-extrabold text-white leading-tight drop-shadow-2xl line-clamp-2">
                         {activeTask.task_name}
                     </h1>
                     
                     {/* Time & Countdown */}
-                    <div className="flex flex-wrap items-center text-gray-200 text-sm sm:text-base gap-4 md:gap-6 font-medium">
-                        <span className="flex items-center gap-2 bg-black/30 px-3 py-1.5 rounded-lg backdrop-blur-sm border border-white/5">
-                            <CalendarIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
+                    <div className="flex flex-wrap items-center text-gray-200 text-[10px] md:text-base gap-2 md:gap-6 font-medium">
+                        <span className="flex items-center gap-1 md:gap-2 bg-black/30 px-2 py-0.5 md:px-3 md:py-1.5 rounded-lg backdrop-blur-sm border border-white/5">
+                            <CalendarIcon className="w-3 h-3 md:w-5 md:h-5 text-gray-300" />
                             {new Date(activeTask.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                         {['listening', 'scheduled', 'pending'].includes(activeTask.status.toLowerCase()) && (
-                            <span className="text-yellow-400 font-bold flex items-center gap-2 border-l border-white/20 pl-4 md:pl-6">
-                                <ClockIcon className="w-4 h-4 md:w-5 md:h-5"/>
+                            <span className="text-yellow-400 font-bold flex items-center gap-2 border-l border-white/20 pl-2 md:pl-6">
+                                <ClockIcon className="w-3 h-3 md:w-5 md:h-5"/>
                                 <Countdown targetDate={activeTask.start_time} />
                             </span>
                         )}
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-3 md:gap-4 pt-4">
+                    <div className="flex flex-wrap items-center gap-2 md:gap-4 pt-1 md:pt-4">
                         <a 
                             href={activeTask.live_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 md:gap-3 px-5 md:px-8 py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xl shadow-blue-600/30 transition-all transform hover:scale-105 hover:shadow-2xl"
+                            className="flex items-center gap-1.5 md:gap-3 px-3 py-1.5 md:px-8 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl font-bold shadow-xl shadow-blue-600/30 transition-all transform hover:scale-105 hover:shadow-2xl text-xs md:text-lg"
                         >
-                            <PlayIcon className="w-5 h-6" />
-                            <span className="text-base md:text-lg">{['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看回放/详情'}</span>
+                            <PlayIcon className="w-3 h-3 md:w-5 md:h-6" />
+                            <span>{['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看回放/详情'}</span>
                         </a>
                         
                         {['finished', 'completed'].includes(activeTask.status.toLowerCase()) && (
                             <button 
                                 onClick={() => onViewReport(activeTask)}
-                                className="flex items-center gap-2 px-4 md:px-6 py-3 md:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-xl font-semibold border border-white/20 transition-all hover:border-white/40"
+                                className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-6 md:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-lg md:rounded-xl font-semibold border border-white/20 transition-all hover:border-white/40 text-xs md:text-base"
                             >
-                                <DocumentTextIcon className="w-5 h-5" />
+                                <DocumentTextIcon className="w-3 h-3 md:w-5 md:h-5" />
                                 <span className="hidden sm:inline">阅读AI报告</span>
                                 <span className="sm:hidden">AI报告</span>
                             </button>
@@ -261,12 +261,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
             {/* 4. Pagination Indicators (Dots) */}
             {hasMultiple && (
-                <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                <div className="absolute bottom-3 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 md:gap-2 z-20">
                     {playlist.map((_, idx) => (
                         <button 
                             key={idx}
                             onClick={(e) => { e.stopPropagation(); setActiveIndex(idx); }}
-                            className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-6 md:w-8' : 'bg-white/40 hover:bg-white/80'}`}
+                            className={`w-1 h-1 md:w-2 md:h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-4 md:w-8' : 'bg-white/40 hover:bg-white/80'}`}
                         />
                     ))}
                 </div>
