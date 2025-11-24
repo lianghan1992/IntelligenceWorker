@@ -1,3 +1,4 @@
+
 // --- General ---
 
 export interface PaginatedResponse<T> {
@@ -21,7 +22,7 @@ export interface PaginatedEntitiesResponse<T> {
 // --- App Navigation ---
 
 export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
-export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html';
+export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight';
 
 
 // --- User & Auth ---
@@ -517,4 +518,44 @@ export interface DashboardDistributionItem {
 export interface DashboardQuality {
     reliability_distribution: { reliability: number; count: number; percentage: number }[];
     low_reliability_top: { name: string; car_brand: string; tech_dimension: string; reliability: number }[];
+}
+
+// --- Deep Insight ---
+
+export interface DeepInsightCategory {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeepInsightTask {
+  id: string;
+  file_name: string;
+  file_type: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  total_pages: number;
+  processed_pages: number;
+  result_bundle_pdf: string | null;
+  created_at: string;
+  updated_at: string;
+  category_id?: string; 
+  category_name?: string;
+}
+
+export interface DeepInsightPage {
+  id: string;
+  page_index: number;
+  image_path: string;
+  html_path: string;
+  pdf_path: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+export interface DeepInsightPagesResponse {
+  total: number;
+  page: number;
+  limit: number;
+  items: DeepInsightPage[];
 }

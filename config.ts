@@ -27,3 +27,6 @@ export const COMPETITIVENESS_ANALYSIS_SERVICE_PATH = `${API_BASE_URL}/competitiv
 
 // Full path for the document processing service
 export const DOCUMENT_PROCESSING_SERVICE_PATH = `${API_BASE_URL}/document-processing`;
+
+// Full path for Deep Insight service
+export const DEEP_INSIGHT_SERVICE_PATH = `${API_BASE_URL}/deep_insight`;

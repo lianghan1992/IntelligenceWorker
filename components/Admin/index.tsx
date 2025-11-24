@@ -3,9 +3,10 @@ import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManager } from './UserManager';
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon } from '../icons';
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
+import { DeepInsightManager } from './DeepInsight/index';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户', icon: UsersIcon },
@@ -13,6 +14,7 @@ const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'intelligence', label: '情报', icon: RssIcon },
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
     { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
+    { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -30,6 +32,8 @@ export const AdminPage: React.FC = () => {
                 return <CompetitivenessManager />;
             case 'markdown2html':
                 return <MarkdownToHtmlManager />;
+            case 'deep_insight':
+                return <DeepInsightManager />;
             default:
                 return <UserManager />;
         }
@@ -63,12 +67,12 @@ export const AdminPage: React.FC = () => {
             </main>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-md flex justify-around z-30">
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-t-md flex justify-around z-30 overflow-x-auto">
                 {navItems.map(item => (
                     <button
                         key={item.view}
                         onClick={() => setView(item.view)}
-                        className={`flex flex-col items-center justify-center text-center p-2 w-full transition-colors ${
+                        className={`flex flex-col items-center justify-center text-center p-2 min-w-[4rem] transition-colors ${
                             view === item.view
                                 ? 'text-blue-600'
                                 : 'text-gray-500 hover:bg-gray-100'
