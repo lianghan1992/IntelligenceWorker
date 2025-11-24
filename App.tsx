@@ -10,9 +10,8 @@ import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
 import { StrategicCockpit } from './components/StrategicCockpit/index';
 import { CompetitivenessDashboard } from './components/CompetitivenessDashboard/index'; // 导入新的竞争力看板组件
-import { User, View, Subscription, DeepDive } from './types';
+import { User, View, Subscription } from './types';
 import { getSubscriptions, getMe } from './api';
-import { mockDeepDives } from './mockData';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -22,7 +21,6 @@ const App: React.FC = () => {
   const [showPricingModal, setShowPricingModal] = useState(false);
   
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [deepDives, setDeepDives] = useState<DeepDive[]>(mockDeepDives);
 
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
@@ -98,7 +96,7 @@ const App: React.FC = () => {
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
-        return <DeepDives dives={deepDives} />;
+        return <DeepDives />;
       case 'events':
         return <IndustryEvents />;
       case 'ai':

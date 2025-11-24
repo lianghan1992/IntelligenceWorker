@@ -24,14 +24,9 @@ export const deleteDeepInsightCategory = (cid: string): Promise<{ message: strin
     });
 
 // --- Tasks ---
-// Using 'any' for params to support potential list endpoint if added, currently the doc only shows POST upload.
-// But assuming standard list behavior for manager. If backend lacks list, this might fail or needs workaround.
-// Based on typical pattern, there might be GET /deep_insight/tasks
 export const getDeepInsightTasks = (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
     const query = createApiQuery(params);
-    // Note: This endpoint is assumed based on standard patterns as it's essential for a "Manager".
-    // If it returns 404, the backend needs to implement it.
-    return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`); 
+    return apiFetch<{ items: DeepInsightTask[], total: number, page: number, limit: number }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`); 
 };
 
 export const uploadDeepInsightTask = (file: File, category_id?: string): Promise<{ task_id: string; status: string }> => {
@@ -58,6 +53,21 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('下载失败');
     return response.blob();
+};
+
+// Added: Fetch HTML content for a specific page
+export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
+    // Assuming a symmetric endpoint exists or we can fetch the content if we had the full URL.
+    // Based on the pattern, we try to hit a dedicated HTML endpoint.
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (response.status === 404) return ''; // Not found
+    if (!response.ok) throw new Error('加载页面内容失败');
+    return response.text();
 };
 
 export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> => {
