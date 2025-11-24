@@ -1,3 +1,4 @@
+
 // src/api/intelligence.ts
 
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -276,3 +277,10 @@ export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {
     }
     return response.blob();
 };
+
+// --- Gemini Management ---
+export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ message: string; initialized: boolean }> =>
+    apiFetch<{ message: string; initialized: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });

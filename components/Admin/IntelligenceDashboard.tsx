@@ -5,9 +5,10 @@ import { IntelligenceTaskManager } from './IntelligenceTaskManager';
 import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
-import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon, SparklesIcon } from '../icons';
+import { GeminiSettingsManager } from './GeminiSettingsManager';
+import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
 
-type IntelligenceSubView = 'points' | 'tasks' | 'data' | 'chunks' | 'llm';
+type IntelligenceSubView = 'points' | 'tasks' | 'data' | 'chunks' | 'llm' | 'gemini';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
     { view: 'points', label: '情报源管理', icon: RssIcon },
@@ -15,6 +16,7 @@ const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<an
     { view: 'data', label: '情报数据管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '分段管理', icon: ViewGridIcon },
     { view: 'llm', label: 'LLM分拣', icon: SparklesIcon },
+    { view: 'gemini', label: 'Gemini 配置', icon: GearIcon },
 ];
 
 export const IntelligenceDashboard: React.FC = () => {
@@ -27,6 +29,7 @@ export const IntelligenceDashboard: React.FC = () => {
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
             case 'llm': return <LlmSortingManager />;
+            case 'gemini': return <GeminiSettingsManager />;
             default: return <IntelligencePointManager />;
         }
     };
