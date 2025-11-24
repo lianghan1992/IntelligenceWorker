@@ -1,6 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, CloseIcon, DocumentTextIcon, CheckIcon } from '../icons';
+import { 
+    SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
+    CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
+    ViewGridIcon, ChartIcon 
+} from '../icons';
 import { Slide } from '../../types';
 import { searchSemantic } from '../../api';
 
@@ -40,6 +44,59 @@ const mockAiThoughtProcess = `
   }
 }
 `;
+
+// --- 流程动画卡片组件 ---
+const ProcessFlowCards: React.FC = () => {
+    const steps = [
+        { id: 1, icon: LightBulbIcon, title: "意图识别", desc: "NLP 语义解析与需求拆解", color: "text-amber-500", bg: "bg-amber-50", border: "border-amber-100" },
+        { id: 2, icon: BrainIcon, title: "深度推理", desc: "知识库检索与逻辑关联", color: "text-purple-500", bg: "bg-purple-50", border: "border-purple-100" },
+        { id: 3, icon: ViewGridIcon, title: "结构规划", desc: "生成多级大纲与叙事流", color: "text-blue-500", bg: "bg-blue-50", border: "border-blue-100" },
+        { id: 4, icon: SparklesIcon, title: "内容生成", desc: "RAG 增强专业写作", color: "text-pink-500", bg: "bg-pink-50", border: "border-pink-100" },
+        { id: 5, icon: ChartIcon, title: "智能排版", desc: "自适应图文可视化布局", color: "text-emerald-500", bg: "bg-emerald-50", border: "border-emerald-100" },
+    ];
+
+    return (
+        <div className="mt-20 w-full max-w-6xl px-4 animate-in slide-in-from-bottom-10 duration-1000 fade-in fill-mode-forwards">
+            <div className="text-center mb-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-bold tracking-wider uppercase border border-gray-200 shadow-sm">
+                    <SparklesIcon className="w-3 h-3 text-indigo-500" />
+                    Agentic Workflow Engine
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 relative">
+                {/* Background Connecting Line (Desktop) */}
+                <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-gray-200 to-transparent -translate-y-1/2 -z-10"></div>
+                
+                {steps.map((step, i) => (
+                    <div 
+                        key={step.id} 
+                        className="relative bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300 group flex flex-col items-center text-center z-10"
+                        style={{ transitionDelay: `${i * 100}ms` }}
+                    >
+                        {/* Step Number Badge */}
+                        <div className="absolute -top-3 bg-white text-[10px] font-bold text-gray-400 border border-gray-200 px-2 py-0.5 rounded-full shadow-sm">
+                            0{step.id}
+                        </div>
+
+                        {/* Connector Arrow (Absolute, centered between cards) */}
+                        {i < steps.length - 1 && (
+                            <div className="hidden md:block absolute -right-[1.75rem] top-1/2 -translate-y-1/2 z-0 text-gray-300">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                            </div>
+                        )}
+
+                        <div className={`mb-4 p-4 rounded-2xl ${step.bg} ${step.color} ${step.border} border group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+                            <step.icon className="w-7 h-7" />
+                        </div>
+                        
+                        <h4 className="font-bold text-gray-800 text-sm mb-1.5 group-hover:text-indigo-600 transition-colors">{step.title}</h4>
+                        <p className="text-xs text-gray-500 font-medium leading-relaxed">{step.desc}</p>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 // --- 知识库检索模态框 ---
 const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -186,8 +243,8 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
     const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
     return (
-        <div className="flex flex-col items-center justify-center h-full pt-10 sm:pt-20">
-            <div className="w-full max-w-3xl text-center">
+        <div className="flex flex-col items-center justify-start h-full overflow-y-auto pb-20 pt-10 sm:pt-16">
+            <div className="w-full max-w-3xl text-center px-4">
                 <h1 className="text-4xl sm:text-5xl font-extrabold text-gray-900 tracking-tight">从一个想法开始</h1>
                 <p className="mt-4 text-lg text-gray-600">描述您报告的核心概念，让我们的AI为您构建基础。</p>
                 <p className="mt-1 text-sm text-gray-500">支持上传用户私有数据，使报告内容更聚焦，支持格式为: TXT, MD, PDF, DOCX</p>
@@ -205,15 +262,15 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
                     />
                 </div>
 
-                <div className="mt-8 flex justify-center items-center gap-4">
-                    <button className="px-6 py-3 border border-gray-300 bg-white text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition">
+                <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+                    <button className="w-full sm:w-auto px-6 py-3 border border-gray-300 bg-white text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-50 transition">
                         上传辅助文件 (可选)
                     </button>
                     
                     {/* NEW: Knowledge Base Search Button */}
                     <button 
                         onClick={() => setIsSearchModalOpen(true)}
-                        className="px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-lg shadow-sm hover:bg-purple-100 transition flex items-center gap-2"
+                        className="w-full sm:w-auto px-6 py-3 border border-purple-200 bg-purple-50 text-purple-700 font-semibold rounded-lg shadow-sm hover:bg-purple-100 transition flex items-center justify-center gap-2"
                     >
                         <SearchIcon className="w-4 h-4" />
                         检索知识库
@@ -222,12 +279,15 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
                     <button 
                         onClick={() => onGenerate(idea)}
                         disabled={!idea.trim()}
-                        className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition transform hover:scale-105 flex items-center gap-2"
+                        className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition transform hover:scale-105 flex items-center justify-center gap-2"
                     >
                         生成 <ArrowRightIcon className="w-5 h-5" />
                     </button>
                 </div>
             </div>
+            
+            {/* Process Flow Visualization */}
+            <ProcessFlowCards />
             
             {/* Search Modal */}
             {isSearchModalOpen && (
