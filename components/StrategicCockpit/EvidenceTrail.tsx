@@ -1,7 +1,7 @@
 
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, CloseIcon, CheckIcon } from '../icons';
 import { getArticleHtml, downloadArticlePdf } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
@@ -21,6 +21,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [isLoadingHtml, setIsLoadingHtml] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showTip, setShowTip] = useState(true);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
@@ -46,23 +47,27 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         const printStyles = `
                             <style>
                                 body { 
-                                    font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; 
-                                    line-height: 1.6; 
-                                    color: #333; 
-                                    padding: 20px 30px;
+                                    font-family: 'HarmonyOS Sans SC', "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; 
+                                    line-height: 1.75; 
+                                    color: #1f2937; 
+                                    padding: 40px;
                                     max-width: 100%; 
                                     margin: 0;
                                     background-color: white;
                                     box-sizing: border-box;
                                 }
-                                img { max-width: 100%; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin: 20px 0; }
-                                h1 { font-size: 24px; color: #111; margin-bottom: 15px; }
-                                h2 { font-size: 20px; color: #333; margin-top: 30px; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-                                p { margin-bottom: 15px; text-align: justify; }
-                                blockquote { border-left: 4px solid #3b82f6; background: #eff6ff; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; color: #1e40af; }
-                                table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-                                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                                th { background-color: #f8f9fa; font-weight: bold; }
+                                img { max-width: 100%; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin: 24px 0; }
+                                h1 { font-size: 28px; color: #111827; margin-bottom: 20px; font-weight: 800; letter-spacing: -0.025em; }
+                                h2 { font-size: 22px; color: #1f2937; margin-top: 36px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #f3f4f6; font-weight: 700; }
+                                h3 { font-size: 18px; color: #374151; margin-top: 24px; margin-bottom: 12px; font-weight: 600; }
+                                p { margin-bottom: 16px; text-align: justify; color: #4b5563; }
+                                blockquote { border-left: 4px solid #6366f1; background: #eef2ff; padding: 16px 20px; margin: 24px 0; border-radius: 0 12px 12px 0; color: #4338ca; font-style: italic; }
+                                table { border-collapse: collapse; width: 100%; margin: 24px 0; border-radius: 8px; overflow: hidden; font-size: 14px; }
+                                th, td { border: 1px solid #e5e7eb; padding: 12px; text-align: left; }
+                                th { background-color: #f9fafb; font-weight: 600; color: #111827; }
+                                td { color: #4b5563; }
+                                ul, ol { margin-bottom: 16px; padding-left: 24px; color: #4b5563; }
+                                li { margin-bottom: 8px; }
                                 
                                 /* Optimize for printing */
                                 @media print {
@@ -138,12 +143,13 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     if (!selectedArticle) {
         return (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-white">
-                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6">
-                    <DocumentTextIcon className="w-10 h-10 text-gray-300 opacity-50" />
+                <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                    <DocumentTextIcon className="w-12 h-12 text-slate-300" />
                 </div>
-                <h3 className="font-medium text-xl text-gray-800 mb-2">阅读详情</h3>
-                <p className="text-sm text-gray-500 max-w-[200px] leading-relaxed">
-                    点击左侧列表中的任意卡片，在此处查看完整情报内容。
+                <h3 className="font-bold text-2xl text-slate-800 mb-3">AI 智能研报</h3>
+                <p className="text-slate-500 max-w-[240px] leading-relaxed text-sm">
+                    请从左侧选择一项情报。<br/>
+                    AI 将为您呈现结构化、可视化的深度分析报告。
                 </p>
             </div>
         );
@@ -152,53 +158,76 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden transition-all duration-500 relative">
             {/* Header Area */}
-            <div className="p-4 md:p-6 bg-gray-50/50 flex-shrink-0 border-b border-gray-100">
-                <div className="flex flex-col gap-4">
+            <div className="p-5 md:p-8 bg-white flex-shrink-0 border-b border-slate-100 z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)]">
+                <div className="flex flex-col gap-5">
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                        <div className="flex items-center gap-3 mb-3">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
                                 {selectedArticle.source_name}
                             </span>
-                            <span className="text-xs text-gray-500 font-medium">
-                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN')}
+                            <span className="text-xs text-slate-400 font-medium">
+                                {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', {year: 'numeric', month: 'long', day: 'numeric'})}
                             </span>
                         </div>
-                        <h3 className="font-bold text-gray-900 text-xl md:text-2xl leading-tight line-clamp-2">
+                        <h3 className="font-extrabold text-slate-900 text-xl md:text-3xl leading-tight tracking-tight">
                             {selectedArticle.title}
                         </h3>
                     </div>
                     
-                    <div className="flex flex-wrap items-center gap-3">
-                         <a 
-                            href={selectedArticle.original_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-xs md:text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
-                        >
-                            阅读原文 <ArrowRightIcon className="w-3.5 h-3.5" />
-                        </a>
-                        
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        {/* Main Action Button */}
                         {htmlContent && (
                             <button 
                                 onClick={handleDownloadPdf}
                                 disabled={isDownloading}
-                                className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-xs md:text-sm font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-lg hover:bg-blue-100 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-wait"
-                                title="生成 PDF"
+                                className="relative group flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl hover:shadow-lg hover:shadow-indigo-500/30 transition-all duration-300 transform active:scale-95 disabled:opacity-70 disabled:cursor-wait overflow-hidden"
+                                title="下载适合汇报的 PDF 文档"
                             >
+                                <div className="absolute inset-0 bg-white/20 group-hover:translate-x-full transition-transform duration-500 ease-in-out -translate-x-full skew-x-12"></div>
                                 {isDownloading ? (
                                     <>
-                                        <div className="animate-spin w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                                        生成中...
+                                        <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                                        <span>生成中...</span>
                                     </>
                                 ) : (
                                     <>
-                                        <DownloadIcon className="w-3.5 h-3.5" />
-                                        下载 PDF
+                                        <DownloadIcon className="w-5 h-5" />
+                                        <span>下载汇报级 PDF</span>
                                     </>
                                 )}
                             </button>
                         )}
+
+                        <a 
+                            href={selectedArticle.original_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors"
+                        >
+                            阅读原文 <ArrowRightIcon className="w-4 h-4 opacity-50" />
+                        </a>
                     </div>
+
+                    {/* Pro Tip Box */}
+                    {htmlContent && showTip && (
+                        <div className="relative bg-gradient-to-br from-indigo-50/80 to-blue-50/80 border border-indigo-100 rounded-xl p-4 flex items-start gap-3 animate-in fade-in-0 slide-in-from-top-2 mt-2">
+                            <button 
+                                onClick={() => setShowTip(false)} 
+                                className="absolute top-2 right-2 text-indigo-300 hover:text-indigo-500 transition-colors"
+                            >
+                                <CloseIcon className="w-4 h-4" />
+                            </button>
+                            <div className="bg-white p-2 rounded-lg shadow-sm text-indigo-600 flex-shrink-0">
+                                <SparklesIcon className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-indigo-900 text-sm mb-1">开箱即用决策包</h4>
+                                <p className="text-xs text-indigo-800/70 leading-relaxed">
+                                    AI 已为您重构排版。下载后的 PDF 文档结构清晰、图文并茂，支持<strong>直接转换为 PPT</strong>，助您快速完成汇报材料。
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -206,9 +235,15 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             <div ref={contentRef} className="flex-1 bg-white overflow-hidden relative">
                 {isLoadingHtml ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-white z-10">
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                            <p className="text-sm text-gray-500">正在加载美化报告...</p>
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="relative w-16 h-16">
+                                <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+                                <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-base font-bold text-slate-800">AI 正在生成美化报告</p>
+                                <p className="text-xs text-slate-400 mt-1">排版重构中，请稍候...</p>
+                            </div>
                         </div>
                     </div>
                 ) : htmlContent ? (
@@ -220,24 +255,27 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                     />
                 ) : (
-                    <div className="h-full overflow-y-auto p-6 md:p-10 custom-scrollbar">
+                    <div className="h-full overflow-y-auto p-8 md:p-12 custom-scrollbar bg-white">
                         {/* Fallback Message */}
-                        <div className="mb-8 p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex items-start gap-3">
-                            <SparklesIcon className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div className="mb-10 p-6 bg-amber-50 border border-amber-100 rounded-2xl flex items-center gap-4">
+                            <div className="p-3 bg-white rounded-xl shadow-sm text-amber-500">
+                                <SparklesIcon className="w-6 h-6" />
+                            </div>
                             <div>
-                                <p className="text-sm font-semibold text-yellow-800">开箱即用报告生成中</p>
-                                <p className="text-xs text-yellow-700 mt-1">请稍后再来看看。</p>
+                                <p className="text-base font-bold text-amber-900">开箱即用报告生成中</p>
+                                <p className="text-sm text-amber-700/80 mt-1">系统正在后台进行深度解析与排版美化，请稍后再来看看。</p>
                             </div>
                         </div>
 
                         <article 
-                            className="prose prose-slate max-w-none 
-                                prose-headings:font-bold prose-headings:text-gray-900 
-                                prose-p:text-gray-600 prose-p:leading-8 prose-p:mb-6 prose-p:text-base
-                                prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                                prose-strong:text-gray-800 prose-strong:font-semibold
-                                prose-blockquote:border-l-4 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
-                                prose-li:marker:text-blue-500"
+                            className="prose prose-lg prose-slate max-w-none 
+                                prose-headings:font-bold prose-headings:text-slate-900 prose-headings:tracking-tight
+                                prose-p:text-slate-600 prose-p:leading-8 prose-p:mb-6 
+                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline prose-a:font-medium
+                                prose-strong:text-slate-900 prose-strong:font-bold
+                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50/50 prose-blockquote:py-4 prose-blockquote:px-6 prose-blockquote:rounded-r-xl prose-blockquote:not-italic prose-blockquote:text-indigo-900
+                                prose-img:rounded-2xl prose-img:shadow-lg prose-img:border prose-img:border-slate-100
+                                prose-li:marker:text-indigo-400"
                             dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
                         />
                     </div>

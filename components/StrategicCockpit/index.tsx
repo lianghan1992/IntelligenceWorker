@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Subscription, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -141,21 +142,21 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#f8f9fa] md:p-4 overflow-hidden relative">
+        <div className="h-full flex flex-col bg-[#f1f5f9] md:p-4 overflow-hidden relative font-sans">
             <div className="flex-1 flex gap-4 min-h-0 overflow-hidden relative md:static">
                 {/* Left Sidebar - Navigation Drawer */}
                 <aside className={`
-                    w-full md:w-72 flex-shrink-0 flex flex-col bg-white md:rounded-[24px] py-6 shadow-sm border-r md:border border-gray-100/50
+                    w-full md:w-[280px] lg:w-[300px] flex-shrink-0 flex flex-col bg-slate-50/80 backdrop-blur-lg md:rounded-[24px] py-6 shadow-sm md:border border-white/50
                     absolute inset-0 z-10 md:static md:z-auto transition-transform duration-300 ease-out
                     ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
                 `}>
                     {/* Mobile Header for Nav */}
                     <div className="md:hidden px-6 mb-4 flex items-center justify-between">
-                         <h2 className="text-lg font-bold text-gray-800">AI情报洞察</h2>
+                         <h2 className="text-xl font-extrabold text-slate-800">AI情报洞察</h2>
                     </div>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                        <h2 className="text-sm font-bold text-gray-500 px-4 mb-4 uppercase tracking-wider hidden md:block">情报罗盘</h2>
+                        <h2 className="text-xs font-bold text-slate-400 px-4 mb-4 uppercase tracking-wider hidden md:block">情报罗盘</h2>
                         <StrategicCompass
                             categories={lookCategories}
                             selectedLook={selectedLook}
@@ -165,7 +166,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
                             activeQuery={activeQuery}
                         />
-                        <div className="my-6 border-t border-gray-100 mx-2"></div>
+                        <div className="my-6 border-t border-slate-200 mx-4"></div>
                         <FocusPoints 
                             onManageClick={() => setIsFocusPointModalOpen(true)}
                             pois={pois}
@@ -180,14 +181,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                  <main className="flex-1 flex gap-4 min-w-0 relative w-full md:static">
                     {/* List View */}
                     <div className={`
-                        w-full md:w-[420px] flex-shrink-0 flex flex-col bg-white md:rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden
+                        w-full md:w-[400px] lg:w-[440px] flex-shrink-0 flex flex-col bg-white md:rounded-[24px] shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden
                         absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
                         {/* Mobile Header for List */}
-                        <div className="md:hidden px-4 py-3 border-b border-gray-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
-                            <button onClick={backToNav} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-gray-600"/></button>
-                            <h3 className="font-bold text-gray-800 truncate flex-1">{activeQuery.label}</h3>
+                        <div className="md:hidden px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
+                            <button onClick={backToNav} className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-slate-600"/></button>
+                            <h3 className="font-bold text-slate-800 truncate flex-1">{activeQuery.label}</h3>
                         </div>
 
                         <IntelligenceCenter
@@ -206,14 +207,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     
                     {/* Detail View */}
                     <div className={`
-                        flex-1 flex flex-col min-w-0 bg-white md:rounded-[24px] shadow-sm border border-gray-100/50 overflow-hidden
+                        flex-1 flex flex-col min-w-0 bg-white md:rounded-[24px] shadow-xl shadow-slate-200/50 border border-white/60 overflow-hidden
                         absolute inset-0 z-30 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'detail' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
                          {/* Mobile Header for Detail */}
-                         <div className="md:hidden px-4 py-3 border-b border-gray-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
-                            <button onClick={backToList} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-gray-600"/></button>
-                            <h3 className="font-bold text-gray-800">情报详情</h3>
+                         <div className="md:hidden px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
+                            <button onClick={backToList} className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-slate-600"/></button>
+                            <h3 className="font-bold text-slate-800">情报详情</h3>
                         </div>
                          <EvidenceTrail
                             selectedArticle={selectedArticle}
@@ -224,9 +225,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`
-                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 20px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
             `}</style>
         </div>
     );

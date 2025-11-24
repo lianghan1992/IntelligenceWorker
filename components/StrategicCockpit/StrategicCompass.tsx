@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Category, SubCategory } from './data';
 import { ChevronDownIcon } from '../icons';
@@ -24,8 +25,6 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     
     const handlePrimaryClick = (category: Category) => {
         const key = category.key;
-        // Toggle functionality: if clicking already active, keep it active but maybe collapse? 
-        // Material 3 drawers usually keep selection.
         setSelectedLook(key);
         
         if (category.children.length > 0) {
@@ -50,37 +49,42 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     }
 
     return (
-        <nav className="space-y-1">
+        <nav className="space-y-2">
             {categories.map((category) => {
                 const isPrimaryActive = selectedLook === category.key;
                 return (
-                    <div key={category.key} className="mb-1">
-                        {/* Primary Category Item - Material 3 Style */}
+                    <div key={category.key}>
+                        {/* Primary Category Item */}
                         <div 
                             onClick={() => handlePrimaryClick(category)}
                             className={`
-                                group flex items-center justify-between px-4 py-3 rounded-full cursor-pointer transition-all duration-300 select-none
+                                group flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all duration-300 select-none border
                                 ${isPrimaryActive 
-                                    ? 'bg-blue-100/50 text-blue-900' 
-                                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                    ? 'bg-white border-indigo-100 shadow-sm text-indigo-900' 
+                                    : 'bg-transparent border-transparent text-slate-600 hover:bg-white hover:shadow-sm hover:text-slate-900'
                                 }
                             `}
                         >
                             <div className="flex items-center gap-3">
-                                <category.icon className={`w-5 h-5 ${isPrimaryActive ? 'text-blue-700' : 'text-gray-500 group-hover:text-gray-700'}`} />
-                                <span className={`text-sm font-medium ${isPrimaryActive ? 'font-semibold' : ''}`}>{category.label}</span>
+                                <div className={`p-1.5 rounded-lg transition-colors ${isPrimaryActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:text-slate-700'}`}>
+                                    <category.icon className="w-4 h-4" />
+                                </div>
+                                <span className={`text-sm font-medium ${isPrimaryActive ? 'font-bold' : ''}`}>{category.label}</span>
                             </div>
                             {category.children.length > 0 && (
-                                <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isPrimaryActive ? 'rotate-180 text-blue-700' : ''}`} />
+                                <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isPrimaryActive ? 'rotate-180 text-indigo-500' : ''}`} />
                             )}
                         </div>
 
                         {/* Sub Categories */}
                         <div className={`
                             overflow-hidden transition-all duration-300 ease-in-out
-                            ${isPrimaryActive && category.children.length > 0 ? 'max-h-96 opacity-100 mt-1' : 'max-h-0 opacity-0'}
+                            ${isPrimaryActive && category.children.length > 0 ? 'max-h-96 opacity-100 mt-1 mb-3' : 'max-h-0 opacity-0'}
                         `}>
-                            <div className="space-y-1 pl-3">
+                            <div className="space-y-1 pl-4 pr-2 relative">
+                                {/* Vertical Line */}
+                                <div className="absolute left-[21px] top-0 bottom-0 w-[2px] bg-slate-100 rounded-full"></div>
+                                
                                 {category.children.map(subCategory => {
                                     const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
                                     return (
@@ -88,14 +92,17 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                                             key={subCategory.key}
                                             onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
                                             className={`
-                                                w-full text-left px-4 py-2 rounded-full text-sm transition-colors duration-200 flex items-center
+                                                relative w-full text-left pl-8 pr-4 py-2 rounded-xl text-sm transition-all duration-200 flex items-center ml-1
                                                 ${isSubActive
-                                                    ? 'bg-blue-200 text-blue-900 font-semibold' 
-                                                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                                                    ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm' 
+                                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'
                                                 }
                                             `}
                                         >
-                                            <span className={`w-1.5 h-1.5 rounded-full mr-3 ${isSubActive ? 'bg-blue-700' : 'bg-transparent'}`}></span>
+                                            {/* Dot Indicator */}
+                                            {isSubActive && (
+                                                <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[5px] w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white shadow-sm z-10"></span>
+                                            )}
                                             {subCategory.label}
                                         </button>
                                     );
