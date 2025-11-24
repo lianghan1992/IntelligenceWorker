@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -18,5 +19,16 @@ export default defineConfig({
         ws: true, // 启用 WebSocket 代理
       },
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+        },
+      },
+    },
+    // Increase chunk size warning limit to 1000KB
+    chunkSizeWarningLimit: 1000,
   },
 })

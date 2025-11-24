@@ -1,17 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard/index';
-import { DeepDives } from './components/DeepDives/index';
-import { IndustryEvents } from './components/IndustryEvents/index';
-import { ReportGenerator } from './components/ReportGenerator/index';
-import { AdminPage } from './components/Admin';
 import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
-import { StrategicCockpit } from './components/StrategicCockpit/index';
-import { CompetitivenessDashboard } from './components/CompetitivenessDashboard/index'; // 导入新的竞争力看板组件
 import { User, View, Subscription } from './types';
 import { getSubscriptions, getMe } from './api';
+
+// Lazy load components with named export adaptation
+const Dashboard = React.lazy(() => import('./components/Dashboard/index').then(module => ({ default: module.Dashboard })));
+const StrategicCockpit = React.lazy(() => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit })));
+const CompetitivenessDashboard = React.lazy(() => import('./components/CompetitivenessDashboard/index').then(module => ({ default: module.CompetitivenessDashboard })));
+const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(module => ({ default: module.DeepDives })));
+const IndustryEvents = React.lazy(() => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents })));
+const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator })));
+const AdminPage = React.lazy(() => import('./components/Admin/index').then(module => ({ default: module.AdminPage })));
+
+// Loading Fallback Component
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-full w-full">
+    <div className="flex flex-col items-center gap-3">
+      <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span className="text-sm text-gray-500">加载模块中...</span>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -117,7 +133,9 @@ const App: React.FC = () => {
             onUpgrade={() => setShowPricingModal(true)}
         />
         <main className="flex-1 min-h-0">
-          {renderView()}
+          <Suspense fallback={<PageLoader />}>
+            {renderView()}
+          </Suspense>
         </main>
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
     </div>
