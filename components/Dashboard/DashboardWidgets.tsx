@@ -4,6 +4,33 @@ import { BookmarkIcon } from './icons';
 import { Subscription } from '../../types';
 import { searchArticlesFiltered } from '../../api';
 
+// --- Animated Number Component ---
+const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
+    const [displayValue, setDisplayValue] = useState(0);
+
+    useEffect(() => {
+        let startTimestamp: number | null = null;
+        const startValue = displayValue;
+        const duration = 1500; // 1.5s duration
+
+        const step = (timestamp: number) => {
+            if (!startTimestamp) startTimestamp = timestamp;
+            const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+            const ease = 1 - Math.pow(1 - progress, 4); // Quartic ease out
+
+            const current = Math.floor(startValue + (value - startValue) * ease);
+            setDisplayValue(current);
+
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            }
+        };
+
+        window.requestAnimationFrame(step);
+    }, [value]);
+
+    return <span>{displayValue.toLocaleString()}</span>;
+};
 
 interface DashboardWidgetsProps {
     subscriptions: Subscription[];
@@ -12,10 +39,11 @@ interface DashboardWidgetsProps {
 const StatCard: React.FC<{ 
     icon: React.ReactNode; 
     title: string; 
-    value: string; 
+    value: number | string | null; 
     description: string; 
     colorTheme: 'primary' | 'tertiary' | 'secondary' | 'error'; 
-}> = ({ icon, title, value, description, colorTheme }) => {
+    isLoading: boolean;
+}> = ({ icon, title, value, description, colorTheme, isLoading }) => {
     
     // Material 3 Color Mappings (Approximate with Tailwind)
     const themes = {
@@ -50,13 +78,19 @@ const StatCard: React.FC<{
     }[colorTheme];
 
     return (
-        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-300 hover:shadow-md group ${themes.bg}`}>
+        <div className={`relative overflow-hidden p-6 rounded-[24px] border-0 transition-all duration-500 hover:shadow-lg hover:-translate-y-1 group ${themes.bg}`}>
             <div className="flex justify-between items-start z-10 relative">
                 <div>
                     <p className={`text-sm font-medium opacity-70 tracking-wide ${themes.text}`}>{title}</p>
-                    <p className={`text-4xl font-normal mt-2 ${themes.text} font-sans`}>{value}</p>
+                    <p className={`text-4xl font-normal mt-2 ${themes.text} font-sans`}>
+                        {isLoading ? (
+                            <span className="inline-block w-16 h-8 bg-current opacity-20 rounded animate-pulse"></span>
+                        ) : (
+                            typeof value === 'number' ? <AnimatedNumber value={value} /> : value
+                        )}
+                    </p>
                 </div>
-                <div className={`p-4 rounded-[16px] ${themes.container} ${themes.onContainer}`}>
+                <div className={`p-4 rounded-[16px] ${themes.container} ${themes.onContainer} shadow-sm group-hover:scale-110 transition-transform duration-300`}>
                     {icon}
                 </div>
             </div>
@@ -65,7 +99,7 @@ const StatCard: React.FC<{
             </p>
             
             {/* Decorative Circle */}
-            <div className={`absolute -bottom-4 -right-4 w-32 h-32 rounded-full opacity-20 ${themes.decoration} group-hover:scale-110 transition-transform duration-500 ease-out`}></div>
+            <div className={`absolute -bottom-4 -right-4 w-32 h-32 rounded-full opacity-20 ${themes.decoration} group-hover:scale-125 transition-transform duration-700 ease-out`}></div>
         </div>
     );
 };
@@ -92,20 +126,17 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
                 const year = now.getFullYear();
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const day = String(now.getDate()).padStart(2, '0');
-                // FIX: Use ISO-like format with T separator which is safer for backend parsing
                 const todayStart = `${year}-${month}-${day}T00:00:00`; 
 
-                // Use updated searchArticlesFiltered which now calls /feed
                 const articlesData = await searchArticlesFiltered({
                     publish_date_start: todayStart,
-                    query_text: '*', // Wildcard to fetch all
+                    query_text: '*', 
                     limit: 100, 
                     page: 1,
                 });
 
                 const articlesTodayCount = articlesData.total;
                 
-                // Estimate active points based on fetched items
                 const uniquePointIds = new Set(
                     articlesData.items
                         .map(item => item.point_id)
@@ -130,37 +161,39 @@ export const DashboardWidgets: React.FC<DashboardWidgetsProps> = ({ subscription
         fetchStats();
     }, [subscriptions]);
     
-    const valueOrLoading = (value: number) => isLoading ? '-' : value.toLocaleString();
-
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard 
                 icon={<DocumentTextIcon className="w-6 h-6" />}
                 title="今日新增情报"
-                value={valueOrLoading(stats.articlesToday)}
+                value={stats.articlesToday}
                 description="平台今日收录总量"
                 colorTheme="primary"
+                isLoading={isLoading}
             />
             <StatCard 
                 icon={<TrendingUpIcon className="w-6 h-6" />}
                 title="有动态的情报点"
-                value={valueOrLoading(stats.pointsWithUpdates)}
+                value={stats.pointsWithUpdates}
                 description="今日有更新的监控项"
                 colorTheme="tertiary"
+                isLoading={isLoading}
             />
             <StatCard 
                 icon={<BookmarkIcon className="w-6 h-6" />}
                 title="情报点总数"
-                value={valueOrLoading(stats.totalPoints)}
+                value={stats.totalPoints}
                 description="当前配置的追踪目标"
                 colorTheme="secondary"
+                isLoading={isLoading}
             />
             <StatCard 
                 icon={<RssIcon className="w-6 h-6" />}
                 title="情报源总数"
-                value={valueOrLoading(stats.totalSources)}
+                value={stats.totalSources}
                 description="已连接的信息渠道"
                 colorTheme="error"
+                isLoading={isLoading}
             />
         </div>
     );

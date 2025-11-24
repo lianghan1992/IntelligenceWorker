@@ -56,7 +56,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
 
                 if (pois.length === 0) {
                     setBriefingText(
-                        <p className="text-gray-600 mt-2 leading-relaxed">
+                        <p className="text-gray-600 mt-2 leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-700">
                             这是您的AI每日晨报：平台今日已为您监控到 <strong className="text-blue-600">{totalArticlesToday}</strong> 条新情报。您还没有设置关注点，
                             <button onClick={onManageFocusPoints} className="font-semibold text-blue-600 hover:underline ml-1">立即设置</button>
                             来获取个性化洞察吧。
@@ -96,7 +96,7 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
 
                 const finalBriefing = `这是您的AI每日晨报：平台今日已为您监控到 <strong class="text-blue-600">${totalArticlesToday}</strong> 条新情报。${mainMessage} 今日建议重点关注以上领域，您可以在下方的“我的关注点”模块中查看详情。`;
 
-                setBriefingText(<p className="text-gray-600 mt-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: finalBriefing }}></p>);
+                setBriefingText(<p className="text-gray-600 mt-2 leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-700" dangerouslySetInnerHTML={{ __html: finalBriefing }}></p>);
 
             } catch (error) {
                 console.error("Failed to generate daily briefing:", error);
@@ -122,9 +122,9 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
     );
 
     return (
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
-            <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-blue-500/10 rounded-full filter blur-3xl opacity-50"></div>
-            <div className="absolute -bottom-1/2 -left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50"></div>
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden transition-all hover:shadow-md">
+            <div className="absolute -top-1/2 -right-1/4 w-96 h-96 bg-blue-500/10 rounded-full filter blur-3xl opacity-50 animate-pulse-slow"></div>
+            <div className="absolute -bottom-1/2 -left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50 animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
             
             <div className="relative z-10 flex">
                 <div className="flex-grow">
@@ -132,6 +132,15 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, subscriptions, onMa
                     {isLoading ? renderLoadingState() : briefingText}
                 </div>
             </div>
+            <style>{`
+                @keyframes pulse-slow {
+                    0%, 100% { opacity: 0.4; transform: scale(1); }
+                    50% { opacity: 0.6; transform: scale(1.05); }
+                }
+                .animate-pulse-slow {
+                    animation: pulse-slow 6s ease-in-out infinite;
+                }
+            `}</style>
         </div>
     );
 };
@@ -163,10 +172,6 @@ const IntelligenceItem: React.FC<{ item: InfoItem }> = ({ item }) => {
 
 
 const CompactFocusCard: React.FC<{ entityName: string; items: InfoItem[]; }> = ({ entityName, items }) => {
-    const hasUpdates = items.length > 0;
-    
-    // If no updates, handled by the parent to render differently (e.g. as a chip)
-    // This component assumes it is rendering an active card
     
     return (
         <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md break-inside-avoid mb-4">
@@ -214,7 +219,7 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
 
                 if (pois.length > 0) {
                     const params: any = {
-                        limit: 5, // Keep limited to 5 as requested
+                        limit: 5, 
                         similarity_threshold: 0.35,
                         page: 1
                     };
@@ -245,7 +250,6 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
         fetchFocusData();
     }, [subscribedSourceNames]);
 
-    // Split points into active (has news) and quiet (no news)
     const { activePoints, quietPoints } = useMemo(() => {
         const active: ApiPoi[] = [];
         const quiet: ApiPoi[] = [];
@@ -288,7 +292,6 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                 </div>
              ) : (
                 <div className="space-y-6">
-                    {/* Active Points in Masonry Layout */}
                     {activePoints.length > 0 && (
                         <div className="columns-1 md:columns-2 xl:columns-3 gap-4 space-y-4">
                             {activePoints.map(point => (
@@ -301,7 +304,6 @@ const FocusPointsSection: React.FC<{ onNavigate: (view: View) => void; onManageC
                         </div>
                     )}
 
-                    {/* Quiet Points in a compact list */}
                     {quietPoints.length > 0 && (
                         <div className="bg-white/50 border border-gray-200/50 rounded-xl p-4">
                             <p className="text-xs text-gray-400 mb-3 font-medium uppercase tracking-wider">今日暂无动态</p>
