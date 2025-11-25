@@ -316,6 +316,8 @@ const DossierPanel: React.FC<{
     if (!traceData) return <div className="p-6 text-center text-slate-500">无数据。</div>;
 
     const aggregatedTech = traceData.aggregated_tech[0];
+    // FIX: Use source_articles.length for accuracy, falling back to mapping if array is missing
+    const sourceCount = traceData.source_articles?.length ?? aggregatedTech?.source_article_ids?.length ?? 0;
 
     return (
         <div className="h-full overflow-y-auto p-6 space-y-8 custom-scrollbar">
@@ -341,7 +343,10 @@ const DossierPanel: React.FC<{
                     </h3>
                     <p className="text-sm text-slate-700 leading-relaxed text-justify relative z-10">{aggregatedTech.description}</p>
                     <div className="mt-6 flex items-center gap-4 text-xs text-slate-400 relative z-10 border-t border-indigo-100 pt-4">
-                        <span className="flex items-center gap-1"><DocumentTextIcon className="w-3.5 h-3.5"/> 聚合自 {aggregatedTech.source_article_ids.length} 篇文章</span>
+                        <span className="flex items-center gap-1">
+                            <DocumentTextIcon className="w-3.5 h-3.5"/> 
+                            聚合自 {sourceCount} 篇文章
+                        </span>
                         <span>•</span>
                         <span>更新于: {aggregatedTech.publish_date ? new Date(aggregatedTech.publish_date).toLocaleDateString() : '近期'}</span>
                     </div>
