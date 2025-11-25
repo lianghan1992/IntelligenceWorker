@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
     KnowledgeBaseItem, 
@@ -39,21 +40,13 @@ const getReliabilityInfo = (score: number) => {
     }
 };
 
-const techDimensionIcons: { [key: string]: React.FC<any> } = {
-    '智能驾驶': BrainIcon, '智能座舱': UsersIcon, '智能网联': EyeIcon,
-    '智能底盘': TrendingUpIcon, '智能动力': LightBulbIcon, '智能车身': CheckCircleIcon,
-    '三电系统': LightBulbIcon, 'AI技术': BrainIcon
-};
+// --- Compact Charts Components for Market Pulse ---
 
-// --- Charts Components ---
-
-const TrendChart: React.FC<{ data: DashboardTrendItem[] }> = ({ data }) => {
-    if (!data || data.length === 0) return <div className="h-48 flex items-center justify-center text-gray-400 text-sm bg-gray-50/50 rounded-xl border border-dashed">暂无趋势数据</div>;
-
-    const height = 240;
-    const width = 800; 
-    const padding = 20;
-    
+const MiniTrendChart: React.FC<{ data: DashboardTrendItem[] }> = ({ data }) => {
+    if (!data || data.length === 0) return <div className="h-24 flex items-center justify-center text-gray-300 text-xs">暂无数据</div>;
+    const height = 80;
+    const width = 300; 
+    const padding = 5;
     const maxVal = Math.max(...data.map(d => d.count), 1);
     const points = data.map((d, i) => {
         const x = (i / (data.length - 1)) * (width - 2 * padding) + padding;
@@ -62,84 +55,65 @@ const TrendChart: React.FC<{ data: DashboardTrendItem[] }> = ({ data }) => {
     }).join(' ');
 
     return (
-        <div className="w-full h-60 relative group">
+        <div className="w-full h-24 relative">
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                {/* Gradient Fill */}
                 <defs>
-                    <linearGradient id="trendGradient" x1="0" x2="0" y1="0" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.2" />
+                    <linearGradient id="miniTrendGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
                         <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
                     </linearGradient>
                 </defs>
-                <polygon fill="url(#trendGradient)" points={`${padding},${height-padding} ${points} ${width-padding},${height-padding}`} />
-                
-                {/* Line */}
-                <polyline fill="none" stroke="#6366f1" strokeWidth="3" points={points} strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-md" />
-                
-                {/* Dots */}
-                {data.map((d, i) => {
-                    const x = (i / (data.length - 1)) * (width - 2 * padding) + padding;
-                    const y = height - padding - (d.count / maxVal) * (height - 2 * padding);
-                    return (
-                        <g key={i} className="group/point">
-                            <circle cx={x} cy={y} r="4" className="fill-white stroke-indigo-500 stroke-2 transition-all duration-300 group-hover/point:r-6" />
-                            <rect x={x-20} y={y-35} width="40" height="20" rx="4" fill="#1e293b" className="opacity-0 group-hover/point:opacity-100 transition-opacity" />
-                            <text x={x} y={y-21} textAnchor="middle" fill="white" fontSize="10" className="opacity-0 group-hover/point:opacity-100 pointer-events-none">{d.count}</text>
-                        </g>
-                    );
-                })}
+                <polygon fill="url(#miniTrendGradient)" points={`${padding},${height-padding} ${points} ${width-padding},${height-padding}`} />
+                <polyline fill="none" stroke="#6366f1" strokeWidth="2" points={points} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
         </div>
     );
 };
 
-const SimpleBarChart: React.FC<{ data: DashboardDistributionItem[], colorClass: string }> = ({ data, colorClass }) => {
-    if (!data || data.length === 0) return <div className="h-40 flex items-center justify-center text-gray-400 text-sm">暂无数据</div>;
-    const maxVal = Math.max(...data.map(d => d.count), 1);
+const CompactBarChart: React.FC<{ data: DashboardDistributionItem[], colorClass: string, maxItems?: number }> = ({ data, colorClass, maxItems = 5 }) => {
+    if (!data || data.length === 0) return <div className="h-24 flex items-center justify-center text-gray-300 text-xs">暂无数据</div>;
+    const displayData = data.slice(0, maxItems);
+    const maxVal = Math.max(...displayData.map(d => d.count), 1);
 
     return (
-        <div className="space-y-3">
-            {data.map((d, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm group cursor-default">
-                    <span className="w-24 truncate text-slate-600 text-right font-medium group-hover:text-slate-900 transition-colors" title={d.name}>{d.name}</span>
-                    <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${colorClass} transition-all duration-1000 ease-out group-hover:opacity-80`} style={{ width: `${(d.count / maxVal) * 100}%` }}></div>
+        <div className="space-y-2">
+            {displayData.map((d, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="w-16 truncate text-slate-500 text-right" title={d.name}>{d.name}</span>
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${colorClass}`} style={{ width: `${(d.count / maxVal) * 100}%` }}></div>
                     </div>
-                    <span className="w-10 text-right font-mono text-slate-500 text-xs font-bold">{d.count}</span>
+                    <span className="w-6 text-right font-mono text-slate-400">{d.count}</span>
                 </div>
             ))}
         </div>
     );
 };
 
-
-// --- Dashboard Overview Tab ---
-const DashboardView: React.FC = () => {
+// --- Market Pulse Component (Replaces DashboardView) ---
+const MarketPulse: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [overview, setOverview] = useState<DashboardOverview | null>(null);
     const [trends, setTrends] = useState<DashboardTrendItem[]>([]);
     const [brandDist, setBrandDist] = useState<DashboardDistributionItem[]>([]);
     const [techDist, setTechDist] = useState<DashboardDistributionItem[]>([]);
-    const [quality, setQuality] = useState<DashboardQuality | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
             setIsLoading(true);
             try {
-                const [ov, tr, bd, td, qual] = await Promise.all([
+                const [ov, tr, bd, td] = await Promise.all([
                     getDashboardOverview(),
-                    getDashboardTrends({ entity: 'kb', days: 30, granularity: 'day' }),
+                    getDashboardTrends({ entity: 'kb', days: 14, granularity: 'day' }),
                     getDashboardDistributionBrand({ top_n: 5 }),
                     getDashboardDistributionTechDimension({ top_n: 5 }),
-                    getDashboardQuality({ low_threshold: 2, top_n: 5 })
                 ]);
                 setOverview(ov);
                 setTrends(tr.series);
                 setBrandDist(bd.items);
                 setTechDist(td.items);
-                setQuality(qual);
             } catch (e) {
-                console.error("Failed to load dashboard", e);
+                console.error("Failed to load pulse data", e);
             } finally {
                 setIsLoading(false);
             }
@@ -147,122 +121,61 @@ const DashboardView: React.FC = () => {
         load();
     }, []);
 
-    if (isLoading) return (
-        <div className="p-6 space-y-6 w-full">
-             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {Array(4).fill(0).map((_, i) => <div key={i} className="h-32 bg-gray-100 rounded-2xl animate-pulse"></div>)}
-            </div>
-            <div className="h-96 bg-gray-100 rounded-2xl animate-pulse"></div>
-        </div>
-    );
-
     return (
-        <div className="p-6 md:p-8 space-y-8 w-full h-full overflow-y-auto animate-in fade-in duration-500 bg-slate-50">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-indigo-50 rounded-xl">
-                            <BrainIcon className="w-6 h-6 text-indigo-600" />
-                        </div>
-                        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium">知识库情报总数</p>
-                    <h3 className="text-3xl font-extrabold text-slate-900 mt-1">{overview?.kb_total.toLocaleString()}</h3>
-                </div>
-                
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-blue-50 rounded-xl">
-                            <DocumentTextIcon className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">New</span>
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium">初筛情报片段</p>
-                    <h3 className="text-3xl font-extrabold text-slate-900 mt-1">{overview?.stage1_total.toLocaleString()}</h3>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-purple-50 rounded-xl">
-                            <EyeIcon className="w-6 h-6 text-purple-600" />
-                        </div>
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium">已分析文章</p>
-                    <h3 className="text-3xl font-extrabold text-slate-900 mt-1">{overview?.processed_article_count.toLocaleString()}</h3>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-3 bg-emerald-50 rounded-xl">
-                            <ShieldCheckIcon className="w-6 h-6 text-emerald-600" />
-                        </div>
-                        <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full">Avg</span>
-                    </div>
-                    <p className="text-sm text-slate-500 font-medium">平均置信度</p>
-                    <div className="flex items-baseline gap-1 mt-1">
-                        <h3 className="text-3xl font-extrabold text-slate-900">{overview?.kb_reliability_avg.toFixed(2)}</h3>
-                        <span className="text-sm text-slate-400 font-medium">/ 4.0</span>
-                    </div>
-                </div>
+        <div className="bg-slate-50 border-b border-slate-200 p-4 md:px-6 animate-in slide-in-from-top-4 duration-300">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                    <ChartIcon className="w-4 h-4 text-indigo-500" />
+                    市场雷达 (Market Pulse)
+                </h3>
+                <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1">
+                    收起 <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                </button>
             </div>
 
-            {/* Main Charts Area */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Trend Chart */}
-                <div className="lg:col-span-2 bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-8">
-                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <TrendingUpIcon className="w-6 h-6 text-indigo-500" />
-                            情报入库趋势
-                        </h3>
-                        <select className="text-xs bg-slate-50 border-none rounded-lg px-3 py-1.5 text-slate-600 font-medium cursor-pointer hover:bg-slate-100 transition-colors focus:ring-0">
-                            <option>近 30 天</option>
-                            <option>近 7 天</option>
-                        </select>
+            {isLoading ? (
+                <div className="flex gap-4 overflow-hidden">
+                    <div className="w-1/4 h-24 bg-slate-200 rounded-xl animate-pulse"></div>
+                    <div className="w-1/4 h-24 bg-slate-200 rounded-xl animate-pulse"></div>
+                    <div className="w-1/4 h-24 bg-slate-200 rounded-xl animate-pulse"></div>
+                    <div className="w-1/4 h-24 bg-slate-200 rounded-xl animate-pulse"></div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Metric 1: Total Intelligence */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <span className="text-xs text-slate-400">情报总量</span>
+                        <div className="flex items-baseline gap-2 mt-1">
+                            <span className="text-2xl font-bold text-slate-800">{overview?.kb_total.toLocaleString()}</span>
+                            <span className="text-xs text-green-600 font-medium bg-green-50 px-1.5 rounded">+12</span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-400">
+                            <span>可信度 Avg</span>
+                            <span className="font-bold text-slate-600">{overview?.kb_reliability_avg.toFixed(1)}</span>
+                        </div>
                     </div>
-                    <TrendChart data={trends} />
-                </div>
 
-                {/* Quality Funnel */}
-                <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
-                    <h3 className="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2">
-                        <ShieldCheckIcon className="w-6 h-6 text-emerald-500" />
-                        情报质量分布
-                    </h3>
-                    <div className="flex-1 flex flex-col justify-center gap-6">
-                         {quality?.reliability_distribution.sort((a,b) => b.reliability - a.reliability).map(q => {
-                            const conf = getReliabilityInfo(q.reliability);
-                            return (
-                                <div key={q.reliability} className="relative group">
-                                    <div className="flex justify-between text-sm mb-2 font-bold text-slate-700">
-                                        <span className="flex items-center gap-2">
-                                            <div className={`p-1 rounded ${conf.bg} ${conf.textCol}`}><conf.Icon className="w-4 h-4" /></div>
-                                            {conf.text}
-                                        </span>
-                                        <span className="font-mono text-slate-400 group-hover:text-slate-900 transition-colors">{q.percentage.toFixed(1)}%</span>
-                                    </div>
-                                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                                        <div className={`h-full rounded-full ${conf.textCol.replace('text-', 'bg-')} transition-all duration-1000 ease-out`} style={{ width: `${q.percentage}%` }}></div>
-                                    </div>
-                                </div>
-                            )
-                         })}
+                    {/* Metric 2: Trend */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <div className="flex justify-between mb-1">
+                            <span className="text-xs text-slate-400">入库趋势 (14天)</span>
+                        </div>
+                        <MiniTrendChart data={trends} />
+                    </div>
+
+                    {/* Metric 3: Top Brands */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <span className="text-xs text-slate-400 mb-2 block">热门品牌</span>
+                        <CompactBarChart data={brandDist} colorClass="bg-indigo-500" />
+                    </div>
+
+                    {/* Metric 4: Top Tech */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                        <span className="text-xs text-slate-400 mb-2 block">技术热点</span>
+                        <CompactBarChart data={techDist} colorClass="bg-cyan-500" />
                     </div>
                 </div>
-            </div>
-
-            {/* Distribution Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:border-indigo-200 transition-colors">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">品牌热度 Top 5</h3>
-                    <SimpleBarChart data={brandDist} colorClass="bg-indigo-500" />
-                </div>
-                <div className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:border-cyan-200 transition-colors">
-                    <h3 className="text-lg font-bold text-slate-800 mb-6">技术热点 Top 5</h3>
-                    <SimpleBarChart data={techDist} colorClass="bg-cyan-500" />
-                </div>
-            </div>
+            )}
         </div>
     );
 };
@@ -316,7 +229,7 @@ const DossierPanel: React.FC<{
     if (!traceData) return <div className="p-6 text-center text-slate-500">无数据。</div>;
 
     const aggregatedTech = traceData.aggregated_tech[0];
-    // FIX: Use source_articles.length for accuracy, falling back to mapping if array is missing
+    // FIX: Use source_articles.length for accuracy
     const sourceCount = traceData.source_articles?.length ?? aggregatedTech?.source_article_ids?.length ?? 0;
 
     return (
@@ -392,7 +305,7 @@ const DossierPanel: React.FC<{
     );
 };
 
-// --- Intelligence Matrix (Browser) ---
+// --- Intelligence Matrix (Main Workspace) ---
 
 const IntelligenceMatrix: React.FC = () => {
     // State
@@ -408,6 +321,9 @@ const IntelligenceMatrix: React.FC = () => {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [loadingList, setLoadingList] = useState(false);
+    
+    // UI State
+    const [showMarketPulse, setShowMarketPulse] = useState(false);
     
     // Selection State
     const [selectedItem, setSelectedItem] = useState<KnowledgeBaseItem | null>(null);
@@ -562,6 +478,16 @@ const IntelligenceMatrix: React.FC = () => {
                     ))}
                 </div>
 
+                <button 
+                    onClick={() => setShowMarketPulse(!showMarketPulse)}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-all ml-2 ${
+                        showMarketPulse ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                >
+                    <ChartIcon className="w-4 h-4" />
+                    {showMarketPulse ? '隐藏雷达' : '市场雷达'}
+                </button>
+
                 <div className="relative ml-auto group">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                         <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -582,8 +508,16 @@ const IntelligenceMatrix: React.FC = () => {
             {/* Content Area */}
             <div className="flex-1 flex overflow-hidden">
                 
-                {/* Left: List */}
+                {/* Left: List + Pulse */}
                 <div className={`flex-1 flex flex-col min-w-0 border-r border-slate-200 bg-white transition-all duration-500 ease-in-out ${selectedItem ? 'max-w-[450px] hidden lg:flex' : ''}`}>
+                    
+                    {/* Pulse Drawer */}
+                    {showMarketPulse && (
+                        <div className="flex-shrink-0">
+                            <MarketPulse onClose={() => setShowMarketPulse(false)} />
+                        </div>
+                    )}
+
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                         {loadingList ? (
                              <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -710,8 +644,6 @@ const IntelligenceMatrix: React.FC = () => {
 
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
-    const [view, setView] = useState<'overview' | 'matrix'>('overview');
-
     return (
         <div className="h-full flex flex-col bg-slate-100">
             <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
@@ -724,35 +656,10 @@ export const CompetitivenessDashboard: React.FC = () => {
                         COMPETITIVENESS INSIGHTS
                     </span>
                 </h1>
-                
-                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-                    <button 
-                        onClick={() => setView('overview')}
-                        className={`px-5 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${view === 'overview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        战略态势
-                    </button>
-                    <button 
-                        onClick={() => setView('matrix')}
-                        className={`px-5 py-2 text-sm font-bold rounded-lg transition-all duration-200 ${view === 'matrix' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        情报矩阵
-                    </button>
-                </div>
             </header>
 
             <main className="flex-1 overflow-hidden relative">
-                {view === 'overview' ? (
-                    <div className="h-full overflow-y-auto bg-slate-50 custom-scrollbar">
-                        <div className="w-full mx-auto py-8 px-4 md:px-8">
-                            <LazyLoadModule placeholder={<div className="h-96 bg-slate-200 animate-pulse rounded-2xl"></div>}>
-                                <DashboardView />
-                            </LazyLoadModule>
-                        </div>
-                    </div>
-                ) : (
-                    <IntelligenceMatrix />
-                )}
+                <IntelligenceMatrix />
             </main>
             
             <style>{`
