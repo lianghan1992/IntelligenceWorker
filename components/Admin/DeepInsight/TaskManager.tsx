@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../../types';
 import { 
@@ -5,7 +6,8 @@ import {
     uploadDeepInsightTask, 
     getDeepInsightCategories,
     getDeepInsightTasksStats,
-    deleteDeepInsightTask
+    deleteDeepInsightTask,
+    fetchDeepInsightCover
 } from '../../../api';
 import { PlusIcon, RefreshIcon, DocumentTextIcon, TrashIcon } from '../../icons';
 import { TaskDetail } from './TaskDetail';
@@ -33,6 +35,22 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     };
     return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
 };
+
+// Tiny component for list thumbnail
+const TaskThumbnail: React.FC<{ taskId: string }> = ({ taskId }) => {
+    const [url, setUrl] = useState<string | null>(null);
+    
+    useEffect(() => {
+        let active = true;
+        fetchDeepInsightCover(taskId).then(u => {
+            if(active && u) setUrl(u);
+        });
+        return () => { active = false; if(url) URL.revokeObjectURL(url); }
+    }, [taskId]);
+
+    if (!url) return <div className="w-8 h-10 bg-gray-100 rounded border flex items-center justify-center"><DocumentTextIcon className="w-4 h-4 text-gray-300" /></div>;
+    return <img src={url} alt="Cover" className="w-8 h-10 object-cover rounded border shadow-sm" />;
+}
 
 export const TaskManager: React.FC = () => {
     const [viewState, setViewState] = useState<'list' | 'detail'>('list');
@@ -199,6 +217,7 @@ export const TaskManager: React.FC = () => {
                     <table className="w-full text-sm text-left text-gray-500">
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                             <tr>
+                                <th className="px-6 py-3 w-16">封面</th>
                                 <th className="px-6 py-3">文件名称</th>
                                 <th className="px-6 py-3">类型</th>
                                 <th className="px-6 py-3">状态</th>
@@ -209,12 +228,14 @@ export const TaskManager: React.FC = () => {
                         </thead>
                         <tbody>
                             {!isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={7} className="text-center py-10 text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
                                     <tr key={task.id} className="bg-white border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleTaskClick(task.id)}>
-                                        <td className="px-6 py-4 font-medium text-gray-900 flex items-center gap-2">
-                                            <DocumentTextIcon className="w-4 h-4 text-gray-400" />
+                                        <td className="px-6 py-3">
+                                            {task.status === 'completed' ? <TaskThumbnail taskId={task.id} /> : <div className="w-8 h-10 bg-gray-50 rounded border"></div>}
+                                        </td>
+                                        <td className="px-6 py-4 font-medium text-gray-900">
                                             {task.file_name}
                                         </td>
                                         <td className="px-6 py-4 uppercase">{task.file_type}</td>

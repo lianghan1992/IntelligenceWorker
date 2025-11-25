@@ -131,7 +131,7 @@
 ## 处理流程
 1. 接收 PDF/PPT，入库创建 Task，落盘到 `services/deep_insight/storage/<task_id>/`。
 2. 后台处理：切页为图片 → 以 ZhipuAI (glm-4v-flash) 生成每页 markdown 讲解（json模式、健壮解析）→ Gemini 生成每页 HTML 与单页 PDF。
-3. 拼接所有单页 PDF 为合稿 PDF，更新任务状态与结果路径。
+3. 拼接所有单页 PDF 为合稿 PDF，更新任务状态、结果路径与封面图片（第一页）。
 4. 支持懒加载：`/pages` 接口分页返回，前端逐页展示或下载。
 
 ## 配置 (services/deep_insight/.env)
@@ -160,8 +160,20 @@
 
 - 下载单页 PDF：`GET /deep_insight/tasks/{task_id}/pages/{page_index}/pdf`
 - 下载合并总 PDF：`GET /deep_insight/tasks/{task_id}/bundle`
+ - 获取封面：`GET /deep_insight/tasks/{task_id}/cover`
 
-## 失败处理与降级逻辑
+## 封面接口
 
-- 若视觉识别返回空或异常，系统自动以图片为主体生成简单 HTML，并转换为 PDF，避免页面全部失败。
-- 若 Markdown→HTML 渠道不可用，尝试本地 `markdown` 渲染再转换 PDF。
+- 获取封面图片：`GET /deep_insight/tasks/{task_id}/cover`
+  - 方法说明：返回该任务第一页转换生成的封面图片（JPEG）。
+  - 返回：二进制图片内容，`Content-Type: image/jpeg`
+  - cURL：
+    ```bash
+    curl -X GET http://127.0.0.1:7657/api/deep_insight/tasks/<task_id>/cover \
+      -H "Authorization: Bearer <token>" -o cover.jpg
+    ```
+
+## 失败处理策略
+
+- 不进行任何降级生成。若视觉识别或HTML生成不可用，页面标记为`failed`，任务状态保持真实。
+- 当Gemini Cookie无效或过期时，系统等待用户通过`/deep_insight/gemini/cookies`接口更新后再继续处理。

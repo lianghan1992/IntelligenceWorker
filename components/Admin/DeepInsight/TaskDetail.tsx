@@ -1,6 +1,14 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightPage } from '../../../types';
-import { getDeepInsightTask, getDeepInsightTaskPages, downloadDeepInsightPagePdf, downloadDeepInsightBundle } from '../../../api';
+import { 
+    getDeepInsightTask, 
+    getDeepInsightTaskPages, 
+    downloadDeepInsightPagePdf, 
+    downloadDeepInsightBundle,
+    getDeepInsightTaskStatus,
+    fetchDeepInsightCover
+} from '../../../api';
 import { ChevronLeftIcon, RefreshIcon, DownloadIcon, DocumentTextIcon, CloseIcon } from '../../icons';
 
 interface TaskDetailProps {
@@ -38,6 +46,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
     const [error, setError] = useState('');
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
     const [downloading, setDownloading] = useState(false);
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
     const fetchData = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
@@ -57,14 +66,38 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(() => {
-            // Poll status if processing
+        
+        // Polling with Status Snapshot
+        const interval = setInterval(async () => {
             if (task?.status === 'processing' || task?.status === 'pending') {
-                fetchData(true);
+                try {
+                    const statusSnapshot = await getDeepInsightTaskStatus(taskId);
+                    
+                    // If status changed or new pages processed, refresh full data
+                    if (
+                        statusSnapshot.status !== task.status || 
+                        statusSnapshot.processed_pages !== task.processed_pages
+                    ) {
+                        fetchData(true);
+                    }
+                } catch (e) {
+                    console.warn("Status polling failed", e);
+                }
             }
-        }, 5000);
+        }, 3000);
+
         return () => clearInterval(interval);
-    }, [fetchData, task?.status]);
+    }, [fetchData, task?.status, task?.processed_pages, taskId]);
+
+    useEffect(() => {
+        let active = true;
+        if (task?.status === 'completed') {
+            fetchDeepInsightCover(taskId).then(url => {
+                if (active && url) setCoverUrl(url);
+            });
+        }
+        return () => { active = false; if (coverUrl) URL.revokeObjectURL(coverUrl); };
+    }, [task?.status, taskId]);
 
     const handleDownloadPage = async (pageIndex: number) => {
         try {
@@ -108,18 +141,27 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
         <div className="h-full flex flex-col bg-gray-50">
             {/* Header */}
             <div className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-6">
                     <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                         <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
                     </button>
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            {task.file_name}
-                            <StatusBadge status={task.status} />
-                        </h2>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                            ID: {task.id} • {task.processed_pages} / {task.total_pages} 页 • 更新于 {new Date(task.updated_at).toLocaleString('zh-CN')}
-                        </p>
+                    <div className="flex items-center gap-4">
+                        {coverUrl ? (
+                            <img src={coverUrl} alt="Cover" className="w-12 h-16 object-cover rounded border shadow-sm" />
+                        ) : (
+                            <div className="w-12 h-16 bg-gray-100 rounded border flex items-center justify-center">
+                                <DocumentTextIcon className="w-6 h-6 text-gray-300" />
+                            </div>
+                        )}
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                {task.file_name}
+                                <StatusBadge status={task.status} />
+                            </h2>
+                            <p className="text-xs text-gray-500 mt-1">
+                                ID: {task.id} • {task.processed_pages} / {task.total_pages} 页 • 更新于 {new Date(task.updated_at).toLocaleString('zh-CN')}
+                            </p>
+                        </div>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -150,19 +192,16 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, onBack }) => {
                                 <div className="aspect-[3/4] bg-gray-100 relative overflow-hidden border-b">
                                     {/* Image Placeholder - In real app, display image_path if available (needs auth proxy usually) */}
                                     <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-                                        <DocumentTextIcon className="w-12 h-12" />
+                                        <DocumentTextIcon className="w-12 h-12 opacity-20" />
+                                        <span className="text-xs absolute mt-8 font-mono text-gray-400">PAGE {page.page_index}</span>
                                     </div>
                                     {/* Status Overlay */}
                                     <div className="absolute top-2 right-2">
                                         <StatusBadge status={page.status} />
                                     </div>
-                                    {/* Page Number */}
-                                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded">
-                                        Page {page.page_index}
-                                    </div>
                                 </div>
                                 <div className="p-3 flex justify-between items-center bg-white">
-                                    <span className="text-xs text-gray-500">HTML/PDF Ready</span>
+                                    <span className="text-xs text-gray-500">第 {page.page_index} 页</span>
                                     <button 
                                         onClick={() => handleDownloadPage(page.page_index)}
                                         disabled={page.status !== 'completed'}

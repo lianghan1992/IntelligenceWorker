@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
-import { getDeepInsightTasks, getDeepInsightCategories } from '../../api/deepInsight';
+import { getDeepInsightTasks, getDeepInsightCategories, fetchDeepInsightCover } from '../../api/deepInsight';
 import { SearchIcon, DocumentTextIcon, RefreshIcon } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
@@ -14,40 +15,75 @@ const formatDate = (dateString: string) => {
 };
 
 // Component: Insight Card
-const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => (
-    <div 
-        onClick={onClick}
-        className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col h-full shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative"
-    >
-        {/* Decorative Header Background */}
-        <div className="h-32 bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
-            <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                <DocumentTextIcon className="w-16 h-16 opacity-50 group-hover:scale-110 transition-transform duration-500" />
-            </div>
-            {/* Category Badge */}
-            {categoryName && (
-                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-slate-600 shadow-sm border border-white/50">
-                    {categoryName}
-                </div>
-            )}
-        </div>
+const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
-        {/* Content */}
-        <div className="p-6 flex flex-col flex-grow">
-            <h3 className="text-lg font-bold text-slate-900 mb-2 leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
-                {task.file_name}
-            </h3>
-            
-            <div className="mt-auto pt-4 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                    <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium">{task.file_type.toUpperCase()}</span>
-                    <span>{task.total_pages} 页</span>
+    useEffect(() => {
+        let active = true;
+        if (task.status === 'completed') {
+            fetchDeepInsightCover(task.id).then(url => {
+                if (active && url) setCoverUrl(url);
+            });
+        }
+        return () => { 
+            active = false; 
+            if (coverUrl) URL.revokeObjectURL(coverUrl); 
+        };
+    }, [task.id, task.status]);
+
+    return (
+        <div 
+            onClick={onClick}
+            className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col h-full shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative"
+        >
+            {/* Cover Image / Header Background */}
+            <div className="aspect-[3/4] bg-slate-100 relative overflow-hidden border-b border-slate-100">
+                {coverUrl ? (
+                    <img 
+                        src={coverUrl} 
+                        alt={task.file_name} 
+                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 bg-gradient-to-br from-slate-50 to-slate-100">
+                        <DocumentTextIcon className="w-16 h-16 opacity-50" />
+                        <span className="text-xs mt-2 font-medium uppercase tracking-wider opacity-60">Processing</span>
+                    </div>
+                )}
+                
+                {/* Overlay Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60"></div>
+
+                {/* Category Badge */}
+                {categoryName && (
+                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-700 shadow-sm border border-white/50 z-10">
+                        {categoryName}
+                    </div>
+                )}
+            </div>
+
+            {/* Content */}
+            <div className="p-5 flex flex-col flex-grow bg-white relative">
+                {/* Floating Type Badge */}
+                <div className="absolute -top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md uppercase tracking-wider">
+                    {task.file_type}
                 </div>
-                <span>{formatDate(task.updated_at)}</span>
+
+                <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
+                    {task.file_name}
+                </h3>
+                
+                <div className="mt-auto pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-50">
+                    <div className="flex items-center gap-1.5">
+                        <DocumentTextIcon className="w-3.5 h-3.5" />
+                        <span>{task.total_pages} 页</span>
+                    </div>
+                    <span>{formatDate(task.updated_at)}</span>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // Component: Filter Chip
 const FilterChip: React.FC<{ label: string; isActive: boolean; onClick: () => void }> = ({ label, isActive, onClick }) => (
@@ -80,7 +116,6 @@ export const DeepDives: React.FC = () => {
             ]);
             setCategories(cats);
             // Filter for completed tasks only for the end-user view
-            // And map category names if possible
             const allTasks = tasksRes.items || [];
             const validTasks = allTasks.filter(t => t.status === 'completed');
             setTasks(validTasks);
@@ -167,7 +202,7 @@ export const DeepDives: React.FC = () => {
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                     </div>
                 ) : filteredTasks.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 md:gap-8">
                         {filteredTasks.map(task => (
                             <InsightCard 
                                 key={task.id} 

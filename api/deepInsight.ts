@@ -1,3 +1,4 @@
+
 // src/api/deepInsight.ts
 
 import { DEEP_INSIGHT_SERVICE_PATH } from '../config';
@@ -78,6 +79,25 @@ export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> =
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('下载失败');
     return response.blob();
+};
+
+// Fetch cover image as Blob and return Object URL
+export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    try {
+        const response = await fetch(url, { headers });
+        if (response.status === 404) return null;
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        console.error("Failed to fetch cover", e);
+        return null;
+    }
 };
 
 // --- New Admin APIs (Stats & Management) ---
