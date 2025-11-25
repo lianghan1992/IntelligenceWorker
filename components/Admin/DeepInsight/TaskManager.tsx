@@ -117,8 +117,7 @@ export const TaskManager: React.FC = () => {
         try {
             // The API call now handles the multi-step process (upload -> create -> start)
             await uploadDeepInsightTask(file, uploadCategoryId || undefined);
-            // Give a slight delay for the task to register in list
-            setTimeout(fetchTasks, 500);
+            fetchTasks(); // Refresh list
         } catch (err: any) {
             setError(err.message || '上传失败');
         } finally {
@@ -191,7 +190,7 @@ export const TaskManager: React.FC = () => {
                         ref={fileInputRef} 
                         onChange={handleUpload} 
                         className="hidden" 
-                        accept=".pdf"
+                        accept=".pdf,.ppt,.pptx"
                     />
                     <button 
                         onClick={() => fileInputRef.current?.click()}
@@ -199,7 +198,7 @@ export const TaskManager: React.FC = () => {
                         className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 flex items-center gap-2 disabled:bg-blue-300 transition-colors w-full sm:w-auto justify-center"
                     >
                         {isUploading ? <Spinner /> : <PlusIcon className="w-4 h-4" />}
-                        上传原始文档 (PDF)
+                        上传文档 (PDF/PPT)
                     </button>
                 </div>
                 <button onClick={fetchTasks} className="p-2.5 bg-white border rounded-lg hover:bg-gray-100 text-gray-600" title="刷新列表">
@@ -217,6 +216,7 @@ export const TaskManager: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-3 w-16">封面</th>
                                 <th className="px-6 py-3">文件名称</th>
+                                <th className="px-6 py-3">类型</th>
                                 <th className="px-6 py-3">状态</th>
                                 <th className="px-6 py-3">进度</th>
                                 <th className="px-6 py-3">上传时间</th>
@@ -225,16 +225,18 @@ export const TaskManager: React.FC = () => {
                         </thead>
                         <tbody>
                             {!isLoading && tasks.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-10 text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={7} className="text-center py-10 text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
                                     <tr key={task.id} className="bg-white border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleTaskClick(task.id)}>
                                         <td className="px-6 py-3">
+                                            {/* Try to show thumbnail even if not completed, might fall back to icon */}
                                             <TaskThumbnail taskId={task.id} />
                                         </td>
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             {task.file_name}
                                         </td>
+                                        <td className="px-6 py-4 uppercase">{task.file_type}</td>
                                         <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
                                         <td className="px-6 py-4">
                                             {task.total_pages > 0 

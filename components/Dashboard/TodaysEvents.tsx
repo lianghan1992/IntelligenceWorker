@@ -1,199 +1,69 @@
+
 import React, { useState, useEffect } from 'react';
 import { LivestreamTask, View } from '../../types';
 import { getLivestreamTasks } from '../../api';
-import { VideoCameraIcon, ArrowRightIcon, PlayIcon, FilmIcon, DocumentTextIcon } from '../icons';
+import { VideoCameraIcon, ArrowRightIcon, PlayIcon, FilmIcon, DocumentTextIcon, ClockIcon } from '../icons';
 
-// Simplified and robust helper to handle image data from the backend
+// Helper to handle image src
 const getSafeImageSrc = (base64Data: string | null | undefined): string | null => {
   if (!base64Data || base64Data.trim() === '' || base64Data.toLowerCase() === 'none' || base64Data.toLowerCase() === 'null') {
     return null;
   }
-  
-  // If it's already a data URI, return it directly.
-  if (base64Data.startsWith('data:image')) {
+  if (base64Data.startsWith('data:image') || base64Data.startsWith('http')) {
     return base64Data;
   }
-
-  // If it's a full external URL, return it.
-  if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
-    return base64Data;
-  }
-
-  // Assume it's a raw base64 string and prepend the necessary prefix for JPG.
   return `data:image/jpeg;base64,${base64Data}`;
 };
 
-
-const formatTimeLeft = (distance: number): string | null => {
-    if (distance < 0) return null;
-    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-    if (days > 0) {
-        return `${days}天 ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
-
-
-const EventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => void }> = ({ event, onNavigate }) => {
-    const [timeLeft, setTimeLeft] = useState<string | null>(null);
+const CompactEventCard: React.FC<{ event: LivestreamTask; onNavigate: (view: View) => void }> = ({ event, onNavigate }) => {
     const statusLower = event.status.toLowerCase();
-    
-    // Comprehensive status mapping
     const isLive = ['recording', 'downloading', 'stopping'].includes(statusLower);
-    const isProcessing = statusLower === 'processing';
-    const isCompleted = ['finished', 'completed', 'failed'].includes(statusLower);
-    // Strictly exclude completed/processing items from upcoming
-    const isUpcoming = ['scheduled', 'listening', 'pending'].includes(statusLower) && !isCompleted && !isProcessing && !isLive;
-
+    const isUpcoming = ['listening', 'scheduled', 'pending'].includes(statusLower);
     const imageUrl = getSafeImageSrc(event.cover_image_b64);
-
-    useEffect(() => {
-        if (!isUpcoming) {
-            setTimeLeft(null);
-            return;
-        }
-
-        const calculateTime = () => {
-            const now = new Date().getTime();
-            const startTime = new Date(event.start_time).getTime();
-            const distance = startTime - now;
-            if (distance < 0) {
-                setTimeLeft(null);
-                return false; // Should stop
-            } else {
-                setTimeLeft(formatTimeLeft(distance));
-                return true; // Keep running
-            }
-        };
-
-        // Initial run
-        if (!calculateTime()) return;
-
-        const timer = setInterval(() => {
-            if (!calculateTime()) {
-                clearInterval(timer);
-            }
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [event.start_time, isUpcoming]);
-
-    const countdownTextSize = timeLeft && timeLeft.length > 8 ? 'text-3xl' : 'text-4xl';
 
     return (
         <div 
             onClick={() => onNavigate('events')}
-            className={`group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-900 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer ${isCompleted ? 'opacity-90 hover:opacity-100' : ''}`}
+            className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group"
         >
-            {imageUrl ? (
-                <img 
-                    src={imageUrl} 
-                    alt={event.task_name} 
-                    className={`absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 ${isCompleted ? 'grayscale-[30%]' : ''}`} 
-                />
-            ) : (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-                    <FilmIcon className="w-12 h-12 text-gray-600" />
-                </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
-            
-            <div className="relative z-10 p-4 h-full flex flex-col justify-between text-white">
-                {/* Top: Status Badge */}
-                <div className="flex justify-end">
-                    {isLive && (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-red-500/90 backdrop-blur-sm flex items-center gap-1.5 animate-pulse border border-red-400/50">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                            </span>
-                            直播中
-                        </span>
-                    )}
-                    {isProcessing && (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-indigo-500/90 backdrop-blur-sm border border-indigo-400/50">
-                            AI生成中
-                        </span>
-                    )}
-                    {isCompleted && (
-                        <span className="px-3 py-1 text-xs font-bold rounded-full bg-gray-600/90 backdrop-blur-sm border border-gray-500/50 flex items-center gap-1">
-                            <CheckIcon className="w-3 h-3" /> 已结束
-                        </span>
-                    )}
-                    {isUpcoming && (
-                         <span className="px-3 py-1 text-xs font-bold rounded-full bg-blue-500/90 backdrop-blur-sm border border-blue-400/50">
-                            即将开始
-                        </span>
-                    )}
-                </div>
-
-                {/* Middle: Countdown (Only for Upcoming) */}
-                {isUpcoming && timeLeft && (
-                    <div className="text-center">
-                        <div className={`${countdownTextSize} font-bold tracking-tighter`} style={{ textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>
-                            {timeLeft}
-                        </div>
-                        <p className="text-sm opacity-80">后开始</p>
+            <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                {imageUrl ? (
+                    <img src={imageUrl} alt={event.task_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-300"><FilmIcon className="w-6 h-6" /></div>
+                )}
+                {isLive && (
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <span className="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
                     </div>
                 )}
-                
-                {/* Bottom: Info */}
-                <div style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>
-                    {isLive && (
-                        <a 
-                            href={event.live_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="mb-3 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg shadow-md hover:bg-red-700 transition-all transform hover:scale-105"
-                        >
-                            <PlayIcon className="w-4 h-4" />
-                            <span>观看直播</span>
-                        </a>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start">
+                    <h4 className="text-sm font-bold text-slate-800 line-clamp-1 group-hover:text-indigo-700 transition-colors">{event.task_name}</h4>
+                    {isLive && <span className="text-[10px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded flex-shrink-0 ml-2">LIVE</span>}
+                </div>
+                <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-medium">{event.company}</span>
+                    <span className="flex items-center gap-1">
+                        <ClockIcon className="w-3 h-3" />
+                        {new Date(event.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                </div>
+                <div className="mt-1.5">
+                    {isUpcoming ? (
+                        <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">即将开始</span>
+                    ) : isLive ? (
+                        <span className="text-[10px] text-red-600 font-medium">正在直播中...</span>
+                    ) : (
+                        <span className="text-[10px] text-slate-400">已结束</span>
                     )}
-                    {isCompleted && (
-                         <div className="mb-2 inline-flex items-center gap-1 text-xs text-gray-300 bg-white/10 px-2 py-1 rounded">
-                            <DocumentTextIcon className="w-3 h-3" /> 报告已就绪
-                         </div>
-                    )}
-                    <h3 className="text-lg font-bold leading-tight line-clamp-2">{event.task_name}</h3>
-                    <p className="text-xs text-gray-200 mt-1 flex items-center gap-1">
-                       <span>{event.company}</span>
-                       <span>•</span>
-                       <span>{new Date(event.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })} 开始</span>
-                    </p>
                 </div>
             </div>
         </div>
     );
 };
-
-// Tiny internal icon component if needed locally, or import from icons.tsx
-const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-    </svg>
-);
-
-const SkeletonCard: React.FC = () => (
-    <div className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-200 animate-pulse">
-        <div className="p-4 h-full flex flex-col justify-between">
-            <div className="flex justify-end">
-                <div className="h-5 w-16 bg-gray-300 rounded-full"></div>
-            </div>
-            <div>
-                 <div className="h-4 w-1/3 bg-gray-300 rounded mb-1"></div>
-                 <div className="h-6 w-4/5 bg-gray-300 rounded"></div>
-                 <div className="h-3 w-1/4 bg-gray-300 rounded mt-2"></div>
-            </div>
-        </div>
-    </div>
-);
-
 
 export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ onNavigate }) => {
     const [events, setEvents] = useState<LivestreamTask[]>([]);
@@ -203,47 +73,25 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
         const fetchEvents = async () => {
             setLoading(true);
             try {
-                // Fetch recent tasks, sorted by start time to catch upcoming and just-passed events.
-                const response = await getLivestreamTasks({ page_size: 50, sort_by: 'start_time', order: 'desc' });
-                
+                const response = await getLivestreamTasks({ page_size: 20, sort_by: 'start_time', order: 'desc' });
                 const allEvents = response.items || [];
-                
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const endOfDay = new Date();
                 endOfDay.setHours(23, 59, 59, 999);
 
-                const todaysEvents = allEvents.filter(event => {
+                // Filter for today or future (upcoming)
+                const relevantEvents = allEvents.filter(event => {
                     const eventDate = new Date(event.start_time);
-                    return eventDate >= today && eventDate <= endOfDay;
-                });
-                
-                const getStatusPriority = (status: string) => {
-                    const s = status.toLowerCase();
-                    if (['recording', 'downloading', 'stopping'].includes(s)) return 0; // Live
-                    if (['listening', 'scheduled', 'pending'].includes(s)) return 1; // Upcoming
-                    if (s === 'processing') return 2; // Processing
-                    if (['finished', 'completed', 'failed'].includes(s)) return 3; // Finished
-                    return 4; // Others
-                };
+                    // Include today's events OR future upcoming events
+                    const isToday = eventDate >= today && eventDate <= endOfDay;
+                    const isFuture = eventDate > endOfDay && ['listening', 'scheduled'].includes(event.status);
+                    return isToday || isFuture;
+                }).slice(0, 3); // Limit to 3
 
-                const sortedEvents = todaysEvents.sort((a, b) => {
-                    const priorityA = getStatusPriority(a.status);
-                    const priorityB = getStatusPriority(b.status);
-                    if (priorityA !== priorityB) {
-                        return priorityA - priorityB;
-                    }
-                    // For upcoming, sort by start time ascending (soonest first). 
-                    if (priorityA === 1) { 
-                        return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-                    }
-                    // For everything else (Live 0, Processing 2, Finished 3), sort by start time descending (most recent first)
-                    return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-                });
-
-                setEvents(sortedEvents.slice(0, 4)); // Show top 4
+                setEvents(relevantEvents);
             } catch (error) {
-                console.error("Failed to fetch today's events:", error);
+                console.error("Failed to fetch events:", error);
                 setEvents([]); 
             } finally {
                 setLoading(false);
@@ -253,29 +101,36 @@ export const TodaysEvents: React.FC<{ onNavigate: (view: View) => void }> = ({ o
     }, []);
 
     return (
-        <div>
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <VideoCameraIcon className="w-6 h-6 text-indigo-500" />
-                    今日事件
+        <div className="flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 px-1">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <VideoCameraIcon className="w-5 h-5 text-orange-500" />
+                    近期日程
                 </h2>
                 <button 
                     onClick={() => onNavigate('events')} 
-                    className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:underline"
+                    className="text-xs font-semibold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition-colors"
                 >
-                    查看全部 <ArrowRightIcon className="w-4 h-4"/>
+                    日程表 <ArrowRightIcon className="w-3 h-3"/>
                 </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <div className="flex-1 space-y-3">
                 {loading ? (
-                     Array.from({ length: 4 }).map((_, index) => <SkeletonCard key={index} />)
+                     [1, 2].map(i => (
+                        <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse border border-slate-200"></div>
+                     ))
                 ) : events.length > 0 ? (
                     events.map(event => (
-                        <EventCard key={event.live_url + event.start_time} event={event} onNavigate={onNavigate} />
+                        <CompactEventCard key={event.id} event={event} onNavigate={onNavigate} />
                     ))
                 ) : (
-                    <div className="sm:col-span-2 lg:col-span-4 bg-white p-6 rounded-xl border border-dashed text-center text-gray-500">
-                        今日暂无发布会安排。
+                    <div className="h-full bg-white p-6 rounded-2xl border border-slate-200 border-dashed flex flex-col items-center justify-center text-slate-400">
+                        <ClockIcon className="w-8 h-8 mb-2 opacity-20" />
+                        <span className="text-xs">近期暂无发布会安排</span>
+                        <button onClick={() => onNavigate('events')} className="mt-2 text-xs text-indigo-600 font-medium hover:underline">
+                            查看历史回放
+                        </button>
                     </div>
                 )}
             </div>
