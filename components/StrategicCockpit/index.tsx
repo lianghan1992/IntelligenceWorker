@@ -60,6 +60,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             }
         };
 
+        // Initial check
+        handleResize();
+
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedArticle]);
@@ -178,7 +181,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                     flex-shrink-0 flex flex-col bg-slate-50/90 backdrop-blur-xl md:bg-white md:rounded-[20px] md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] md:border border-slate-200/60
                     absolute inset-0 z-20 md:static md:z-auto transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)]
                     ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-                    ${isSidebarOpen ? 'md:w-[260px] lg:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0'}
+                    ${isSidebarOpen ? 'md:w-[260px] lg:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0 md:border-0'}
                 `}>
                     {/* Mobile Header for Nav */}
                     <div className="md:hidden px-6 pt-6 pb-2 flex items-center justify-between">
