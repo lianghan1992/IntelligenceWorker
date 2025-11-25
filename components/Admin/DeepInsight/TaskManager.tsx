@@ -79,12 +79,8 @@ export const TaskManager: React.FC = () => {
         setIsLoading(true);
         setError('');
         try {
-            // Fetch stats in parallel or sequentially
             fetchStats();
-
-            // Assuming pagination params are supported, default to page 1
             const response = await getDeepInsightTasks({ page: 1, limit: 50 });
-            // Handle API response structure compatibility
             if (Array.isArray(response)) {
                 setTasks(response);
             } else if (response && Array.isArray(response.items)) {
@@ -119,6 +115,7 @@ export const TaskManager: React.FC = () => {
         setIsUploading(true);
         setError('');
         try {
+            // The API call now handles the multi-step process (upload -> create -> start)
             await uploadDeepInsightTask(file, uploadCategoryId || undefined);
             fetchTasks(); // Refresh list
         } catch (err: any) {
@@ -233,7 +230,8 @@ export const TaskManager: React.FC = () => {
                                 tasks.map(task => (
                                     <tr key={task.id} className="bg-white border-b hover:bg-gray-50 cursor-pointer" onClick={() => handleTaskClick(task.id)}>
                                         <td className="px-6 py-3">
-                                            {task.status === 'completed' ? <TaskThumbnail taskId={task.id} /> : <div className="w-8 h-10 bg-gray-50 rounded border"></div>}
+                                            {/* Try to show thumbnail even if not completed, might fall back to icon */}
+                                            <TaskThumbnail taskId={task.id} />
                                         </td>
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             {task.file_name}

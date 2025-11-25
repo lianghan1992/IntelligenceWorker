@@ -1,179 +1,184 @@
-# 深度洞察服务 API 文档
+# 深度洞察服务 最新 API 文档
 
-说明：所有接口前缀为 `/deep_insight`，认证使用统一的 Bearer Token。服务目标：将上传的 PDF/PPT 分页重绘，生成每页 HTML 与 PDF，并最终合稿输出一个新的 PDF。
+说明：所有接口前缀为 `/deep_insight`，返回均为 JSON；所有端点均需 JWT 鉴权（Bearer Token）。本服务支持「先上传原始 PDF，再创建并启动任务」的分步流程，最终输出单页 HTML 与合稿 PDF，并提供封面图与原始 PDF 下载。
 
-## 分类管理
-- `POST /deep_insight/categories`
-  - 方法说明：新增分类
-  - 请求：`multipart/form-data`
-    - 字段：`name`(string, 必填)，`parent_id`(string, 可选)
-  - 返回示例：
-    ```json
-    {"id":"<uuid>","message":"created"}
-    ```
-  - cURL 示例：
+## 认证
+- 获取令牌：`POST /user/login`
+  ```bash
+  curl -X POST http://127.0.0.1:7657/user/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@intelligenceworker.com","password":"test.0316!"}'
+  ```
+  响应包含 `accessToken` 字段。
+- 使用令牌：在请求头添加 `Authorization: Bearer <accessToken>`
+
+## 接口总览
+- 类别管理：
+  - 创建类别：`POST /deep_insight/categories`
+  - 列出类别：`GET /deep_insight/categories`
+  - 删除类别：`DELETE /deep_insight/categories/{cid}`
+- 原始文件上传与管理：
+  - 批量上传 PDF：`POST /deep_insight/uploads`
+  - 列出已上传：`GET /deep_insight/uploads`
+  - 删除上传文件：`DELETE /deep_insight/uploads/{file_name}`
+- 任务创建与执行：
+  - 基于文件名创建任务：`POST /deep_insight/tasks`
+  - 启动任务处理：`POST /deep_insight/tasks/{task_id}/start`
+  - 查询任务详情：`GET /deep_insight/tasks/{task_id}`
+  - 查询任务列表：`GET /deep_insight/tasks`
+  - 任务统计：`GET /deep_insight/tasks/stats`
+  - 任务处理状态：`GET /deep_insight/tasks/{task_id}/status`
+  - 删除任务（uuid 校验版）：`DELETE /deep_insight/tasks/{task_id}`（支持两种路由形式）
+- 页面与文件下载：
+  - 下载原始 PDF：`GET /deep_insight/tasks/{task_id}/original`
+  - 下载合稿 PDF：`GET /deep_insight/tasks/{task_id}/bundle`
+  - 下载封面图：`GET /deep_insight/tasks/{task_id}/cover`
+  - 列出页面：`GET /deep_insight/tasks/{task_id}/pages`
+  - 下载单页 PDF：`GET /deep_insight/tasks/{task_id}/pages/{page_index}/pdf`
+- Gemini Cookie 管理：
+  - 更新 Cookie：`POST /deep_insight/gemini/cookies`
+  - 检查 Cookie 状态：`GET /deep_insight/gemini/cookies/check`
+
+---
+
+## 类别管理
+- 创建类别：`POST /deep_insight/categories`
+  - 表单字段：
+    - `name`：字符串，必填
+    - `parent_id`：字符串，可选
+  - cURL：
     ```bash
-    curl -X POST http://127.0.0.1:7657/api/deep_insight/categories \
+    curl -X POST http://127.0.0.1:7657/deep_insight/categories \
       -H "Authorization: Bearer <token>" \
-      -F "name=一级分类A"
+      -F "name=智驾芯片" -F "parent_id="
     ```
 
-- `GET /deep_insight/categories`
-  - 方法说明：列出所有分类
-  - 返回示例：
-    ```json
-    [{"id":"<uuid>","name":"一级分类A","parent_id":null,"created_at":"...","updated_at":"..."}]
-    ```
-  - cURL：
-    ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/categories \
-      -H "Authorization: Bearer <token>"
-    ```
+- 列出类别：`GET /deep_insight/categories`
+  ```bash
+  curl -X GET http://127.0.0.1:7657/deep_insight/categories \
+    -H "Authorization: Bearer <token>"
+  ```
 
-- `DELETE /deep_insight/categories/{cid}`
-  - 方法说明：删除分类
-  - 返回示例：
-    ```json
-    {"message":"deleted"}
-    ```
-  - cURL：
-    ```bash
-    curl -X DELETE http://127.0.0.1:7657/api/deep_insight/categories/<cid> \
-      -H "Authorization: Bearer <token>"
-    ```
+- 删除类别：`DELETE /deep_insight/categories/{cid}`
+  ```bash
+  curl -X DELETE http://127.0.0.1:7657/deep_insight/categories/<cid> \
+    -H "Authorization: Bearer <token>"
+  ```
 
-## 任务管理
-- `POST /deep_insight/tasks`
-  - 方法说明：上传文档任务（支持 pdf/ppt/pptx）
-  - 请求：`multipart/form-data`
-    - 字段：`file`(file, 必填)，`category_id`(string, 可选)
-  - 返回示例：
-    ```json
-    {"task_id":"<uuid>","status":"pending"}
-    ```
+---
+
+## 原始文件上传与管理
+- 批量上传 PDF：`POST /deep_insight/uploads`
+  - 表单：`files[]`（多个 `UploadFile`）
+  - 说明：仅保存文件到上传目录，不立即处理。
   - cURL：
     ```bash
-    curl -X POST http://127.0.0.1:7657/api/deep_insight/tasks \
+    curl -X POST http://127.0.0.1:7657/deep_insight/uploads \
       -H "Authorization: Bearer <token>" \
-      -F "file=@/path/to/report.pdf" -F "category_id=<uuid>"
+      -F 'files=@/path/to/report1.pdf' \
+      -F 'files=@/path/to/report2.pdf'
     ```
 
-- `GET /deep_insight/tasks/{task_id}`
-  - 方法说明：查询任务状态
-  - 返回字段：`status(total_pages, processed_pages, result_bundle_pdf, created_at, updated_at)`
-  - 返回示例：
-    ```json
-    {"id":"<uuid>","file_name":"report.pdf","file_type":"pdf","status":"processing","total_pages":30,"processed_pages":12,"result_bundle_pdf":null}
-    ```
-  - cURL：
-    ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/tasks/<task_id> \
-      -H "Authorization: Bearer <token>"
-    ```
+- 列出已上传：`GET /deep_insight/uploads`
+  ```bash
+  curl -X GET http://127.0.0.1:7657/deep_insight/uploads \
+    -H "Authorization: Bearer <token>"
+  ```
 
-- `GET /deep_insight/tasks/{task_id}/pages`
-  - 方法说明：分页列出任务页（懒加载）
-  - 查询参数：`page`(int, 默认1)，`limit`(int, 默认20, ≤100)
-  - 返回示例：
-    ```json
-    {"total":30,"page":1,"limit":20,"items":[{"id":"<uuid>","page_index":1,"image_path":".../images/page_1.png","html_path":".../html/page_1.html","pdf_path":".../pdf/page_1.pdf","status":"completed"}]}
-    ```
-  - cURL：
-    ```bash
-    curl -X GET "http://127.0.0.1:7657/api/deep_insight/tasks/<task_id>/pages?page=1&limit=20" \
-      -H "Authorization: Bearer <token>"
-    ```
+- 删除上传文件：`DELETE /deep_insight/uploads/{file_name}`
+  ```bash
+  curl -X DELETE http://127.0.0.1:7657/deep_insight/uploads/<file_name> \
+    -H "Authorization: Bearer <token>"
+  ```
 
-- `GET /deep_insight/tasks/{task_id}/pages/{page_index}/pdf`
-  - 方法说明：下载单页PDF
-  - cURL：
-    ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/tasks/<task_id>/pages/1/pdf \
-      -H "Authorization: Bearer <token>" -o page_1.pdf
-    ```
+---
 
-- `GET /deep_insight/tasks/{task_id}/bundle`
-  - 方法说明：下载合稿PDF
+## 任务创建与执行
+- 创建任务：`POST /deep_insight/tasks`
+  - 表单字段：
+    - `file_name`：字符串，必填，指向已上传目录中的 PDF 文件名
+    - `category_id`：字符串，可选
+  - 行为：将原始 PDF 复制到任务目录并记录 `original_pdf_path`，任务状态初始为 `pending`。
   - cURL：
     ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/tasks/<task_id>/bundle \
-      -H "Authorization: Bearer <token>" -o result.pdf
-    ```
-
-## Gemini Cookie
-- `POST /deep_insight/gemini/cookies`
-  - 方法说明：更新 Gemini Cookie（共享爬虫服务的缓存）
-  - 请求：`multipart/form-data`
-    - 字段：`secure_1psid`(string, 必填), `secure_1psidts`(string, 必填), `http_proxy`(string, 可选)
-  - 返回示例：
-    ```json
-    {"ok":true,"message":"updated"}
-    ```
-  - cURL：
-    ```bash
-    curl -X POST http://127.0.0.1:7657/api/deep_insight/gemini/cookies \
+    curl -X POST http://127.0.0.1:7657/deep_insight/tasks \
       -H "Authorization: Bearer <token>" \
-      -F "secure_1psid=<cookie>" -F "secure_1psidts=<cookie_ts>"
+      -F "file_name=report1.pdf" -F "category_id="
     ```
 
-- `GET /deep_insight/gemini/cookies/check`
-  - 方法说明：检测 Cookie 是否有效
-  - 返回示例：
-    ```json
-    {"has_cookie":true,"valid":true}
-    ```
+- 启动任务处理：`POST /deep_insight/tasks/{task_id}/start`
+  - 行为：触发异步处理（切图→视觉识别→Markdown→HTML+PDF）。
   - cURL：
     ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/gemini/cookies/check \
+    curl -X POST http://127.0.0.1:7657/deep_insight/tasks/<task_id>/start \
       -H "Authorization: Bearer <token>"
     ```
 
-## 处理流程
-1. 接收 PDF/PPT，入库创建 Task，落盘到 `services/deep_insight/storage/<task_id>/`。
-2. 后台处理：切页为图片 → 以 ZhipuAI (glm-4v-flash) 生成每页 markdown 讲解（json模式、健壮解析）→ Gemini 生成每页 HTML 与单页 PDF。
-3. 拼接所有单页 PDF 为合稿 PDF，更新任务状态、结果路径与封面图片（第一页）。
-4. 支持懒加载：`/pages` 接口分页返回，前端逐页展示或下载。
+- 查询任务详情：`GET /deep_insight/tasks/{task_id}`
+  - 返回字段：`id, file_name, file_type, status, total_pages, processed_pages, result_bundle_pdf, cover_image_path, created_at, updated_at`
 
-## 配置 (services/deep_insight/.env)
-- 带行级注释示例已提供于 `services/deep_insight/.env`
-- 关键项：
-  - `DEEP_INSIGHT_ENABLED`、`DEEP_INSIGHT_STORAGE_DIR`
-  - `DEEP_INSIGHT_ZHIPUAI_API_KEY`、`DEEP_INSIGHT_ZHIPUAI_VISION_MODEL`
-  - `DEEP_INSIGHT_HTML_PROVIDER`、`DEEP_INSIGHT_GEMINI_*`
+- 查询任务列表：`GET /deep_insight/tasks?page=1&limit=20`
 
-## 备注
-- 未完成任务可在服务重启后继续，处理状态存于数据库与存储目录。
-- 数据表：`deep_insight_categories`、`deep_insight_tasks`、`deep_insight_pages`。
-## 任务管理
+- 任务处理状态：`GET /deep_insight/tasks/{task_id}/status`
+  - 返回字段：`status, total_pages, processed_pages, last_processed_page, result_bundle_pdf`
 
-- 列表（分页）：`GET /deep_insight/tasks?page=1&limit=20`
-- 详情：`GET /deep_insight/tasks/{task_id}`
-- 状态快照：`GET /deep_insight/tasks/{task_id}/status`
-  - 返回字段：`status`、`total_pages`、`processed_pages`、`last_processed_page`、`result_bundle_pdf`
 - 任务统计：`GET /deep_insight/tasks/stats`
-  - 返回：`{"total":N, "completed":A, "failed":B, "processing":C, "pending":D}`
+  - 返回字段：`total, completed, failed, processing, pending`
+
 - 删除任务：`DELETE /deep_insight/tasks/{task_id}`
-  - 行为：删除数据库记录并尝试删除 `storage` 目录
-  - 返回：`{"ok":true}`
+  - 行为：删除任务目录与数据库记录；若记录不存在则幂等返回 `already deleted`。
 
-## 页面与合稿下载
+---
 
+## 页面与文件下载
+- 下载原始 PDF：`GET /deep_insight/tasks/{task_id}/original`
+- 下载合稿 PDF：`GET /deep_insight/tasks/{task_id}/bundle`
+- 下载封面图：`GET /deep_insight/tasks/{task_id}/cover`
+- 列出页面：`GET /deep_insight/tasks/{task_id}/pages?page=1&limit=20`
+  - 每项字段：`id, page_index, image_path, html_path, pdf_path, status, created_at, updated_at`
 - 下载单页 PDF：`GET /deep_insight/tasks/{task_id}/pages/{page_index}/pdf`
-- 下载合并总 PDF：`GET /deep_insight/tasks/{task_id}/bundle`
- - 获取封面：`GET /deep_insight/tasks/{task_id}/cover`
 
-## 封面接口
+---
 
-- 获取封面图片：`GET /deep_insight/tasks/{task_id}/cover`
-  - 方法说明：返回该任务第一页转换生成的封面图片（JPEG）。
-  - 返回：二进制图片内容，`Content-Type: image/jpeg`
-  - cURL：
-    ```bash
-    curl -X GET http://127.0.0.1:7657/api/deep_insight/tasks/<task_id>/cover \
-      -H "Authorization: Bearer <token>" -o cover.jpg
-    ```
+## Gemini Cookie 管理
+- 更新 Cookie：`POST /deep_insight/gemini/cookies`
+  - 表单字段：`secure_1psid`, `secure_1psidts`, `http_proxy`（可选）
+- 检查 Cookie 状态：`GET /deep_insight/gemini/cookies/check`
 
-## 失败处理策略
+---
 
-- 不进行任何降级生成。若视觉识别或HTML生成不可用，页面标记为`failed`，任务状态保持真实。
-- 当Gemini Cookie无效或过期时，系统等待用户通过`/deep_insight/gemini/cookies`接口更新后再继续处理。
+## 工作流与产出
+- 上传阶段：通过 `/uploads` 保存原始 PDF 到上传目录（不处理）。
+- 任务阶段：`POST /tasks` 基于文件名创建任务；`POST /tasks/{task_id}/start` 启动处理。
+- 处理管线：
+  - PDF → 图片切页（每页 ≤2MB，按需降质）。
+  - 视觉识别（ZhipuAI）生成 Markdown 文本。
+  - 汇总 Markdown → 单页 HTML（杂志级排版）与合稿 PDF。
+  - 封面图：优先使用原始 PDF 第一页图片；若缺失则对单页 HTML 首屏进行截图。
+- 下载与浏览：最终可通过 `/bundle`、`/cover`、单页 `/pages/{i}/pdf` 获取成果。
+
+---
+
+## 启动与运行
+- 项目根目录：`/srv/application/AI驱动的汽车行业情报平台/IntelligencePlatform`
+- 启动：
+  - `source venv/bin/activate`
+  - `python -m uvicorn main:app --host 0.0.0.0 --port 7657 --reload`
+- 依赖安装：将依赖写入 `requirements.txt` 并执行 `pip install -r requirements.txt`
+- 数据库：使用 PostgreSQL，连接信息读取主项目 `.env` 中 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`。
+
+## 环境变量（深度洞察服务 .env）
+- `DEEP_INSIGHT_ENABLED`：是否启用服务
+- `DEEP_INSIGHT_STORAGE_DIR`：任务存储根目录（默认 `services/deep_insight/storage`）
+- `DEEP_INSIGHT_RAW_PDF_DIR`：上传目录（默认 `services/deep_insight/uploads`）
+- `DEEP_INSIGHT_HTML_PROVIDER`：HTML 生成提供商（`gemini|zhipuai`）
+- `DEEP_INSIGHT_GEMINI_MODEL`、`DEEP_INSIGHT_GEMINI_API_CHANNEL`：Gemini 配置
+- `DEEP_INSIGHT_ZHIPUAI_API_KEY`、`DEEP_INSIGHT_ZHIPUAI_VISION_MODEL`：视觉识别配置
+- `DEEP_INSIGHT_MARKDOWN2HTML_PROMPT_PATH`：可选，自定义 Markdown→HTML 提示词路径
+
+## 代理与网络
+- 位于中国大陆环境建议设置本地代理：`http://127.0.0.1:20171`（HTTP）。
+- 如需启用，请在服务 `.env` 中配置：
+  - `DEEP_INSIGHT_GEMINI_ENABLE_PROXY=true`
+  - `DEEP_INSIGHT_GEMINI_HTTP_PROXY=http://127.0.0.1:20171`
+

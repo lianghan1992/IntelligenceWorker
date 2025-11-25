@@ -14,13 +14,33 @@ const formatDate = (dateString: string) => {
     });
 };
 
+// Helper: Status Badge
+const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
+    if (status === 'completed') return null;
+    
+    const config = {
+        pending: { text: '等待处理', bg: 'bg-yellow-500', icon: '⏳' },
+        processing: { text: 'AI解析中', bg: 'bg-blue-500 animate-pulse', icon: '⚡' },
+        failed: { text: '处理失败', bg: 'bg-red-500', icon: '⚠️' },
+    }[status] || { text: status, bg: 'bg-gray-500', icon: '' };
+
+    return (
+        <div className={`absolute top-3 right-3 ${config.bg} text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-md z-20 flex items-center gap-1`}>
+            <span>{config.icon}</span>
+            <span>{config.text}</span>
+        </div>
+    );
+};
+
 // Component: Insight Card
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
     useEffect(() => {
         let active = true;
-        if (task.status === 'completed') {
+        // Try to fetch cover regardless of status, as some might have initial covers
+        // or fallback to placeholder
+        if (task.status === 'completed' || task.status === 'processing') {
             fetchDeepInsightCover(task.id).then(url => {
                 if (active && url) setCoverUrl(url);
             });
@@ -36,6 +56,9 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
             onClick={onClick}
             className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col h-full shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative"
         >
+            {/* Status Overlay */}
+            <StatusBadge status={task.status} />
+
             {/* Cover Image / Header Background */}
             <div className="aspect-[3/4] bg-slate-100 relative overflow-hidden border-b border-slate-100">
                 {coverUrl ? (
@@ -47,7 +70,9 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 bg-gradient-to-br from-slate-50 to-slate-100">
                         <DocumentTextIcon className="w-16 h-16 opacity-50" />
-                        <span className="text-xs mt-2 font-medium uppercase tracking-wider opacity-60">Processing</span>
+                        <span className="text-xs mt-2 font-medium uppercase tracking-wider opacity-60">
+                            {task.status === 'pending' ? 'Pending' : task.file_type}
+                        </span>
                     </div>
                 )}
                 
@@ -64,19 +89,14 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
 
             {/* Content */}
             <div className="p-5 flex flex-col flex-grow bg-white relative">
-                {/* Floating Type Badge */}
-                <div className="absolute -top-4 right-4 bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow-md uppercase tracking-wider">
-                    {task.file_type}
-                </div>
-
-                <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2">
+                <h3 className="text-base font-bold text-slate-900 mb-2 leading-snug group-hover:text-indigo-600 transition-colors line-clamp-2" title={task.file_name}>
                     {task.file_name}
                 </h3>
                 
                 <div className="mt-auto pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-50">
                     <div className="flex items-center gap-1.5">
                         <DocumentTextIcon className="w-3.5 h-3.5" />
-                        <span>{task.total_pages} 页</span>
+                        <span>{task.total_pages > 0 ? `${task.total_pages} 页` : '解析中'}</span>
                     </div>
                     <span>{formatDate(task.updated_at)}</span>
                 </div>
@@ -112,13 +132,11 @@ export const DeepDives: React.FC = () => {
         try {
             const [cats, tasksRes] = await Promise.all([
                 getDeepInsightCategories(),
-                getDeepInsightTasks({ limit: 100 }) // Fetch latest 100 tasks for now
+                getDeepInsightTasks({ limit: 100 }) // Fetch latest 100 tasks
             ]);
             setCategories(cats);
-            // Filter for completed tasks only for the end-user view
-            const allTasks = tasksRes.items || [];
-            const validTasks = allTasks.filter(t => t.status === 'completed');
-            setTasks(validTasks);
+            // Show all tasks regardless of status to allow access to raw PDFs
+            setTasks(tasksRes.items || []);
         } catch (error) {
             console.error("Failed to load Deep Insight data", error);
         } finally {
@@ -153,7 +171,7 @@ export const DeepDives: React.FC = () => {
                     <div>
                         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">深度洞察库</h1>
                         <p className="text-slate-500 mt-2 text-lg">
-                            汇聚行业高价值报告，AI 深度重构，让知识流动起来。
+                            汇聚行业高价值报告，原始文档一键直达，AI 深度重构助力高效阅读。
                         </p>
                     </div>
                     <div className="flex items-center gap-3">

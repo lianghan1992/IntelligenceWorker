@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DeepInsightTask, DeepInsightPage } from '../../types';
-import { getDeepInsightTaskPages, getDeepInsightPageHtml, downloadDeepInsightPagePdf, downloadDeepInsightBundle } from '../../api/deepInsight';
+import { getDeepInsightTaskPages, getDeepInsightPageHtml, downloadDeepInsightBundle, downloadDeepInsightOriginalPdf } from '../../api/deepInsight';
 import { 
     CloseIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon, 
-    DocumentTextIcon, ViewGridIcon, SparklesIcon, FilmIcon
+    DocumentTextIcon, ViewGridIcon, SparklesIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
@@ -29,15 +29,21 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     const [showSidebar, setShowSidebar] = useState(true);
     const [isDownloading, setIsDownloading] = useState(false);
     
-    // Mode: 'html' (Smart Reconstruct) or 'pdf' (Original PDF Page)
-    const [viewMode, setViewMode] = useState<'html' | 'pdf'>('html');
+    // Mode: 'html' (Smart Reconstruct) or 'pdf' (Original Full PDF)
+    // Force 'pdf' mode if task is not completed
+    const [viewMode, setViewMode] = useState<'html' | 'pdf'>(task.status === 'completed' ? 'html' : 'pdf');
 
-    // Load pages list
+    const isProcessing = task.status !== 'completed';
+
+    // Load pages list (only useful for HTML/Smart mode navigation)
     useEffect(() => {
+        if (viewMode === 'pdf') return; // PDF mode doesn't strictly need page list from API if showing full PDF
+
         const fetchPages = async () => {
+            setIsLoadingPages(true);
             try {
-                // Fetch all pages (assuming reasonably sized report, e.g., < 100 pages)
-                const response = await getDeepInsightTaskPages(task.id, 1, 100);
+                // Fetch all pages
+                const response = await getDeepInsightTaskPages(task.id, 1, 200);
                 setPages(response.items || []);
             } catch (error) {
                 console.error("Failed to load pages", error);
@@ -46,30 +52,30 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
             }
         };
         fetchPages();
-    }, [task.id]);
+    }, [task.id, viewMode]);
 
-    // Load specific page content (HTML or PDF)
+    // Load Content
     useEffect(() => {
-        if (pages.length === 0) return;
-        
-        const targetPage = pages[currentPageIndex];
-        if (!targetPage) return;
+        // Cleanup previous blob
+        if (pdfBlobUrl) {
+            URL.revokeObjectURL(pdfBlobUrl);
+            setPdfBlobUrl(null);
+        }
+        setPageContent(null);
 
         const loadContent = async () => {
             setIsLoadingContent(true);
-            // Reset both contents
-            setPageContent(null);
-            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-            setPdfBlobUrl(null);
-
             try {
                 if (viewMode === 'html') {
+                    // HTML Mode: Load specific page content
+                    if (pages.length === 0) return;
+                    const targetPage = pages[currentPageIndex];
+                    if (!targetPage) return;
+
                     const html = await getDeepInsightPageHtml(task.id, targetPage.page_index);
-                    // Inject styles to ensure full width/height in iframe and nice scrollbar
                     const styledHtml = `
                         <style>
                             body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; background-color: #ffffff; }
-                            /* If content overflows, enable scroll */
                             body > * { max-width: 100%; max-height: 100%; overflow: auto; }
                             img { max-width: 100%; max-height: 100%; object-fit: contain; }
                             ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -80,28 +86,33 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                     `;
                     setPageContent(styledHtml);
                 } else {
-                    const blob = await downloadDeepInsightPagePdf(task.id, targetPage.page_index);
+                    // PDF Mode: Load FULL Original PDF
+                    const blob = await downloadDeepInsightOriginalPdf(task.id);
                     const url = URL.createObjectURL(blob);
                     setPdfBlobUrl(url);
                 }
             } catch (error) {
-                console.error("Failed to load page content", error);
+                console.error("Failed to load content", error);
             } finally {
                 setIsLoadingContent(false);
             }
         };
-        loadContent();
-    }, [task.id, currentPageIndex, pages, viewMode]);
 
-    // Clean up blob URL
-    useEffect(() => {
+        loadContent();
+        
+        // Cleanup function
         return () => {
             if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
         };
-    }, [pdfBlobUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [task.id, viewMode, currentPageIndex]); 
+    // Note: currentPageIndex is only a dependency for 'html' mode. 
+    // For 'pdf', we load the full file once.
 
-    // Keyboard navigation
+    // Keyboard navigation (Only for HTML mode)
     useEffect(() => {
+        if (viewMode === 'pdf') return;
+
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'ArrowRight') handleNext();
             if (e.key === 'ArrowLeft') handlePrev();
@@ -109,7 +120,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [currentPageIndex, pages.length]);
+    }, [currentPageIndex, pages.length, viewMode]);
 
     const handleNext = () => {
         if (currentPageIndex < pages.length - 1) {
@@ -126,11 +137,15 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            const blob = await downloadDeepInsightBundle(task.id);
+            // Prefer Bundle if completed, otherwise Original
+            const blob = task.status === 'completed' 
+                ? await downloadDeepInsightBundle(task.id)
+                : await downloadDeepInsightOriginalPdf(task.id);
+                
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${task.file_name}_full_report.pdf`;
+            a.download = `${task.file_name}${task.status === 'completed' ? '_full_report.pdf' : '.pdf'}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -151,40 +166,46 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                     </button>
                     <div className="flex flex-col min-w-0">
                         <h2 className="text-lg font-bold leading-tight truncate max-w-md md:max-w-xl">{task.file_name}</h2>
-                        <p className="text-xs text-slate-400">
-                            {pages.length > 0 ? `第 ${currentPageIndex + 1} 页 / 共 ${pages.length} 页` : '加载中...'}
+                        <p className="text-xs text-slate-400 flex items-center gap-2">
+                            {isProcessing && <span className="text-yellow-400 flex items-center gap-1">⚡ AI 处理中 - 仅提供原始预览</span>}
+                            {viewMode === 'html' && pages.length > 0 && ` • 第 ${currentPageIndex + 1} / ${pages.length} 页`}
                         </p>
                     </div>
                 </div>
                 
                 <div className="flex items-center gap-4 flex-shrink-0">
-                    {/* View Mode Toggle */}
-                    <div className="bg-slate-700/50 rounded-lg p-1 flex border border-slate-600">
-                        <button 
-                            onClick={() => setViewMode('html')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'html' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                        >
-                            <SparklesIcon className="w-3.5 h-3.5" />
-                            智能重构
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('pdf')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'pdf' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
-                        >
-                            <DocumentTextIcon className="w-3.5 h-3.5" />
-                            原始文件
-                        </button>
-                    </div>
+                    {/* View Mode Toggle - Only if completed */}
+                    {!isProcessing && (
+                        <div className="bg-slate-700/50 rounded-lg p-1 flex border border-slate-600">
+                            <button 
+                                onClick={() => setViewMode('html')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'html' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                <SparklesIcon className="w-3.5 h-3.5" />
+                                智能重构
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('pdf')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'pdf' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                            >
+                                <DocumentTextIcon className="w-3.5 h-3.5" />
+                                原始文件
+                            </button>
+                        </div>
+                    )}
 
                     <div className="h-6 w-px bg-slate-700"></div>
 
-                    <button 
-                        onClick={() => setShowSidebar(!showSidebar)} 
-                        className={`p-2 rounded-lg transition-colors hidden md:block ${showSidebar ? 'bg-slate-700 text-white' : 'hover:bg-slate-700 text-slate-300'}`}
-                        title="切换目录侧边栏"
-                    >
-                        <ViewGridIcon className="w-5 h-5" />
-                    </button>
+                    {viewMode === 'html' && (
+                        <button 
+                            onClick={() => setShowSidebar(!showSidebar)} 
+                            className={`p-2 rounded-lg transition-colors hidden md:block ${showSidebar ? 'bg-slate-700 text-white' : 'hover:bg-slate-700 text-slate-300'}`}
+                            title="切换目录侧边栏"
+                        >
+                            <ViewGridIcon className="w-5 h-5" />
+                        </button>
+                    )}
+                    
                     <button 
                         onClick={handleDownload}
                         disabled={isDownloading}
@@ -210,7 +231,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             <div className="flex flex-col items-center gap-4">
                                 <Spinner />
                                 <p className="text-slate-400 text-sm animate-pulse">
-                                    {viewMode === 'html' ? 'AI 正在渲染页面...' : '正在加载 PDF...'}
+                                    {viewMode === 'html' ? 'AI 正在渲染页面...' : '正在加载原始 PDF...'}
                                 </p>
                             </div>
                         ) : (
@@ -226,70 +247,76 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                                 {viewMode === 'pdf' && pdfBlobUrl && (
                                     <iframe 
                                         src={pdfBlobUrl}
-                                        className="w-full h-full max-w-5xl bg-white shadow-2xl rounded-sm border border-slate-700"
-                                        title={`Page ${currentPageIndex + 1} PDF`}
+                                        className="w-full h-full max-w-6xl bg-white shadow-2xl rounded-sm border border-slate-700"
+                                        title="Original PDF"
                                     />
                                 )}
                                 {!pageContent && !pdfBlobUrl && (
                                     <div className="text-center text-slate-500">
                                         <DocumentTextIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                                        <p>无法加载该页内容</p>
+                                        <p>无法加载内容</p>
                                     </div>
                                 )}
                             </>
                         )}
                         
-                        {/* Navigation Arrows (Floating) */}
-                        <button 
-                            onClick={handlePrev}
-                            disabled={currentPageIndex === 0}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-indigo-600 text-white backdrop-blur-sm transition-all disabled:opacity-0 disabled:pointer-events-none z-30"
-                        >
-                            <ChevronLeftIcon className="w-6 h-6" />
-                        </button>
-                        <button 
-                            onClick={handleNext}
-                            disabled={currentPageIndex === pages.length - 1}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-indigo-600 text-white backdrop-blur-sm transition-all disabled:opacity-0 disabled:pointer-events-none z-30"
-                        >
-                            <ChevronRightIcon className="w-6 h-6" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Sidebar (Thumbnails) */}
-                <div className={`
-                    bg-slate-800 border-l border-slate-700 flex-shrink-0 transition-all duration-300 ease-in-out flex flex-col
-                    ${showSidebar ? 'w-64 translate-x-0' : 'w-0 translate-x-full opacity-0 overflow-hidden'}
-                `}>
-                    <div className="p-4 border-b border-slate-700 font-semibold text-sm text-slate-300">
-                        页面概览
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                        {isLoadingPages ? (
-                            <div className="text-center py-8 text-slate-500 text-sm">加载目录...</div>
-                        ) : (
-                            pages.map((page, index) => (
-                                <button
-                                    key={page.id}
-                                    onClick={() => setCurrentPageIndex(index)}
-                                    className={`w-full text-left group flex flex-col gap-2 p-2 rounded-xl transition-all ${
-                                        index === currentPageIndex 
-                                            ? 'bg-indigo-600 ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-800' 
-                                            : 'hover:bg-slate-700'
-                                    }`}
+                        {/* Navigation Arrows (HTML Mode Only) */}
+                        {viewMode === 'html' && (
+                            <>
+                                <button 
+                                    onClick={handlePrev}
+                                    disabled={currentPageIndex === 0}
+                                    className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-indigo-600 text-white backdrop-blur-sm transition-all disabled:opacity-0 disabled:pointer-events-none z-30"
                                 >
-                                    <div className={`aspect-video w-full rounded-lg bg-white/10 flex items-center justify-center border ${index === currentPageIndex ? 'border-transparent' : 'border-slate-600 group-hover:border-slate-500'}`}>
-                                        <span className={`text-xs font-mono ${index === currentPageIndex ? 'text-indigo-200' : 'text-slate-500'}`}>Page {page.page_index}</span>
-                                    </div>
-                                    <span className={`text-xs font-medium text-center ${index === currentPageIndex ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                                        第 {page.page_index} 页
-                                    </span>
+                                    <ChevronLeftIcon className="w-6 h-6" />
                                 </button>
-                            ))
+                                <button 
+                                    onClick={handleNext}
+                                    disabled={currentPageIndex === pages.length - 1}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-indigo-600 text-white backdrop-blur-sm transition-all disabled:opacity-0 disabled:pointer-events-none z-30"
+                                >
+                                    <ChevronRightIcon className="w-6 h-6" />
+                                </button>
+                            </>
                         )}
                     </div>
                 </div>
+
+                {/* Sidebar (Thumbnails) - HTML Mode Only */}
+                {viewMode === 'html' && (
+                    <div className={`
+                        bg-slate-800 border-l border-slate-700 flex-shrink-0 transition-all duration-300 ease-in-out flex flex-col
+                        ${showSidebar ? 'w-64 translate-x-0' : 'w-0 translate-x-full opacity-0 overflow-hidden'}
+                    `}>
+                        <div className="p-4 border-b border-slate-700 font-semibold text-sm text-slate-300">
+                            页面概览
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                            {isLoadingPages ? (
+                                <div className="text-center py-8 text-slate-500 text-sm">加载目录...</div>
+                            ) : (
+                                pages.map((page, index) => (
+                                    <button
+                                        key={page.id}
+                                        onClick={() => setCurrentPageIndex(index)}
+                                        className={`w-full text-left group flex flex-col gap-2 p-2 rounded-xl transition-all ${
+                                            index === currentPageIndex 
+                                                ? 'bg-indigo-600 ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-800' 
+                                                : 'hover:bg-slate-700'
+                                        }`}
+                                    >
+                                        <div className={`aspect-video w-full rounded-lg bg-white/10 flex items-center justify-center border ${index === currentPageIndex ? 'border-transparent' : 'border-slate-600 group-hover:border-slate-500'}`}>
+                                            <span className={`text-xs font-mono ${index === currentPageIndex ? 'text-indigo-200' : 'text-slate-500'}`}>Page {page.page_index}</span>
+                                        </div>
+                                        <span className={`text-xs font-medium text-center ${index === currentPageIndex ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                            第 {page.page_index} 页
+                                        </span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
