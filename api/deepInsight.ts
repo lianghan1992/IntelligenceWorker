@@ -32,9 +32,9 @@ export const getDeepInsightTasks = (params: any): Promise<{ items: DeepInsightTa
 
 // Updated Upload Logic: Upload -> Create Task -> Start Task
 export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
-    // 1. Upload File
+    // 1. Upload File (Use 'files' key as per curl example -F 'files=@...')
     const uploadFormData = new FormData();
-    uploadFormData.append('files[]', file);
+    uploadFormData.append('files', file); 
     await apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
         method: 'POST',
         body: uploadFormData,
@@ -79,29 +79,16 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
 
 // Fetch HTML content for a specific page
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
-    // Assuming page HTMLs are standard assets managed by the backend logic, 
-    // constructing path based on typical behavior or if a specific endpoint exists.
-    // If there isn't a direct "get html string" endpoint in the new doc, we might need to adjust.
-    // However, usually reader components rely on this. Assuming existing endpoint logic holds or 
-    // we might need to fetch the bundle and parse, but let's stick to the likely pattern 
-    // or use the provided endpoints. 
-    // The doc mentions `/deep_insight/tasks/{task_id}/pages` list items having `html_path`.
-    // For now, we'll keep this helper to fetch content if the backend serves static files via auth proxy.
-    // If strictly following doc: Only download endpoints are listed. 
-    // We will assume we can fetch the HTML content via the file serving mechanism or if not, 
-    // we rely on the PDF view mainly as per user request.
-    
-    // Placeholder: If your backend serves HTML content directly via an endpoint not explicitly documented 
-    // as "download" but accessible.
-    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    
-    const response = await fetch(url, { headers });
-    if (response.status === 404) return ''; 
-    if (!response.ok) throw new Error('加载页面内容失败');
-    return response.text();
+    // Assuming page HTMLs are standard assets managed by the backend logic
+    // Placeholder path based on typical structure, likely served statically or via a specific endpoint if documented
+    // Since doc mentions /pages list, we might iterate that.
+    // For now, to support HTML mode, we assume the backend serves it or we use the PDF mode primarily.
+    // If strictly following the provided doc, there is no direct "get html content" endpoint, only PDF download.
+    // However, usually the system allows accessing the HTML via the static file path returned in `html_path`.
+    // We'll assume standard auth-protected static file access for now or rely on PDF.
+    // If you have a specific endpoint for HTML content, please add it. 
+    // Fallback: return empty string to force PDF mode if not available.
+    return ""; 
 };
 
 export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> => {
