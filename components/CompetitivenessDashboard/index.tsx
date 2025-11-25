@@ -233,68 +233,72 @@ const DossierPanel: React.FC<{
     const sourceCount = traceData.source_articles?.length ?? aggregatedTech?.source_article_ids?.length ?? 0;
 
     return (
-        <div className="h-full overflow-y-auto p-6 space-y-8 custom-scrollbar">
+        <div className="h-full overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 custom-scrollbar">
             <header>
-                <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                <div className="flex flex-wrap items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
                      <span className="px-2 py-1 bg-slate-100 rounded border border-slate-200 text-slate-600">{traceData.car_brand}</span>
                      <ChevronRightIcon className="w-3 h-3" />
                      <span>{traceData.tech_dimension}</span>
                      <ChevronRightIcon className="w-3 h-3" />
                      <span className="text-slate-600">{traceData.sub_tech_dimension}</span>
                 </div>
-                <h2 className="text-2xl font-extrabold text-slate-900 leading-tight">{techName}</h2>
+                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 leading-tight">{techName}</h2>
             </header>
             
             {aggregatedTech && (
-                <div className="bg-gradient-to-br from-white to-indigo-50/50 rounded-2xl border border-indigo-100 p-6 shadow-sm relative overflow-hidden">
+                <div className="bg-gradient-to-br from-white to-indigo-50/50 rounded-2xl border border-indigo-100 p-5 md:p-6 shadow-sm relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-3 opacity-10">
                         <BrainIcon className="w-24 h-24 text-indigo-600" />
                     </div>
-                    <h3 className="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-4 flex items-center gap-2 relative z-10">
+                    <h3 className="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-3 md:mb-4 flex items-center gap-2 relative z-10">
                         <SparklesIcon className="w-4 h-4 text-indigo-500" /> 
                         AI 聚合结论
                     </h3>
                     <p className="text-sm text-slate-700 leading-relaxed text-justify relative z-10">{aggregatedTech.description}</p>
-                    <div className="mt-6 flex items-center gap-4 text-xs text-slate-400 relative z-10 border-t border-indigo-100 pt-4">
+                    <div className="mt-4 md:mt-6 flex flex-wrap items-center gap-3 md:gap-4 text-xs text-slate-400 relative z-10 border-t border-indigo-100 pt-4">
                         <span className="flex items-center gap-1">
                             <DocumentTextIcon className="w-3.5 h-3.5"/> 
                             聚合自 {sourceCount} 篇文章
                         </span>
-                        <span>•</span>
+                        <span className="hidden md:inline">•</span>
                         <span>更新于: {aggregatedTech.publish_date ? new Date(aggregatedTech.publish_date).toLocaleDateString() : '近期'}</span>
                     </div>
                 </div>
             )}
             
             <div>
-                 <h3 className="font-bold text-slate-800 text-lg mb-6 flex items-center gap-2">
+                 <h3 className="font-bold text-slate-800 text-lg mb-4 md:mb-6 flex items-center gap-2">
                     <ClockIcon className="w-5 h-5 text-slate-400" />
                     证据演进时间轴
                  </h3>
-                 <div className="relative border-l-2 border-slate-100 ml-3 space-y-8 pb-4">
+                 <div className="relative border-l-2 border-slate-100 ml-3 space-y-6 md:space-y-8 pb-4">
                     {timelineItems.map((record) => {
                         const isSelected = selectedArticleId === record.article_id;
                         const rel = getReliabilityInfo(record.reliability);
                         return (
-                            <div key={record.id} className="relative pl-8">
+                            <div key={record.id} className="relative pl-6 md:pl-8">
                                 <div className={`absolute -left-[9px] top-3 w-4 h-4 rounded-full border-4 border-white shadow-sm transition-all duration-300 ${isSelected ? 'bg-blue-600 scale-125 ring-4 ring-blue-100' : 'bg-slate-300'}`}></div>
                                 <div 
                                     onClick={() => onSelectArticle(record.article_id)}
-                                    className={`group cursor-pointer p-5 rounded-2xl border transition-all duration-300 ${
+                                    className={`group cursor-pointer p-4 md:p-5 rounded-2xl border transition-all duration-300 ${
                                         isSelected 
-                                            ? 'bg-white border-blue-500 shadow-lg shadow-blue-500/10 translate-x-2' 
+                                            ? 'bg-white border-blue-500 shadow-lg shadow-blue-500/10 translate-x-1 md:translate-x-2' 
                                             : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md'
                                     }`}
                                 >
-                                    <div className="flex justify-between items-center mb-3">
+                                    <div className="flex justify-between items-center mb-2 md:mb-3">
                                         <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1.5 uppercase tracking-wide ${rel.badge}`}>
                                             <rel.Icon className="w-3 h-3" /> {rel.text}
                                         </span>
                                         <span className="text-xs text-slate-400 font-medium font-mono">{new Date(record.publish_date).toLocaleDateString()}</span>
                                     </div>
-                                    <p className={`text-sm leading-relaxed transition-colors ${isSelected ? 'text-slate-800 font-medium' : 'text-slate-600 group-hover:text-slate-800'}`}>
+                                    <p className={`text-sm leading-relaxed transition-colors line-clamp-3 md:line-clamp-none ${isSelected ? 'text-slate-800 font-medium' : 'text-slate-600 group-hover:text-slate-800'}`}>
                                         {record.tech_description}
                                     </p>
+                                    {/* Mobile Hint */}
+                                    <div className="md:hidden mt-2 pt-2 border-t border-slate-50 text-[10px] text-blue-500 text-right">
+                                        点击查看原文 &rarr;
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -324,6 +328,8 @@ const IntelligenceMatrix: React.FC = () => {
     
     // UI State
     const [showMarketPulse, setShowMarketPulse] = useState(false);
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+    const [mobileTab, setMobileTab] = useState<'timeline' | 'article'>('timeline');
     
     // Selection State
     const [selectedItem, setSelectedItem] = useState<KnowledgeBaseItem | null>(null);
@@ -373,6 +379,8 @@ const IntelligenceMatrix: React.FC = () => {
         if (!selectedItem) {
             setTraceData(null);
             setSelectedArticleId(null);
+            // Reset view states when closing
+            setMobileTab('timeline');
             return;
         }
         const fetchTrace = async () => {
@@ -412,101 +420,124 @@ const IntelligenceMatrix: React.FC = () => {
         };
     }, [traceData, selectedArticleId]);
 
+    const handleArticleSelection = (articleId: string) => {
+        setSelectedArticleId(articleId);
+        // On mobile, switch to article view automatically
+        setMobileTab('article');
+    };
 
     return (
         <div className="flex flex-col h-full border-t border-slate-200 bg-slate-50/50">
-            {/* Filter Bar */}
-            <div className="px-6 py-4 bg-white border-b border-slate-200 flex flex-wrap items-center gap-3 shadow-sm z-10">
-                <div className="flex items-center gap-2 text-slate-500 text-sm font-bold mr-2">
-                    <FunnelIcon className="w-4 h-4" />
-                    <span>筛选</span>
-                </div>
+            {/* Responsive Filter Bar */}
+            <div className="px-4 py-3 md:px-6 md:py-4 bg-white border-b border-slate-200 shadow-sm z-10">
                 
-                <select 
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[120px] transition-shadow hover:shadow-sm"
-                    value={filters.car_brand}
-                    onChange={e => {
-                        setFilters({...filters, car_brand: e.target.value});
-                        setPage(1);
-                    }}
-                >
-                    <option value="">所有品牌</option>
-                    {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+                <div className="flex flex-col md:flex-row gap-3 md:items-center">
+                    {/* Top Row: Search + Mobile Toggle */}
+                    <div className="flex items-center gap-3 w-full md:w-auto flex-1">
+                        <div className="relative flex-grow group">
+                            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            </div>
+                            <input 
+                                type="text" 
+                                className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 p-2.5 transition-all shadow-sm focus:bg-white focus:shadow-md" 
+                                placeholder="搜索技术点名称..." 
+                                value={filters.search}
+                                onChange={e => {
+                                    setFilters({...filters, search: e.target.value});
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+                        
+                        {/* Mobile Filter Toggle */}
+                        <button 
+                            onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            className={`md:hidden p-2.5 rounded-lg border transition-colors ${showMobileFilters ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-slate-200 text-slate-600'}`}
+                        >
+                            <FunnelIcon className="w-5 h-5" />
+                        </button>
+                    </div>
 
-                <select 
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[120px] transition-shadow hover:shadow-sm"
-                    value={filters.tech_dimension}
-                    onChange={e => {
-                        setFilters({...filters, tech_dimension: e.target.value, sub_tech_dimension: ''});
-                        setPage(1);
-                    }}
-                >
-                    <option value="">所有技术领域</option>
-                    {meta?.tech_dimensions && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-
-                <select 
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 disabled:opacity-50 disabled:bg-slate-100 min-w-[120px] transition-shadow hover:shadow-sm"
-                    value={filters.sub_tech_dimension}
-                    onChange={e => {
-                        setFilters({...filters, sub_tech_dimension: e.target.value});
-                        setPage(1);
-                    }}
-                    disabled={!filters.tech_dimension}
-                >
-                    <option value="">所有子领域</option>
-                    {subDimensions.map((sd: string) => <option key={sd} value={sd}>{sd}</option>)}
-                </select>
-
-                <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
-                    {[0, 4, 3, 2].map(score => (
-                        <button
-                            key={score}
-                            onClick={() => {
-                                setFilters({...filters, min_reliability: score});
+                    {/* Filters Row (Collapsible on Mobile) */}
+                    <div className={`${showMobileFilters ? 'flex' : 'hidden'} md:flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-3 mt-2 md:mt-0 border-t md:border-0 pt-3 md:pt-0 border-slate-100`}>
+                        
+                        <div className="flex items-center gap-2 text-slate-500 text-sm font-bold mr-2 hidden md:flex">
+                            <FunnelIcon className="w-4 h-4" />
+                            <span>筛选</span>
+                        </div>
+                        
+                        <select 
+                            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[120px] transition-shadow hover:shadow-sm"
+                            value={filters.car_brand}
+                            onChange={e => {
+                                setFilters({...filters, car_brand: e.target.value});
                                 setPage(1);
                             }}
-                            className={`px-3 py-1.5 text-xs rounded-md font-bold transition-all ${
-                                filters.min_reliability === score 
-                                    ? 'bg-white text-indigo-600 shadow-sm' 
-                                    : 'text-slate-500 hover:text-slate-700'
+                        >
+                            <option value="">所有品牌</option>
+                            {meta?.car_brands.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+
+                        <select 
+                            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[120px] transition-shadow hover:shadow-sm"
+                            value={filters.tech_dimension}
+                            onChange={e => {
+                                setFilters({...filters, tech_dimension: e.target.value, sub_tech_dimension: ''});
+                                setPage(1);
+                            }}
+                        >
+                            <option value="">所有技术领域</option>
+                            {meta?.tech_dimensions && Object.keys(meta.tech_dimensions).map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+
+                        <select 
+                            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 disabled:opacity-50 disabled:bg-slate-100 min-w-[120px] transition-shadow hover:shadow-sm"
+                            value={filters.sub_tech_dimension}
+                            onChange={e => {
+                                setFilters({...filters, sub_tech_dimension: e.target.value});
+                                setPage(1);
+                            }}
+                            disabled={!filters.tech_dimension}
+                        >
+                            <option value="">所有子领域</option>
+                            {subDimensions.map((sd: string) => <option key={sd} value={sd}>{sd}</option>)}
+                        </select>
+
+                        <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200 self-start md:self-auto overflow-x-auto max-w-full">
+                            {[0, 4, 3, 2].map(score => (
+                                <button
+                                    key={score}
+                                    onClick={() => {
+                                        setFilters({...filters, min_reliability: score});
+                                        setPage(1);
+                                    }}
+                                    className={`px-3 py-1.5 text-xs rounded-md font-bold transition-all whitespace-nowrap ${
+                                        filters.min_reliability === score 
+                                            ? 'bg-white text-indigo-600 shadow-sm' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    {score === 0 ? '全部' : getReliabilityInfo(score).text + '+'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button 
+                            onClick={() => setShowMarketPulse(!showMarketPulse)}
+                            className={`flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-lg border transition-all md:ml-2 ${
+                                showMarketPulse ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                             }`}
                         >
-                            {score === 0 ? '全部' : getReliabilityInfo(score).text + '+'}
+                            <ChartIcon className="w-4 h-4" />
+                            {showMarketPulse ? '隐藏雷达' : '市场雷达'}
                         </button>
-                    ))}
-                </div>
-
-                <button 
-                    onClick={() => setShowMarketPulse(!showMarketPulse)}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-all ml-2 ${
-                        showMarketPulse ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                    }`}
-                >
-                    <ChartIcon className="w-4 h-4" />
-                    {showMarketPulse ? '隐藏雷达' : '市场雷达'}
-                </button>
-
-                <div className="relative ml-auto group">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                        <SearchIcon className="w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                     </div>
-                    <input 
-                        type="text" 
-                        className="bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-64 pl-10 p-2.5 transition-all shadow-sm focus:bg-white focus:shadow-md" 
-                        placeholder="搜索技术点名称..." 
-                        value={filters.search}
-                        onChange={e => {
-                            setFilters({...filters, search: e.target.value});
-                            setPage(1);
-                        }}
-                    />
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
                 
                 {/* Left: List + Pulse */}
                 <div className={`flex-1 flex flex-col min-w-0 border-r border-slate-200 bg-white transition-all duration-500 ease-in-out ${selectedItem ? 'max-w-[450px] hidden lg:flex' : ''}`}>
@@ -588,30 +619,57 @@ const IntelligenceMatrix: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Right: Details (Split View) */}
+                {/* Right: Details (Split View with Mobile Tabs) */}
                 {selectedItem ? (
-                    <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500">
-                        {/* Mobile Close Button */}
+                    <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 absolute inset-0 z-20 lg:static lg:z-auto">
+                        {/* Mobile Header & Close */}
+                        <div className="lg:hidden flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200">
+                            <h3 className="font-bold text-slate-800 truncate pr-4">{selectedItem.consolidated_tech_preview.name}</h3>
+                            <button 
+                                onClick={() => setSelectedItem(null)}
+                                className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"
+                            >
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Mobile Tab Switcher */}
+                        <div className="lg:hidden flex border-b border-slate-200 bg-white">
+                            <button 
+                                onClick={() => setMobileTab('timeline')}
+                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                            >
+                                <ClockIcon className="w-4 h-4" /> 演进时间轴
+                            </button>
+                            <button 
+                                onClick={() => setMobileTab('article')}
+                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'article' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                            >
+                                <DocumentTextIcon className="w-4 h-4" /> 原文详情
+                            </button>
+                        </div>
+
+                        {/* Desktop Close Button */}
                         <button 
                             onClick={() => setSelectedItem(null)}
-                            className="lg:hidden absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg z-50 text-slate-500 hover:text-slate-800 border border-slate-100"
+                            className="hidden lg:block absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg z-50 text-slate-500 hover:text-slate-800 border border-slate-100"
                         >
                             <CloseIcon className="w-5 h-5" />
                         </button>
 
-                        <div className="flex-1 flex flex-col md:flex-row h-full">
+                        <div className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
                             {/* Middle: Timeline */}
-                            <div className="flex-1 flex flex-col border-r border-slate-200 bg-white min-w-[320px] md:max-w-[400px]">
+                            <div className={`flex-1 flex flex-col border-r border-slate-200 bg-white min-w-0 lg:min-w-[320px] lg:max-w-[400px] ${mobileTab === 'timeline' ? 'flex' : 'hidden lg:flex'}`}>
                                 <DossierPanel 
                                     kbId={selectedItem.id} 
                                     techName={selectedItem.consolidated_tech_preview.name} 
-                                    onSelectArticle={setSelectedArticleId}
+                                    onSelectArticle={handleArticleSelection}
                                     selectedArticleId={selectedArticleId}
                                 />
                             </div>
                             
                             {/* Right: Article Viewer */}
-                            <div className="flex-[1.5] bg-white flex flex-col h-full overflow-hidden">
+                            <div className={`flex-[1.5] bg-white flex flex-col h-full overflow-hidden ${mobileTab === 'article' ? 'flex' : 'hidden lg:flex'}`}>
                                 {selectedArticleInfoItem ? (
                                     <EvidenceTrail selectedArticle={selectedArticleInfoItem} />
                                 ) : (
