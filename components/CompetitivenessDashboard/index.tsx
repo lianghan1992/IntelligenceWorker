@@ -311,7 +311,7 @@ const DossierPanel: React.FC<{
 
 // --- Intelligence Matrix (Main Workspace) ---
 
-const IntelligenceMatrix: React.FC = () => {
+const IntelligenceMatrix: React.FC<{ onDetailViewChange: (isDetail: boolean) => void }> = ({ onDetailViewChange }) => {
     // State
     const [filters, setFilters] = useState({
         car_brand: '',
@@ -335,6 +335,11 @@ const IntelligenceMatrix: React.FC = () => {
     const [selectedItem, setSelectedItem] = useState<KnowledgeBaseItem | null>(null);
     const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
     const [traceData, setTraceData] = useState<KnowledgeBaseTraceability | null>(null);
+
+    // Notify parent about detail view state
+    useEffect(() => {
+        onDetailViewChange(!!selectedItem);
+    }, [selectedItem, onDetailViewChange]);
 
     // Derived data
     const subDimensions = useMemo(() => {
@@ -428,8 +433,8 @@ const IntelligenceMatrix: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full border-t border-slate-200 bg-slate-50/50">
-            {/* Responsive Filter Bar */}
-            <div className="px-4 py-3 md:px-6 md:py-4 bg-white border-b border-slate-200 shadow-sm z-10">
+            {/* Responsive Filter Bar - Hidden on mobile if detail view is open */}
+            <div className={`px-4 py-3 md:px-6 md:py-4 bg-white border-b border-slate-200 shadow-sm z-10 ${selectedItem ? 'hidden md:block' : 'block'}`}>
                 
                 <div className="flex flex-col md:flex-row gap-3 md:items-center">
                     {/* Top Row: Search + Mobile Toggle */}
@@ -622,30 +627,30 @@ const IntelligenceMatrix: React.FC = () => {
                 {/* Right: Details (Split View with Mobile Tabs) */}
                 {selectedItem ? (
                     <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 absolute inset-0 z-20 lg:static lg:z-auto">
-                        {/* Mobile Header & Close */}
-                        <div className="lg:hidden flex justify-between items-center px-4 py-3 bg-white border-b border-slate-200">
-                            <h3 className="font-bold text-slate-800 truncate pr-4">{selectedItem.consolidated_tech_preview.name}</h3>
+                        {/* Mobile Header & Close - COMPACT */}
+                        <div className="lg:hidden flex justify-between items-center px-4 py-2 bg-white border-b border-slate-200 shadow-sm z-20">
+                            <h3 className="font-bold text-sm text-slate-800 truncate pr-4">{selectedItem.consolidated_tech_preview.name}</h3>
                             <button 
                                 onClick={() => setSelectedItem(null)}
-                                className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"
+                                className="p-1.5 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 flex-shrink-0"
                             >
-                                <CloseIcon className="w-5 h-5" />
+                                <CloseIcon className="w-4 h-4" />
                             </button>
                         </div>
 
-                        {/* Mobile Tab Switcher */}
-                        <div className="lg:hidden flex border-b border-slate-200 bg-white">
+                        {/* Mobile Tab Switcher - COMPACT */}
+                        <div className="lg:hidden flex border-b border-slate-200 bg-white z-20">
                             <button 
                                 onClick={() => setMobileTab('timeline')}
-                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
                             >
-                                <ClockIcon className="w-4 h-4" /> 演进时间轴
+                                <ClockIcon className="w-3.5 h-3.5" /> 演进时间轴
                             </button>
                             <button 
                                 onClick={() => setMobileTab('article')}
-                                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'article' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'article' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
                             >
-                                <DocumentTextIcon className="w-4 h-4" /> 原文详情
+                                <DocumentTextIcon className="w-3.5 h-3.5" /> 原文详情
                             </button>
                         </div>
 
@@ -702,9 +707,12 @@ const IntelligenceMatrix: React.FC = () => {
 
 // --- Main Component ---
 export const CompetitivenessDashboard: React.FC = () => {
+    const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+
     return (
         <div className="h-full flex flex-col bg-slate-100">
-            <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
+            {/* Main Header - Hidden on mobile when detail is open to save space */}
+            <header className={`${isMobileDetailOpen ? 'hidden md:flex' : 'flex'} bg-white border-b border-slate-200 px-6 py-4 justify-between items-center flex-shrink-0 shadow-sm z-20`}>
                 <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
                     <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
                         <ChartIcon className="w-5 h-5 text-white" />
@@ -717,7 +725,7 @@ export const CompetitivenessDashboard: React.FC = () => {
             </header>
 
             <main className="flex-1 overflow-hidden relative">
-                <IntelligenceMatrix />
+                <IntelligenceMatrix onDetailViewChange={setIsMobileDetailOpen} />
             </main>
             
             <style>{`

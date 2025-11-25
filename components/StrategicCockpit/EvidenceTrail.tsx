@@ -47,7 +47,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                     font-family: 'HarmonyOS Sans SC', "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; 
                                     line-height: 1.8; 
                                     color: #1f2937; 
-                                    padding: 24px; 
+                                    padding: 20px; 
                                     max-width: 100%; 
                                     margin: 0;
                                     background-color: white;
@@ -57,13 +57,13 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                     body { padding: 32px 40px; }
                                 }
                                 img { max-width: 100%; border-radius: 8px; margin: 20px 0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-                                h1 { font-size: 22px; color: #111827; margin-bottom: 16px; font-weight: 700; line-height: 1.4; }
-                                h2 { font-size: 18px; color: #1f2937; margin-top: 28px; margin-bottom: 12px; font-weight: 700; border-bottom: 1px solid #f3f4f6; padding-bottom: 8px; }
-                                h3 { font-size: 16px; color: #374151; margin-top: 24px; margin-bottom: 10px; font-weight: 600; }
-                                p { margin-bottom: 16px; text-align: justify; color: #4b5563; font-size: 16px; }
-                                blockquote { border-left: 4px solid #6366f1; background: #f5f7ff; padding: 12px 16px; margin: 20px 0; border-radius: 0 8px 8px 0; color: #4338ca; font-size: 15px; }
-                                ul, ol { margin-bottom: 16px; padding-left: 24px; color: #4b5563; }
-                                li { margin-bottom: 6px; }
+                                h1 { font-size: 20px; color: #111827; margin-bottom: 12px; font-weight: 700; line-height: 1.4; }
+                                h2 { font-size: 18px; color: #1f2937; margin-top: 24px; margin-bottom: 10px; font-weight: 700; border-bottom: 1px solid #f3f4f6; padding-bottom: 8px; }
+                                h3 { font-size: 16px; color: #374151; margin-top: 20px; margin-bottom: 8px; font-weight: 600; }
+                                p { margin-bottom: 14px; text-align: justify; color: #4b5563; font-size: 15px; }
+                                blockquote { border-left: 4px solid #6366f1; background: #f5f7ff; padding: 10px 14px; margin: 16px 0; border-radius: 0 8px 8px 0; color: #4338ca; font-size: 14px; }
+                                ul, ol { margin-bottom: 14px; padding-left: 20px; color: #4b5563; }
+                                li { margin-bottom: 4px; }
                                 a { color: #4f46e5; text-decoration: none; }
                                 a:hover { text-decoration: underline; }
                             </style>
@@ -145,7 +145,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden relative">
             {/* Header - Ultra Compact */}
-            <div className="flex-shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur z-20 px-4 py-3 md:px-5 md:py-3">
+            <div className="flex-shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur z-20 px-4 py-2 md:px-5 md:py-3">
                 
                 {/* Desktop View: Single Row Layout */}
                 <div className="hidden md:flex items-center justify-between gap-4">
@@ -193,11 +193,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                     </div>
                 </div>
 
-                {/* Mobile View: Stacked Layout */}
-                <div className="md:hidden flex flex-col gap-2">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 text-xs">
-                            <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+                {/* Mobile View: Optimized Compact Layout */}
+                <div className="md:hidden flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-[4px]">
                                 {selectedArticle.source_name}
                             </span>
                             <span className="text-slate-400">
@@ -209,7 +209,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                 <button 
                                     onClick={handleDownloadPdf}
                                     disabled={isDownloading}
-                                    className="p-1.5 text-indigo-600 bg-indigo-50 rounded-lg"
+                                    className="p-1 text-indigo-600 bg-indigo-50 rounded"
                                 >
                                     {isDownloading ? <div className="animate-spin w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full"/> : <DownloadIcon className="w-3.5 h-3.5" />}
                                 </button>
@@ -218,13 +218,13 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                 href={selectedArticle.original_url} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
-                                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                                className="p-1 text-slate-400 hover:text-slate-600"
                             >
                                 <ArrowRightIcon className="w-4 h-4" />
                             </a>
                         </div>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">
                         {selectedArticle.title}
                     </h3>
                 </div>
@@ -248,9 +248,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"
                     />
                 ) : (
-                    <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white">
+                    <div className="h-full overflow-y-auto p-4 md:px-10 md:py-8 custom-scrollbar bg-white">
                         {/* Simple Fallback Notice */}
-                        <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-3">
+                        <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-3">
                             <SparklesIcon className="w-4 h-4 text-amber-500 flex-shrink-0" />
                             <p className="text-xs text-amber-700">排版引擎准备中，当前显示原始文本预览。</p>
                         </div>
