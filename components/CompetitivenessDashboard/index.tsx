@@ -229,35 +229,34 @@ const DossierPanel: React.FC<{
     if (!traceData) return <div className="p-6 text-center text-slate-500">无数据。</div>;
 
     const aggregatedTech = traceData.aggregated_tech[0];
-    // FIX: Use source_articles.length for accuracy
     const sourceCount = traceData.source_articles?.length ?? aggregatedTech?.source_article_ids?.length ?? 0;
 
     return (
-        <div className="h-full overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-8 custom-scrollbar">
-            <header>
-                <div className="flex flex-wrap items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                     <span className="px-2 py-1 bg-slate-100 rounded border border-slate-200 text-slate-600">{traceData.car_brand}</span>
+        <div className="h-full overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-8 custom-scrollbar scroll-smooth">
+            <header className="flex-shrink-0">
+                <div className="flex flex-wrap items-center gap-1.5 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                     <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200 text-slate-600">{traceData.car_brand}</span>
                      <ChevronRightIcon className="w-3 h-3" />
                      <span>{traceData.tech_dimension}</span>
                      <ChevronRightIcon className="w-3 h-3" />
                      <span className="text-slate-600">{traceData.sub_tech_dimension}</span>
                 </div>
-                <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 leading-tight">{techName}</h2>
+                <h2 className="text-lg md:text-2xl font-extrabold text-slate-900 leading-tight line-clamp-2">{techName}</h2>
             </header>
             
             {aggregatedTech && (
-                <div className="bg-gradient-to-br from-white to-indigo-50/50 rounded-2xl border border-indigo-100 p-5 md:p-6 shadow-sm relative overflow-hidden">
+                <div className="bg-gradient-to-br from-white to-indigo-50/50 rounded-2xl border border-indigo-100 p-4 md:p-6 shadow-sm relative overflow-hidden flex-shrink-0">
                     <div className="absolute top-0 right-0 p-3 opacity-10">
                         <BrainIcon className="w-24 h-24 text-indigo-600" />
                     </div>
-                    <h3 className="font-bold text-indigo-900 text-sm uppercase tracking-wider mb-3 md:mb-4 flex items-center gap-2 relative z-10">
-                        <SparklesIcon className="w-4 h-4 text-indigo-500" /> 
+                    <h3 className="font-bold text-indigo-900 text-xs md:text-sm uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-2 relative z-10">
+                        <SparklesIcon className="w-3.5 h-3.5 text-indigo-500" /> 
                         AI 聚合结论
                     </h3>
-                    <p className="text-sm text-slate-700 leading-relaxed text-justify relative z-10">{aggregatedTech.description}</p>
-                    <div className="mt-4 md:mt-6 flex flex-wrap items-center gap-3 md:gap-4 text-xs text-slate-400 relative z-10 border-t border-indigo-100 pt-4">
+                    <p className="text-xs md:text-sm text-slate-700 leading-relaxed text-justify relative z-10">{aggregatedTech.description}</p>
+                    <div className="mt-3 md:mt-6 flex flex-wrap items-center gap-3 md:gap-4 text-[10px] md:text-xs text-slate-400 relative z-10 border-t border-indigo-100 pt-3">
                         <span className="flex items-center gap-1">
-                            <DocumentTextIcon className="w-3.5 h-3.5"/> 
+                            <DocumentTextIcon className="w-3 h-3"/> 
                             聚合自 {sourceCount} 篇文章
                         </span>
                         <span className="hidden md:inline">•</span>
@@ -266,39 +265,35 @@ const DossierPanel: React.FC<{
                 </div>
             )}
             
-            <div>
-                 <h3 className="font-bold text-slate-800 text-lg mb-4 md:mb-6 flex items-center gap-2">
-                    <ClockIcon className="w-5 h-5 text-slate-400" />
+            <div className="flex-1">
+                 <h3 className="font-bold text-slate-800 text-base md:text-lg mb-3 md:mb-6 flex items-center gap-2">
+                    <ClockIcon className="w-4 h-4 md:w-5 md:h-5 text-slate-400" />
                     证据演进时间轴
                  </h3>
-                 <div className="relative border-l-2 border-slate-100 ml-3 space-y-6 md:space-y-8 pb-4">
+                 <div className="relative border-l-2 border-slate-100 ml-3 space-y-4 md:space-y-8 pb-4">
                     {timelineItems.map((record) => {
                         const isSelected = selectedArticleId === record.article_id;
                         const rel = getReliabilityInfo(record.reliability);
                         return (
-                            <div key={record.id} className="relative pl-6 md:pl-8">
+                            <div key={record.id} className="relative pl-4 md:pl-8">
                                 <div className={`absolute -left-[9px] top-3 w-4 h-4 rounded-full border-4 border-white shadow-sm transition-all duration-300 ${isSelected ? 'bg-blue-600 scale-125 ring-4 ring-blue-100' : 'bg-slate-300'}`}></div>
                                 <div 
                                     onClick={() => onSelectArticle(record.article_id)}
-                                    className={`group cursor-pointer p-4 md:p-5 rounded-2xl border transition-all duration-300 ${
+                                    className={`group cursor-pointer p-3 md:p-5 rounded-2xl border transition-all duration-300 ${
                                         isSelected 
                                             ? 'bg-white border-blue-500 shadow-lg shadow-blue-500/10 translate-x-1 md:translate-x-2' 
                                             : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md'
                                     }`}
                                 >
-                                    <div className="flex justify-between items-center mb-2 md:mb-3">
-                                        <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1.5 uppercase tracking-wide ${rel.badge}`}>
+                                    <div className="flex justify-between items-center mb-1.5 md:mb-3">
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 uppercase tracking-wide ${rel.badge}`}>
                                             <rel.Icon className="w-3 h-3" /> {rel.text}
                                         </span>
-                                        <span className="text-xs text-slate-400 font-medium font-mono">{new Date(record.publish_date).toLocaleDateString()}</span>
+                                        <span className="text-[10px] md:text-xs text-slate-400 font-medium font-mono">{new Date(record.publish_date).toLocaleDateString()}</span>
                                     </div>
-                                    <p className={`text-sm leading-relaxed transition-colors line-clamp-3 md:line-clamp-none ${isSelected ? 'text-slate-800 font-medium' : 'text-slate-600 group-hover:text-slate-800'}`}>
+                                    <p className={`text-xs md:text-sm leading-relaxed transition-colors line-clamp-3 md:line-clamp-none ${isSelected ? 'text-slate-800 font-medium' : 'text-slate-600 group-hover:text-slate-800'}`}>
                                         {record.tech_description}
                                     </p>
-                                    {/* Mobile Hint */}
-                                    <div className="md:hidden mt-2 pt-2 border-t border-slate-50 text-[10px] text-blue-500 text-right">
-                                        点击查看原文 &rarr;
-                                    </div>
                                 </div>
                             </div>
                         );
@@ -628,7 +623,7 @@ const IntelligenceMatrix: React.FC<{ onDetailViewChange: (isDetail: boolean) => 
                 {selectedItem ? (
                     <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 absolute inset-0 z-20 lg:static lg:z-auto">
                         {/* Mobile Header & Close - COMPACT */}
-                        <div className="lg:hidden flex justify-between items-center px-4 py-2 bg-white border-b border-slate-200 shadow-sm z-20">
+                        <div className="lg:hidden flex justify-between items-center px-3 py-2 bg-white border-b border-slate-200 shadow-sm z-20 flex-shrink-0">
                             <h3 className="font-bold text-sm text-slate-800 truncate pr-4">{selectedItem.consolidated_tech_preview.name}</h3>
                             <button 
                                 onClick={() => setSelectedItem(null)}
@@ -639,16 +634,16 @@ const IntelligenceMatrix: React.FC<{ onDetailViewChange: (isDetail: boolean) => 
                         </div>
 
                         {/* Mobile Tab Switcher - COMPACT */}
-                        <div className="lg:hidden flex border-b border-slate-200 bg-white z-20">
+                        <div className="lg:hidden flex border-b border-slate-200 bg-white z-20 flex-shrink-0 h-10">
                             <button 
                                 onClick={() => setMobileTab('timeline')}
-                                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                                className={`flex-1 py-1.5 text-[10px] font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'timeline' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
                             >
                                 <ClockIcon className="w-3.5 h-3.5" /> 演进时间轴
                             </button>
                             <button 
                                 onClick={() => setMobileTab('article')}
-                                className={`flex-1 py-2 text-xs font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'article' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
+                                className={`flex-1 py-1.5 text-[10px] font-bold border-b-2 transition-colors flex items-center justify-center gap-2 ${mobileTab === 'article' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500'}`}
                             >
                                 <DocumentTextIcon className="w-3.5 h-3.5" /> 原文详情
                             </button>

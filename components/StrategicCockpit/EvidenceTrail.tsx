@@ -145,7 +145,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden relative">
             {/* Header - Ultra Compact */}
-            <div className="flex-shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur z-20 px-4 py-2 md:px-5 md:py-3">
+            <div className="flex-shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur z-20 px-3 py-1.5 md:px-5 md:py-3">
                 
                 {/* Desktop View: Single Row Layout */}
                 <div className="hidden md:flex items-center justify-between gap-4">
@@ -194,13 +194,13 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                 </div>
 
                 {/* Mobile View: Optimized Compact Layout */}
-                <div className="md:hidden flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-[4px]">
+                <div className="md:hidden flex flex-col gap-1">
+                    <div className="flex justify-between items-center text-[10px]">
+                        <div className="flex items-center gap-1">
+                            <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1 py-0.5 rounded-[3px]">
                                 {selectedArticle.source_name}
                             </span>
-                            <span className="text-slate-400">
+                            <span className="text-slate-400 ml-1">
                                 {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'})}
                             </span>
                         </div>
@@ -211,7 +211,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                     disabled={isDownloading}
                                     className="p-1 text-indigo-600 bg-indigo-50 rounded"
                                 >
-                                    {isDownloading ? <div className="animate-spin w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full"/> : <DownloadIcon className="w-3.5 h-3.5" />}
+                                    {isDownloading ? <div className="animate-spin w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full"/> : <DownloadIcon className="w-3.5 h-3.5" />}
                                 </button>
                             )}
                             <a 
@@ -220,11 +220,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                 rel="noopener noreferrer" 
                                 className="p-1 text-slate-400 hover:text-slate-600"
                             >
-                                <ArrowRightIcon className="w-4 h-4" />
+                                <ArrowRightIcon className="w-3.5 h-3.5" />
                             </a>
                         </div>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight line-clamp-2">
+                    <h3 className="text-xs font-bold text-slate-900 leading-tight line-clamp-2">
                         {selectedArticle.title}
                     </h3>
                 </div>
