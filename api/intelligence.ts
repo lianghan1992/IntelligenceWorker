@@ -57,6 +57,13 @@ export const toggleIntelligencePoint = (pointId: string, enable: boolean): Promi
         body: JSON.stringify({ enable }),
     });
 
+// NEW: Toggle all points in a source
+export const toggleSource = (sourceName: string, enable: boolean): Promise<{ success: boolean, message: string }> =>
+    apiFetch<{ success: boolean, message: string }>(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enable }),
+    });
+
 // NEW: Check point health
 export const checkIntelligencePointHealth = (pointId: string): Promise<{ status: string, message: string, last_success_time?: string }> =>
     apiFetch<{ status: string, message: string, last_success_time?: string }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/health`);
