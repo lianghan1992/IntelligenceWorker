@@ -4,11 +4,9 @@ import {
     KnowledgeBaseItem, 
     KnowledgeBaseTraceability, 
     KnowledgeBaseMeta, 
-    SourceArticleWithRecords,
     DashboardOverview, 
     DashboardTrendItem,
     DashboardDistributionItem, 
-    DashboardQuality,
     InfoItem
 } from '../../types';
 import { 
@@ -18,13 +16,11 @@ import {
     getDashboardOverview, 
     getDashboardTrends,
     getDashboardDistributionBrand, 
-    getDashboardDistributionTechDimension, 
-    getDashboardQuality
+    getDashboardDistributionTechDimension
 } from '../../api/competitiveness';
-import { LazyLoadModule } from '../Dashboard/LazyLoadModule';
 import { 
-    ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, UsersIcon, LightBulbIcon, 
-    TrendingUpIcon, EyeIcon, ClockIcon, SearchIcon, ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
+    ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
+    ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, ViewGridIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
@@ -90,7 +86,7 @@ const CompactBarChart: React.FC<{ data: DashboardDistributionItem[], colorClass:
     );
 };
 
-// --- Market Pulse Component (Replaces DashboardView) ---
+// --- Market Pulse Component ---
 const MarketPulse: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [overview, setOverview] = useState<DashboardOverview | null>(null);
     const [trends, setTrends] = useState<DashboardTrendItem[]>([]);
@@ -229,7 +225,6 @@ const DossierPanel: React.FC<{
     if (!traceData) return <div className="p-6 text-center text-slate-500">无数据。</div>;
 
     const aggregatedTech = traceData.aggregated_tech[0];
-    // FIX: Use source_articles.length for accuracy
     const sourceCount = traceData.source_articles?.length ?? aggregatedTech?.source_article_ids?.length ?? 0;
 
     return (
