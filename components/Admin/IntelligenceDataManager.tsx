@@ -1,323 +1,224 @@
-import React, { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { InfoItem, SystemSource, SearchResult } from '../../types';
-import { searchArticlesFiltered, getSources } from '../../api';
-import { SearchIcon, DownloadIcon } from '../icons';
 
-// Centralized function to build a clean API payload
-const buildApiPayload = (
-    filters: {
-        query_text: string;
-        source_names: string[];
-        publish_date_start: string;
-        publish_date_end: string;
-        similarity_threshold: number;
-    },
-    page: number,
-    limit: number
-) => {
-    const { query_text, source_names, publish_date_start, publish_date_end, similarity_threshold } = filters;
-    const isSemanticSearch = query_text && query_text.trim() !== '' && query_text.trim() !== '*';
-
-    const payload: Record<string, any> = {
-        query_text: query_text.trim() || '*',
-        page,
-        limit,
-    };
-
-    if (isSemanticSearch) {
-        payload.similarity_threshold = similarity_threshold;
-    }
-
-    if (source_names && source_names.length > 0) {
-        payload.source_names = source_names;
-    }
-
-    if (publish_date_start) {
-        payload.publish_date_start = publish_date_start;
-    }
-
-    if (publish_date_end) {
-        payload.publish_date_end = publish_date_end;
-    }
-
-    return payload;
-};
-
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { InfoItem, SystemSource } from '../../types';
+import { getArticles, deleteArticles, getSources } from '../../api';
+import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon } from '../icons';
+import { ConfirmationModal } from './ConfirmationModal';
 
 export const IntelligenceDataManager: React.FC = () => {
-    const [articles, setArticles] = useState<SearchResult[]>([]);
+    const [articles, setArticles] = useState<InfoItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
-    const [exportProgress, setExportProgress] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0 });
+    const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
     
-    // This state holds the immediate values from user input
     const [filters, setFilters] = useState({
-        query_text: '',
-        source_names: [] as string[],
+        source_name: '',
+        point_name: '',
         publish_date_start: '',
         publish_date_end: '',
-        similarity_threshold: 0.5,
     });
 
-    // These states hold the debounced values for search-related inputs that trigger API calls
-    const [debouncedQuery, setDebouncedQuery] = useState('');
-    const [debouncedThreshold, setDebouncedThreshold] = useState(0.5);
-
-    const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
     const [sources, setSources] = useState<SystemSource[]>([]);
-    
-    // Debounce search query text
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedQuery(filters.query_text);
-        }, 500);
-        return () => clearTimeout(handler);
-    }, [filters.query_text]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
 
-    // Debounce similarity threshold slider
+    // Load Sources for Filter
     useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedThreshold(filters.similarity_threshold);
-        }, 500);
-        return () => clearTimeout(handler);
-    }, [filters.similarity_threshold]);
-
-    // Consolidate final search parameters for the API call
-    const searchParams = useMemo(() => ({
-        query_text: debouncedQuery,
-        similarity_threshold: debouncedThreshold,
-        source_names: filters.source_names,
-        publish_date_start: filters.publish_date_start,
-        publish_date_end: filters.publish_date_end,
-    }), [debouncedQuery, debouncedThreshold, filters.source_names, filters.publish_date_start, filters.publish_date_end]);
-
-    // Reset pagination whenever the actual search parameters change (excluding initial load)
-    const isInitialMount = React.useRef(true);
-    useEffect(() => {
-        if (!isInitialMount.current) {
-            setPagination(p => ({ ...p, page: 1 }));
-        } else {
-            isInitialMount.current = false;
-        }
-    }, [searchParams]);
+        getSources().then(setSources).catch(console.error);
+    }, []);
 
     const loadArticles = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const payload = buildApiPayload(searchParams, pagination.page, pagination.limit);
-            const response = await searchArticlesFiltered(payload);
+            const response = await getArticles({
+                page: pagination.page,
+                limit: pagination.limit,
+                ...filters
+            });
             setArticles(response.items || []);
-            setPagination(prev => ({...prev, total: response.total}));
-        } catch (err) {
-            setError(err instanceof Error ? `请求失败: ${err.message}` : '获取文章失败');
+            setPagination(prev => ({
+                ...prev,
+                total: response.total,
+                totalPages: Math.ceil(response.total / prev.limit) || 1
+            }));
+            // Reset selection on page change/reload
+            setSelectedIds(new Set());
+        } catch (err: any) {
+            setError(err.message || '获取文章失败');
         } finally {
             setIsLoading(false);
         }
-    }, [searchParams, pagination.page, pagination.limit]);
+    }, [pagination.page, pagination.limit, filters]);
 
     useEffect(() => {
         loadArticles();
     }, [loadArticles]);
-    
-    useEffect(() => {
-        getSources().then(setSources).catch(() => setError("无法加载情报源列表"));
-    }, []);
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        const target = e.target as HTMLInputElement;
-        setFilters(prev => ({
-            ...prev,
-            [name]: target.type === 'range' ? parseFloat(value) : value,
-        }));
-    };
-    
-    const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        setFilters(prev => ({ ...prev, source_names: e.target.value ? [e.target.value] : [] }));
+        setFilters(prev => ({ ...prev, [name]: value }));
+        setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1
     };
 
-    const handleExportCsv = async () => {
-        setIsExporting(true);
-        setExportProgress('正在准备...');
-        setError(null);
-        
-        try {
-            // Step 1: Get total count
-            const initialPayload = buildApiPayload(filters, 1, 1);
-            const initialResponse = await searchArticlesFiltered(initialPayload);
-            const total = initialResponse.total;
-
-            if (total === 0) {
-                alert("没有可导出的数据。");
-                setIsExporting(false);
-                setExportProgress(null);
-                return;
-            }
-
-            // Step 2: Fetch all data in pages
-            const EXPORT_PAGE_SIZE = 100;
-            const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE);
-            const allArticles: SearchResult[] = [];
-
-            for (let i = 1; i <= totalPages; i++) {
-                const fetchedCount = allArticles.length;
-                setExportProgress(`正在导出... (${fetchedCount}/${total})`);
-                
-                const pagePayload = buildApiPayload(filters, i, EXPORT_PAGE_SIZE);
-                const pageResponse = await searchArticlesFiltered(pagePayload);
-                if (pageResponse.items) {
-                    allArticles.push(...pageResponse.items);
-                }
-            }
-            
-            setExportProgress('正在生成文件...');
-
-            // Step 3: Generate CSV
-            const headers = ['序号', '标题', '发布日期', '文章内容'];
-            
-            const escapeCsvField = (field: string | number | null | undefined): string => {
-                if (field === null || field === undefined) return '""';
-                const stringField = String(field);
-                if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
-                    return `"${stringField.replace(/"/g, '""')}"`;
-                }
-                return stringField;
-            };
-
-            const rows = allArticles.map((article, index) => [
-                index + 1,
-                article.title,
-                article.publish_date ? new Date(article.publish_date).toLocaleDateString('zh-CN') : 'N/A',
-                article.content
-            ]);
-            
-            let csvContent = "\uFEFF"; // BOM for UTF-8
-            csvContent += headers.join(',') + '\r\n';
-            csvContent += rows.map(row => row.map(escapeCsvField).join(',')).join('\r\n');
-            
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            link.setAttribute("download", `情报导出_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (err) {
-            console.error("Export failed:", err);
-            setError(err instanceof Error ? `导出失败: ${err.message}` : '导出失败，请重试。');
-        } finally {
-            setIsExporting(false);
-            setExportProgress(null);
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            const allIds = articles.map(a => a.id);
+            setSelectedIds(new Set(allIds));
+        } else {
+            setSelectedIds(new Set());
         }
     };
 
-    const totalPages = Math.ceil(pagination.total / pagination.limit);
-    const isSearchActive = filters.query_text.trim() !== '' && filters.query_text.trim() !== '*';
+    const handleSelectOne = (id: string) => {
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) newSet.delete(id);
+            else newSet.add(id);
+            return newSet;
+        });
+    };
 
-    const handleRowClick = (articleId: string) => {
-        setSelectedArticleId(prevId => (prevId === articleId ? null : articleId));
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0) return;
+        try {
+            await deleteArticles(Array.from(selectedIds));
+            setShowDeleteConfirm(false);
+            loadArticles();
+        } catch (err: any) {
+            alert(`删除失败: ${err.message}`);
+        }
     };
 
     return (
-        <div className="h-full flex flex-col">
-            <div className="p-4 bg-white rounded-lg border mb-4 space-y-4">
-                <div className="relative">
-                    <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input type="text" name="query_text" value={filters.query_text} onChange={handleFilterChange} placeholder="输入关键词进行向量搜索，或留空查询全部" className="w-full bg-white border border-gray-300 rounded-lg py-2.5 pl-11 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-
-                <div className="flex items-center gap-4">
-                    <label htmlFor="similarity_threshold" className={`text-sm font-medium whitespace-nowrap ${!isSearchActive ? 'text-gray-400' : 'text-gray-700'}`}>相似度阈值:</label>
-                    <input 
-                        type="range"
-                        id="similarity_threshold"
-                        name="similarity_threshold"
-                        min="0"
-                        max="1"
-                        step="0.01"
-                        value={filters.similarity_threshold}
-                        onChange={handleFilterChange}
-                        disabled={!isSearchActive}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <span className={`font-semibold text-sm w-12 text-center ${!isSearchActive ? 'text-gray-400' : 'text-blue-600'}`}>
-                        {filters.similarity_threshold.toFixed(2)}
-                    </span>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                    <select name="source_names" value={filters.source_names[0] || ''} onChange={handleSourceChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="">所有情报源</option>
+        <div className="h-full flex flex-col relative">
+            {/* Filters */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4 flex flex-wrap items-end gap-4">
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">情报源</label>
+                    <select name="source_name" value={filters.source_name} onChange={handleFilterChange} className="bg-slate-50 border border-slate-200 text-sm rounded-lg p-2.5 w-40 focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">全部</option>
                         {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
                     </select>
-                    <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="flex-1 bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <button onClick={handleExportCsv} disabled={isExporting} className="flex items-center justify-center gap-2 px-4 py-2 w-36 bg-white border border-gray-300 text-sm text-gray-700 font-semibold rounded-lg shadow-sm hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                        <DownloadIcon className="w-4 h-4"/>
-                        <span>{isExporting ? exportProgress : '导出CSV'}</span>
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">发布日期 (开始)</label>
+                    <input type="date" name="publish_date_start" value={filters.publish_date_start} onChange={handleFilterChange} className="bg-slate-50 border border-slate-200 text-sm rounded-lg p-2 w-40 focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">发布日期 (结束)</label>
+                    <input type="date" name="publish_date_end" value={filters.publish_date_end} onChange={handleFilterChange} className="bg-slate-50 border border-slate-200 text-sm rounded-lg p-2 w-40 focus:ring-indigo-500 focus:border-indigo-500" />
+                </div>
+                
+                <div className="flex-1"></div>
+
+                {selectedIds.size > 0 && (
+                    <button 
+                        onClick={() => setShowDeleteConfirm(true)} 
+                        className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg hover:bg-red-100 transition-colors text-sm font-bold"
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                        删除选中 ({selectedIds.size})
                     </button>
-                </div>
-                {error && <div className="text-sm text-red-600 bg-red-100 p-2 rounded-md">{error}</div>}
+                )}
+                <button onClick={loadArticles} className="p-2.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors" title="刷新">
+                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
             </div>
 
-            <div className="bg-white rounded-lg border overflow-x-auto flex-1">
-                 <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <th scope="col" className="px-6 py-3 w-2/5">标题</th>
-                            <th scope="col" className="px-6 py-3">情报源</th>
-                            <th scope="col" className="px-6 py-3">情报点</th>
-                            <th scope="col" className="px-6 py-3">发布日期</th>
-                            <th scope="col" className="px-6 py-3">相似度</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading ? (<tr><td colSpan={5} className="text-center py-10">加载中...</td></tr>)
-                        : articles.length === 0 ? (<tr><td colSpan={5} className="text-center py-10">未找到任何文章。</td></tr>)
-                        : (articles.map(article => (
-                            <Fragment key={article.id}>
-                                <tr className={`border-b hover:bg-gray-50 cursor-pointer ${selectedArticleId === article.id ? 'bg-blue-50' : ''}`} onClick={() => handleRowClick(article.id)}>
-                                    <td className="px-6 py-4 font-medium text-gray-900">{article.title}</td>
-                                    <td className="px-6 py-4">{article.source_name}</td>
-                                    <td className="px-6 py-4">{article.point_name}</td>
-                                    <td className="px-6 py-4">{new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN')}</td>
-                                    <td className="px-6 py-4">{article.similarity_score ? article.similarity_score.toFixed(3) : '-'}</td>
+            {/* Main Content */}
+            <div className="flex-1 flex gap-4 overflow-hidden">
+                {/* List */}
+                <div className={`flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden transition-all duration-300 ${selectedArticle ? 'hidden md:flex md:w-1/2' : 'w-full'}`}>
+                    <div className="overflow-y-auto flex-1">
+                        <table className="w-full text-sm text-left text-slate-500">
+                            <thead className="text-xs text-slate-700 uppercase bg-slate-50 sticky top-0 z-10">
+                                <tr>
+                                    <th scope="col" className="p-4 w-10">
+                                        <input type="checkbox" onChange={handleSelectAll} checked={articles.length > 0 && selectedIds.size === articles.length} className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500" />
+                                    </th>
+                                    <th scope="col" className="px-6 py-3">标题</th>
+                                    <th scope="col" className="px-6 py-3">来源</th>
+                                    <th scope="col" className="px-6 py-3">日期</th>
                                 </tr>
-                                {selectedArticleId === article.id && (
-                                    <tr className="bg-gray-50">
-                                        <td colSpan={5} className="p-4">
-                                            <div className="bg-white border rounded-lg p-4">
-                                                <h4 className="font-semibold text-gray-800 mb-2">文章内容预览</h4>
-                                                <div className="whitespace-pre-wrap text-xs text-gray-600 leading-relaxed max-h-40 overflow-y-auto p-3 bg-gray-100 rounded-md">
-                                                    {article.content}
-                                                </div>
-                                                <div className="mt-3">
-                                                    <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-xs font-semibold">
-                                                        查看原文 &rarr;
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        </td>
-                                    </tr>
+                            </thead>
+                            <tbody>
+                                {isLoading && articles.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center py-10">加载中...</td></tr>
+                                ) : articles.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center py-10">无数据</td></tr>
+                                ) : (
+                                    articles.map(article => (
+                                        <tr 
+                                            key={article.id} 
+                                            className={`border-b hover:bg-slate-50 cursor-pointer ${selectedArticle?.id === article.id ? 'bg-indigo-50' : 'bg-white'}`}
+                                            onClick={() => setSelectedArticle(article)}
+                                        >
+                                            <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                                                <input type="checkbox" checked={selectedIds.has(article.id)} onChange={() => handleSelectOne(article.id)} className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500" />
+                                            </td>
+                                            <td className="px-6 py-4 font-medium text-slate-900 truncate max-w-xs">{article.title}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="bg-slate-100 text-slate-600 text-xs font-medium px-2.5 py-0.5 rounded border border-slate-200">{article.source_name}</span>
+                                            </td>
+                                            <td className="px-6 py-4">{new Date(article.publish_date || article.created_at).toLocaleDateString()}</td>
+                                        </tr>
+                                    ))
                                 )}
-                            </Fragment>
-                        )))}
-                    </tbody>
-                 </table>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {/* Pagination */}
+                    <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center text-sm">
+                        <span className="text-slate-500">共 {pagination.total} 条</span>
+                        <div className="flex gap-2">
+                            <button onClick={() => setPagination(p => ({...p, page: p.page - 1}))} disabled={pagination.page <= 1} className="p-1.5 border rounded bg-white hover:bg-slate-50 disabled:opacity-50"><ChevronLeftIcon className="w-4 h-4"/></button>
+                            <span className="px-2 self-center">{pagination.page} / {pagination.totalPages}</span>
+                            <button onClick={() => setPagination(p => ({...p, page: p.page + 1}))} disabled={pagination.page >= pagination.totalPages} className="p-1.5 border rounded bg-white hover:bg-slate-50 disabled:opacity-50"><ChevronRightIcon className="w-4 h-4"/></button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Preview Sidebar */}
+                {selectedArticle && (
+                    <div className="w-full md:w-1/2 bg-white rounded-xl border border-slate-200 shadow-xl flex flex-col overflow-hidden absolute md:relative inset-0 md:inset-auto z-20">
+                        <div className="p-4 border-b border-slate-200 flex justify-between items-start bg-slate-50">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 mb-1">{selectedArticle.title}</h3>
+                                <div className="text-xs text-slate-500 flex gap-3">
+                                    <span>{selectedArticle.source_name}</span>
+                                    <span>{new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleString()}</span>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedArticle(null)} className="p-2 hover:bg-slate-200 rounded-full">
+                                <ChevronRightIcon className="w-5 h-5 md:hidden" /> {/* Close icon logic */}
+                                <span className="hidden md:inline text-2xl leading-none">&times;</span>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 prose prose-sm max-w-none">
+                            <div className="whitespace-pre-wrap text-slate-700 leading-relaxed">
+                                {selectedArticle.content}
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+                            <a href={selectedArticle.original_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-indigo-600 hover:text-indigo-800 font-medium text-sm">
+                                查看原文 <ChevronRightIcon className="w-3 h-3"/>
+                            </a>
+                        </div>
+                    </div>
+                )}
             </div>
 
-             <div className="flex justify-between items-center mt-4 text-sm flex-shrink-0">
-                <span className="text-gray-600">共 {pagination.total} 条</span>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => setPagination(p=>({...p, page: p.page-1}))} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
-                    <span>第 {pagination.page} / {totalPages || 1} 页</span>
-                    <button onClick={() => setPagination(p=>({...p, page: p.page+1}))} disabled={pagination.page >= totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
-                </div>
-            </div>
+            {showDeleteConfirm && (
+                <ConfirmationModal 
+                    title="确认删除" 
+                    message={`确定要永久删除选中的 ${selectedIds.size} 篇文章吗？此操作不可恢复。`}
+                    onConfirm={handleBatchDelete}
+                    onCancel={() => setShowDeleteConfirm(false)}
+                />
+            )}
         </div>
     );
 };

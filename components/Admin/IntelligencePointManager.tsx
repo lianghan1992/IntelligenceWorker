@@ -1,41 +1,22 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPointsBySourceName, deleteIntelligencePoints } from '../../api';
-import { PlusIcon, TrashIcon, PencilIcon, RefreshIcon, SearchIcon } from '../icons';
+import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource } from '../../api';
+import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckIcon, CloseIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
 
-const cronToHumanReadable = (cron: string): string => {
-    const mapping: { [key: string]: string } = {
-        '*/30 * * * *': '每30分钟',
-        '0 * * * *': '每小时',
-        '0 */3 * * *': '每3小时',
-        '0 */6 * * *': '每6小时',
-        '0 */8 * * *': '每8小时',
-        '0 */12 * * *': '每12小时',
-        '0 0 * * *': '每24小时',
-        '0 0 * * 0': '每1周',
-    };
-    return mapping[cron] || cron;
-};
-
-
 export const IntelligencePointManager: React.FC = () => {
-    const [allPoints, setAllPoints] = useState<Subscription[]>([]);
     const [sources, setSources] = useState<SystemSource[]>([]);
-    const [filterSource, setFilterSource] = useState('');
-    const [filterStatus, setFilterStatus] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
-    
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 20;
-
+    const [pointsBySource, setPointsBySource] = useState<Record<string, Subscription[]>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [pointToEdit, setPointToEdit] = useState<Subscription | null>(null);
-    const [pointToDelete, setPointToDelete] = useState<Subscription | null>(null);
+    
+    const [confirmDeleteSource, setConfirmDeleteSource] = useState<SystemSource | null>(null);
+    const [confirmDeletePoint, setConfirmDeletePoint] = useState<Subscription | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -44,11 +25,12 @@ export const IntelligencePointManager: React.FC = () => {
             const fetchedSources = await getSources();
             setSources(fetchedSources);
 
-            const pointsPromises = fetchedSources.map(source => 
-                getPointsBySourceName(source.source_name)
-            );
-            const pointsBySource = await Promise.all(pointsPromises);
-            setAllPoints(pointsBySource.flat().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+            const pointsMap: Record<string, Subscription[]> = {};
+            await Promise.all(fetchedSources.map(async (source) => {
+                const points = await getPointsBySourceName(source.source_name);
+                pointsMap[source.source_name] = points;
+            }));
+            setPointsBySource(pointsMap);
 
         } catch (err: any) {
             setError('数据加载失败: ' + err.message);
@@ -61,167 +43,154 @@ export const IntelligencePointManager: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    const processedPoints = useMemo(() => {
-        return allPoints
-            .filter(p => !filterSource || p.source_name === filterSource)
-            .filter(p => {
-                if (filterStatus === 'active') return p.is_active === 1;
-                if (filterStatus === 'inactive') return p.is_active === 0;
-                return true;
-            })
-            .filter(p => {
-                const term = searchTerm.toLowerCase();
-                return p.point_name.toLowerCase().includes(term) || p.point_url.toLowerCase().includes(term);
-            });
-    }, [allPoints, filterSource, filterStatus, searchTerm]);
+    const handleDeletePoint = async () => {
+        if (!confirmDeletePoint) return;
+        try {
+            await deleteIntelligencePoints([confirmDeletePoint.id]);
+            fetchData();
+        } catch (e: any) {
+            alert("删除失败: " + e.message);
+        } finally {
+            setConfirmDeletePoint(null);
+        }
+    };
 
-    // Reset page to 1 when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [filterSource, filterStatus, searchTerm]);
-
-    const paginatedPoints = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return processedPoints.slice(startIndex, startIndex + itemsPerPage);
-    }, [processedPoints, currentPage, itemsPerPage]);
-
-    const totalPages = Math.ceil(processedPoints.length / itemsPerPage);
+    const handleDeleteSource = async () => {
+        if (!confirmDeleteSource) return;
+        try {
+            await deleteSource(confirmDeleteSource.source_name);
+            fetchData();
+        } catch (e: any) {
+            alert("删除失败: " + e.message);
+        } finally {
+            setConfirmDeleteSource(null);
+        }
+    }
 
     const handleAddClick = () => {
         setPointToEdit(null);
         setIsModalOpen(true);
     };
-    
+
     const handleEditClick = (point: Subscription) => {
         setPointToEdit(point);
         setIsModalOpen(true);
     };
 
-    const handleDelete = async () => {
-        if (!pointToDelete) return;
-        
-        setError(null);
-        try {
-            await deleteIntelligencePoints([pointToDelete.id]);
-            await fetchData();
-        } catch (err: any) {
-             setError('删除失败: ' + err.message);
-        } finally {
-            setPointToDelete(null);
-        }
-    };
-
     return (
-        <>
-            <div className="h-full flex flex-col">
-                {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
-                
-                <div className="flex-shrink-0 mb-4 p-4 bg-white rounded-lg border flex flex-col gap-4">
-                    <div className="flex justify-between items-center">
-                         <div className="relative flex-grow max-w-xs">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="搜索名称或URL..."
-                                className="w-full bg-white border border-gray-300 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button onClick={fetchData} className="p-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                                <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                            </button>
-                            <button onClick={handleAddClick} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-blue-700 transition">
-                                <PlusIcon className="w-4 h-4" /> 添加情报点
-                            </button>
-                        </div>
-                    </div>
-                     <div className="flex items-center gap-4">
-                        <select 
-                            value={filterSource} 
-                            onChange={(e) => setFilterSource(e.target.value)}
-                            className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="">所有情报源</option>
-                            {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
-                        </select>
-                         <select 
-                            value={filterStatus} 
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                            <option value="">所有状态</option>
-                            <option value="active">已激活</option>
-                             <option value="inactive">未激活</option>
-                        </select>
-                    </div>
+        <div className="h-full flex flex-col">
+            {/* Toolbar */}
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-2">
+                    <button onClick={fetchData} className="p-2 bg-white border rounded-lg text-slate-600 hover:bg-slate-50 shadow-sm transition-all" title="刷新">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <span className="text-sm text-slate-500 ml-2">
+                        共 {sources.length} 个情报源，包含 {Object.values(pointsBySource).flat().length} 个采集点
+                    </span>
                 </div>
+                <button 
+                    onClick={handleAddClick} 
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700 hover:shadow-lg transition-all transform active:scale-95"
+                >
+                    <PlusIcon className="w-4 h-4" /> 新建采集配置
+                </button>
+            </div>
 
-                <div className="flex-1 bg-white rounded-lg border overflow-y-auto">
-                    <table className="w-full text-sm text-left text-gray-500">
-                        <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                            <tr>
-                                <th scope="col" className="px-6 py-3">情报源</th>
-                                <th scope="col" className="px-6 py-3">情报点名称</th>
-                                <th scope="col" className="px-6 py-3">URL</th>
-                                <th scope="col" className="px-6 py-3">采集频率</th>
-                                <th scope="col" className="px-6 py-3">状态</th>
-                                <th scope="col" className="px-6 py-3">上次触发</th>
-                                <th scope="col" className="px-6 py-3 text-center">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {isLoading ? (
-                                <tr><td colSpan={7} className="text-center py-10">加载中...</td></tr>
-                            ) : paginatedPoints.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-10">未找到任何情报点。</td></tr>
-                            ) : (
-                                paginatedPoints.map(point => (
-                                    <tr key={point.id} className="bg-white border-b hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium text-gray-900">{point.source_name}</td>
-                                        <td className="px-6 py-4">{point.point_name}</td>
-                                        <td className="px-6 py-4"><a href={point.point_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-xs">{point.point_url}</a></td>
-                                        <td className="px-6 py-4 text-gray-700">{cronToHumanReadable(point.cron_schedule)}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${point.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                {point.is_active ? '已激活' : '未激活'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">{point.last_triggered_at ? new Date(point.last_triggered_at).toLocaleString('zh-CN') : '从未'}</td>
-                                        <td className="px-6 py-4 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                <button onClick={() => handleEditClick(point)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md" title="修改"><PencilIcon className="w-4 h-4 text-blue-600" /></button>
-                                                <button onClick={() => setPointToDelete(point)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md" title="删除"><TrashIcon className="w-4 h-4 text-red-600" /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                 <div className="flex-shrink-0 flex justify-between items-center mt-4 text-sm">
-                    <span className="text-gray-600">共 {processedPoints.length} 条</span>
-                    {totalPages > 1 && (
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
-                            <span>第 {currentPage} / {totalPages} 页</span>
-                            <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
-                        </div>
-                    )}
-                </div>
+            {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-center gap-2"><CloseIcon className="w-5 h-5"/>{error}</div>}
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
+                {isLoading && sources.length === 0 ? (
+                    <div className="text-center py-20 text-slate-400">加载配置中...</div>
+                ) : sources.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                        <RssIcon className="w-12 h-12 text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-medium">暂无情报源配置</p>
+                        <button onClick={handleAddClick} className="mt-4 text-indigo-600 hover:underline text-sm">立即添加</button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {sources.map(source => (
+                            <div key={source.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+                                {/* Source Header */}
+                                <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-100 flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center shadow-sm text-indigo-600">
+                                            <RssIcon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 text-base">{source.source_name}</h3>
+                                            <span className="text-xs text-slate-400">{pointsBySource[source.source_name]?.length || 0} 个采集点</span>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setConfirmDeleteSource(source)}
+                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="删除整个情报源"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Points List */}
+                                <div className="flex-1 p-2">
+                                    {(pointsBySource[source.source_name] || []).length === 0 ? (
+                                        <div className="text-center py-8 text-xs text-slate-400">该源下暂无具体采集点</div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {(pointsBySource[source.source_name] || []).map(point => (
+                                                <div key={point.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-indigo-50/50 transition-colors border border-transparent hover:border-indigo-100">
+                                                    <div className="min-w-0 flex-1 pr-3">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className={`w-2 h-2 rounded-full ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
+                                                            <h4 className="text-sm font-semibold text-slate-700 truncate" title={point.point_name}>{point.point_name}</h4>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                                                            <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                <ClockIcon className="w-3 h-3" />
+                                                                {point.cron_schedule}
+                                                            </span>
+                                                            <a href={point.point_url} target="_blank" rel="noreferrer" className="hover:text-indigo-600 truncate max-w-[120px]">{point.point_url}</a>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button onClick={() => handleEditClick(point)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded shadow-sm border border-transparent hover:border-slate-200">
+                                                            <span className="text-xs font-bold">编辑</span>
+                                                        </button>
+                                                        <button onClick={() => setConfirmDeletePoint(point)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded shadow-sm border border-transparent hover:border-slate-200">
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={fetchData} pointToEdit={pointToEdit} sources={sources} />}
-            {pointToDelete && (
+            
+            {confirmDeleteSource && (
                 <ConfirmationModal
-                    title="确认删除情报点"
-                    message={`您确定要删除 “${pointToDelete.point_name}” 吗？此操作无法撤销。`}
-                    onConfirm={handleDelete}
-                    onCancel={() => setPointToDelete(null)}
+                    title="删除情报源"
+                    message={`确定要删除 "${confirmDeleteSource.source_name}" 及其下所有采集点和历史数据吗？此操作不可恢复。`}
+                    onConfirm={handleDeleteSource}
+                    onCancel={() => setConfirmDeleteSource(null)}
                 />
             )}
-        </>
+
+            {confirmDeletePoint && (
+                <ConfirmationModal
+                    title="删除采集点"
+                    message={`确定要删除 "${confirmDeletePoint.point_name}" 吗？`}
+                    onConfirm={handleDeletePoint}
+                    onCancel={() => setConfirmDeletePoint(null)}
+                />
+            )}
+        </div>
     );
 };

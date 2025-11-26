@@ -1,69 +1,68 @@
 
 import React, { useState } from 'react';
 import { IntelligencePointManager } from './IntelligencePointManager';
-import { IntelligenceTaskManager } from './IntelligenceTaskManager';
+import { IntelligenceStats } from './IntelligenceTaskManager'; // Renamed/Refactored Component
 import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
 import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
 
-type IntelligenceSubView = 'points' | 'tasks' | 'data' | 'chunks' | 'llm' | 'gemini';
+type IntelligenceSubView = 'points' | 'stats' | 'data' | 'chunks' | 'llm' | 'gemini';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
-    { view: 'points', label: '情报源管理', icon: RssIcon },
-    { view: 'tasks', label: '采集任务监控', icon: ChartIcon },
-    { view: 'data', label: '情报数据管理', icon: DocumentTextIcon },
-    { view: 'chunks', label: '分段管理', icon: ViewGridIcon },
-    { view: 'llm', label: 'LLM分拣', icon: SparklesIcon },
-    { view: 'gemini', label: 'Gemini 配置', icon: GearIcon },
+    { view: 'stats', label: '系统看板', icon: ChartIcon },
+    { view: 'points', label: '源与采集配置', icon: RssIcon },
+    { view: 'data', label: '文章库管理', icon: DocumentTextIcon },
+    { view: 'chunks', label: '向量分段', icon: ViewGridIcon },
+    { view: 'llm', label: 'AI 智能分拣', icon: SparklesIcon },
+    { view: 'gemini', label: '引擎配置', icon: GearIcon },
 ];
 
 export const IntelligenceDashboard: React.FC = () => {
-    const [subView, setSubView] = useState<IntelligenceSubView>('points');
+    const [subView, setSubView] = useState<IntelligenceSubView>('stats');
 
     const renderSubView = () => {
         switch (subView) {
             case 'points': return <IntelligencePointManager />;
-            case 'tasks': return <IntelligenceTaskManager />;
+            case 'stats': return <IntelligenceStats />;
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
             case 'llm': return <LlmSortingManager />;
             case 'gemini': return <GeminiSettingsManager />;
-            default: return <IntelligencePointManager />;
+            default: return <IntelligenceStats />;
         }
     };
 
     return (
-        <div className="p-4 md:p-6 h-full flex flex-col">
-            <div className="flex-shrink-0">
-                <div className="border-b border-gray-200">
-                    <div className="overflow-x-auto -mb-px" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                         <style>{`
-                            .scrollbar-hide::-webkit-scrollbar {
-                                display: none;
-                            }
-                        `}</style>
-                        <nav className="flex space-x-6 scrollbar-hide" aria-label="Tabs">
-                            {subNavItems.map(item => (
-                                <button
-                                    key={item.view}
-                                    onClick={() => setSubView(item.view)}
-                                    className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-                                        subView === item.view
-                                            ? 'border-blue-500 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    <item.icon className="w-5 h-5" />
-                                    {item.label}
-                                </button>
-                            ))}
-                        </nav>
-                    </div>
+        <div className="h-full flex flex-col bg-slate-50/50">
+            <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-4">
+                <h1 className="text-2xl font-bold text-slate-800 mb-4">情报中台管理</h1>
+                <div className="overflow-x-auto -mb-px">
+                     <style>{`
+                        .scrollbar-hide::-webkit-scrollbar {
+                            display: none;
+                        }
+                    `}</style>
+                    <nav className="flex space-x-8 scrollbar-hide" aria-label="Tabs">
+                        {subNavItems.map(item => (
+                            <button
+                                key={item.view}
+                                onClick={() => setSubView(item.view)}
+                                className={`whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                                    subView === item.view
+                                        ? 'border-indigo-500 text-indigo-600'
+                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                                }`}
+                            >
+                                <item.icon className={`w-4 h-4 ${subView === item.view ? 'text-indigo-500' : 'text-slate-400'}`} />
+                                {item.label}
+                            </button>
+                        ))}
+                    </nav>
                 </div>
             </div>
-            <div className="flex-1 mt-6 overflow-hidden">
+            <div className="flex-1 overflow-hidden p-4 md:p-6">
                 {renderSubView()}
             </div>
         </div>

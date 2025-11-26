@@ -1,145 +1,124 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { IntelligenceTask } from '../../types';
-import { getIntelligenceTasks } from '../../api';
-import { RefreshIcon, ChevronDownIcon, ChevronUpDownIcon } from '../icons';
+import { getIntelligenceStats } from '../../api';
+import { RefreshIcon, ServerIcon, DatabaseIcon, RssIcon, ViewGridIcon, ClockIcon, CheckCircleIcon } from '../icons';
 
-const getStatusBadge = (status: string) => {
-    const statusLower = status.toLowerCase();
-    if (statusLower === 'processing') return { text: '采集中', className: 'bg-blue-100 text-blue-800 animate-pulse' };
-    if (statusLower === 'completed') return { text: '已完成', className: 'bg-green-100 text-green-800' };
-    if (statusLower === 'failed') return { text: '失败', className: 'bg-red-100 text-red-800 font-bold' };
-    if (statusLower === 'pending' || statusLower === 'pending_jina') return { text: '排队中', className: 'bg-yellow-100 text-yellow-800' };
-    return { text: status, className: 'bg-gray-100 text-gray-800' };
-};
-
-const SortableHeader: React.FC<{
-    column: string;
-    label: string;
-    sortConfig: { sort_by: string; order: string };
-    onSort: (column: string) => void;
-    className?: string;
-}> = ({ column, label, sortConfig, onSort, className = "px-6 py-3" }) => (
-    <th scope="col" className={className}>
-        <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onSort(column)}>
-            {label}
-            {sortConfig.sort_by === column ? (
-                // FIX: Use rotated ChevronDownIcon for ascending sort indicator
-                sortConfig.order === 'asc' ? <ChevronDownIcon className="w-3 h-3 rotate-180" /> : <ChevronDownIcon className="w-3 h-3" />
-            ) : (
-                <ChevronUpDownIcon className="w-3 h-3 text-gray-400" />
-            )}
+const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-5 transition-all hover:shadow-md">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md ${color}`}>
+            {icon}
         </div>
-    </th>
+        <div>
+            <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+            <p className="text-2xl font-bold text-slate-800">{value.toLocaleString()}</p>
+        </div>
+    </div>
 );
 
-export const IntelligenceTaskManager: React.FC = () => {
-    const [tasks, setTasks] = useState<IntelligenceTask[]>([]);
+export const IntelligenceStats: React.FC = () => {
+    const [stats, setStats] = useState<{ 
+        sources: number; 
+        points: number; 
+        active_points: number; 
+        articles: number; 
+        vectors: number; 
+        schedules_active: number 
+    } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
-    const [sort, setSort] = useState({ sort_by: 'created_at', order: 'desc' });
 
-    const loadTasks = useCallback(async (showLoading = true) => {
-        if (showLoading) setIsLoading(true);
+    const loadStats = useCallback(async () => {
+        setIsLoading(true);
         setError(null);
         try {
-            const params = {
-                page: pagination.page,
-                limit: pagination.limit,
-                sort_by: sort.sort_by,
-                order: sort.order,
-            };
-            const response = await getIntelligenceTasks(params);
-            if (response && Array.isArray(response.items)) {
-                setTasks(response.items);
-                setPagination(prev => ({
-                    ...prev,
-                    page: response.page,
-                    total: response.total,
-                    // Use `prev.limit` for calculation to prevent state corruption if API response lacks `limit`
-                    totalPages: response.totalPages ?? (Math.ceil(response.total / prev.limit) || 1),
-                }));
-            } else {
-                setTasks([]);
-                setPagination(prev => ({ ...prev, page: 1, total: 0, totalPages: 1 }));
-            }
+            const data = await getIntelligenceStats();
+            setStats(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : '获取采集任务失败');
+            setError(err instanceof Error ? err.message : '获取统计数据失败');
         } finally {
-            if (showLoading) setIsLoading(false);
+            setIsLoading(false);
         }
-    }, [pagination.page, pagination.limit, sort]);
+    }, []);
 
     useEffect(() => {
-        // FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker.
-        loadTasks(true);
-    }, [loadTasks]);
+        loadStats();
+        // Auto refresh every 30 seconds
+        const interval = setInterval(loadStats, 30000);
+        return () => clearInterval(interval);
+    }, [loadStats]);
 
-    const handleSort = (column: string) => {
-        const isAsc = sort.sort_by === column && sort.order === 'asc';
-        setSort({ sort_by: column, order: isAsc ? 'desc' : 'asc' });
-    };
+    if (isLoading && !stats) {
+        return <div className="flex justify-center items-center h-full text-slate-400">正在加载系统状态...</div>;
+    }
 
-    const handlePageChange = (newPage: number) => {
-        if (newPage > 0 && newPage <= pagination.totalPages) {
-            setPagination(prev => ({ ...prev, page: newPage }));
-        }
-    };
-    
+    if (error) {
+        return <div className="p-6 text-red-500 bg-red-50 rounded-xl border border-red-100 text-center">{error}</div>;
+    }
+
     return (
-        <div className="h-full flex flex-col">
-            <div className="flex justify-between items-center mb-4 flex-shrink-0">
-                <h2 className="text-xl font-bold text-gray-800">采集任务监控</h2>
-                 {/* FIX: Explicitly pass argument to loadTasks to satisfy linter/type-checker. */}
-                 <button onClick={() => loadTasks(true)} className="p-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 transition" title="刷新">
-                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+        <div className="h-full flex flex-col max-w-6xl mx-auto">
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800">系统健康看板</h2>
+                    <p className="text-sm text-slate-500 mt-1">情报采集服务实时运行状态</p>
+                </div>
+                <button 
+                    onClick={loadStats} 
+                    className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+                >
+                    <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    刷新数据
                 </button>
             </div>
-            {error && <div className="mb-4 text-sm text-red-600 bg-red-100 p-3 rounded-md">{error}</div>}
-            
-            <div className="bg-white rounded-lg border overflow-y-auto flex-1">
-                <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <SortableHeader column="source_name" label="情报源" sortConfig={sort} onSort={handleSort} />
-                            <th scope="col" className="px-6 py-3">情报点</th>
-                            <SortableHeader column="created_at" label="开始时间" sortConfig={sort} onSort={handleSort} />
-                             <SortableHeader column="status" label="状态" sortConfig={sort} onSort={handleSort} />
-                            <th scope="col" className="px-6 py-3">任务类型</th>
-                            <th scope="col" className="px-6 py-3">日志/载荷</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {isLoading ? (
-                            <tr><td colSpan={6} className="text-center py-10">加载中...</td></tr>
-                        ) : tasks.length === 0 ? (
-                            <tr><td colSpan={6} className="text-center py-10">未找到任何任务。</td></tr>
-                        ) : (
-                            tasks.map(task => {
-                                const statusBadge = getStatusBadge(task.status);
-                                return (
-                                <tr key={task.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{task.source_name}</td>
-                                    <td className="px-6 py-4">{task.point_name}</td>
-                                    <td className="px-6 py-4">{new Date(task.created_at).toLocaleString('zh-CN')}</td>
-                                    <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusBadge.className}`}>{statusBadge.text}</span></td>
-                                    <td className="px-6 py-4">{task.task_type}</td>
-                                    <td className="px-6 py-4 text-xs text-gray-500 max-w-sm truncate" title={task.payload || ''}>{task.payload || '-'}</td>
-                                </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
-            </div>
 
-            <div className="flex justify-between items-center mt-4 text-sm flex-shrink-0">
-                <span className="text-gray-600">共 {pagination.total} 条</span>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">上一页</button>
-                    <span>第 {pagination.page} / {pagination.totalPages} 页</span>
-                    <button onClick={() => handlePageChange(pagination.page + 1)} disabled={pagination.page >= pagination.totalPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50">下一页</button>
+            {stats && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <StatCard 
+                        title="接入情报源" 
+                        value={stats.sources} 
+                        icon={<ServerIcon className="w-6 h-6" />} 
+                        color="bg-indigo-500" 
+                    />
+                    <StatCard 
+                        title="活跃采集点" 
+                        value={stats.active_points} 
+                        icon={<RssIcon className="w-6 h-6" />} 
+                        color="bg-blue-500" 
+                    />
+                    <StatCard 
+                        title="定时任务运行中" 
+                        value={stats.schedules_active} 
+                        icon={<ClockIcon className="w-6 h-6" />} 
+                        color="bg-emerald-500" 
+                    />
+                    <StatCard 
+                        title="已采集文章总数" 
+                        value={stats.articles} 
+                        icon={<DatabaseIcon className="w-6 h-6" />} 
+                        color="bg-purple-500" 
+                    />
+                    <StatCard 
+                        title="向量索引分段" 
+                        value={stats.vectors} 
+                        icon={<ViewGridIcon className="w-6 h-6" />} 
+                        color="bg-orange-500" 
+                    />
+                    <StatCard 
+                        title="总配置采集点" 
+                        value={stats.points} 
+                        icon={<CheckCircleIcon className="w-6 h-6" />} 
+                        color="bg-slate-500" 
+                    />
                 </div>
+            )}
+
+            <div className="mt-8 bg-blue-50 border border-blue-100 rounded-xl p-6">
+                <h3 className="font-bold text-blue-800 mb-2">系统运行说明</h3>
+                <ul className="list-disc list-inside text-sm text-blue-700 space-y-1">
+                    <li><strong>活跃采集点</strong>：当前已启用并正在按计划执行采集的任务数量。</li>
+                    <li><strong>向量索引分段</strong>：已完成嵌入并存入向量数据库的文本片段数量，直接影响语义搜索的效果。</li>
+                    <li>系统会自动重试失败的采集任务，无需人工干预。</li>
+                </ul>
             </div>
         </div>
     );

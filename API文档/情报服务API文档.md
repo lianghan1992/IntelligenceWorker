@@ -1,358 +1,292 @@
 # 爬虫服务 API 文档
 
-说明：本文件基于 `services/crawler/router.py` 的实际实现，遵循 `services/intelligence/API_Documentation.md` 的字段风格进行整理，供前后端及集成方使用。
+说明：本文件基于 `services/crawler/router.py` 的实际实现整理，供前后端及集成方使用。
 
 ## 基础信息
 - 服务模块：`crawler`
-- 认证：所有接口默认需要认证；使用项目统一的认证机制（参考主服务）。
+- 认证：所有接口默认需要认证；使用项目统一的认证机制（Bearer Token）。
+- 基础路径：`/api/crawler`
 
 ## 接口列表
 
-### 获取文章HTML报告
-- 路径：`/crawler/articles/{article_id}/html`
-- 方法：`GET`
-- 认证：需要Bearer Token
-- 响应：
-  - `200`：返回该文章的HTML内容（`text/html`）
-  - `404`：未找到对应的HTML报告文件
-  - `500`：服务器读取失败
+### 1. 情报源与情报点管理
 
-**cURL示例**
-```bash
-curl -X GET "http://127.0.0.1:7657/crawler/articles/<article_id>/html" \
- -H "Authorization: Bearer <token>"
-```
-
-### 获取任务统计
-- 路径：`/crawler/tasks/stats`
-- 方法：`GET`
-- 请求：无额外体参数
-- 响应：
-  - `200`：
-    ```json
-    {
-      "sources": 12,
-      "points": 34,
-      "active_points": 28,
-      "articles": 1024,
-      "vectors": 40960,
-      "schedules_active": 18
-    }
-    ```
-
-### 基于提示词的LLM相关性检索并导出CSV（含进度）
-- 路径：`/crawler/search/llm`
+#### 创建情报点
+- 路径：`/api/crawler/points`
 - 方法：`POST`
-- 请求：
+- 描述：创建新的情报点，并自动生成对应的解析器文件。
+- 请求体：
   ```json
   {
-    "query_text": "我需要查找岚图泰山车型的所有相关信息",
-    "publish_date_start": "2025-01-01",
-    "publish_date_end": "2025-11-18",
-    "source_names": ["盖世汽车", "艾邦智造"]
+    "source_name": "盖世汽车",
+    "point_name": "行业资讯",
+    "point_url": "https://example.com/news",
+    "cron_schedule": "0 */2 * * *"
   }
   ```
 - 响应：
+  - `201`: `{"message": "Intelligence point created successfully", "point_id": "<uuid>"}`
+  - `400`: 创建失败（如已存在）
+
+#### 获取指定情报源下的情报点
+- 路径：`/api/api/crawler/points`
+- 方法：`GET`
+- 参数：`source_name` (query, required)
+- 响应：`List[IntelligencePointPublic]`
   ```json
-  {
-    "task_id": "<uuid>",
-    "total_articles": 1000,
-    "processed_count": 432,
-    "matched_count": 128,
-    "unrelated_count": 304,
-    "task_dir": "services/crawler/search_tasks/<uuid>"
-  }
+  [
+    {
+      "id": "<uuid>",
+      "source_name": "盖世汽车",
+      "point_name": "行业资讯",
+      "point_url": "...",
+      "cron_schedule": "...",
+      "is_active": true,
+      ...
+    }
+  ]
   ```
 
-### 查询LLM检索任务（分页，含统计）
-- 路径：`/crawler/search/tasks`
-- 方法：`GET`
-- 查询参数：`page`、`limit`
+#### 批量删除情报点
+- 路径：`/api/api/crawler/points`
+- 方法：`DELETE`
+- 请求体：
+  ```json
+  {
+    "point_ids": ["<uuid1>", "<uuid2>"]
+  }
+  ```
 - 响应：
-  ```json
-  {
-    "total": 12,
-    "page": 1,
-    "limit": 20,
-    "stats": {
-      "total_tasks": 12,
-      "total_articles": 5432,
-      "processed_count": 2310,
-      "matched_count": 789,
-      "unrelated_count": 1521
-    },
-    "items": [
-      {
-        "id": "<uuid>",
-        "prompt_text": "...",
-        "total_articles": 1000,
-        "processed_count": 432,
-        "matched_count": 128,
-        "unrelated_count": 304,
-        "task_dir": "services/crawler/search_tasks/<uuid>",
-        "created_at": "2025-11-18T12:00:00+08:00",
-        "finished_at": "2025-11-18T12:15:00+08:00"
-      }
-    ]
-  }
-  ```
+  - `200`: `{"message": "Successfully deleted X intelligence point(s)."}`
+  - `404`: 未找到匹配的情报点
 
-### 查询单个LLM检索任务详情
-- 路径：`/crawler/search/tasks/{task_id}`
-- 方法：`GET`
-- 响应：
-  ```json
-  {
-    "id": "<uuid>",
-    "prompt_text": "...",
-    "source_names": "盖世汽车,艾邦智造",
-    "publish_date_start": "2025-01-01",
-    "publish_date_end": "2025-11-18",
-    "total_processed": 1000,
-    "matched_count": 300,
-    "tokens_with_content_estimate": 123456,
-    "tokens_without_content_estimate": 78901,
-    "duration_seconds": 900,
-    "processed_time_beijing": "2025-11-18 12:00:00",
-    "task_dir": "services/crawler/search_tasks/<uuid>",
-    "created_at": "2025-11-18T12:00:00+08:00",
-    "finished_at": "2025-11-18T12:15:00+08:00"
-  }
-  ```
-
-### 下载任务的CSV文件（实时生成）
-- 路径：`/crawler/search/tasks/{task_id}/download`
-- 方法：`GET`
-- 查询参数：`with_content=true|false`（默认 true）
-- 支持压缩包下载：设置 `both=true` 时同时打包含原文与不含原文两个 CSV
-- 响应：文件下载（`related_with_content.csv` 或 `related_no_content.csv`）
-  - 当任务进行中，CSV 会实时写入，可多次下载获取最新内容
-
-### 任务进度
-- 任务创建后，接口返回的 `task_id` 可用于实时查询进度：
-  - 进度字段：`total_articles`、`processed_count`、`matched_count`、`unrelated_count`
-  - 详情接口：`GET /crawler/search/tasks/{task_id}` 会随着处理过程更新 `task.json` 中的统计并反映到 API 返回
-
-### 获取所有情报源名称
-- 路径：`/crawler/sources/names`
+#### 获取所有情报源
+- 路径：`/api/crawler/sources`
 - 方法：`GET`
 - 响应：
   ```json
   [
-    "盖世汽车",
-    "艾邦智造",
-    "AutoTechNews",
-    "佐思汽研"
+    {
+      "id": "<uuid>",
+      "source_name": "盖世汽车",
+      "subscription_count": 0
+    }
   ]
   ```
 
-### Gemini Cookie 管理
-- 检查 Cookie 是否有效：`GET /crawler/gemini/cookies/check`
-  - 返回：
-    ```json
-    {"has_cookie":true, "valid":true}
-    ```
-  - cURL：
-    ```bash
-    curl -X GET http://127.0.0.1:7657/api/crawler/gemini/cookies/check \
-      -H "Authorization: Bearer <token>"
-    ```
-
-- 更新 Cookie：`POST /crawler/gemini/cookies`
-  - 请求：`multipart/form-data`
-    - 字段：`secure_1psid`, `secure_1psidts`, `http_proxy`(可选)
-  - 返回：
-    ```json
-    {"ok":true}
-    ```
-  - cURL：
-    ```bash
-    curl -X POST http://127.0.0.1:7657/api/crawler/gemini/cookies \
-      -H "Authorization: Bearer <token>" \
-      -F "secure_1psid=<cookie>" -F "secure_1psidts=<cookie_ts>"
-    ```
-### 文章检索（分页）
-- 路径：`/crawler/articles`
-- 方法：`POST`
-- 请求：
-  ```json
-  {
-    "filters": {
-      "point_ids": [1, 2],
-      "source_names": ["盖世汽车"],
-      "publish_date_start": "2024-01-01T00:00:00",
-      "publish_date_end": "2024-12-31T23:59:59",
-      "min_influence_score": 0.2,
-      "sentiment": ["positive", "neutral", "negative"]
-    },
-    "page": 1,
-    "limit": 20
-  }
-  ```
-- 响应：
-  - `200`：
-    ```json
-    {
-      "items": [
-        {
-          "id": 1001,
-          "point_id": 2,
-          "source_name": "盖世汽车",
-          "title": "示例标题",
-          "original_url": "https://example.com/article/1001",
-          "publish_date": "2024-04-12T08:30:00",
-          "created_at": "2024-04-12T08:31:00",
-          "summary": "可选的自动摘要",
-          "sentiment": "neutral",
-          "influence_score": 0.35
-        }
-      ],
-      "total": 1234
-    }
-    ```
-
-### 语义搜索（向量检索）
-- 路径：`/crawler/search/semantic`
-- 方法：`POST`
-- 请求：
-  ```json
-  {
-    "query": "电池热管理",
-    "top_k": 10,
-    "min_score": 0.2
-  }
-  ```
-- 响应：
-  - `200`：
-    ```json
-    {
-      "items": [
-        {
-          "article_id": 1001,
-          "content_chunk": "与查询语义相近的文本片段",
-          "score": 0.82
-        }
-      ]
-    }
-    ```
-
-### 组合筛选 + 语义搜索
-- 路径：`/crawler/search/combined`
-- 方法：`POST`
-- 请求：
-  ```json
-  {
-    "filters": {
-      "point_ids": ["<point_id>", "<point_id>"] ,
-      "source_names": ["盖世汽车"],
-      "publish_date_start": "2024-01-01",
-      "publish_date_end": "2024-12-31"
-    },
-    "query": "智能驾驶域控制器", 
-    "query_text": "智能驾驶域控制器", 
-    "top_k": 20,
-    "min_score": 0.5,
-    "similarity_threshold": 0.5,
-    "page": 1,
-    "limit": 20
-  }
-  ```
-- 响应：
-  - `200`：同语义搜索，返回满足结构化筛选条件后的向量检索结果。
- - 兼容性说明：`query` 与 `query_text` 等价；`min_score` 与 `similarity_threshold` 等价。若查询文本为 `"*"`，仅进行结构化筛选与分页。
-
-**cURL示例**
-```bash
-curl -X POST "http://127.0.0.1:7657/crawler/search/combined" \
- -H "Authorization: Bearer <token>" \
- -H "Content-Type: application/json" \
- -d '{
-  "filters": {"source_names": ["盖世汽车"], "publish_date_start": "2024-01-01"},
-  "query_text": "电池热管理",
-  "page": 1,
-  "limit": 20,
-  "similarity_threshold": 0.5
-}'
-```
-
-### 情报信息流（分页）
-- 路径：`/crawler/feed`
-- 方法：`POST`
-- 请求：
-  ```json
-  {
-    "filters": {
-      "point_ids": [1, 2],
-      "source_names": ["盖世汽车"],
-      "publish_date_start": "2024-01-01T00:00:00",
-      "publish_date_end": "2024-12-31T23:59:59",
-      "min_influence_score": 0.2,
-      "sentiment": ["neutral"]
-    },
-    "page": 1,
-    "limit": 20
-  }
-  ```
-- 响应：
-  - `200`：
-    ```json
-    {
-      "items": [CollectedArticlePublic],
-      "total": 1234
-    }
-    ```
-
-### 实时更新 Gemini Cookie
-- 路径：`/crawler/gemini/cookies`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求：
-  ```json
-  {
-    "secure_1psid": "<__Secure-1PSID>",
-    "secure_1psidts": "<__Secure-1PSIDTS>",
-    "http_proxy": "http://127.0.0.1:20171"
-  }
-  ```
-- 响应：
-  - `200`：`{"message": "Gemini cookies updated", "initialized": true}`
-  - `400`：更新失败，返回错误原因
-- 说明：
-  - 该接口会在不重启服务的情况下，重建 Gemini 客户端并在持久事件循环中进行初始化（最多两次）；成功后立即生效。
-  - 若 `.env` 中已启用代理，则无需传 `http_proxy`。
-  
-**cURL示例**
-```bash
-curl -X POST "http://127.0.0.1:7657/crawler/gemini/cookies" \
- -H "Authorization: Bearer <token>" \
- -H "Content-Type: application/json" \
- -d '{
-  "secure_1psid": "sid...",
-  "secure_1psidts": "sidts...",
-  "http_proxy": "http://127.0.0.1:20171"
-}'
-```
-
-## 说明与约束
-- 分页参数：`page` 从 1 开始，`limit` 建议不超过 50。
-- 时间字段：遵循 ISO 8601 格式，示例 `YYYY-MM-DDTHH:mm:ss`。
-- 认证失败返回 `401`；参数校验失败返回 `422`。
-- 语义搜索由模块内置的向量引擎提供，底层可选择本地或 ZhipuAI 嵌入模型，取决于 `services/crawler/.env` 配置。
-
-## 版本
-- v1.0.0（与当前代码一致）
-### 下载文章PDF（HTML已生成的前提下）
-- 路径：`/crawler/articles/{article_id}/pdf`
+#### 获取所有情报源名称列表
+- 路径：`/api/crawler/sources/names`
 - 方法：`GET`
-- 认证：需要Bearer Token
-- 行为：仅当对应文章的HTML已存在时才进行转换；每次请求若未存在PDF则即时转换并返回文件下载。
-- 响应：
-  - `200`：返回PDF二进制文件
-  - `404`：未找到对应的HTML报告文件（不进行转换）
-  - `500`：服务端转换失败
+- 响应：`["盖世汽车", "艾邦智造", ...]`
 
-**cURL示例**
-```bash
-curl -X GET "http://127.0.0.1:7657/crawler/articles/<article_id>/pdf" \
- -H "Authorization: Bearer <token>" -o <article_id>.pdf
-```
+#### 删除情报源
+- 路径：`/api/crawler/sources/{source_name}`
+- 方法：`DELETE`
+- 描述：删除一个情报源及其下的所有情报点和数据。
+- 响应：
+  - `200`: `{"message": "Source '...' and its X associated points were deleted."}`
+
+---
+
+### 2. 文章管理
+
+#### 获取文章列表（分页/筛选）
+- 路径：`/api/crawler/articles`
+- 方法：`GET`
+- 参数：
+  - `source_name`: 按情报源名称过滤
+  - `point_name`: 按情报点名称过滤
+  - `point_ids`: 按情报点ID列表过滤 (List)
+  - `publish_date_start`: 发布日期起始 (YYYY-MM-DD)
+  - `publish_date_end`: 发布日期结束 (YYYY-MM-DD)
+  - `page`: 页码 (默认1)
+  - `limit`: 每页数量 (默认20)
+- 响应：
+  ```json
+  {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "items": [CollectedArticlePublic]
+  }
+  ```
+
+#### 批量删除文章
+- 路径：`/api/crawler/articles`
+- 方法：`DELETE`
+- 描述：批量删除文章及其关联的向量分段、输出状态记录。
+- 请求体：
+  ```json
+  {
+    "article_ids": ["<article_id_1>", "<article_id_2>"]
+  }
+  ```
+- 响应：
+  - `200`: `{"message": "Successfully deleted X article(s) and their associated vectors."}`
+  - `404`: 未找到匹配的文章
+
+---
+
+### 3. 搜索与信息流
+
+#### 获取情报信息流 (Feed)
+- 路径：`/api/crawler/feed`
+- 方法：`POST`
+- 描述：获取情报信息流，支持多种筛选条件，并按发布日期排序。
+- 请求体：
+  ```json
+  {
+    "point_ids": ["..."],
+    "source_names": ["..."],
+    "publish_date_start": "2024-01-01",
+    "publish_date_end": "2024-12-31",
+    "min_influence_score": 5,
+    "sentiment": ["positive"],
+    "page": 1,
+    "limit": 20
+  }
+  ```
+- 响应：`PaginatedFeedResponse`
+
+#### 分段向量检索 (Chunks Search)
+- 路径：`/api/crawler/search/chunks`
+- 方法：`POST`
+- 描述：基于分段向量进行语义检索。
+- 请求体：
+  ```json
+  {
+    "query_text": "电池热管理",
+    "point_ids": [],
+    "source_names": [],
+    "similarity_threshold": 0.5,
+    "include_article_content": false,
+    "top_k": 10
+  }
+  ```
+- 响应：`ChunkSearchResponse`
+
+#### 导出分段检索结果
+- 路径：`/api/crawler/search/chunks/export`
+- 方法：`POST`
+- 描述：导出分段向量检索结果，通常用于生成CSV。
+- 响应：`ChunkExportResponse`
+
+#### 文章语义搜索 (Articles Semantic Search)
+- 路径：`/api/crawler/search/articles`
+- 方法：`POST`
+- 描述：根据自然语言文本，在指定情报点范围内进行语义搜索，返回相关文章。
+- 请求体：
+  ```json
+  {
+    "query_text": "...",
+    "point_ids": ["..."],
+    "top_k": 5
+  }
+  ```
+- 响应：`List[Dict]`
+
+#### 组合筛选与语义搜索
+- 路径：`/api/crawler/search/articles_filtered`
+- 方法：`POST`
+- 描述：结合结构化筛选和语义搜索。
+- 请求体：`FilteredSearchRequest`
+- 响应：`PaginatedArticleSearchResponse`
+
+#### 组合搜索 (兼容旧版)
+- 路径：`/api/crawler/search/combined`
+- 方法：`POST`
+- 请求体：`CombinedSearchRequest`
+- 响应：`PaginatedArticleSearchResponse`
+
+---
+
+### 4. LLM 检索任务
+
+#### 发起 LLM 检索任务
+- 路径：`/api/crawler/search/llm`
+- 方法：`POST`
+- 描述：基于提示词的LLM相关性检索并导出CSV（含进度）。
+- 请求体：
+  ```json
+  {
+    "query_text": "查找关于固态电池的最新进展",
+    "publish_date_start": "2024-01-01",
+    "publish_date_end": "2024-06-01",
+    "source_names": ["盖世汽车"]
+  }
+  ```
+- 响应：`LLMSearchResponse` (包含 `task_id`)
+
+#### 获取 LLM 检索任务列表
+- 路径：`/api/crawler/search/tasks`
+- 方法：`GET`
+- 参数：`page`, `limit`
+- 响应：`SearchTaskListResponse` (包含任务统计信息)
+
+#### 获取单个 LLM 检索任务详情
+- 路径：`/api/crawler/search/tasks/{task_id}`
+- 方法：`GET`
+- 响应：任务详情字典（包含进度统计）
+
+#### 下载任务结果 CSV
+- 路径：`/api/crawler/search/tasks/{task_id}/download`
+- 方法：`GET`
+- 参数：
+  - `with_content`: bool (默认 True)
+  - `both`: bool (默认 False, 若为 True 则下载 zip 包)
+- 响应：文件流
+
+---
+
+### 5. 报告与工具
+
+#### 获取任务统计信息
+- 路径：`/api/crawler/tasks/stats`
+- 方法：`GET`
+- 响应：
+  ```json
+  {
+    "sources": 10,
+    "points": 20,
+    "active_points": 18,
+    "articles": 5000,
+    "vectors": 15000,
+    "schedules_active": 18
+  }
+  ```
+
+#### 获取文章 HTML 报告
+- 路径：`/api/crawler/articles/{article_id}/html`
+- 方法：`GET`
+- 响应：HTML 内容
+
+#### 下载文章 PDF
+- 路径：`/api/crawler/articles/{article_id}/pdf`
+- 方法：`GET`
+- 描述：如果 PDF 不存在，会尝试调用 Playwright 生成。
+- 响应：PDF 文件流
+
+#### 手动触发 PDF 生成
+- 路径：`/api/crawler/report/pdf/{article_id}`
+- 方法：`POST`
+- 响应：`{"ok": true, "pdf_generated": true}`
+
+#### 开关 HTML 生成功能
+- 路径：`/api/crawler/html-generation/toggle`
+- 方法：`POST`
+- 参数：`enable` (query, bool)
+- 响应：`{"ok": true, "enabled": true}`
+
+#### 检查 Gemini Cookie
+- 路径：`/api/crawler/gemini/cookies/check`
+- 方法：`GET`
+- 响应：`{"has_cookie": true, "valid": true}`
+
+#### 更新 Gemini Cookie
+- 路径：`/api/crawler/gemini/cookies`
+- 方法：`POST`
+- 请求类型：`multipart/form-data` 或 `application/x-www-form-urlencoded`
+- 参数：
+  - `secure_1psid`
+  - `secure_1psidts`
+  - `http_proxy` (可选)

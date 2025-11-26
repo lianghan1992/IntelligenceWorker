@@ -46,16 +46,29 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
         body: JSON.stringify({ point_ids: pointIds }),
     });
 
-// --- Articles / InfoItems API ---
-export const searchArticles = (query: string, pointIds: string[], top_k: number): Promise<InfoItem[]> =>
-    apiFetch<InfoItem[]>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
-        method: 'POST',
-        body: JSON.stringify({ 
-            query: query, 
-            filters: { point_ids: pointIds },
-            top_k 
-        }),
+// --- Articles Management (New RESTful APIs) ---
+
+// Get articles with filters (Admin View)
+export const getArticles = (params: { 
+    page?: number; 
+    limit?: number; 
+    source_name?: string; 
+    point_name?: string;
+    publish_date_start?: string;
+    publish_date_end?: string;
+}): Promise<PaginatedResponse<InfoItem>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/articles${query}`);
+};
+
+// Batch delete articles
+export const deleteArticles = (articleIds: string[]): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+        method: 'DELETE',
+        body: JSON.stringify({ article_ids: articleIds }),
     });
+
+// --- Search & Feed ---
 
 export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
     // Destructure to separate query text/pagination from filters
@@ -77,11 +90,9 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
     };
 
     if (isGeneralFilter) {
-        // CASE 1: General Filtering (e.g., Dashboard "Today's News", Main List)
-        // Use /crawler/feed per API Doc
-        
+        // CASE 1: General Filtering (Feed)
         const payload: any = {
-            filters: cleanFilters({
+            ...cleanFilters({
                 source_names: restFilters.source_names,
                 publish_date_start: restFilters.publish_date_start,
                 publish_date_end: restFilters.publish_date_end,
@@ -99,12 +110,10 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         });
 
     } else {
-        // CASE 2: Semantic/Keyword Search (e.g., Focus Points, Search Bar)
-        // Use /crawler/search/combined per API Doc to support filters + vector search
-        
+        // CASE 2: Semantic/Keyword Search
         const payload: any = {
             query: query_text,
-            filters: cleanFilters({
+            ...cleanFilters({
                 source_names: restFilters.source_names,
                 publish_date_start: restFilters.publish_date_start,
                 publish_date_end: restFilters.publish_date_end,
@@ -112,14 +121,13 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
                 min_influence_score: restFilters.min_influence_score,
                 sentiment: restFilters.sentiment,
             }),
-            top_k: 100,
-            min_score: similarity_threshold || 0.2,
+            top_k: 100, // Use reasonable top_k for semantic search
+            // min_score: similarity_threshold || 0.2, // API might handle this differently now, passing payload directly
             page: page || 1,
             limit: limit || 20,
         };
 
-        // The combined endpoint returns { items: [{ article_id, content_chunk, score, ... }] }
-        // We need to map this to our SearchResult format.
+        // Use combined search for semantic + filtering
         const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
             method: 'POST',
             body: JSON.stringify(payload),
@@ -127,10 +135,9 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
 
         // Map semantic results to SearchResult format
         const items = (response.items || []).map((item: any) => ({
-            // Prioritize article_id or id. Fallback to a temp_ ID to prevent invalid API calls.
             id: item.article_id ? String(item.article_id) : (item.id ? String(item.id) : `temp_${Math.random()}`),
             title: item.title || item.article_title || '相关情报片段',
-            content: item.content_chunk || item.content || '', // Use chunk as content preview
+            content: item.content_chunk || item.content || '',
             original_url: item.original_url || item.article_url || '#',
             source_name: item.source_name || '智能检索',
             point_name: item.point_name || '',
@@ -142,34 +149,18 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
 
         return {
             items: items,
-            total: items.length, // Semantic search usually doesn't return total count of DB, just top_k
-            page: 1,
-            limit: items.length,
-            totalPages: 1
+            total: response.total || items.length,
+            page: response.page || 1,
+            limit: response.limit || items.length,
+            totalPages: 1 // Semantic search pagination logic varies
         };
     }
 };
 
-export const searchSemantic = (query: string, top_k: number = 20, min_score: number = 0.5): Promise<{ items: { article_id: string; content_chunk: string; score: number }[] }> => {
-    return apiFetch<{ items: { article_id: string; content_chunk: string; score: number }[] }>(`${INTELLIGENCE_SERVICE_PATH}/search/semantic`, {
-        method: 'POST',
-        body: JSON.stringify({
-            query,
-            top_k,
-            min_score
-        }),
-    });
-};
-
 export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-    setFeedback('正在抓取URL内容...');
-    return new Promise(resolve => setTimeout(() => {
-        setFeedback('分析内容并提取关键信息...');
-        resolve(apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/process_url`, {
-            method: 'POST',
-            body: JSON.stringify({ url }),
-        }));
-    }, 1500));
+    // Deprecated or placeholder logic as per new doc, keep for compatibility if used
+    setFeedback('分析内容并提取关键信息...');
+    return new Promise((resolve, reject) => reject("Feature deprecated in new API"));
 };
 
 // --- HTML Report API ---
@@ -184,7 +175,7 @@ export const getArticleHtml = async (articleId: string): Promise<string | null> 
     const response = await fetch(url, { headers });
 
     if (response.status === 404) {
-        return null; // HTML report not generated yet
+        return null;
     }
 
     if (!response.ok) {
@@ -219,7 +210,6 @@ export const downloadArticlePdf = async (articleId: string): Promise<Blob> => {
 
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
-    // Use /search/combined for chunks as well to ensure consistency
     const { 
         query_text, 
         top_k, 
@@ -229,40 +219,19 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
         publish_date_end
     } = params;
 
-    // Construct filters object
-    const filters: any = {};
-    if (source_names && source_names.length > 0) filters.source_names = source_names;
-    if (publish_date_start) filters.publish_date_start = publish_date_start;
-    if (publish_date_end) filters.publish_date_end = publish_date_end;
-
     const payload: any = {
-        query: query_text || '*',
-        filters: filters,
-        top_k: top_k || 200,
-        min_score: similarity_threshold,
+        query_text: query_text || '*',
+        point_ids: [], // Add specific filters if needed
+        source_names: source_names || [],
+        similarity_threshold: similarity_threshold,
+        top_k: top_k || 20,
+        include_article_content: false
     };
 
-    const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
+    return apiFetch<SearchChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, {
         method: 'POST',
         body: JSON.stringify(payload),
     });
-
-    const results = (response.items || []).map((item: any, index: number) => ({
-        article_id: String(item.article_id),
-        article_title: item.title || item.article_title || '未知标题', 
-        article_url: item.original_url || item.article_url || '',
-        article_publish_date: item.publish_date || null,
-        source_name: item.source_name || '未知来源',
-        chunk_index: item.chunk_index || index,
-        chunk_text: item.content_chunk || '',
-        similarity_score: item.score || 0
-    }));
-
-    return {
-        results,
-        total_chunks: results.length,
-        total_articles: 0 
-    };
 };
 
 export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
@@ -272,10 +241,16 @@ export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
     });
 
 
-// --- Intelligence Tasks (formerly Crawler Tasks) API ---
-export const getIntelligenceTasks = (params: any): Promise<PaginatedResponse<IntelligenceTask>> => {
-    const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<IntelligenceTask>>(`${INTELLIGENCE_SERVICE_PATH}/tasks${query}`);
+// --- Intelligence Stats (Replaces Intelligence Tasks) ---
+export const getIntelligenceStats = (): Promise<{ 
+    sources: number; 
+    points: number; 
+    active_points: number; 
+    articles: number; 
+    vectors: number; 
+    schedules_active: number 
+}> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
 // --- LLM Search API ---
@@ -312,11 +287,17 @@ export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {
 };
 
 // --- Gemini Management ---
-export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ message: string; initialized: boolean }> =>
-    apiFetch<{ message: string; initialized: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
+export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ message: string; initialized: boolean }> => {
+    const formData = new FormData();
+    formData.append('secure_1psid', data.secure_1psid);
+    formData.append('secure_1psidts', data.secure_1psidts);
+    if (data.http_proxy) formData.append('http_proxy', data.http_proxy);
+
+    return apiFetch<{ message: string; initialized: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: formData,
     });
+}
 
 export const checkGeminiCookies = (): Promise<{ has_cookie: boolean; valid: boolean }> =>
     apiFetch<{ has_cookie: boolean; valid: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies/check`);
