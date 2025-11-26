@@ -48,6 +48,18 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
         body: JSON.stringify({ point_ids: pointIds }),
     });
 
+// NEW: Toggle point status
+export const toggleIntelligencePoint = (pointId: string, enable: boolean): Promise<{ success: boolean, message: string }> =>
+    apiFetch<{ success: boolean, message: string }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enable }),
+    });
+
+// NEW: Check point health
+export const checkIntelligencePointHealth = (pointId: string): Promise<{ status: string, message: string, last_success_time?: string }> =>
+    apiFetch<{ status: string, message: string, last_success_time?: string }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/health`);
+
+
 // --- Articles Management (New RESTful APIs) ---
 
 // Updated: Get articles using new endpoint

@@ -86,6 +86,34 @@
 - 响应：
   - `200`: `{"message": "Source '...' and its X associated points were deleted."}`
 
+#### 检测爬虫健康度
+- 路径：`/api/crawler/points/{point_id}/health`
+- 方法：`GET`
+- 描述：自行判断当前爬虫是否还可以正常爬取数据解析，而没有被反爬虫或其他。会尝试导入解析器并进行简单的连通性测试。
+- 响应：
+  ```json
+  {
+    "status": "healthy",
+    "message": "Crawler appears to be working correctly.",
+    "last_success_time": "2024-11-26T12:00:00"
+  }
+  ```
+  - `status` 可能值: `healthy`, `unhealthy`, `warning`, `error`
+
+#### 启用/禁用爬虫
+- 路径：`/api/crawler/points/{point_id}/toggle`
+- 方法：`POST`
+- 描述：允许用户通过API接口开启该子爬虫或者停止该子爬虫的爬取。
+- 请求体：
+  ```json
+  {
+    "enable": true
+  }
+  ```
+- 响应：
+  - `200`: `{"success": true, "message": "Crawler ... has been enabled."}`
+  - `404`: 情报点不存在
+
 ---
 
 ### 2. 文章管理

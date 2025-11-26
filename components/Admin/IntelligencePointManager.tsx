@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource } from '../../api';
-import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckIcon, CloseIcon, ServerIcon } from '../icons';
+import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource, toggleIntelligencePoint, checkIntelligencePointHealth } from '../../api';
+import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, StopIcon, PlayIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -17,6 +17,10 @@ export const IntelligencePointManager: React.FC = () => {
     
     const [confirmDeleteSource, setConfirmDeleteSource] = useState<SystemSource | null>(null);
     const [confirmDeletePoint, setConfirmDeletePoint] = useState<Subscription | null>(null);
+    
+    const [healthStatus, setHealthStatus] = useState<Record<string, { status: string, message: string }>>({});
+    const [checkingHealth, setCheckingHealth] = useState<string | null>(null);
+    const [togglingPoint, setTogglingPoint] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -66,6 +70,43 @@ export const IntelligencePointManager: React.FC = () => {
             setConfirmDeleteSource(null);
         }
     }
+
+    const handleTogglePoint = async (point: Subscription) => {
+        setTogglingPoint(point.id);
+        try {
+            // The API endpoint logic is: POST /toggle with { enable: !current }
+            // However, looking at API types, Subscription has `is_active: 0 | 1`.
+            // We need to flip it.
+            const newStatus = !point.is_active;
+            await toggleIntelligencePoint(point.id, newStatus);
+            
+            // Optimistic update
+            setPointsBySource(prev => {
+                const newMap = { ...prev };
+                const list = newMap[point.source_name];
+                if (list) {
+                    newMap[point.source_name] = list.map(p => p.id === point.id ? { ...p, is_active: newStatus ? 1 : 0 } : p);
+                }
+                return newMap;
+            });
+        } catch (e: any) {
+            alert("状态切换失败: " + e.message);
+        } finally {
+            setTogglingPoint(null);
+        }
+    };
+
+    const handleCheckHealth = async (point: Subscription) => {
+        setCheckingHealth(point.id);
+        try {
+            const res = await checkIntelligencePointHealth(point.id);
+            setHealthStatus(prev => ({ ...prev, [point.id]: res }));
+        } catch (e: any) {
+            setHealthStatus(prev => ({ ...prev, [point.id]: { status: 'error', message: e.message } }));
+        } finally {
+            setCheckingHealth(null);
+        }
+    };
 
     const handleAddClick = () => {
         setPointToEdit(null);
@@ -145,27 +186,51 @@ export const IntelligencePointManager: React.FC = () => {
                                     ) : (
                                         <div className="space-y-2">
                                             {(pointsBySource[source.source_name] || []).map(point => (
-                                                <div key={point.id} className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group/point">
-                                                    <div className="min-w-0 flex-1 pr-3">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${point.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-slate-300'}`}></div>
+                                                <div key={point.id} className="flex flex-col p-3 rounded-xl bg-white border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            {/* Toggle Switch */}
+                                                            <button 
+                                                                onClick={() => handleTogglePoint(point)}
+                                                                disabled={togglingPoint === point.id}
+                                                                className={`w-8 h-4 rounded-full relative transition-colors ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}
+                                                                title={point.is_active ? '点击停用' : '点击启用'}
+                                                            >
+                                                                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform ${point.is_active ? 'left-4.5' : 'left-0.5'}`} style={{ left: point.is_active ? 'calc(100% - 14px)' : '2px' }}></div>
+                                                            </button>
+                                                            
                                                             <h4 className="text-sm font-semibold text-slate-700 truncate" title={point.point_name}>{point.point_name}</h4>
                                                         </div>
-                                                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                                                        
+                                                        <div className="flex items-center gap-1">
+                                                            <button 
+                                                                onClick={() => handleCheckHealth(point)} 
+                                                                disabled={checkingHealth === point.id}
+                                                                className={`p-1.5 rounded-md transition-all ${healthStatus[point.id]?.status === 'healthy' ? 'text-green-600 bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}
+                                                                title="健康检查"
+                                                            >
+                                                                {checkingHealth === point.id ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheckIcon className="w-3.5 h-3.5" />}
+                                                            </button>
+                                                            <button onClick={() => setConfirmDeletePoint(point)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md shadow-sm border border-transparent hover:border-slate-200 transition-all" title="删除">
+                                                                <TrashIcon className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                                        <div className="flex items-center gap-2">
                                                             <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                                                 <ClockIcon className="w-3 h-3" />
                                                                 {point.cron_schedule}
                                                             </span>
-                                                            <a href={point.point_url} target="_blank" rel="noreferrer" className="hover:text-indigo-600 truncate max-w-[100px] opacity-60 hover:opacity-100">{point.point_url}</a>
+                                                            <a href={point.point_url} target="_blank" rel="noreferrer" className="hover:text-indigo-600 truncate max-w-[120px] opacity-60 hover:opacity-100">{point.point_url}</a>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover/point:opacity-100 transition-opacity">
-                                                        <button onClick={() => handleEditClick(point)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-md shadow-sm border border-transparent hover:border-slate-200 transition-all" title="编辑">
-                                                            <span className="text-xs font-bold">改</span>
-                                                        </button>
-                                                        <button onClick={() => setConfirmDeletePoint(point)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-md shadow-sm border border-transparent hover:border-slate-200 transition-all" title="删除">
-                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        {/* Health Message Tooltip/Text */}
+                                                        {healthStatus[point.id] && (
+                                                            <span className={`text-[9px] ${healthStatus[point.id].status === 'healthy' ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {healthStatus[point.id].status === 'healthy' ? '运行正常' : '异常'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
