@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { IntelligencePointManager } from './IntelligencePointManager';
-import { IntelligenceStats } from './IntelligenceTaskManager'; // Renamed/Refactored Component
+import { IntelligenceStats } from './IntelligenceTaskManager'; 
 import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
@@ -36,26 +36,28 @@ export const IntelligenceDashboard: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
-            <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-4">
-                <h1 className="text-2xl font-bold text-slate-800 mb-4">情报中台管理</h1>
-                <div className="overflow-x-auto -mb-px">
+            <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-6 pb-2">
+                <h1 className="text-2xl font-bold text-slate-800 mb-6">情报中台管理</h1>
+                <div className="overflow-x-auto">
                      <style>{`
                         .scrollbar-hide::-webkit-scrollbar {
                             display: none;
                         }
                     `}</style>
-                    <nav className="flex space-x-8 scrollbar-hide" aria-label="Tabs">
+                    <nav className="flex space-x-1 scrollbar-hide pb-2" aria-label="Tabs">
                         {subNavItems.map(item => (
                             <button
                                 key={item.view}
                                 onClick={() => setSubView(item.view)}
-                                className={`whitespace-nowrap pb-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-                                    subView === item.view
-                                        ? 'border-indigo-500 text-indigo-600'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                }`}
+                                className={`
+                                    whitespace-nowrap px-4 py-2 rounded-full font-medium text-sm flex items-center gap-2 transition-all
+                                    ${subView === item.view
+                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                        : 'bg-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                                    }
+                                `}
                             >
-                                <item.icon className={`w-4 h-4 ${subView === item.view ? 'text-indigo-500' : 'text-slate-400'}`} />
+                                <item.icon className={`w-4 h-4 ${subView === item.view ? 'text-white' : 'text-slate-400'}`} />
                                 {item.label}
                             </button>
                         ))}

@@ -4,7 +4,7 @@
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
 import { 
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
-    SearchResult, IntelligenceTask,
+    SearchResult,
    SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
    LlmSearchTasksResponse, LlmSearchTaskDetail
 } from '../types';
@@ -28,6 +28,7 @@ export const getSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]
 
 export const getSourceNames = (): Promise<string[]> => apiFetch<string[]>(`${INTELLIGENCE_SERVICE_PATH}/sources/names`);
 
+// Updated: Delete source by name
 export const deleteSource = (sourceName: string): Promise<void> => 
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, { method: 'DELETE' });
 
@@ -40,6 +41,7 @@ export const createIntelligencePoint = (data: Partial<Subscription>): Promise<{ 
         body: JSON.stringify(data),
     });
 
+// Updated: Batch delete points with body
 export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> => 
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
@@ -48,7 +50,7 @@ export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> =>
 
 // --- Articles Management (New RESTful APIs) ---
 
-// Get articles with filters (Admin View)
+// Updated: Get articles using new endpoint
 export const getArticles = (params: { 
     page?: number; 
     limit?: number; 
@@ -56,12 +58,13 @@ export const getArticles = (params: {
     point_name?: string;
     publish_date_start?: string;
     publish_date_end?: string;
+    point_ids?: string[];
 }): Promise<PaginatedResponse<InfoItem>> => {
     const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/articles${query}`);
 };
 
-// Batch delete articles
+// Updated: Batch delete articles
 export const deleteArticles = (articleIds: string[]): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
         method: 'DELETE',
@@ -242,6 +245,7 @@ export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
 
 
 // --- Intelligence Stats (Replaces Intelligence Tasks) ---
+// Updated to match /tasks/stats response
 export const getIntelligenceStats = (): Promise<{ 
     sources: number; 
     points: number; 
