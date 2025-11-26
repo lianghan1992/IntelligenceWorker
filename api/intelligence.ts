@@ -42,9 +42,11 @@ export const createIntelligencePoint = (data: Partial<Subscription>): Promise<{ 
     });
 
 // Updated: Batch delete points with body
+// Fix: Explicitly set Content-Type for DELETE with body to avoid 422
 export const deleteIntelligencePoints = (pointIds: string[]): Promise<void> => 
     apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ point_ids: pointIds }),
     });
 
@@ -84,9 +86,11 @@ export const getArticles = (params: {
 };
 
 // Updated: Batch delete articles
+// Fix: Explicitly set Content-Type for DELETE with body to avoid 422 Unprocessable Entity
 export const deleteArticles = (articleIds: string[]): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ article_ids: articleIds }),
     });
 
