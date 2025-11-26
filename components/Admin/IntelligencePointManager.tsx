@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource, toggleIntelligencePoint, checkIntelligencePointHealth } from '../../api';
+import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource, toggleIntelligencePoint, checkIntelligencePointHealth, runCrawler } from '../../api';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, StopIcon, PlayIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -21,6 +21,7 @@ export const IntelligencePointManager: React.FC = () => {
     const [healthStatus, setHealthStatus] = useState<Record<string, { status: string, message: string }>>({});
     const [checkingHealth, setCheckingHealth] = useState<string | null>(null);
     const [togglingPoint, setTogglingPoint] = useState<string | null>(null);
+    const [runningSource, setRunningSource] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -108,6 +109,19 @@ export const IntelligencePointManager: React.FC = () => {
         }
     };
 
+    const handleRunCrawler = async (source: SystemSource) => {
+        if (runningSource) return;
+        setRunningSource(source.source_name);
+        try {
+            await runCrawler(source.source_name);
+            alert(`已触发 "${source.source_name}" 的立即采集任务，请关注系统看板的指标变化。`);
+        } catch (e: any) {
+            alert(`启动失败: ${e.message}`);
+        } finally {
+            setRunningSource(null);
+        }
+    };
+
     const handleAddClick = () => {
         setPointToEdit(null);
         setIsModalOpen(true);
@@ -168,13 +182,27 @@ export const IntelligencePointManager: React.FC = () => {
                                             <span className="text-xs text-slate-400">{pointsBySource[source.source_name]?.length || 0} 个采集点</span>
                                         </div>
                                     </div>
-                                    <button 
-                                        onClick={() => setConfirmDeleteSource(source)}
-                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                        title="删除整个情报源"
-                                    >
-                                        <TrashIcon className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleRunCrawler(source)}
+                                            disabled={runningSource === source.source_name}
+                                            className={`p-2 rounded-lg transition-all ${
+                                                runningSource === source.source_name 
+                                                ? 'text-indigo-600 bg-indigo-50 opacity-100' 
+                                                : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover:opacity-100'
+                                            }`}
+                                            title="立即运行采集"
+                                        >
+                                            {runningSource === source.source_name ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <PlayIcon className="w-4 h-4" />}
+                                        </button>
+                                        <button 
+                                            onClick={() => setConfirmDeleteSource(source)}
+                                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                            title="删除整个情报源"
+                                        >
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Points List */}

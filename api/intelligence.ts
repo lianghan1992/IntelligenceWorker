@@ -59,6 +59,13 @@ export const toggleIntelligencePoint = (pointId: string, enable: boolean): Promi
 export const checkIntelligencePointHealth = (pointId: string): Promise<{ status: string, message: string, last_success_time?: string }> =>
     apiFetch<{ status: string, message: string, last_success_time?: string }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/health`);
 
+// NEW: Run crawler immediately
+export const runCrawler = (sourceName: string): Promise<{ message: string; source_name: string; module_path: string }> =>
+    apiFetch<{ message: string; source_name: string; module_path: string }>(
+        `${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, 
+        { method: 'POST' }
+    );
+
 
 // --- Articles Management (New RESTful APIs) ---
 
