@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { RssIcon, VideoCameraIcon, ChartIcon, DocumentTextIcon, ServerIcon } from '../icons';
+import { RssIcon, VideoCameraIcon, ChartIcon, DocumentTextIcon, ActivityIcon, LightningIcon, ChipIcon } from '../icons';
 import { getDashboardOverview, getDeepInsightTasksStats, getLivestreamTasks, getIntelligenceStats } from '../../api';
 
 // --- Animated Counter ---
@@ -32,48 +32,91 @@ const AnimatedCounter: React.FC<{ value: number }> = ({ value }) => {
     return <span>{display.toLocaleString()}</span>;
 };
 
-// --- Vital Card ---
+// --- Crystal Vital Card ---
 const VitalCard: React.FC<{
     title: string;
     value: number;
     label: string;
     icon: React.FC<any>;
-    color: 'blue' | 'purple' | 'indigo' | 'emerald';
+    color: 'indigo' | 'purple' | 'blue' | 'emerald';
     trend?: string;
     loading: boolean;
 }> = ({ title, value, label, icon: Icon, color, trend, loading }) => {
     
     const theme = {
-        blue: { bg: 'bg-blue-500', text: 'text-blue-500', light: 'bg-blue-50', border: 'border-blue-100' },
-        purple: { bg: 'bg-purple-500', text: 'text-purple-500', light: 'bg-purple-50', border: 'border-purple-100' },
-        indigo: { bg: 'bg-indigo-500', text: 'text-indigo-500', light: 'bg-indigo-50', border: 'border-indigo-100' },
-        emerald: { bg: 'bg-emerald-500', text: 'text-emerald-500', light: 'bg-emerald-50', border: 'border-emerald-100' },
+        indigo: { 
+            gradient: 'from-indigo-500 to-violet-500', 
+            iconBg: 'bg-indigo-50', 
+            iconColor: 'text-indigo-600',
+            shadow: 'shadow-indigo-500/10',
+            ring: 'ring-indigo-500/20'
+        },
+        purple: { 
+            gradient: 'from-purple-500 to-fuchsia-500', 
+            iconBg: 'bg-purple-50', 
+            iconColor: 'text-purple-600',
+            shadow: 'shadow-purple-500/10',
+            ring: 'ring-purple-500/20'
+        },
+        blue: { 
+            gradient: 'from-blue-500 to-cyan-500', 
+            iconBg: 'bg-blue-50', 
+            iconColor: 'text-blue-600',
+            shadow: 'shadow-blue-500/10',
+            ring: 'ring-blue-500/20'
+        },
+        emerald: { 
+            gradient: 'from-emerald-500 to-teal-500', 
+            iconBg: 'bg-emerald-50', 
+            iconColor: 'text-emerald-600',
+            shadow: 'shadow-emerald-500/10',
+            ring: 'ring-emerald-500/20'
+        },
     }[color];
 
     return (
-        <div className="relative overflow-hidden bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all duration-300 group">
-            {/* Background decoration */}
-            <div className={`absolute -right-6 -top-6 w-32 h-32 rounded-full opacity-5 group-hover:scale-110 transition-transform duration-500 ${theme.bg}`}></div>
+        <div className={`
+            relative overflow-hidden bg-white/60 backdrop-blur-xl rounded-[24px] p-6 
+            border border-white/60 shadow-lg ${theme.shadow}
+            hover:-translate-y-1 hover:shadow-xl transition-all duration-500 group
+        `}>
+            {/* Glass Reflection */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent opacity-50 pointer-events-none"></div>
             
-            <div className="relative z-10">
+            {/* Animated Glow Blob */}
+            <div className={`
+                absolute -right-10 -top-10 w-32 h-32 rounded-full bg-gradient-to-br ${theme.gradient} opacity-10 blur-2xl 
+                group-hover:scale-150 group-hover:opacity-20 transition-all duration-700
+            `}></div>
+
+            <div className="relative z-10 flex flex-col h-full justify-between">
                 <div className="flex justify-between items-start mb-4">
-                    <div className={`p-3 rounded-xl ${theme.light} ${theme.text}`}>
+                    <div className={`p-3.5 rounded-2xl ${theme.iconBg} ${theme.iconColor} shadow-inner`}>
                         <Icon className="w-6 h-6" />
                     </div>
                     {trend && (
-                        <span className="px-2 py-1 rounded-full bg-green-50 text-green-600 text-xs font-bold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                            {trend}
-                        </span>
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/80 border border-white/50 shadow-sm backdrop-blur-md">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600 tracking-wide">{trend}</span>
+                        </div>
                     )}
                 </div>
                 
-                <div className="space-y-1">
-                    <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">{title}</p>
-                    <h3 className="text-3xl font-black text-slate-800 tracking-tight">
-                        {loading ? <span className="animate-pulse bg-slate-200 rounded h-8 w-24 block"></span> : <AnimatedCounter value={value} />}
+                <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{title}</p>
+                    <h3 className="text-4xl font-black text-slate-800 tracking-tight drop-shadow-sm">
+                        {loading ? (
+                            <div className="h-10 w-32 bg-slate-200/50 rounded-lg animate-pulse"></div>
+                        ) : (
+                            <AnimatedCounter value={value} />
+                        )}
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium">{label}</p>
+                    <p className="text-sm font-medium text-slate-500 mt-2 truncate opacity-80 group-hover:opacity-100 transition-opacity">
+                        {label}
+                    </p>
                 </div>
             </div>
         </div>
@@ -121,36 +164,36 @@ export const DashboardWidgets: React.FC = () => {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <VitalCard 
-                title="情报总库"
+                title="Intelligence Core"
                 value={stats.articlesTotal}
-                label={`来自 ${stats.activeSources} 个活跃采集点`}
-                icon={RssIcon}
+                label={`覆盖 ${stats.activeSources} 个活跃情报源`}
+                icon={ActivityIcon}
                 color="blue"
                 loading={isLoading}
             />
             <VitalCard 
-                title="核心知识库"
+                title="Knowledge Base"
                 value={stats.kbItems}
-                label="结构化技术参数与事实"
-                icon={ChartIcon}
+                label="已结构化技术参数与事实"
+                icon={ChipIcon}
                 color="indigo"
                 loading={isLoading}
             />
             <VitalCard 
-                title="深度洞察"
+                title="Deep Insight"
                 value={stats.docsProcessed}
-                label="已解析行业研报 (PDF)"
+                label="已重构行业深度研报 (PDF)"
                 icon={DocumentTextIcon}
                 color="purple"
                 loading={isLoading}
             />
             <VitalCard 
-                title="实时监控"
+                title="Live Monitor"
                 value={stats.liveTasks}
-                label="当前正在进行的直播任务"
-                icon={VideoCameraIcon}
+                label="当前正在进行的实时任务"
+                icon={LightningIcon}
                 color="emerald"
-                trend={stats.liveTasks > 0 ? "ACTIVE" : undefined}
+                trend={stats.liveTasks > 0 ? "LIVE" : undefined}
                 loading={isLoading}
             />
         </div>
