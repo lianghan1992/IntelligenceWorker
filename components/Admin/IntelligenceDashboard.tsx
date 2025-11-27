@@ -14,7 +14,7 @@ const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<an
     { view: 'data', label: '文章库管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '向量分段', icon: ViewGridIcon },
     { view: 'llm', label: 'AI 智能分拣', icon: SparklesIcon },
-    { view: 'gemini', label: '引擎配置', icon: GearIcon },
+    { view: 'gemini', label: 'HTML生成配置', icon: GearIcon },
 ];
 
 export const IntelligenceDashboard: React.FC = () => {

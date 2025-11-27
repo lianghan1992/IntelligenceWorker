@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { updateGeminiCookies, checkGeminiCookies } from '../../api';
-import { SparklesIcon, ServerIcon, CheckCircleIcon, ShieldExclamationIcon, QuestionMarkCircleIcon, RefreshIcon } from '../icons';
+import { updateGeminiCookies, checkGeminiCookies, toggleHtmlGeneration } from '../../api';
+import { SparklesIcon, ServerIcon, CheckCircleIcon, ShieldExclamationIcon, QuestionMarkCircleIcon, RefreshIcon, DocumentTextIcon, PlayIcon, StopIcon } from '../icons';
 
 export const GeminiSettingsManager: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -11,8 +11,10 @@ export const GeminiSettingsManager: React.FC = () => {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(false);
+    const [isTogglingHtml, setIsTogglingHtml] = useState(false);
     const [cookieStatus, setCookieStatus] = useState<{ has_cookie: boolean; valid: boolean } | null>(null);
     const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [htmlGenStatus, setHtmlGenStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
     const checkStatus = useCallback(async () => {
         setIsChecking(true);
@@ -52,6 +54,22 @@ export const GeminiSettingsManager: React.FC = () => {
             setStatus({ type: 'error', message: err.message || '更新失败' });
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleToggleHtml = async (enable: boolean) => {
+        setIsTogglingHtml(true);
+        setHtmlGenStatus(null);
+        try {
+            const response = await toggleHtmlGeneration(enable);
+            setHtmlGenStatus({
+                type: 'success',
+                message: response.enabled ? 'HTML 生成功能已开启' : 'HTML 生成功能已关闭'
+            });
+        } catch (err: any) {
+            setHtmlGenStatus({ type: 'error', message: err.message || '操作失败' });
+        } finally {
+            setIsTogglingHtml(false);
         }
     };
 
@@ -99,15 +117,60 @@ export const GeminiSettingsManager: React.FC = () => {
     const statusDisplay = getStatusDisplay();
 
     return (
-        <div className="p-6 max-w-2xl">
+        <div className="p-6 max-w-3xl mx-auto space-y-6">
+            
+            {/* HTML Generation Control Card */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4 border-b border-gray-100 pb-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                        <DocumentTextIcon className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h2 className="text-lg font-bold text-gray-800">HTML 生成开关</h2>
+                        <p className="text-xs text-gray-500">控制是否在爬取文章后自动调用 LLM 生成美化排版的 HTML 报告。</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <button 
+                        onClick={() => handleToggleHtml(true)}
+                        disabled={isTogglingHtml}
+                        className="flex-1 py-3 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {isTogglingHtml ? (
+                            <div className="animate-spin w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full"></div>
+                        ) : <PlayIcon className="w-4 h-4" />}
+                        开启生成
+                    </button>
+                    <button 
+                        onClick={() => handleToggleHtml(false)}
+                        disabled={isTogglingHtml}
+                        className="flex-1 py-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-semibold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {isTogglingHtml ? (
+                            <div className="animate-spin w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                        ) : <StopIcon className="w-4 h-4" />}
+                        关闭生成
+                    </button>
+                </div>
+
+                {htmlGenStatus && (
+                    <div className={`mt-4 p-3 rounded-lg text-sm border flex items-center gap-2 ${htmlGenStatus.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {htmlGenStatus.type === 'success' ? <CheckCircleIcon className="w-4 h-4" /> : <ShieldExclamationIcon className="w-4 h-4" />}
+                        {htmlGenStatus.message}
+                    </div>
+                )}
+            </div>
+
+            {/* Gemini Cookie Configuration Card */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
                     <div className="p-2 bg-purple-100 rounded-lg">
                         <SparklesIcon className="w-6 h-6 text-purple-600" />
                     </div>
                     <div className="flex-1">
-                        <h2 className="text-lg font-bold text-gray-800">Gemini Cookie 实时更新</h2>
-                        <p className="text-xs text-gray-500">无需重启服务即可重建 Gemini 客户端连接</p>
+                        <h2 className="text-lg font-bold text-gray-800">Gemini 引擎配置</h2>
+                        <p className="text-xs text-gray-500">配置 Gemini Cookies 以支持 HTML 生成与深度解析功能。</p>
                     </div>
                 </div>
 

@@ -241,6 +241,11 @@ export const downloadArticlePdf = async (articleId: string): Promise<Blob> => {
     return response.blob();
 };
 
+export const toggleHtmlGeneration = (enable: boolean): Promise<{ ok: boolean, enabled: boolean }> =>
+    apiFetch<{ ok: boolean, enabled: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/html-generation/toggle${createApiQuery({ enable })}`, {
+        method: 'POST'
+    });
+
 // --- Chunk Search API ---
 export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
     const { 
