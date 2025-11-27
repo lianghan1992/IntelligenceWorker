@@ -1,3 +1,4 @@
+
 // src/api/helper.ts
 
 // --- Generic API Fetch Helper ---
@@ -7,7 +8,9 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
-    if (!(options.body instanceof FormData) && options.method !== 'GET' && options.method !== 'DELETE') {
+    
+    // Only set JSON content type if body is NOT FormData AND NOT URLSearchParams
+    if (!(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && options.method !== 'GET' && options.method !== 'DELETE') {
         headers.set('Content-Type', 'application/json');
     }
 

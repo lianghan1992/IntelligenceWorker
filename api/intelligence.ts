@@ -327,14 +327,14 @@ export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {
 
 // --- Gemini Management ---
 export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ message: string; initialized: boolean }> => {
-    const formData = new FormData();
-    formData.append('secure_1psid', data.secure_1psid);
-    formData.append('secure_1psidts', data.secure_1psidts);
-    if (data.http_proxy) formData.append('http_proxy', data.http_proxy);
+    const params = new URLSearchParams();
+    params.append('secure_1psid', data.secure_1psid);
+    params.append('secure_1psidts', data.secure_1psidts);
+    if (data.http_proxy) params.append('http_proxy', data.http_proxy);
 
     return apiFetch<{ message: string; initialized: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
         method: 'POST',
-        body: formData,
+        body: params,
     });
 }
 
