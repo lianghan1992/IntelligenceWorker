@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 // A generic icon component to avoid repeating props
@@ -13,24 +12,6 @@ const Icon: React.FC<React.SVGProps<SVGSVGElement>> = ({ children, ...props }) =
   >
     {children}
   </svg>
-);
-
-export const ActivityIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-    </Icon>
-);
-
-export const LightningIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11.412 15.655L9.75 21.75l3.745-4.012M9.257 13.5H3.75l6.409-8.813L12 10.5h8.25l-4.707 4.504M8.902 14.5h6.452" />
-    </Icon>
-);
-
-export const ChipIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
-    </Icon>
 );
 
 export const HomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -81,7 +62,9 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
+    {/* Represents 'A' (Auto) and structure */}
     <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="currentColor" />
+    {/* Represents 'I' (Insight) and core/beam */}
     <path d="M12 12L10 22H14L12 12Z" fill="currentColor" fillOpacity="0.6" />
   </svg>
 );
