@@ -1,18 +1,16 @@
 
 import React, { useState } from 'react';
 import { IntelligencePointManager } from './IntelligencePointManager';
-import { IntelligenceStats } from './IntelligenceTaskManager'; 
 import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
-import { RssIcon, DocumentTextIcon, ChartIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
+import { RssIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
 
-type IntelligenceSubView = 'points' | 'stats' | 'data' | 'chunks' | 'llm' | 'gemini';
+type IntelligenceSubView = 'overview' | 'data' | 'chunks' | 'llm' | 'gemini';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
-    { view: 'stats', label: '系统看板', icon: ChartIcon },
-    { view: 'points', label: '源与采集配置', icon: RssIcon },
+    { view: 'overview', label: '系统概览与配置', icon: RssIcon },
     { view: 'data', label: '文章库管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '向量分段', icon: ViewGridIcon },
     { view: 'llm', label: 'AI 智能分拣', icon: SparklesIcon },
@@ -20,24 +18,23 @@ const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<an
 ];
 
 export const IntelligenceDashboard: React.FC = () => {
-    const [subView, setSubView] = useState<IntelligenceSubView>('stats');
+    const [subView, setSubView] = useState<IntelligenceSubView>('overview');
 
     const renderSubView = () => {
         switch (subView) {
-            case 'points': return <IntelligencePointManager />;
-            case 'stats': return <IntelligenceStats />;
+            case 'overview': return <IntelligencePointManager />; // Merged View
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
             case 'llm': return <LlmSortingManager />;
             case 'gemini': return <GeminiSettingsManager />;
-            default: return <IntelligenceStats />;
+            default: return <IntelligencePointManager />;
         }
     };
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
-            <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-6 pb-2">
-                <h1 className="text-2xl font-bold text-slate-800 mb-6">情报中台管理</h1>
+            <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-4 pb-2">
+                {/* Removed the H1 title as requested */}
                 <div className="overflow-x-auto">
                      <style>{`
                         .scrollbar-hide::-webkit-scrollbar {

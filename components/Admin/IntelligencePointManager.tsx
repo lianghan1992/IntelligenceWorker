@@ -2,9 +2,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
 import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource, toggleIntelligencePoint, toggleSource, checkIntelligencePointHealth, runCrawler } from '../../api';
-import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon, GlobeIcon } from '../icons';
+import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon, GlobeIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
+import { IntelligenceStats } from './IntelligenceTaskManager';
+
+// Cron Helper
+const getCronLabel = (cron: string) => {
+    const options = [
+        { label: '每30分钟', value: '*/30 * * * *' },
+        { label: '每小时', value: '0 * * * *' },
+        { label: '每2小时', value: '0 */2 * * *' },
+        { label: '每3小时', value: '0 */3 * * *' },
+        { label: '每4小时', value: '0 */4 * * *' },
+        { label: '每6小时', value: '0 */6 * * *' },
+        { label: '每8小时', value: '0 */8 * * *' },
+        { label: '每12小时', value: '0 */12 * * *' },
+        { label: '每天', value: '0 0 * * *' },
+        { label: '每周', value: '0 0 * * 0' },
+    ];
+    const found = options.find(o => o.value === cron);
+    return found ? found.label : <span className="font-mono text-[10px]">{cron}</span>;
+};
 
 export const IntelligencePointManager: React.FC = () => {
     const [sources, setSources] = useState<SystemSource[]>([]);
@@ -24,7 +43,7 @@ export const IntelligencePointManager: React.FC = () => {
     const [togglingSource, setTogglingSource] = useState<string | null>(null);
     const [runningSource, setRunningSource] = useState<string | null>(null);
     
-    // Expanded states for accordion
+    // Expanded states for accordion - Default open all for better overview in new design
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
 
     const fetchData = useCallback(async () => {
@@ -35,11 +54,16 @@ export const IntelligencePointManager: React.FC = () => {
             setSources(fetchedSources);
 
             const pointsMap: Record<string, Subscription[]> = {};
+            const initialExpanded = new Set<string>();
+            
             await Promise.all(fetchedSources.map(async (source) => {
                 const points = await getPointsBySourceName(source.source_name);
                 pointsMap[source.source_name] = points;
+                initialExpanded.add(source.source_name);
             }));
+            
             setPointsBySource(pointsMap);
+            setExpandedSources(initialExpanded);
 
         } catch (err: any) {
             setError('数据加载失败: ' + err.message);
@@ -98,7 +122,8 @@ export const IntelligencePointManager: React.FC = () => {
         }
     };
 
-    const handleToggleSource = async (sourceName: string, currentStatus: boolean) => {
+    const handleToggleSource = async (e: React.MouseEvent, sourceName: string, currentStatus: boolean) => {
+        e.stopPropagation();
         setTogglingSource(sourceName);
         try {
             const newStatus = !currentStatus;
@@ -160,204 +185,249 @@ export const IntelligencePointManager: React.FC = () => {
         });
     };
 
-    // Helper to determine if source is "active" (has at least one active point)
     const isSourceActive = (sourceName: string) => {
         const pts = pointsBySource[sourceName] || [];
         return pts.length > 0 && pts.some(p => p.is_active);
     };
 
     return (
-        <div className="h-full flex flex-col">
-            {/* Toolbar */}
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                    <button onClick={fetchData} className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 shadow-sm transition-all" title="刷新">
-                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                    </button>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-700">源与采集配置</span>
-                        <span className="text-[10px] text-slate-400">管理 {sources.length} 个源站点与 {Object.values(pointsBySource).flat().length} 个采集探针</span>
+        <div className="h-full flex flex-col space-y-6">
+            
+            {/* 1. Dashboard Section (Merged) */}
+            <section className="flex-shrink-0">
+                <IntelligenceStats compact={false} />
+            </section>
+
+            {/* 2. Source & Points Config Section */}
+            <section className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                {/* Header Toolbar */}
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                        <ServerIcon className="w-5 h-5 text-slate-500" />
+                        <h2 className="text-base font-bold text-slate-800">源采集配置</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button onClick={fetchData} className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
+                            <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button 
+                            onClick={(e) => handleAddClick(e)} 
+                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow hover:bg-indigo-700 transition-all"
+                        >
+                            <PlusIcon className="w-4 h-4" /> 
+                            <span className="hidden sm:inline">新建采集</span>
+                            <span className="sm:hidden">新建</span>
+                        </button>
                     </div>
                 </div>
-                <button 
-                    onClick={() => handleAddClick()} 
-                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all"
-                >
-                    <PlusIcon className="w-4 h-4" /> 新建采集
-                </button>
-            </div>
 
-            {error && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-100 flex items-center gap-2"><CloseIcon className="w-5 h-5"/>{error}</div>}
+                {error && <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-100 text-sm flex items-center gap-2"><CloseIcon className="w-4 h-4"/>{error}</div>}
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pb-10">
-                {isLoading && sources.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
-                        <p className="text-slate-400 text-sm">正在加载配置...</p>
-                    </div>
-                ) : sources.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                        <RssIcon className="w-16 h-16 text-slate-300 mb-4" />
-                        <p className="text-slate-500 font-medium mb-4">暂无情报源配置</p>
-                        <button onClick={() => handleAddClick()} className="text-indigo-600 hover:underline text-sm font-bold">立即添加第一个</button>
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {sources.map(source => {
+                {/* Multi-dimensional Table Container */}
+                <div className="flex-1 overflow-auto custom-scrollbar">
+                    {/* Desktop Table View */}
+                    <table className="w-full text-sm text-left hidden md:table">
+                        <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th className="px-6 py-3 font-medium">情报源 / 采集点</th>
+                                <th className="px-6 py-3 font-medium">目标 URL</th>
+                                <th className="px-6 py-3 font-medium w-40">采集频率</th>
+                                <th className="px-6 py-3 font-medium w-32">运行状态</th>
+                                <th className="px-6 py-3 font-medium w-32">健康检查</th>
+                                <th className="px-6 py-3 font-medium text-right w-24">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {isLoading && sources.length === 0 ? (
+                                <tr><td colSpan={6} className="py-20 text-center text-slate-400">加载中...</td></tr>
+                            ) : sources.length === 0 ? (
+                                <tr><td colSpan={6} className="py-20 text-center text-slate-400">暂无配置</td></tr>
+                            ) : sources.map(source => {
+                                const points = pointsBySource[source.source_name] || [];
+                                const isExpanded = expandedSources.has(source.source_name);
+                                const isActive = isSourceActive(source.source_name);
+                                
+                                return (
+                                    <React.Fragment key={source.id}>
+                                        {/* Source Group Header */}
+                                        <tr className="bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
+                                            <td colSpan={6} className="px-4 py-2">
+                                                <div className="flex items-center justify-between">
+                                                    <div 
+                                                        className="flex items-center gap-3 cursor-pointer select-none"
+                                                        onClick={() => toggleExpand(source.source_name)}
+                                                    >
+                                                        <ChevronRightIcon className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-indigo-600 shadow-sm">
+                                                                <RssIcon className="w-3.5 h-3.5" />
+                                                            </div>
+                                                            <span className="font-bold text-slate-800">{source.source_name}</span>
+                                                            <span className="text-xs text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">{points.length} 探针</span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Source Actions Toolbar */}
+                                                    <div className="flex items-center gap-4">
+                                                        {/* Run Now */}
+                                                        <button
+                                                            onClick={(e) => handleRunCrawler(e, source)}
+                                                            disabled={runningSource === source.source_name}
+                                                            className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                                                                runningSource === source.source_name ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:text-indigo-600 hover:bg-white'
+                                                            }`}
+                                                            title="立即运行该源下的所有采集"
+                                                        >
+                                                            {runningSource === source.source_name ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <PlayIcon className="w-3.5 h-3.5" />}
+                                                            运行
+                                                        </button>
+
+                                                        {/* Toggle All */}
+                                                        <button
+                                                            onClick={(e) => handleToggleSource(e, source.source_name, isActive)}
+                                                            className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded transition-colors ${
+                                                                isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:text-slate-600'
+                                                            }`}
+                                                            title={isActive ? "暂停所有" : "启用所有"}
+                                                        >
+                                                            {isActive ? <StopIcon className="w-3.5 h-3.5" /> : <PlayIcon className="w-3.5 h-3.5" />}
+                                                            {isActive ? '全开' : '全关'}
+                                                        </button>
+
+                                                        <div className="h-3 w-px bg-slate-300"></div>
+
+                                                        <button 
+                                                            onClick={() => setConfirmDeleteSource(source)}
+                                                            className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                                                            title="删除来源"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        {/* Point Rows */}
+                                        {isExpanded && points.map(point => (
+                                            <tr key={point.id} className="group hover:bg-slate-50 transition-colors border-l-4 border-l-transparent hover:border-l-indigo-500">
+                                                <td className="px-6 py-3 pl-12">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 group-hover:bg-indigo-400"></div>
+                                                        <span className="font-medium text-slate-700">{point.point_name}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <a href={point.point_url} target="_blank" rel="noreferrer" className="text-slate-500 hover:text-blue-600 hover:underline truncate block max-w-[250px]" title={point.point_url}>
+                                                        {point.point_url}
+                                                    </a>
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <div className="flex items-center gap-1.5 text-slate-600 bg-slate-100/50 px-2 py-1 rounded w-fit">
+                                                        <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                        <span>{getCronLabel(point.cron_schedule)}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <button 
+                                                        onClick={() => handleTogglePoint(point)}
+                                                        disabled={togglingPoint === point.id}
+                                                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${point.is_active ? 'bg-green-500' : 'bg-slate-200'}`}
+                                                    >
+                                                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${point.is_active ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                    </button>
+                                                </td>
+                                                <td className="px-6 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        {healthStatus[point.id] ? (
+                                                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${healthStatus[point.id].status === 'healthy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                                                {healthStatus[point.id].status === 'healthy' ? '正常' : '异常'}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-300">--</span>
+                                                        )}
+                                                        <button 
+                                                            onClick={() => handleCheckHealth(point)} 
+                                                            disabled={checkingHealth === point.id}
+                                                            className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded"
+                                                            title="检查连接"
+                                                        >
+                                                            <ShieldCheckIcon className={`w-4 h-4 ${checkingHealth === point.id ? 'animate-pulse text-indigo-400' : ''}`} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <button 
+                                                        onClick={() => setConfirmDeletePoint(point)} 
+                                                        className="text-slate-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                                        title="删除采集点"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-4 p-4">
+                        {isLoading && sources.length === 0 ? (
+                            <div className="text-center text-slate-400 py-10">加载配置中...</div>
+                        ) : sources.length === 0 ? (
+                            <div className="text-center text-slate-400 py-10">暂无配置</div>
+                        ) : sources.map(source => {
                             const points = pointsBySource[source.source_name] || [];
-                            const isExpanded = expandedSources.has(source.source_name);
-                            const isActive = isSourceActive(source.source_name);
-                            const isToggling = togglingSource === source.source_name;
-
                             return (
-                                <div key={source.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:border-indigo-200 transition-all">
-                                    {/* Source Header Row */}
-                                    <div 
-                                        className={`px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-colors ${isExpanded ? 'bg-slate-50/80' : 'bg-white hover:bg-slate-50'}`}
-                                        onClick={() => toggleExpand(source.source_name)}
-                                    >
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <div className={`transition-transform duration-200 ${isExpanded ? 'rotate-90 text-indigo-600' : 'text-slate-400'}`}>
-                                                <ChevronRightIcon className="w-5 h-5" />
-                                            </div>
-                                            
-                                            {/* Source Toggle */}
-                                            <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                                                <button 
-                                                    onClick={() => handleToggleSource(source.source_name, isActive)}
-                                                    disabled={isToggling}
-                                                    className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${isActive ? 'bg-green-500' : 'bg-slate-300'} ${isToggling ? 'opacity-50 cursor-wait' : ''}`}
-                                                    title={isActive ? "点击关闭所有采集" : "点击开启所有采集"}
-                                                >
-                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isActive ? 'translate-x-5.5' : 'translate-x-0.5'}`} style={{ left: 0, transform: isActive ? 'translateX(22px)' : 'translateX(2px)' }}></div>
-                                                </button>
-                                            </div>
-
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-indigo-600">
-                                                    <ServerIcon className="w-4 h-4" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-slate-800 text-sm">{source.source_name}</h3>
-                                                    <span className="text-xs text-slate-400">{points.length} 个采集点</span>
-                                                </div>
-                                            </div>
+                                <div key={source.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                        <div className="flex items-center gap-2">
+                                            <ServerIcon className="w-4 h-4 text-indigo-500" />
+                                            <span className="font-bold text-slate-800">{source.source_name}</span>
+                                            <span className="text-xs text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-200">{points.length}</span>
                                         </div>
-
-                                        <div className="flex items-center gap-2 pl-9 md:pl-0" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                onClick={(e) => handleRunCrawler(e, source)}
-                                                disabled={runningSource === source.source_name}
-                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                                    runningSource === source.source_name 
-                                                    ? 'bg-indigo-50 text-indigo-600 opacity-100' 
-                                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
-                                                }`}
-                                            >
-                                                {runningSource === source.source_name ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <PlayIcon className="w-3.5 h-3.5" />}
-                                                立即运行
-                                            </button>
-                                            
-                                            <div className="h-4 w-px bg-slate-200 mx-1"></div>
-
-                                            <button 
-                                                onClick={() => setConfirmDeleteSource(source)}
-                                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                                                title="删除整个情报源"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                        <button onClick={() => setConfirmDeleteSource(source)} className="text-slate-400 hover:text-red-600"><TrashIcon className="w-4 h-4" /></button>
                                     </div>
-
-                                    {/* Points List (Collapsible) */}
-                                    {isExpanded && (
-                                        <div className="border-t border-slate-100 bg-white animate-in slide-in-from-top-2 duration-200">
-                                            {points.length === 0 ? (
-                                                <div className="text-center py-8 text-xs text-slate-400">该源下暂无具体采集点</div>
-                                            ) : (
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-left text-xs text-slate-600">
-                                                        <thead className="bg-slate-50/50 text-slate-500 font-medium border-b border-slate-100">
-                                                            <tr>
-                                                                <th className="px-6 py-3 w-10"></th>
-                                                                <th className="px-4 py-3">采集点名称</th>
-                                                                <th className="px-4 py-3">目标 URL</th>
-                                                                <th className="px-4 py-3">采集频率 (Cron)</th>
-                                                                <th className="px-4 py-3">状态</th>
-                                                                <th className="px-4 py-3">健康度</th>
-                                                                <th className="px-4 py-3 text-right">操作</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-50">
-                                                            {points.map(point => (
-                                                                <tr key={point.id} className="hover:bg-slate-50/50 transition-colors group">
-                                                                    <td className="px-6 py-3">
-                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 font-medium text-slate-800">{point.point_name}</td>
-                                                                    <td className="px-4 py-3">
-                                                                        <div className="flex items-center gap-1.5 max-w-[200px] xl:max-w-[300px]">
-                                                                            <GlobeIcon className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                                                            <a href={point.point_url} target="_blank" rel="noreferrer" className="truncate hover:text-indigo-600 transition-colors" title={point.point_url}>
-                                                                                {point.point_url}
-                                                                            </a>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        <span className="inline-flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-mono text-[10px]">
-                                                                            <ClockIcon className="w-3 h-3" /> {point.cron_schedule}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        <button 
-                                                                            onClick={() => handleTogglePoint(point)}
-                                                                            disabled={togglingPoint === point.id}
-                                                                            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}
-                                                                        >
-                                                                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${point.is_active ? 'translate-x-4' : 'translate-x-1'}`} />
-                                                                        </button>
-                                                                    </td>
-                                                                    <td className="px-4 py-3">
-                                                                        <div className="flex items-center gap-2">
-                                                                            {healthStatus[point.id] && (
-                                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${healthStatus[point.id].status === 'healthy' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                                                                                    {healthStatus[point.id].status === 'healthy' ? '正常' : '异常'}
-                                                                                </span>
-                                                                            )}
-                                                                            <button 
-                                                                                onClick={() => handleCheckHealth(point)} 
-                                                                                disabled={checkingHealth === point.id}
-                                                                                className="text-slate-400 hover:text-indigo-600"
-                                                                                title="检查健康度"
-                                                                            >
-                                                                                {checkingHealth === point.id ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheckIcon className="w-3.5 h-3.5" />}
-                                                                            </button>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-4 py-3 text-right">
-                                                                        <button 
-                                                                            onClick={() => setConfirmDeletePoint(point)} 
-                                                                            className="text-slate-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
-                                                                            title="删除采集点"
-                                                                        >
-                                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                    <div className="divide-y divide-slate-100">
+                                        {points.map(point => (
+                                            <div key={point.id} className="p-4 flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h4 className="font-medium text-slate-700">{point.point_name}</h4>
+                                                        <a href={point.point_url} className="text-xs text-blue-500 truncate block max-w-[200px] mt-0.5">{point.point_url}</a>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleTogglePoint(point)}
+                                                        className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${point.is_active ? 'bg-green-500' : 'bg-slate-200'}`}
+                                                    >
+                                                        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${point.is_active ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                    </button>
                                                 </div>
-                                            )}
-                                        </div>
-                                    )}
+                                                <div className="flex items-center justify-between text-xs text-slate-500">
+                                                    <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded">
+                                                        <ClockIcon className="w-3 h-3" /> {getCronLabel(point.cron_schedule)}
+                                                    </span>
+                                                    <div className="flex gap-3">
+                                                        <button onClick={() => handleCheckHealth(point)} className="text-indigo-600 flex items-center gap-1">
+                                                            <ShieldCheckIcon className="w-3 h-3" /> 检查
+                                                        </button>
+                                                        <button onClick={() => setConfirmDeletePoint(point)} className="text-red-500 flex items-center gap-1">
+                                                            <TrashIcon className="w-3 h-3" /> 删除
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
-                )}
-            </div>
+                </div>
+            </section>
 
             {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={fetchData} pointToEdit={pointToEdit} sources={sources} />}
             
