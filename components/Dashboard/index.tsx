@@ -10,84 +10,47 @@ import {
     ArrowRightIcon
 } from '../icons';
 
-// --- Dynamic Background Component ---
-const DynamicBackground: React.FC = () => (
-    <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none bg-slate-50">
-        <style>{`
-            @keyframes float-slow {
-                0% { transform: translate(0, 0) scale(1); }
-                33% { transform: translate(30px, -50px) scale(1.1); }
-                66% { transform: translate(-20px, 20px) scale(0.9); }
-                100% { transform: translate(0, 0) scale(1); }
-            }
-            @keyframes float-medium {
-                0% { transform: translate(0, 0) scale(1); }
-                33% { transform: translate(-30px, 40px) scale(1.1); }
-                66% { transform: translate(20px, -30px) scale(0.9); }
-                100% { transform: translate(0, 0) scale(1); }
-            }
-            @keyframes float-fast {
-                0% { transform: translate(0, 0) rotate(0deg); }
-                50% { transform: translate(10px, 20px) rotate(5deg); }
-                100% { transform: translate(0, 0) rotate(0deg); }
-            }
-            .animate-float-slow { animation: float-slow 20s infinite ease-in-out; }
-            .animate-float-medium { animation: float-medium 15s infinite ease-in-out; }
-            .animate-float-fast { animation: float-fast 10s infinite ease-in-out; }
-        `}</style>
-        
-        {/* Moving Gradient Blobs */}
-        <div className="absolute top-[-10%] left-[10%] w-[40vw] h-[40vw] bg-indigo-200/30 rounded-full blur-[100px] animate-float-slow mix-blend-multiply"></div>
-        <div className="absolute top-[20%] right-[-5%] w-[35vw] h-[35vw] bg-purple-200/30 rounded-full blur-[100px] animate-float-medium mix-blend-multiply animation-delay-2000"></div>
-        <div className="absolute bottom-[-10%] left-[30%] w-[50vw] h-[50vw] bg-blue-100/40 rounded-full blur-[120px] animate-float-slow mix-blend-multiply animation-delay-4000"></div>
-        
-        {/* Subtle Grid Overlay */}
-        <div className="absolute inset-0 opacity-[0.4]" 
-             style={{ 
-                 backgroundImage: `linear-gradient(to right, rgba(99, 102, 241, 0.03) 1px, transparent 1px), 
-                                   linear-gradient(to bottom, rgba(99, 102, 241, 0.03) 1px, transparent 1px)`,
-                 backgroundSize: '40px 40px' 
-             }}>
-        </div>
-    </div>
-);
-
 // --- Hero Component ---
 const CommandHero: React.FC<{ user: User }> = ({ user }) => {
     const [time, setTime] = useState(new Date());
 
     useEffect(() => {
-        const timer = setInterval(() => setTime(new Date()), 1000);
+        const timer = setInterval(() => setTime(new Date()), 60000);
         return () => clearInterval(timer);
     }, []);
 
     const hour = time.getHours();
     const greeting = hour < 11 ? '早安' : hour < 13 ? '午安' : hour < 18 ? '下午好' : '晚上好';
-    
+    const dateStr = time.toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' });
+
     return (
-        <div className="relative overflow-hidden rounded-[24px] bg-white/40 backdrop-blur-md border border-white/60 shadow-sm p-8 md:p-10 group hover:shadow-md transition-all duration-500">
+        <div className="relative overflow-hidden rounded-[32px] bg-white border border-white/60 shadow-xl p-8 md:p-10 mb-8 group">
+            {/* Background Gradients */}
+            <div className="absolute inset-0 bg-gradient-to-r from-indigo-50 via-white to-purple-50 opacity-80"></div>
+            <div className="absolute top-[-50%] right-[-10%] w-[600px] h-[600px] bg-gradient-to-br from-indigo-200/30 to-cyan-200/30 rounded-full blur-[80px] animate-pulse"></div>
+            
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
                 <div>
-                    <div className="flex items-center gap-2 mb-3 opacity-80">
-                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                        <span className="text-xs font-bold text-indigo-900 uppercase tracking-widest">Intelligence Command Center</span>
+                    <div className="flex items-center gap-3 mb-3">
+                        <span className="px-3 py-1 rounded-full bg-white/80 border border-indigo-100 text-[10px] font-bold text-indigo-600 uppercase tracking-widest shadow-sm backdrop-blur-sm flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                            System Online
+                        </span>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{dateStr}</span>
                     </div>
-                    <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">
-                        {greeting}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">{user.username}</span>
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-2">
+                        {greeting}, {user.username}
                     </h1>
-                    <p className="text-slate-600 text-sm font-medium max-w-lg leading-relaxed">
-                        系统正在实时监控全网数据。今日高价值情报流转正常，AI 引擎已就绪。
+                    <p className="text-slate-500 text-sm font-medium max-w-xl">
+                        全域情报系统运行正常。今日新增 <span className="text-indigo-600 font-bold">24</span> 条高价值资讯，
+                        <span className="text-purple-600 font-bold mx-1">3</span> 场发布会正在监控中。
                     </p>
                 </div>
 
                 <div className="text-right hidden md:block">
-                    <div className="flex flex-col items-end">
-                        <div className="text-6xl font-black text-slate-800/80 font-mono tracking-tighter leading-none tabular-nums">
-                            {time.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1 mr-1">
-                            {time.toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' })}
-                        </div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-1">Local Time</div>
+                    <div className="text-5xl font-black text-slate-800 font-mono tracking-tighter leading-none">
+                        {time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                 </div>
             </div>
@@ -95,37 +58,34 @@ const CommandHero: React.FC<{ user: User }> = ({ user }) => {
     );
 };
 
-// --- Quick Action Tile ---
-const QuickActionTile: React.FC<{ 
+// --- Quick Action Button ---
+const QuickAction: React.FC<{ 
     icon: React.FC<any>, 
     label: string, 
-    subLabel?: string, 
-    color: string, 
+    desc: string, 
+    color: 'indigo' | 'purple' | 'blue' | 'cyan',
     onClick: () => void 
-}> = ({ icon: Icon, label, subLabel, color, onClick }) => {
-    
-    const colorStyles: Record<string, string> = {
+}> = ({ icon: Icon, label, desc, color, onClick }) => {
+    const colors = {
+        indigo: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
         purple: 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white',
         blue: 'bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white',
-        indigo: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
         cyan: 'bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white',
     };
 
     return (
         <button 
             onClick={onClick}
-            className="group relative flex items-center p-4 w-full bg-white/70 backdrop-blur-xl border border-white/60 rounded-2xl shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 text-left overflow-hidden"
+            className="group relative p-5 bg-white rounded-[20px] border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 text-left w-full overflow-hidden"
         >
-            <div className={`p-3 rounded-xl transition-colors duration-300 ${colorStyles[color] || colorStyles.indigo}`}>
-                <Icon className="w-6 h-6" />
+            <div className="flex items-start justify-between mb-3">
+                <div className={`p-3 rounded-xl transition-colors duration-300 ${colors[color]}`}>
+                    <Icon className="w-6 h-6" />
+                </div>
+                <ArrowRightIcon className="w-4 h-4 text-slate-300 group-hover:text-slate-600 group-hover:translate-x-1 transition-all" />
             </div>
-            <div className="ml-4 flex-1">
-                <h3 className="text-sm font-bold text-slate-800 group-hover:text-indigo-700 transition-colors">{label}</h3>
-                {subLabel && <p className="text-xs text-slate-500 mt-0.5">{subLabel}</p>}
-            </div>
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 duration-300">
-                <ArrowRightIcon className="w-4 h-4 text-slate-400" />
-            </div>
+            <h3 className="text-base font-bold text-slate-800 mb-1">{label}</h3>
+            <p className="text-xs text-slate-500 font-medium">{desc}</p>
         </button>
     );
 };
@@ -139,87 +99,95 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNavigate }) => {
     return (
-        <div className="relative min-h-full w-full font-sans text-slate-900 pb-20">
-            {/* 1. Dynamic Background Layer */}
-            <DynamicBackground />
+        <div className="min-h-full bg-[#f8fafc] w-full overflow-x-hidden font-sans relative">
+            {/* Ambient Background */}
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-100/40 rounded-full blur-[120px] opacity-50 animate-pulse"></div>
+                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-100/40 rounded-full blur-[120px] opacity-50 animate-pulse" style={{ animationDelay: '2s' }}></div>
+            </div>
 
             <div className="relative z-10 max-w-[1920px] mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
                 
-                {/* 2. Hero Section */}
-                <div className="animate-in slide-in-from-top-4 duration-700">
-                    <CommandHero user={user} />
-                </div>
+                {/* 1. Hero Section */}
+                <CommandHero user={user} />
 
-                {/* 3. System Vitals */}
-                <div className="animate-in slide-in-from-bottom-4 duration-700 delay-100">
+                {/* 2. System Vitals */}
+                <div className="animate-in slide-in-from-bottom-4 duration-700">
                     <DashboardWidgets />
                 </div>
 
-                {/* 4. Main Layout Grid */}
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in slide-in-from-bottom-8 duration-1000 delay-200">
+                {/* 3. Main Grid */}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in slide-in-from-bottom-8 duration-1000">
                     
-                    {/* Left Column (Operations) - Wider to accommodate content */}
-                    <div className="xl:col-span-9 flex flex-col gap-6">
-                        {/* Operational Panels Row */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[480px]">
+                    {/* Left Column: Operations (8 cols) */}
+                    <div className="xl:col-span-8 flex flex-col gap-8">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px]">
                             <TodaysEvents onNavigate={onNavigate} />
                             <RecentDeepDives onNavigate={onNavigate} />
                         </div>
                         
-                        {/* Subscription Manager (Full Width of Left Col) */}
-                        <div className="bg-white/60 backdrop-blur-xl rounded-[24px] border border-white/60 p-6 shadow-sm hover:shadow-md transition-shadow duration-300">
+                        {/* Subscription Manager */}
+                        <div className="bg-white/70 backdrop-blur-xl rounded-[24px] border border-white/60 p-6 shadow-sm">
                             <SubscriptionManager />
                         </div>
                     </div>
 
-                    {/* Right Column (Quick Access) - Narrower, cleaner */}
-                    <div className="xl:col-span-3 flex flex-col gap-4">
-                        <div className="flex items-center justify-between px-1 mb-1">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Quick Access</h2>
+                    {/* Right Column: Quick Actions & Status (4 cols) */}
+                    <div className="xl:col-span-4 flex flex-col gap-6">
+                        <div className="flex items-center justify-between px-1">
+                            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Quick Access</h2>
                         </div>
                         
-                        <div className="flex flex-col gap-3">
-                            <QuickActionTile 
+                        <div className="grid grid-cols-2 gap-4">
+                            <QuickAction 
                                 icon={SparklesIcon}
                                 label="AI 报告生成"
-                                subLabel="一键生成行业研报"
+                                desc="一键生成行业研报"
                                 color="purple"
                                 onClick={() => onNavigate('ai')}
                             />
-                            <QuickActionTile 
+                            <QuickAction 
                                 icon={SearchIcon}
                                 label="情报检索"
-                                subLabel="全网资讯深度搜索"
+                                desc="全网资讯深度搜索"
                                 color="blue"
                                 onClick={() => onNavigate('cockpit')}
                             />
-                            <QuickActionTile 
+                            <QuickAction 
                                 icon={ChartIcon}
                                 label="竞争力看板"
-                                subLabel="参数级竞品对标"
+                                desc="参数级竞品对标"
                                 color="indigo"
                                 onClick={() => onNavigate('techboard')}
                             />
-                            <QuickActionTile 
+                            <QuickAction 
                                 icon={DocumentTextIcon}
                                 label="上传文档"
-                                subLabel="PDF 转知识库"
+                                desc="PDF 转知识库"
                                 color="cyan"
                                 onClick={() => onNavigate('dives')}
                             />
                         </div>
 
-                        {/* Decorative "AI Status" Box - Purely Visual, minimal footprint */}
-                        <div className="mt-auto p-6 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white relative overflow-hidden shadow-xl group">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/30 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+                        {/* Mini Status Module */}
+                        <div className="mt-auto bg-slate-900 rounded-[24px] p-6 text-white relative overflow-hidden group shadow-2xl shadow-slate-900/20">
+                            <div className="absolute -right-10 -top-10 w-32 h-32 bg-indigo-500 rounded-full filter blur-3xl opacity-20 animate-pulse"></div>
                             <div className="relative z-10">
-                                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 backdrop-blur-sm border border-white/10">
-                                    <SparklesIcon className="w-5 h-5 text-indigo-300" />
+                                <h3 className="font-bold text-lg mb-4">Platform Status</h3>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                                        <span className="text-slate-400">API Latency</span>
+                                        <span className="text-emerald-400 font-mono font-bold">24ms</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                                        <span className="text-slate-400">Crawler Nodes</span>
+                                        <span className="text-blue-400 font-mono font-bold">Online</span>
+                                    </div>
+                                    <div className="flex justify-between items-center py-2">
+                                        <span className="text-slate-400">AI Engine</span>
+                                        <span className="text-purple-400 font-mono font-bold">Idle</span>
+                                    </div>
                                 </div>
-                                <h3 className="font-bold text-lg">Auto Insight</h3>
-                                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                                    AI 引擎正在后台持续学习与索引。
-                                </p>
                             </div>
                         </div>
                     </div>
