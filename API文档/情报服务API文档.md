@@ -103,16 +103,24 @@
 #### 启用/禁用爬虫
 - 路径：`/api/crawler/points/{point_id}/toggle`
 - 方法：`POST`
-- 描述：允许用户通过API接口开启该子爬虫或者停止该子爬虫的爬取。
+- 描述：启用或禁用某个具体情报点，并持久化到数据库与调度器（入口调度项将同步更新）。
 - 请求体：
   ```json
-  {
-    "enable": true
-  }
+  { "enable": true }
   ```
 - 响应：
   - `200`: `{"success": true, "message": "Crawler ... has been enabled."}`
   - `404`: 情报点不存在
+
+#### 批量启用/禁用某情报源下所有情报点
+- 路径：`/api/crawler/sources/{source_name}/toggle`
+- 方法：`POST`
+- 描述：对某个情报源的所有情报点执行启用/禁用，并同步调度表 `CrawlerSchedule` 的入口项。
+- 请求体：
+  ```json
+  { "enable": false }
+  ```
+- 响应：`{"success": true, "message": "Source '盖世汽车' points disabled: 12"}`
 
 ---
 
@@ -143,11 +151,13 @@
 - 路径：`/api/crawler/articles`
 - 方法：`DELETE`
 - 描述：批量删除文章及其关联的向量分段、输出状态记录。
-- 请求体：
-  ```json
-  {
-    "article_ids": ["<article_id_1>", "<article_id_2>"]
-  }
+- 参数（Query）：
+  - `article_ids`：可重复的查询参数，如 `?article_ids=id1&article_ids=id2`
+  - 说明：为便于前端直接使用链接方式删除，现支持通过 Query 传递 ID 列表。
+- cURL 示例：
+  ```bash
+  curl -X DELETE "http://127.0.0.1:7657/api/crawler/articles?article_ids=ID_1&article_ids=ID_2" \
+    -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
   ```
 - 响应：
   - `200`: `{"message": "Successfully deleted X article(s) and their associated vectors."}`
@@ -310,11 +320,53 @@
 - 方法：`GET`
 - 响应：`{"has_cookie": true, "valid": true}`
 
-#### 更新 Gemini Cookie
+#### 更新 Gemini Cookie（支持 JSON 与 Form）
 - 路径：`/api/crawler/gemini/cookies`
 - 方法：`POST`
-- 请求类型：`multipart/form-data` 或 `application/x-www-form-urlencoded`
-- 参数：
-  - `secure_1psid`
-  - `secure_1psidts`
+- 认证：需要Bearer Token
+- 请求类型：`application/json` 或 `multipart/form-data` / `application/x-www-form-urlencoded`
+- 请求字段：
+  - `secure_1psid` (必填)
+  - `secure_1psidts` (必填)
   - `http_proxy` (可选)
+- JSON 示例：
+  ```bash
+  curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
+    -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"secure_1psid":"<值>","secure_1psidts":"<值>","http_proxy":"http://127.0.0.1:20171"}'
+  ```
+- Form 示例：
+  ```bash
+  curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
+    -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+    -F "secure_1psid=<值>" -F "secure_1psidts=<值>" -F "http_proxy=http://127.0.0.1:20171"
+  ```
+
+---
+
+### 6. 立即执行子爬虫
+
+#### 立即触发执行（按情报源）
+- 路径：`/api/crawler/crawlers/{source_name}/run-now`
+- 方法：`POST`
+- 认证：需要Bearer Token
+- 描述：根据 `services/crawler/crawlers/{source_name}/crawler.py` 自动加载并在后台线程中立即执行该爬虫的 `run_crawler(db: Session)`。此接口不阻塞请求，返回启动状态。
+- 路径参数：
+  - `source_name`: 情报源目录名或该爬虫在代码中声明的 `SOURCE_NAME`
+- cURL 示例：
+```bash
+curl -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+- 返回示例 (200 OK)：
+```json
+{
+  "message": "started",
+  "source_name": "盖世汽车",
+  "module_path": "services.crawler.crawlers.盖世汽车.crawler"
+}
+```
+- 说明：
+- 若 `source_name` 不存在或无法加载，返回 `404`。
+- 新增任何爬虫目录（包含 `crawler.py` 并定义 `SOURCE_NAME`、`CRON_SCHEDULE`、`INTELLIGENCE_TYPE`、`INITIAL_URL`、`POINTS`/`POINTS_DEFAULT`、以及 `run_crawler(db)`）均可自动被此接口发现并触发。
