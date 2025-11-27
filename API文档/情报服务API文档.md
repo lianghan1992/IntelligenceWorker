@@ -320,23 +320,16 @@
 - 方法：`GET`
 - 响应：`{"has_cookie": true, "valid": true}`
 
-#### 更新 Gemini Cookie（支持 JSON 与 Form）
+#### 更新 Gemini Cookie（仅支持表单）
 - 路径：`/api/crawler/gemini/cookies`
 - 方法：`POST`
 - 认证：需要Bearer Token
-- 请求类型：`application/json` 或 `multipart/form-data` / `application/x-www-form-urlencoded`
+- 请求类型：`multipart/form-data` 或 `application/x-www-form-urlencoded`
 - 请求字段：
   - `secure_1psid` (必填)
   - `secure_1psidts` (必填)
   - `http_proxy` (可选)
-- JSON 示例：
-  ```bash
-  curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
-    -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{"secure_1psid":"<值>","secure_1psidts":"<值>","http_proxy":"http://127.0.0.1:20171"}'
-  ```
-- Form 示例：
+- cURL 示例：
   ```bash
   curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
     -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
