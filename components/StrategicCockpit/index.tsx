@@ -17,7 +17,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
     // Active query state for API calls
-    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi', value: string, label: string }>({ 
+    // type can be 'sublook', 'poi', or 'search'
+    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
         type: 'sublook', 
         value: '*', 
         label: '所有情报' 
@@ -129,6 +130,17 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
         }
     };
 
+    const handleSearch = (keyword: string) => {
+        if (!keyword.trim()) return;
+        setActiveQuery({
+            type: 'search',
+            value: keyword,
+            label: `搜索: ${keyword}`
+        });
+        setSelectedArticle(null);
+        setMobileView('list');
+    };
+
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
         setMobileView('detail'); // Navigate to detail on mobile
@@ -224,9 +236,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                         ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
                         {/* Mobile Header for List */}
-                        <div className="md:hidden px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
-                            <button onClick={backToNav} className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-slate-600"/></button>
-                            <h3 className="font-bold text-slate-800 truncate flex-1">{activeQuery.label}</h3>
+                        <div className="md:hidden flex-shrink-0 z-10">
+                             {/* The mobile header is now integrated into IntelligenceCenter to handle search state */}
                         </div>
 
                         <IntelligenceCenter
@@ -243,6 +254,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
                             // Toggle props for sidebar control
                             isSidebarOpen={isSidebarOpen}
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                            onSearch={handleSearch}
+                            onBackToNav={backToNav} // Pass back handler for mobile
                         />
                     </div>
                     

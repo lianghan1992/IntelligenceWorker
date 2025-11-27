@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { InfoItem } from '../../types';
-import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MenuIcon, ViewGridIcon } from '../icons';
+import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MenuIcon, ViewGridIcon, SearchIcon, CloseIcon } from '../icons';
 
 const ArticleCard: React.FC<{
     article: InfoItem;
@@ -65,9 +65,10 @@ interface IntelligenceCenterProps {
     totalPages: number;
     totalItems: number;
     onPageChange: (newPage: number) => void;
-    // New props for sidebar control
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
+    onSearch?: (query: string) => void; // New prop for search
+    onBackToNav?: () => void; // New prop for mobile back navigation
 }
 
 export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
@@ -82,32 +83,113 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     totalItems,
     onPageChange,
     isSidebarOpen = true,
-    onToggleSidebar
+    onToggleSidebar,
+    onSearch,
+    onBackToNav
 }) => {
-    
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isSearchOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isSearchOpen]);
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (searchValue.trim() && onSearch) {
+            onSearch(searchValue.trim());
+            // On mobile, close search bar after search to show title (optional)
+            // setIsSearchOpen(false); 
+        }
+    };
+
+    const clearSearch = () => {
+        setSearchValue('');
+        if (isSearchOpen) {
+            setIsSearchOpen(false);
+        }
+        // Optionally trigger a reset search here if desired
+    };
+
     return (
         <div className="h-full flex flex-col bg-white/50 backdrop-blur-sm">
             {/* Header */}
-            <div className="hidden md:flex px-5 py-4 border-b border-slate-100 bg-white/80 backdrop-blur flex-shrink-0 items-center justify-between gap-4 h-[72px]">
-                <div className="flex items-center gap-3 overflow-hidden">
-                    {/* Sidebar Toggle Button (Desktop) */}
-                    {onToggleSidebar && (
+            <div className="px-4 py-3 md:px-5 md:py-4 border-b border-slate-100 bg-white/80 backdrop-blur flex-shrink-0 items-center h-[64px] md:h-[72px] relative overflow-hidden">
+                
+                {/* Standard Header Content (Title & Toggle) */}
+                <div className={`flex items-center justify-between h-full w-full transition-opacity duration-300 ${isSearchOpen ? 'opacity-0 pointer-events-none absolute inset-0 px-4' : 'opacity-100'}`}>
+                    <div className="flex items-center gap-3 overflow-hidden flex-1">
+                        {/* Mobile Back Button */}
                         <button 
-                            onClick={onToggleSidebar}
-                            className={`p-2 rounded-xl transition-all duration-200 hover:bg-slate-100 text-slate-500 hover:text-slate-700 flex-shrink-0 ${!isSidebarOpen ? 'bg-indigo-50 text-indigo-600' : ''}`}
-                            title={isSidebarOpen ? "收起导航" : "展开导航"}
+                            onClick={onBackToNav} 
+                            className="md:hidden p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors"
                         >
-                            {isSidebarOpen ? <ViewGridIcon className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
+                            <ChevronLeftIcon className="w-5 h-5 text-slate-600"/>
                         </button>
-                    )}
-                    <div className="flex flex-col min-w-0">
-                        <h3 className="font-extrabold text-slate-900 text-base lg:text-lg tracking-tight truncate" title={title}>{title}</h3>
-                        {!isLoading && (
-                            <p className="text-[10px] text-slate-400 font-medium truncate">
-                                {totalItems} 条情报
-                            </p>
+
+                        {/* Desktop Sidebar Toggle */}
+                        {onToggleSidebar && (
+                            <button 
+                                onClick={onToggleSidebar}
+                                className={`hidden md:block p-2 rounded-xl transition-all duration-200 hover:bg-slate-100 text-slate-500 hover:text-slate-700 flex-shrink-0 ${!isSidebarOpen ? 'bg-indigo-50 text-indigo-600' : ''}`}
+                                title={isSidebarOpen ? "收起导航" : "展开导航"}
+                            >
+                                {isSidebarOpen ? <ViewGridIcon className="w-5 h-5" /> : <MenuIcon className="w-5 h-5" />}
+                            </button>
                         )}
+                        
+                        <div className="flex flex-col min-w-0">
+                            <h3 className="font-extrabold text-slate-900 text-base lg:text-lg tracking-tight truncate" title={title}>{title}</h3>
+                            {!isLoading && (
+                                <p className="text-[10px] text-slate-400 font-medium truncate hidden sm:block">
+                                    {totalItems} 条情报
+                                </p>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Search Trigger Button */}
+                    <button 
+                        onClick={() => setIsSearchOpen(true)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                        title="搜索"
+                    >
+                        <SearchIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Expanded Search Bar */}
+                <div className={`absolute inset-0 bg-white flex items-center px-4 transition-transform duration-300 ease-in-out ${isSearchOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+                    <form onSubmit={handleSearchSubmit} className="flex-1 relative flex items-center">
+                        <SearchIcon className="absolute left-3 w-4 h-4 text-slate-400" />
+                        <input 
+                            ref={inputRef}
+                            type="text" 
+                            className="w-full bg-slate-100 border-none text-slate-700 text-sm rounded-full pl-9 pr-8 py-2 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner"
+                            placeholder="输入关键词搜索..."
+                            value={searchValue}
+                            onChange={(e) => setSearchValue(e.target.value)}
+                            onBlur={() => { if (!searchValue) setIsSearchOpen(false); }}
+                        />
+                        {searchValue && (
+                            <button 
+                                type="button" 
+                                onClick={() => setSearchValue('')}
+                                className="absolute right-2 p-1 text-slate-400 hover:text-slate-600"
+                            >
+                                <CloseIcon className="w-4 h-4" />
+                            </button>
+                        )}
+                    </form>
+                    <button 
+                        onClick={clearSearch} 
+                        className="ml-3 text-sm font-medium text-slate-500 hover:text-slate-800"
+                    >
+                        取消
+                    </button>
                 </div>
             </div>
 
