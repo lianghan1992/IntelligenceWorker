@@ -1,28 +1,65 @@
 
-import { COMPETITIVENESS_ANALYSIS_SERVICE_PATH, COMPETITIVENESS_SERVICE_PATH } from '../config';
+import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } from '../config';
 import { 
-    PaginatedResponse, KnowledgeBaseItem,
-    KnowledgeBaseDetail, KnowledgeBaseMeta, SourceArticleWithRecords, KnowledgeBaseTraceability,
+    CompetitivenessStatus, TechAnalysisTask,
+    // Keep legacy types for now to avoid breaking other components not yet refactored
     DashboardOverview, DashboardTrendItem, DashboardDistributionItem, DashboardQuality,
-    DataQueryResponse
+    DataQueryResponse, PaginatedResponse, KnowledgeBaseItem, KnowledgeBaseMeta,
+    KnowledgeBaseDetail, SourceArticleWithRecords, KnowledgeBaseTraceability
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
-// --- Analysis Tasks ---
+// --- Control & Status ---
 
-export const triggerArticleAnalysis = (articleId: string): Promise<{ task_id: string; status: string; message: string }> => {
-    return apiFetch<{ task_id: string; status: string; message: string }>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/analyze/article`, {
-        method: 'POST',
-        body: JSON.stringify({ article_id: articleId }),
-    });
-};
+export const getCompetitivenessStatus = (): Promise<CompetitivenessStatus> => 
+    apiFetch<CompetitivenessStatus>(`${COMPETITIVENESS_SERVICE_PATH}/status`);
 
-export const triggerBatchAnalysis = (articleIds: string[]): Promise<any> => {
-    return apiFetch<any>(`${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/analyze/batch`, {
+export const toggleCompetitivenessService = (enabled: boolean): Promise<{ message: string; enabled: boolean }> =>
+    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/control`, {
         method: 'POST',
-        body: JSON.stringify({ article_ids: articleIds }),
+        body: JSON.stringify({ enabled }),
     });
-};
+
+// --- Data Management (Dimensions & Brands) ---
+
+export const getDimensions = (): Promise<string[]> =>
+    apiFetch<string[]>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`);
+
+export const addDimension = (name: string): Promise<void> =>
+    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+
+export const getBrands = (): Promise<string[]> =>
+    apiFetch<string[]>(`${COMPETITIVENESS_SERVICE_PATH}/brands`);
+
+export const addBrand = (name: string): Promise<void> =>
+    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/brands`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+
+export const batchUpdateSecondaryDimension = (data: { old_name: string; new_name: string; tech_dimension?: string }): Promise<{ message: string; updated_count: number }> =>
+    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/secondary-dimensions/batch-update`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+// --- Analysis ---
+
+export const analyzeArticleStage1 = (data: { article_id: string; title?: string; content?: string }): Promise<TechAnalysisTask[]> =>
+    apiFetch<TechAnalysisTask[]>(`${COMPETITIVENESS_SERVICE_PATH}/analyze/stage1`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+
+// =========================================================================================
+// Legacy / Dashboard APIs (Keeping these for now to support the User Dashboard view)
+// In a full refactor, these would also be updated to match the new backend structure
+// or the backend would need to provide these specific endpoints.
+// =========================================================================================
 
 // --- Knowledge Base (Read & Export) ---
 
@@ -55,47 +92,23 @@ export const getKnowledgeBaseTraceability = (id: number, techName: string): Prom
 };
 
 export const exportKnowledgeBase = async (params: any): Promise<void> => {
+    // ... Legacy implementation
     const query = createApiQuery(params);
     const url = `${COMPETITIVENESS_ANALYSIS_SERVICE_PATH}/knowledge_base/export${query}`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
-    try {
-        const response = await fetch(url, { headers });
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-            throw new Error(errorData.message || '导出失败');
-        }
-
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        
-        const disposition = response.headers.get('content-disposition');
-        let filename = `knowledge_base_export_${new Date().toISOString().slice(0,10)}.csv`;
-        if (disposition && disposition.indexOf('attachment') !== -1) {
-            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-            const matches = filenameRegex.exec(disposition);
-            if (matches != null && matches[1]) { 
-                filename = matches[1].replace(/['"]/g, '');
-            }
-        }
-        
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-
-    } catch (error) {
-        console.error("Export failed:", error);
-        throw error; 
-    }
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('导出失败');
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `kb_export.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(downloadUrl);
 };
 
 

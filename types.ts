@@ -312,7 +312,7 @@ export interface NewTechForecast {
 // ** END DEPRECATED **
 
 
-// --- New Competitiveness Knowledge Base ---
+// --- New Competitiveness Knowledge Base (Legacy) ---
 
 export interface KnowledgeBaseItem {
   id: number;
@@ -394,61 +394,25 @@ export interface KnowledgeBaseTraceability {
 }
 
 
-// --- Admin (Competitiveness) ---
+// --- Admin (Competitiveness - NEW) ---
 
-export interface CompetitivenessEntity {
-  id: string;
-  name: string;
-  entity_type: string;
-  aliases: string[];
-  description: string | null;
-  metadata: Record<string, any>;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+export interface CompetitivenessStatus {
+    enabled: boolean;
+    worker_enabled: boolean;
+    llm_provider: string;
 }
 
-export interface CompetitivenessModule {
-  id: string;
-  module_name: string;
-  module_key: string;
-  target_entity_types: string[];
-  final_data_table: string;
-  description: string | null;
-  extraction_fields: Record<string, any>;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DataQueryResponse<T> {
-  data: T[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface VehicleTechnologyFinding {
+export interface TechAnalysisTask {
     id: string;
-    entity_id: string;
-    entity_name: string;
-    technology_name: string;
-    application_area: string;
-    maturity_level: string;
-    event_date: string;
-    source_id: string;
-    updated_at: string;
-}
-
-export interface MarketAnalysisFinding {
-    id: string;
-    entity_id: string;
-    entity_name: string;
-    revenue: number | null;
-    growth_rate: number | null;
-    market_share: number | null;
-    event_date: string;
-    updated_at: string;
+    article_id: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
+    tech_name: string;
+    tech_description: string;
+    reliability: number;
+    is_processed_stage2: boolean;
 }
 
 // --- Admin ---
@@ -495,7 +459,7 @@ export interface PaginatedDocumentsResponse {
 }
 
 
-// --- Competitiveness Dashboard ---
+// --- Competitiveness Dashboard (Stats) ---
 
 export interface DashboardOverview {
     processed_article_count: number;
@@ -518,6 +482,35 @@ export interface DashboardDistributionItem {
 export interface DashboardQuality {
     reliability_distribution: { reliability: number; count: number; percentage: number }[];
     low_reliability_top: { name: string; car_brand: string; tech_dimension: string; reliability: number }[];
+}
+
+// --- Competitiveness Data Query ---
+
+export interface DataQueryResponse<T> {
+    data: T[];
+    total?: number;
+    page?: number;
+    limit?: number;
+}
+
+export interface VehicleTechnologyFinding {
+    id: string;
+    entity_name: string;
+    technology_name: string;
+    application_area?: string;
+    maturity_level?: string;
+    event_date?: string;
+    updated_at: string;
+}
+
+export interface MarketAnalysisFinding {
+    id: string;
+    entity_name: string;
+    revenue?: number;
+    growth_rate?: number;
+    market_share?: number;
+    event_date?: string;
+    updated_at: string;
 }
 
 // --- Deep Insight ---
