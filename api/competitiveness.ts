@@ -1,7 +1,8 @@
 
+
 import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } from '../config';
 import { 
-    CompetitivenessStatus, TechAnalysisTask,
+    CompetitivenessStatus, TechAnalysisTask, CompetitivenessDimension,
     // Keep legacy types for now to avoid breaking other components not yet refactored
     DashboardOverview, DashboardTrendItem, DashboardDistributionItem, DashboardQuality,
     DataQueryResponse, PaginatedResponse, KnowledgeBaseItem, KnowledgeBaseMeta,
@@ -20,15 +21,32 @@ export const toggleCompetitivenessService = (enabled: boolean): Promise<{ messag
         body: JSON.stringify({ enabled }),
     });
 
+export const refreshCompetitivenessCookie = (data: { secure_1psid: string; secure_1psidts: string }): Promise<{ message: string; health: string }> =>
+    apiFetch<{ message: string; health: string }>(`${COMPETITIVENESS_SERVICE_PATH}/cookie/refresh`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
 // --- Data Management (Dimensions & Brands) ---
 
-export const getDimensions = (): Promise<string[]> =>
-    apiFetch<string[]>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`);
+export const getDimensions = (): Promise<CompetitivenessDimension[]> =>
+    apiFetch<CompetitivenessDimension[]>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`);
 
-export const addDimension = (name: string): Promise<void> =>
-    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`, {
+export const addDimension = (name: string, sub_dimensions: string[] = []): Promise<CompetitivenessDimension> =>
+    apiFetch<CompetitivenessDimension>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`, {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, sub_dimensions }),
+    });
+
+export const updateDimension = (name: string, sub_dimensions: string[]): Promise<CompetitivenessDimension> =>
+    apiFetch<CompetitivenessDimension>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions/${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ sub_dimensions }),
+    });
+
+export const deleteDimension = (name: string): Promise<void> =>
+    apiFetch<void>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
     });
 
 export const getBrands = (): Promise<string[]> =>

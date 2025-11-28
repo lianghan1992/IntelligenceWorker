@@ -31,11 +31,38 @@
   {
     "enabled": true,
     "worker_enabled": true,
-    "llm_provider": "gemini_cookie"
+    "llm_provider": "gemini_cookie",
+    "cookie_health": "healthy" // healthy, unhealthy, unknown, error
   }
   ```
 
-### 2. Analysis
+### 2. Cookie Management
+
+#### `POST /competitiveness/cookie/refresh`
+刷新 Google Cookie (仅当 `LLM_PROVIDER` 为 `gemini_cookie` 时有效)。
+- **Description**: 验证新的 Cookie 是否有效。如果有效，会立即更新内存中的 Client 并持久化到 `.env` 文件，无需重启服务。
+- **Request Body**:
+  ```json
+  {
+    "secure_1psid": "Your __Secure-1PSID value...",
+    "secure_1psidts": "Your __Secure-1PSIDTS value..."
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "Cookie updated and persisted successfully.",
+    "health": "healthy"
+  }
+  ```
+- **Error Response (400)**:
+  ```json
+  {
+    "detail": "Cookie update failed. Invalid cookies or connection error."
+  }
+  ```
+
+### 3. Analysis
 
 #### `POST /competitiveness/analyze/stage1`
 触发单篇文章的一阶段分析。
@@ -65,20 +92,48 @@
   ]
   ```
 
-### 3. Data Management (Dimensions & Brands)
+### 4. Data Management (Dimensions & Brands)
 
 #### `GET /competitiveness/dimensions`
-获取所有一级技术维度。
-- **Response**: `["智能驾驶", "智能座舱", ...]`
+获取所有一级技术维度（及其二级子维度）。
+- **Response**: List of TechDimension objects
+  ```json
+  [
+    {
+      "id": "uuid",
+      "name": "智能驾驶",
+      "sub_dimensions": ["激光雷达", "自动驾驶芯片"],
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+  ```
 
 #### `POST /competitiveness/dimensions`
-创建新的一级技术维度。
+创建新的一级技术维度（可同时指定二级子维度）。
 - **Request Body**:
   ```json
   {
-    "name": "新维度名称"
+    "name": "飞行汽车",
+    "sub_dimensions": ["垂直起降", "低空管制"]
   }
   ```
+- **Response**: Created TechDimension object
+
+#### `PUT /competitiveness/dimensions/{name}`
+更新一级技术维度（主要用于更新二级子维度列表）。
+- **Description**: 将覆盖原有的 `sub_dimensions` 列表。
+- **Request Body**:
+  ```json
+  {
+    "sub_dimensions": ["激光雷达", "自动驾驶芯片", "端到端大模型"]
+  }
+  ```
+- **Response**: Updated TechDimension object
+
+#### `DELETE /competitiveness/dimensions/{name}`
+删除一级技术维度。
+- **Response**: 204 No Content
 
 #### `GET /competitiveness/brands`
 获取所有车企/品牌。
@@ -92,6 +147,7 @@
     "name": "新车企名称"
   }
   ```
+- **Response**: Created VehicleBrand object
 
 #### `POST /competitiveness/secondary-dimensions/batch-update`
 批量更新二级子维度名称（数据清洗）。

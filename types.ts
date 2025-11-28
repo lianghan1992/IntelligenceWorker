@@ -1,4 +1,5 @@
 
+
 // --- General ---
 
 export interface PaginatedResponse<T> {
@@ -400,6 +401,15 @@ export interface CompetitivenessStatus {
     enabled: boolean;
     worker_enabled: boolean;
     llm_provider: string;
+    cookie_health?: 'healthy' | 'unhealthy' | 'unknown' | 'error';
+}
+
+export interface CompetitivenessDimension {
+    id: string;
+    name: string;
+    sub_dimensions: string[];
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface TechAnalysisTask {
