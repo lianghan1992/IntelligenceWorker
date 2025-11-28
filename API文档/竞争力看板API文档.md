@@ -167,6 +167,59 @@
   }
   ```
 
+### 5. Technical Intelligence (Stage 2 Results)
+
+#### `GET /competitiveness/tech-items`
+获取技术情报主表列表 (Stage 2 结果)。
+- **Description**: 查询经过二阶段合并去重后的"Golden Record"技术情报。
+- **Query Parameters**:
+  - `vehicle_brand` (optional): 按车企过滤
+  - `tech_dimension` (optional): 按一级技术维度过滤
+  - `skip`: 分页偏移 (default: 0)
+  - `limit`: 分页大小 (default: 50)
+- **Response**: List of TechItem objects
+  ```json
+  [
+    {
+      "id": "uuid",
+      "vehicle_brand": "小米汽车",
+      "vehicle_model": "SU7",
+      "tech_dimension": "智能驾驶",
+      "secondary_tech_dimension": "激光雷达",
+      "name": "一体式激光雷达",
+      "description": "...",
+      "reliability": 4,
+      "latest_article_id": "...",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+  ```
+
+#### `GET /competitiveness/tech-items/{item_id}`
+获取单条技术情报详情 (包含完整历史变更记录)。
+- **Description**: 查看某项技术情报的演变历史（新增、更新、佐证）。
+- **Response**: TechItem object with History
+  ```json
+  {
+    "id": "uuid",
+    "name": "一体式激光雷达",
+    "vehicle_brand": "小米汽车",
+    ...
+    "history": [
+      {
+        "id": "history-uuid",
+        "change_type": "Create", // or Update, Corroborate
+        "reliability_snapshot": 3,
+        "description_snapshot": "...",
+        "event_time": "...",
+        "article_id": "..."
+      },
+      ...
+    ]
+  }
+  ```
+
 ## Database Models
 
 ### TechAnalysisTask (一阶段结果)
@@ -179,6 +232,27 @@
 - `tech_description`: 技术描述
 - `reliability`: 可靠性评分 (1-4)
 - `is_processed_stage2`: 是否已进行二阶段处理
+
+### TechItem (二阶段结果 - 主表)
+- `id`: UUID
+- `vehicle_brand`: 车企
+- `vehicle_model`: 车型
+- `tech_dimension`: 一级技术维度
+- `secondary_tech_dimension`: 二级子维度
+- `name`: 标准化技术名称
+- `description`: 最新技术描述
+- `reliability`: 最新可信度
+- `latest_article_id`: 最近一次更新来源
+- `history`: 关联的历史记录列表
+
+### TechItemHistory (二阶段结果 - 历史记录)
+- `tech_item_id`: 关联主表ID
+- `raw_extraction_id`: 关联一阶段提取记录ID
+- `article_id`: 关联文章ID
+- `change_type`: 变更类型 (Create, Update, Corroborate)
+- `reliability_snapshot`: 当时可信度
+- `description_snapshot`: 当时描述
+- `event_time`: 发生时间
 
 ### VehicleBrand
 - `name`: 车企名称

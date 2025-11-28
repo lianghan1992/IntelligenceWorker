@@ -2,7 +2,7 @@
 
 import { COMPETITIVENESS_SERVICE_PATH, COMPETITIVENESS_ANALYSIS_SERVICE_PATH } from '../config';
 import { 
-    CompetitivenessStatus, TechAnalysisTask, CompetitivenessDimension,
+    CompetitivenessStatus, TechAnalysisTask, CompetitivenessDimension, TechItem,
     // Keep legacy types for now to avoid breaking other components not yet refactored
     DashboardOverview, DashboardTrendItem, DashboardDistributionItem, DashboardQuality,
     DataQueryResponse, PaginatedResponse, KnowledgeBaseItem, KnowledgeBaseMeta,
@@ -71,6 +71,17 @@ export const analyzeArticleStage1 = (data: { article_id: string; title?: string;
         method: 'POST',
         body: JSON.stringify(data),
     });
+
+// --- Technical Intelligence (Stage 2) ---
+
+export const getTechItems = (params: { skip?: number; limit?: number; vehicle_brand?: string; tech_dimension?: string }): Promise<TechItem[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<TechItem[]>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items${query}`);
+}
+
+export const getTechItemDetail = (itemId: string): Promise<TechItem> => {
+    return apiFetch<TechItem>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items/${itemId}`);
+}
 
 
 // =========================================================================================

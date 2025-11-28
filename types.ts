@@ -425,6 +425,32 @@ export interface TechAnalysisTask {
     is_processed_stage2: boolean;
 }
 
+export interface TechItemHistory {
+    id: string;
+    tech_item_id: string;
+    raw_extraction_id: string;
+    article_id: string;
+    change_type: string; // Create, Update, Corroborate
+    reliability_snapshot: number;
+    description_snapshot: string;
+    event_time: string;
+}
+
+export interface TechItem {
+    id: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
+    name: string;
+    description: string;
+    reliability: number;
+    latest_article_id: string;
+    created_at: string;
+    updated_at: string;
+    history?: TechItemHistory[]; // Optional, present in detail view
+}
+
 // --- Admin ---
 
 export interface BackfillJob {
