@@ -211,11 +211,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                         );
                                     }
 
-                                    // Expanded View
+                                    // Expanded View: Handle empty sub_dimensions case
                                     if (dim.sub_dimensions.length === 0) {
                                         return <td key={`${brand}-${dim.id}-empty`} className="border-b border-r border-slate-200 bg-slate-50/20"></td>;
                                     }
 
+                                    // Expanded View: Render cells for each sub-dimension
                                     return dim.sub_dimensions.map(sub => {
                                         const item = brandDimData?.get(sub);
                                         
@@ -257,13 +258,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                             </td>
                                         );
                                     });
-                                });
-                            })}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
     );
 };
