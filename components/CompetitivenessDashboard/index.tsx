@@ -56,7 +56,7 @@ const DossierPanel: React.FC<{
     }, [item.history]);
 
     return (
-        <div className="h-full overflow-y-auto p-6 space-y-8 custom-scrollbar">
+        <div className="h-full overflow-y-auto p-6 space-y-8 custom-scrollbar bg-white">
             <header>
                 <div className="flex items-center gap-2 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
                      <span className="px-2 py-1 bg-slate-100 rounded border border-slate-200 text-slate-600">{item.vehicle_brand}</span>
@@ -165,7 +165,7 @@ const IntelligenceMatrix: React.FC = () => {
     const fetchItems = useCallback(async () => {
         setIsLoading(true);
         try {
-            const limit = viewMode === 'matrix' ? 500 : 50; // Matrix needs more data to populate cells
+            const limit = viewMode === 'matrix' ? 500 : 50; 
             const res = await getTechItems({
                 vehicle_brand: filters.brand || undefined,
                 tech_dimension: filters.dimension || undefined,
@@ -199,6 +199,7 @@ const IntelligenceMatrix: React.FC = () => {
             }
             handleHistoryClick(initialHistory); 
 
+            // If in matrix mode, open modal. If list mode, just set selected item to show 3-column view.
             if (viewMode === 'matrix') {
                 setIsDetailModalOpen(true);
             }
@@ -210,9 +211,7 @@ const IntelligenceMatrix: React.FC = () => {
     const handleHistoryClick = async (history: TechItemHistory | null) => {
         setSelectedHistory(history);
         if (history?.article_id) {
-            // Fetch article metadata to display in EvidenceTrail
             try {
-                // Use the new API to get metadata (URL, Title)
                 const articleInfo = await getArticleById(history.article_id);
                 setSelectedSourceArticle(articleInfo);
             } catch (e) {
@@ -237,6 +236,7 @@ const IntelligenceMatrix: React.FC = () => {
 
     const closeModal = () => {
         setIsDetailModalOpen(false);
+        // Only clear selected item in matrix mode, in list mode deselecting handles layout change
         if (viewMode === 'matrix') {
             setSelectedItem(null);
         }
@@ -290,8 +290,13 @@ const IntelligenceMatrix: React.FC = () => {
             {/* Main Content Split */}
             <div className="flex-1 flex overflow-hidden">
                 
-                {/* View Area (List or Matrix) */}
-                <div className={`flex-1 flex flex-col min-w-0 bg-white transition-all duration-500 ease-in-out ${selectedItem && viewMode === 'list' ? 'border-r border-slate-200 xl:max-w-[50%]' : ''}`}>
+                {/* 1. Left/Main List Panel */}
+                <div className={`
+                    flex flex-col min-w-0 bg-white transition-all duration-300 ease-in-out
+                    ${viewMode === 'matrix' 
+                        ? 'w-full' 
+                        : (selectedItem ? 'w-[350px] flex-shrink-0 border-r border-slate-200' : 'w-full')}
+                `}>
                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         {viewMode === 'list' ? (
                             <div className="space-y-3">
@@ -374,9 +379,9 @@ const IntelligenceMatrix: React.FC = () => {
                     )}
                 </div>
 
-                {/* Detail Panel (List View) */}
+                {/* 2 & 3. Middle & Right Panels (Detail & Evidence) - Only in List Mode when Selected */}
                 {viewMode === 'list' && selectedItem && (
-                    <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 shadow-2xl z-20">
+                    <div className="flex-1 flex min-w-0 bg-slate-50 animate-in slide-in-from-right-8 duration-500 relative">
                         {/* Mobile Close Button */}
                         <button 
                             onClick={() => setSelectedItem(null)}
@@ -385,37 +390,35 @@ const IntelligenceMatrix: React.FC = () => {
                             <CloseIcon className="w-5 h-5" />
                         </button>
 
-                        <div className="flex-1 flex flex-col md:flex-row h-full">
-                            {/* Middle: Timeline & Dossier */}
-                            <div className="flex-1 flex flex-col border-r border-slate-200 bg-white min-w-[320px] md:max-w-[400px]">
-                                <DossierPanel 
-                                    item={selectedItem}
-                                    selectedHistoryId={selectedHistory?.id || null}
-                                    onSelectHistory={handleHistoryClick}
-                                />
-                            </div>
-                            
-                            {/* Right: Article Viewer */}
-                            <div className="flex-[1.5] bg-white flex flex-col h-full overflow-hidden">
-                                {selectedSourceArticle ? (
-                                    <EvidenceTrail selectedArticle={selectedSourceArticle} />
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 p-8 bg-slate-50/50">
-                                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border border-slate-200">
-                                            <DocumentTextIcon className="w-10 h-10 text-slate-300" />
-                                        </div>
-                                        <p className="font-bold text-slate-500">暂无信源预览</p>
-                                        <p className="text-sm mt-2 max-w-xs mx-auto">点击左侧时间轴中的卡片以查看原始文章详情。</p>
+                        {/* Middle: Dossier Panel */}
+                        <div className="flex-1 min-w-[320px] max-w-[450px] border-r border-slate-200 bg-white flex flex-col h-full">
+                            <DossierPanel 
+                                item={selectedItem}
+                                selectedHistoryId={selectedHistory?.id || null}
+                                onSelectHistory={handleHistoryClick}
+                            />
+                        </div>
+                        
+                        {/* Right: Evidence Trail */}
+                        <div className="flex-1 min-w-[320px] bg-white flex flex-col h-full overflow-hidden">
+                            {selectedSourceArticle ? (
+                                <EvidenceTrail selectedArticle={selectedSourceArticle} />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 p-8 bg-slate-50/50">
+                                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border border-slate-200">
+                                        <DocumentTextIcon className="w-10 h-10 text-slate-300" />
                                     </div>
-                                )}
-                            </div>
+                                    <p className="font-bold text-slate-500">暂无信源预览</p>
+                                    <p className="text-sm mt-2 max-w-xs mx-auto">点击左侧时间轴中的卡片以查看原始文章详情。</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Matrix View Detail Modal */}
-            {isDetailModalOpen && selectedItem && (
+            {isDetailModalOpen && selectedItem && viewMode === 'matrix' && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
                     <div className="bg-white rounded-2xl w-full max-w-[95vw] h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b bg-gray-50 flex-shrink-0">
