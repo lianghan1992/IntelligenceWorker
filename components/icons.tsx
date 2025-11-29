@@ -15,6 +15,7 @@ const Icon: React.FC<React.SVGProps<SVGSVGElement>> = ({ children, ...props }) =
   </svg>
 );
 
+// ... existing icons ...
 export const HomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <Icon {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a.75.75 0 011.06 0l8.955 8.955M3 10.5v8.25a.75.75 0 00.75.75h4.5a.75.75 0 00.75-.75V15a.75.75 0 01.75-.75h2.5a.75.75 0 01.75.75v4.5a.75.75 0 00.75.75h4.5a.75.75 0 00.75-.75V10.5M9 21V15a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v6" />
@@ -63,9 +64,7 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
-    {/* Represents 'A' (Auto) and structure */}
     <path d="M12 2L2 19H6L12 8L18 19H22L12 2Z" fill="currentColor" />
-    {/* Represents 'I' (Insight) and core/beam */}
     <path d="M12 12L10 22H14L12 12Z" fill="currentColor" fillOpacity="0.6" />
   </svg>
 );
@@ -332,3 +331,15 @@ export const GlobeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
   </Icon>
 );
+
+export const ArrowsPointingOutIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+    </Icon>
+  );
+  
+  export const ArrowsPointingInIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+    </Icon>
+  );
