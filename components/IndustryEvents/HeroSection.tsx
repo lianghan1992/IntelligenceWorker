@@ -23,31 +23,31 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
     if (['recording', 'downloading', 'stopping'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-100 border border-red-500/30 text-[10px] sm:text-xs font-bold rounded-full animate-pulse">
-                <span className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                LIVE 直播中
+            <span className="inline-flex items-center gap-2 px-3 py-1 bg-red-500/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-[0_0_15px_rgba(239,68,68,0.5)] animate-pulse">
+                <span className="w-2 h-2 bg-white rounded-full"></span>
+                LIVE NOW
             </span>
         );
     }
     if (['listening', 'scheduled', 'pending'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-500/20 text-blue-100 border border-blue-500/30 text-[10px] sm:text-xs font-bold rounded-full">
-                <ClockIcon className="w-3.5 h-3.5 text-blue-400" />
-                即将开始
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold rounded-full">
+                <ClockIcon className="w-3.5 h-3.5" />
+                UPCOMING
             </span>
         );
     }
     if (s === 'processing') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 text-[10px] sm:text-xs font-bold rounded-full">
-                <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
-                AI生成中
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/80 backdrop-blur-md text-white text-xs font-bold rounded-full">
+                <SparklesIcon className="w-3.5 h-3.5" />
+                AI PROCESSING
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-700/50 text-slate-300 border border-slate-600/50 text-[10px] sm:text-xs font-bold rounded-full">
-            精彩回放
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 backdrop-blur-md text-slate-300 border border-slate-700 text-xs font-bold rounded-full">
+            REPLAY
         </span>
     );
 };
@@ -59,26 +59,45 @@ const SparklesIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const Countdown: React.FC<{ targetDate: string }> = ({ targetDate }) => {
-    const [timeLeft, setTimeLeft] = useState('');
+    const [time, setTime] = useState<{d: number, h: number, m: number, s: number} | null>(null);
 
     useEffect(() => {
         const calc = () => {
             const diff = new Date(targetDate).getTime() - new Date().getTime();
-            if (diff <= 0) return '即将开始';
+            if (diff <= 0) return null;
             const d = Math.floor(diff / (1000 * 60 * 60 * 24));
             const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((diff % (1000 * 60)) / 1000);
-            
-            if (d > 0) return `${d}天 ${h}小时 ${m}分`;
-            return `${h}小时 ${m}分 ${s}秒`;
+            return { d, h, m, s };
         };
-        setTimeLeft(calc());
-        const timer = setInterval(() => setTimeLeft(calc()), 1000);
+        setTime(calc());
+        const timer = setInterval(() => setTime(calc()), 1000);
         return () => clearInterval(timer);
     }, [targetDate]);
 
-    return <span>{timeLeft}</span>;
+    if (!time) return <span className="text-sm font-bold tracking-widest">即将开始</span>;
+
+    const TimeUnit = ({ val, label }: { val: number, label: string }) => (
+        <div className="flex flex-col items-center mx-2 md:mx-4">
+            <span className="text-2xl md:text-4xl font-light font-mono text-white tracking-tighter">
+                {String(val).padStart(2, '0')}
+            </span>
+            <span className="text-[10px] uppercase text-white/40 tracking-widest font-bold mt-1">{label}</span>
+        </div>
+    );
+
+    return (
+        <div className="flex items-center">
+            {time.d > 0 && <TimeUnit val={time.d} label="DAYS" />}
+            {time.d > 0 && <span className="text-2xl text-white/20 font-light -mt-4">:</span>}
+            <TimeUnit val={time.h} label="HRS" />
+            <span className="text-2xl text-white/20 font-light -mt-4">:</span>
+            <TimeUnit val={time.m} label="MIN" />
+            <span className="text-2xl text-white/20 font-light -mt-4">:</span>
+            <TimeUnit val={time.s} label="SEC" />
+        </div>
+    );
 };
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport }) => {
@@ -91,19 +110,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
             return d.toLocaleDateString('zh-CN') === todayStr;
         };
         
-        // Priority 1: Live
         const live = tasks.filter(t => ['recording', 'downloading', 'stopping'].includes(t.status.toLowerCase()));
-        // Priority 2: Processing
         const processing = tasks.filter(t => t.status.toLowerCase() === 'processing');
-        // Priority 3: Upcoming Today
         const upcomingToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
             if (!['listening', 'scheduled', 'pending'].includes(s)) return false;
             const startTime = new Date(t.start_time).getTime();
             const nowTime = now.getTime();
-            return isToday(t.start_time) || (startTime > nowTime && startTime - nowTime < 24 * 60 * 60 * 1000);
+            return isToday(t.start_time) || (startTime > nowTime && startTime - nowTime < 48 * 60 * 60 * 1000);
         }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-        // Priority 4: Finished Today
+        
         const finishedToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
             return ['finished', 'completed'].includes(s) && isToday(t.start_time);
@@ -111,20 +127,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
         let list = [...live, ...processing, ...upcomingToday, ...finishedToday];
 
-        // Fallback: If empty, show next upcoming or last finished
         if (list.length === 0) {
              const nextUpcoming = tasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
                 .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
              if (nextUpcoming) list.push(nextUpcoming);
              
-             if (!nextUpcoming) {
-                 const lastFinished = tasks.filter(t => ['finished', 'completed'].includes(t.status.toLowerCase()))
-                    .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())[0];
-                 if (lastFinished) list.push(lastFinished);
-             }
+             const lastFinished = tasks.filter(t => ['finished', 'completed'].includes(t.status.toLowerCase()))
+                .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())[0];
+             if (lastFinished && !list.find(i => i.id === lastFinished.id)) list.push(lastFinished);
         }
 
-        // De-duplicate
         return Array.from(new Set(list.map(t => t.id))).map(id => list.find(t => t.id === id)!);
     }, [tasks]);
 
@@ -140,7 +152,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
         if (!hasMultiple || isHovered) return;
         const interval = setInterval(() => {
             handleNext();
-        }, 8000); // Slower rotation
+        }, 8000);
         return () => clearInterval(interval);
     }, [hasMultiple, isHovered, playlist.length]);
 
@@ -151,161 +163,158 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
     return (
         <div 
-            className="relative w-full rounded-2xl md:rounded-3xl bg-[#0F172A] shadow-2xl mb-6 md:mb-10 group overflow-hidden"
+            className="relative w-full rounded-2xl md:rounded-[32px] bg-black shadow-2xl mb-6 md:mb-10 group overflow-hidden border border-white/5"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* === Mobile View (Stacked Card) === */}
-            <div className="md:hidden relative h-[400px] flex flex-col">
+            {/* === Mobile View (Stacked Card - Optimized) === */}
+            <div className="md:hidden relative h-[450px] flex flex-col">
                  <div className="absolute inset-0">
                     {activeImage ? (
-                        <img src={activeImage} className="w-full h-full object-cover" alt="" />
+                        <img src={activeImage} className="w-full h-full object-cover opacity-80" alt="" />
                     ) : (
                         <div className="w-full h-full bg-slate-800 flex items-center justify-center"><FilmIcon className="w-12 h-12 text-slate-600"/></div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A] via-[#0F172A]/70 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
                  </div>
                  
-                 <div className="relative z-10 p-5 mt-auto flex flex-col h-full justify-end">
-                     <div className="flex items-center gap-2 mb-2">
+                 <div className="relative z-10 p-6 mt-auto flex flex-col h-full justify-end">
+                     <div className="flex items-center gap-3 mb-3">
                         <StatusBadge status={activeTask.status} />
-                        <span className="text-white/80 text-[10px] font-bold px-2 py-0.5 rounded bg-white/10 backdrop-blur border border-white/10">{activeTask.company}</span>
                      </div>
-                     <h2 className="text-2xl font-extrabold text-white leading-tight mb-2 line-clamp-2">{activeTask.task_name}</h2>
-                     <div className="flex items-center gap-3 text-slate-300 text-xs font-medium mb-4">
-                        <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded">
-                            <CalendarIcon className="w-3.5 h-3.5" />
-                            <span>{new Date(activeTask.start_time).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}</span>
-                        </div>
-                        {isUpcoming && (
-                            <div className="flex items-center gap-1.5 text-amber-300 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                                <ClockIcon className="w-3.5 h-3.5" />
-                                <Countdown targetDate={activeTask.start_time} />
-                            </div>
-                        )}
-                     </div>
+                     <h2 className="text-3xl font-extrabold text-white leading-none mb-2 line-clamp-2 tracking-tight">{activeTask.task_name}</h2>
+                     <p className="text-white/60 font-medium mb-4">{activeTask.company}</p>
                      
-                     <div className="flex gap-2">
-                        <a href={activeTask.live_url} target="_blank" rel="noopener noreferrer" className="flex-1 py-2.5 bg-indigo-600 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-2 shadow-lg">
-                            <PlayIcon className="w-4 h-4" /> 观看
+                     {isUpcoming && (
+                         <div className="mb-6 p-4 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/10">
+                             <div className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-2 text-center">Event Starts In</div>
+                             <div className="flex justify-center">
+                                <Countdown targetDate={activeTask.start_time} />
+                             </div>
+                         </div>
+                     )}
+                     
+                     <div className="flex gap-3">
+                        <a href={activeTask.live_url} target="_blank" rel="noopener noreferrer" className="flex-1 py-3.5 bg-white text-black text-sm font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform">
+                            <PlayIcon className="w-4 h-4 fill-current" /> 观看直播
                         </a>
                         {['finished', 'completed'].includes(activeTask.status.toLowerCase()) && (
-                            <button onClick={() => onViewReport(activeTask)} className="flex-1 py-2.5 bg-white/10 text-white text-sm font-bold rounded-lg border border-white/10 flex items-center justify-center gap-2">
-                                <DocumentTextIcon className="w-4 h-4" /> 报告
+                            <button onClick={() => onViewReport(activeTask)} className="flex-1 py-3.5 bg-white/10 backdrop-blur-md text-white text-sm font-bold rounded-xl border border-white/10 flex items-center justify-center gap-2 active:bg-white/20 transition-colors">
+                                <DocumentTextIcon className="w-4 h-4" /> 总结报告
                             </button>
                         )}
                      </div>
                  </div>
             </div>
 
-            {/* === Desktop View (Split Layout 35% | 65%) === */}
-            <div className="hidden md:flex h-[420px] lg:h-[450px]">
-                {/* Left Column: Info & Actions */}
-                <div className="w-[35%] lg:w-[32%] bg-[#0F172A] relative z-20 flex flex-col justify-center px-8 lg:px-10 py-8 border-r border-white/5">
-                     <div className="space-y-6">
-                         <div className="flex items-center gap-3">
+            {/* === Desktop View (The "Jobs" Look) === */}
+            <div className="hidden md:flex h-[480px] lg:h-[520px] relative bg-black">
+                
+                {/* 1. Background Image with "Gradient Mask" */}
+                <div className="absolute inset-0 z-0">
+                    {activeImage ? (
+                        <div className="w-full h-full relative">
+                            {/* The Image */}
+                            <img 
+                                src={activeImage} 
+                                className="absolute right-0 top-0 h-full w-[75%] object-cover transition-transform duration-[30s] ease-linear group-hover:scale-105" 
+                                style={{ 
+                                    // The Magic: Fade image from transparent (left) to opaque (right)
+                                    maskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 100%)',
+                                    WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 100%)' 
+                                }}
+                                alt="Hero Background"
+                            />
+                            {/* Subtle colored glow behind the text based on image usage, here we stick to dark */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent" />
+                        </div>
+                    ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-800 bg-slate-950">
+                            <FilmIcon className="w-32 h-32 opacity-10" />
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. Content Layer (Floating on the left) */}
+                <div className="relative z-10 w-full max-w-7xl mx-auto px-12 flex flex-col justify-center h-full">
+                    <div className="max-w-2xl space-y-8">
+                        
+                        {/* Meta Row */}
+                        <div className="flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                             <StatusBadge status={activeTask.status} />
-                            <span className="text-slate-400 text-xs font-bold tracking-wider uppercase border border-slate-700/50 bg-slate-800/50 px-2.5 py-0.5 rounded-full">
+                            <span className="text-white/40 text-sm font-bold tracking-widest uppercase flex items-center gap-2">
+                                <span className="w-1 h-1 bg-white/40 rounded-full"></span>
                                 {activeTask.company}
                             </span>
-                         </div>
-                         
-                         <h1 className="text-3xl lg:text-4xl font-extrabold text-white leading-[1.15] tracking-tight line-clamp-3">
-                            {activeTask.task_name}
-                         </h1>
-                         
-                         <div className="space-y-2">
-                            <div className="flex items-center gap-2.5 text-slate-300 text-sm font-medium">
-                                <div className="p-1.5 rounded-md bg-slate-800">
-                                    <CalendarIcon className="w-4 h-4 text-indigo-400" />
-                                </div>
-                                <span>{new Date(activeTask.start_time).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                                <span className="text-slate-600">|</span>
-                                <span className="font-mono">{new Date(activeTask.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                            {isUpcoming && (
-                                <div className="flex items-center gap-2.5 text-amber-300 text-sm font-medium">
-                                    <div className="p-1.5 rounded-md bg-amber-500/10 border border-amber-500/20">
-                                        <ClockIcon className="w-4 h-4" />
-                                    </div>
-                                    <span className="font-mono tracking-wide">
-                                        <Countdown targetDate={activeTask.start_time} />
-                                    </span>
-                                </div>
-                            )}
-                         </div>
+                        </div>
 
-                         <div className="pt-4 flex flex-wrap gap-3">
+                        {/* Massive Title */}
+                        <h1 className="text-5xl lg:text-7xl font-bold text-white tracking-tighter leading-[1.05] drop-shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-700 delay-100">
+                            {activeTask.task_name}
+                        </h1>
+
+                        {/* Metadata & Countdown */}
+                        <div className="flex items-center gap-8 text-white/70 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-200">
+                            <div className="flex items-center gap-3">
+                                <CalendarIcon className="w-5 h-5 text-indigo-400" />
+                                <span className="text-lg font-medium">{new Date(activeTask.start_time).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                            </div>
+                            <div className="w-px h-6 bg-white/20"></div>
+                            <div className="flex items-center gap-3">
+                                <ClockIcon className="w-5 h-5 text-indigo-400" />
+                                <span className="text-lg font-mono">{new Date(activeTask.start_time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+
+                        {/* Floating Glass Action Bar */}
+                        <div className="pt-4 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
                             <a 
                                 href={activeTask.live_url} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 flex items-center gap-2"
+                                className="group/btn relative px-8 py-4 bg-white text-black font-bold text-lg rounded-2xl shadow-[0_0_40px_rgba(255,255,255,0.3)] hover:shadow-[0_0_60px_rgba(255,255,255,0.5)] transition-all hover:scale-105 flex items-center gap-3 overflow-hidden"
                             >
-                                <PlayIcon className="w-5 h-5 fill-current" />
-                                {['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播' : '观看详情'}
+                                <PlayIcon className="w-6 h-6 fill-current" />
+                                <span className="relative z-10">
+                                    {['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播' : '观看详情'}
+                                </span>
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover/btn:animate-[shimmer_1.5s_infinite]"></div>
                             </a>
-                            
+
                             {['finished', 'completed'].includes(activeTask.status.toLowerCase()) && (
                                 <button 
                                     onClick={() => onViewReport(activeTask)}
-                                    className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 rounded-xl font-semibold backdrop-blur-sm transition-all flex items-center gap-2"
+                                    className="px-8 py-4 bg-white/5 hover:bg-white/10 backdrop-blur-xl text-white border border-white/10 rounded-2xl font-bold text-lg transition-all hover:border-white/30 flex items-center gap-3"
                                 >
-                                    <DocumentTextIcon className="w-5 h-5 text-slate-300" />
-                                    查看报告
+                                    <DocumentTextIcon className="w-6 h-6 text-indigo-300" />
+                                    AI 总结报告
                                 </button>
                             )}
-                         </div>
-                     </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Right Column: Image & Visuals */}
-                <div className="flex-1 relative overflow-hidden bg-black group">
-                     {/* Image */}
-                     {activeImage ? (
-                        <div className="absolute inset-0 transition-transform duration-[20s] ease-linear group-hover:scale-110">
-                            <img 
-                                src={activeImage} 
-                                className="w-full h-full object-cover" 
-                                alt="Event Cover"
-                            />
+                {/* 3. Floating Countdown (If Upcoming) - Positioned Bottom Right */}
+                {isUpcoming && (
+                    <div className="absolute bottom-12 right-12 z-20 animate-in fade-in zoom-in duration-1000">
+                        <div className="bg-black/30 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 text-center shadow-2xl">
+                            <p className="text-amber-400 text-xs font-bold uppercase tracking-[0.3em] mb-4">Starting In</p>
+                            <Countdown targetDate={activeTask.start_time} />
                         </div>
-                     ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-slate-700 bg-slate-900">
-                            <FilmIcon className="w-24 h-24 opacity-20" />
-                        </div>
-                     )}
-                     
-                     {/* Gradient Overlay for Left Edge Blending */}
-                     <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#0F172A] to-transparent z-10 pointer-events-none"></div>
-                     
-                     {/* General Darkening for text contrast if needed */}
-                     <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors duration-500"></div>
+                    </div>
+                )}
 
-                     {/* Countdown Overlay (Centered if Upcoming) */}
-                     {isUpcoming && (
-                         <div className="absolute inset-0 flex items-center justify-center z-20">
-                             <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl px-8 py-6 text-center shadow-2xl transform transition-transform duration-500 hover:scale-105">
-                                 <p className="text-amber-400 text-xs font-bold uppercase tracking-[0.25em] mb-2 drop-shadow-sm">距离开始还有</p>
-                                 <div className="text-5xl font-mono font-bold text-white tracking-tighter drop-shadow-lg">
-                                    <Countdown targetDate={activeTask.start_time} />
-                                 </div>
-                             </div>
-                         </div>
-                     )}
-                     
-                     {/* Navigation (Bottom Right) */}
-                     {hasMultiple && (
-                         <div className="absolute bottom-6 right-6 flex gap-2 z-30">
-                             <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="p-3 bg-black/40 hover:bg-white text-white hover:text-black rounded-full backdrop-blur-md transition-all border border-white/10 hover:border-white">
-                                 <ChevronLeftIcon className="w-5 h-5" />
-                             </button>
-                             <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="p-3 bg-black/40 hover:bg-white text-white hover:text-black rounded-full backdrop-blur-md transition-all border border-white/10 hover:border-white">
-                                 <ChevronRightIcon className="w-5 h-5" />
-                             </button>
-                         </div>
-                     )}
-                </div>
+                {/* 4. Navigation Controls */}
+                {hasMultiple && (
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-4 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <button onClick={(e) => { e.stopPropagation(); handlePrev(); }} className="p-4 bg-white/5 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/10 transition-all hover:scale-110">
+                            <ChevronLeftIcon className="w-6 h-6" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handleNext(); }} className="p-4 bg-white/5 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/10 transition-all hover:scale-110">
+                            <ChevronRightIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
