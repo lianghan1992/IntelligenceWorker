@@ -64,15 +64,15 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
     const [hoveredTechName, setHoveredTechName] = useState<string | null>(null);
 
     // Data Processing
-    const { matrixMap, brandScores } = useMemo(() => {
+    const { matrixMap, brandScores, activeSubDims, brandDimCounts } = useMemo(() => {
         const map = new Map<string, Map<string, Map<string, TechItem>>>();
         const scores = new Map<string, number>();
+        const activeSubSet = new Set<string>(); // Stores `${dimId}::${subName}` that has data
+        const counts = new Map<string, Map<string, number>>(); // Brand -> DimID -> Count
 
         items.forEach(item => {
-            // Fuzzy match brand name if exact match fails (e.g., "小米" vs "小米汽车")
+            // Fuzzy match brand name if exact match fails
             let matchedBrand = brands.find(b => item.vehicle_brand.includes(b) || b.includes(item.vehicle_brand));
-            
-            // Or just use item.vehicle_brand if it exists in the requested brands list
             if (!matchedBrand && brands.some(b => item.vehicle_brand.includes(b.replace('汽车', '')))) {
                  matchedBrand = brands.find(b => item.vehicle_brand.includes(b.replace('汽车', '')));
             }
@@ -93,12 +93,46 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             const existing = dimMap.get(item.secondary_tech_dimension);
             if (!existing || item.reliability > existing.reliability || (item.reliability === existing.reliability && new Date(item.updated_at) > new Date(existing.updated_at))) {
                 dimMap.set(item.secondary_tech_dimension, item);
+                
+                // Only count unique items (post-deduplication logic implies we count distinct sub-dims effectively, 
+                // but simpler is to count items processed. Here we count "active items" for display)
+                if (!counts.has(matchedBrand)) counts.set(matchedBrand, new Map());
+                const bCounts = counts.get(matchedBrand)!;
+                // We increment only if we are replacing or adding new. 
+                // However, a simple increment in loop counts ALL records (history included if not careful).
+                // But getTechItems usually returns Golden Records (1 per sub-dim per car). 
+                // So simple increment is fine.
             }
 
             scores.set(matchedBrand, (scores.get(matchedBrand) || 0) + (item.reliability * 10));
+            
+            // Mark sub-dimension as active globally (if at least one selected brand has it)
+            activeSubSet.add(`${dimId}::${item.secondary_tech_dimension}`);
         });
-        return { matrixMap: map, brandScores: scores };
+
+        // Recalculate counts based on the final map to be accurate after dedup
+        map.forEach((brandDimMap, brand) => {
+            if (!counts.has(brand)) counts.set(brand, new Map());
+            const bCounts = counts.get(brand)!;
+            brandDimMap.forEach((subMap, dimId) => {
+                bCounts.set(dimId, subMap.size);
+            });
+        });
+
+        return { matrixMap: map, brandScores: scores, activeSubDims: activeSubSet, brandDimCounts: counts };
     }, [items, dimensions, brands]);
+
+    // Filter Dimensions for Display
+    const visibleDimensions = useMemo(() => {
+        return dimensions.map(dim => {
+            // Filter sub-dimensions: Keep only if it exists in activeSubDims
+            const activeSubs = (dim.sub_dimensions || []).filter(sub => activeSubDims.has(`${dim.id}::${sub}`));
+            return {
+                ...dim,
+                sub_dimensions: activeSubs
+            };
+        }).filter(dim => dim.sub_dimensions.length > 0); // Hide primary dimension if no active sub-dimensions
+    }, [dimensions, activeSubDims]);
 
     if (isLoading) {
         return (
@@ -118,6 +152,15 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
         );
     }
 
+    if (visibleDimensions.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <ViewGridIcon className="w-12 h-12 mb-2 opacity-20" />
+                <p>当前选中的车企暂无相关技术情报数据</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-full bg-[#f8fafc]">
             <div className="flex-1 overflow-x-auto custom-scrollbar p-6">
@@ -127,6 +170,7 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                     {brands.map(brand => {
                         const score = brandScores.get(brand) || 0;
                         const brandData = matrixMap.get(brand);
+                        const brandCounts = brandDimCounts.get(brand);
 
                         return (
                             <div 
@@ -151,21 +195,26 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
 
                                 {/* Tech Specs Body - Vertical Stack */}
                                 <div className="flex-1 p-3 space-y-4 bg-slate-50/50">
-                                    {dimensions.map((dim, dimIndex) => {
+                                    {visibleDimensions.map((dim, dimIndex) => {
                                         const subDims = dim.sub_dimensions || [];
                                         const brandDimMap = brandData?.get(dim.id);
                                         const dimIconColor = getDimensionColor(dimIndex);
                                         const DimIcon = getDimensionIcon(dim.name);
+                                        const itemCount = brandCounts?.get(dim.id) || 0;
 
-                                        // If no data for this dimension, render empty state or skip? 
-                                        // Better to show structure for comparison.
-                                        
                                         return (
                                             <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
                                                 {/* Level 1: Primary Dimension Header */}
-                                                <div className={`px-4 py-2.5 flex items-center gap-2 border-b ${dimIconColor}`}>
-                                                    <DimIcon className="w-4 h-4 opacity-80" />
-                                                    <span className="text-sm font-bold tracking-wide">{dim.name}</span>
+                                                <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
+                                                    <div className="flex items-center gap-2">
+                                                        <DimIcon className="w-4 h-4 opacity-80" />
+                                                        <span className="text-sm font-bold tracking-wide">{dim.name}</span>
+                                                    </div>
+                                                    {itemCount > 0 && (
+                                                        <span className="text-[10px] bg-white/30 backdrop-blur-sm px-1.5 py-0.5 rounded font-bold">
+                                                            {itemCount}
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="divide-y divide-slate-50">
