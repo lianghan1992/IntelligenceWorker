@@ -17,10 +17,11 @@ import {
     ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    ArrowRightIcon, ViewListIcon, TableCellsIcon, EyeIcon
+    ArrowRightIcon, ViewListIcon, TableCellsIcon, EyeIcon, GlobeIcon, CubeIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
 import { CompetitivenessMatrix } from './CompetitivenessMatrix';
+import { CyberTerrainView, HolographicTwinView, SupplyGalaxyView } from './ThreeDViews';
 
 // --- Helper Functions ---
 const getReliabilityInfo = (score: number) => {
@@ -149,11 +150,15 @@ const DossierPanel: React.FC<{
 };
 
 // --- Main Component ---
+type ViewMode = 'matrix' | 'terrain' | 'twin' | 'galaxy';
+
 export const CompetitivenessDashboard: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [brands, setBrands] = useState<string[]>([]);
     const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
+    
+    const [viewMode, setViewMode] = useState<ViewMode>('matrix');
 
     // Detail Modal State
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
@@ -212,28 +217,63 @@ export const CompetitivenessDashboard: React.FC = () => {
         }
     };
 
+    const tabs: { id: ViewMode; label: string; icon: React.FC<any> }[] = [
+        { id: 'matrix', label: '全景矩阵', icon: TableCellsIcon },
+        { id: 'terrain', label: '赛博地形', icon: ViewGridIcon },
+        { id: 'twin', label: '全息双生', icon: CubeIcon },
+        { id: 'galaxy', label: '星系引力', icon: GlobeIcon },
+    ];
+
     return (
         <div className="h-full flex flex-col bg-slate-50">
             <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
-                <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
-                    <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
-                        <ChartIcon className="w-5 h-5 text-white" />
+                <div className="flex items-center gap-6">
+                    <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
+                        <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
+                            <ChartIcon className="w-5 h-5 text-white" />
+                        </div>
+                        竞争力看板 
+                    </h1>
+                    
+                    {/* View Switcher Tabs */}
+                    <div className="flex items-center bg-slate-100 rounded-lg p-1">
+                        {tabs.map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setViewMode(tab.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                                    viewMode === tab.id 
+                                        ? 'bg-white text-indigo-600 shadow-sm' 
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <tab.icon className="w-4 h-4" />
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
-                    竞争力看板 
-                    <span className="text-[10px] font-bold text-indigo-600 ml-2 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-wide hidden md:inline-block">
-                        Competitiveness Matrix
-                    </span>
-                </h1>
+                </div>
             </header>
 
             <main className="flex-1 overflow-hidden relative">
-                <CompetitivenessMatrix 
-                    items={items}
-                    brands={brands}
-                    dimensions={dimensions}
-                    onItemClick={handleItemClick}
-                    isLoading={isLoading}
-                />
+                {viewMode === 'matrix' && (
+                    <CompetitivenessMatrix 
+                        items={items}
+                        brands={brands}
+                        dimensions={dimensions}
+                        onItemClick={handleItemClick}
+                        isLoading={isLoading}
+                    />
+                )}
+                {viewMode === 'terrain' && (
+                    <CyberTerrainView items={items} brands={brands} onItemClick={handleItemClick} />
+                )}
+                {viewMode === 'twin' && (
+                    <HolographicTwinView items={items} brands={brands} onItemClick={handleItemClick} />
+                )}
+                {viewMode === 'galaxy' && (
+                    <SupplyGalaxyView items={items} brands={brands} onItemClick={handleItemClick} />
+                )}
             </main>
 
             {/* Detail Modal */}
@@ -283,6 +323,18 @@ export const CompetitivenessDashboard: React.FC = () => {
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+                @keyframes grid-flow { from { background-position: 0 0; } to { background-position: 0 40px; } }
+                .animate-grid-flow { animation: grid-flow 2s linear infinite; }
+                @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes spin-reverse-slower { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+                .animate-spin-slow { animation: spin-slow 20s linear infinite; }
+                .animate-spin-reverse-slower { animation: spin-reverse-slower 40s linear infinite; }
+                .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
+                @keyframes float-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+                @keyframes pulse-slow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
+                .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+                @keyframes scan-vertical { 0% { transform: translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(400px); opacity: 0; } }
+                .animate-scan-vertical { animation: scan-vertical 3s linear infinite; }
             `}</style>
         </div>
     );
