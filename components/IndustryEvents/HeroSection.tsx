@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LivestreamTask } from '../../types';
 import { PlayIcon, ClockIcon, FilmIcon, DocumentTextIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
@@ -22,30 +23,30 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
     if (['recording', 'downloading', 'stopping'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-red-600 text-white text-[10px] md:text-xs font-bold rounded-full animate-pulse shadow-lg shadow-red-900/20">
-                <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-white rounded-full"></span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-500/20 text-red-100 border border-red-500/30 text-xs font-bold rounded-full animate-pulse">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
                 LIVE 直播中
             </span>
         );
     }
     if (['listening', 'scheduled', 'pending'].includes(s)) {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-blue-600 text-white text-[10px] md:text-xs font-bold rounded-full shadow-lg shadow-blue-900/20">
-                <ClockIcon className="w-3 h-3" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 text-blue-100 border border-blue-500/30 text-xs font-bold rounded-full">
+                <ClockIcon className="w-3.5 h-3.5 text-blue-400" />
                 即将开始
             </span>
         );
     }
     if (s === 'processing') {
         return (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-indigo-600 text-white text-[10px] md:text-xs font-bold rounded-full shadow-lg">
-                <SparklesIcon className="w-3 h-3" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/20 text-indigo-100 border border-indigo-500/30 text-xs font-bold rounded-full">
+                <SparklesIcon className="w-3.5 h-3.5 text-indigo-400" />
                 AI生成中
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 md:px-3 md:py-1 bg-gray-700/80 backdrop-blur text-white text-[10px] md:text-xs font-bold rounded-full">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-700/50 text-slate-300 border border-slate-600/50 text-xs font-bold rounded-full">
             精彩回放
         </span>
     );
@@ -66,7 +67,7 @@ const Countdown: React.FC<{ targetDate: string }> = ({ targetDate }) => {
             if (diff <= 0) return '即将开始';
             const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            return `距开始 ${h}小时 ${m}分`;
+            return `${h}小时 ${m}分`;
         };
         setTimeLeft(calc());
         const timer = setInterval(() => setTimeLeft(calc()), 60000);
@@ -77,7 +78,6 @@ const Countdown: React.FC<{ targetDate: string }> = ({ targetDate }) => {
 };
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport }) => {
-    // Refined Filtering Logic based on API Documentation
     const playlist = useMemo(() => {
         const now = new Date();
         const todayStr = now.toLocaleDateString('zh-CN'); 
@@ -89,10 +89,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
         
         // Priority 1: Live
         const live = tasks.filter(t => ['recording', 'downloading', 'stopping'].includes(t.status.toLowerCase()));
-
         // Priority 2: Processing
         const processing = tasks.filter(t => t.status.toLowerCase() === 'processing');
-
         // Priority 3: Upcoming Today
         const upcomingToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
@@ -101,17 +99,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
             const nowTime = now.getTime();
             return isToday(t.start_time) || (startTime > nowTime && startTime - nowTime < 24 * 60 * 60 * 1000);
         }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-
         // Priority 4: Finished Today
         const finishedToday = tasks.filter(t => {
             const s = t.status.toLowerCase();
             return ['finished', 'completed'].includes(s) && isToday(t.start_time);
         }).sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime());
 
-        // Combine
         let list = [...live, ...processing, ...upcomingToday, ...finishedToday];
 
-        // Fallback
+        // Fallback: If empty, show next upcoming or last finished
         if (list.length === 0) {
              const nextUpcoming = tasks.filter(t => ['listening', 'scheduled', 'pending'].includes(t.status.toLowerCase()))
                 .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())[0];
@@ -132,26 +128,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
     const [isHovered, setIsHovered] = useState(false);
     const activeTask = playlist[activeIndex];
 
-    const handleNext = () => {
-        setActiveIndex((prev) => (prev + 1) % playlist.length);
-    };
-
-    const handlePrev = () => {
-        setActiveIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
-    };
-
+    const handleNext = () => setActiveIndex((prev) => (prev + 1) % playlist.length);
+    const handlePrev = () => setActiveIndex((prev) => (prev - 1 + playlist.length) % playlist.length);
     const hasMultiple = playlist.length > 1;
 
-    // Auto-rotation effect (3s)
     useEffect(() => {
         if (!hasMultiple || isHovered) return;
-
         const interval = setInterval(() => {
             handleNext();
-        }, 5000); // 5 seconds
-
+        }, 6000);
         return () => clearInterval(interval);
-    }, [hasMultiple, isHovered, playlist.length]); // Depend on playlist length to reset if data changes
+    }, [hasMultiple, isHovered, playlist.length]);
 
     if (!activeTask) return null;
 
@@ -159,114 +146,137 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ tasks, onViewReport })
 
     return (
         <div 
-            className="relative w-full overflow-hidden md:rounded-3xl bg-gray-900 shadow-2xl mb-6 md:mb-10 group h-[280px] sm:h-[400px] md:h-[500px] lg:h-[550px]"
+            className="relative w-full overflow-hidden md:rounded-3xl bg-[#0B1120] shadow-2xl mb-6 md:mb-10 group h-[400px] md:h-[480px] lg:h-[520px]"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* 1. Background Layer */}
-            <div className="absolute inset-0 z-0">
-                {activeImage ? (
+            {/* --- 1. Desktop Layout (Right Image, Left Content) --- */}
+            
+            {/* Desktop Background: Dark Slate Base */}
+            <div className="absolute inset-0 bg-[#0B1120] hidden md:block">
+                {/* Right Side Image with Fade */}
+                {activeImage && (
                     <div 
-                        className="absolute inset-0 bg-cover bg-center transition-all duration-700 ease-in-out transform scale-105"
+                        className="absolute top-0 right-0 h-full w-[65%] bg-cover bg-center transition-all duration-1000 ease-in-out"
                         style={{ 
                             backgroundImage: `url(${activeImage})`,
-                            filter: 'blur(0px)',
-                            opacity: 0.85
+                            // Creating a seamless fade from the dark background (left) to the image (right)
+                            maskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%, black 100%)'
                         }}
                     />
-                ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-slate-900 to-black" />
                 )}
-                {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/50 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent" />
+                {/* Additional Ambient Glow from the image color (Simulated) */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#0B1120] via-[#0B1120]/80 to-transparent pointer-events-none" />
             </div>
 
-            {/* 2. Navigation Arrows (Sides) - Only if multiple */}
+            {/* --- 2. Mobile Layout (Full Background Image) --- */}
+            <div className="absolute inset-0 md:hidden">
+                {activeImage ? (
+                    <div 
+                        className="absolute inset-0 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${activeImage})` }}
+                    />
+                ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-black" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0B1120] via-[#0B1120]/60 to-transparent" />
+            </div>
+
+            {/* --- 3. Navigation Arrows --- */}
             {hasMultiple && (
                 <>
                     <button 
                         onClick={(e) => { e.stopPropagation(); handlePrev(); }}
-                        className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-30 p-2 md:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110 hidden md:flex"
+                        className="absolute left-2 md:left-8 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white backdrop-blur-sm transition-all border border-white/5 hover:border-white/20 hidden md:flex"
                     >
-                        <ChevronLeftIcon className="w-6 h-6 md:w-8 md:h-8" />
+                        <ChevronLeftIcon className="w-6 h-6" />
                     </button>
-
                     <button 
                         onClick={(e) => { e.stopPropagation(); handleNext(); }}
-                        className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-30 p-2 md:p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition-all duration-300 border border-white/10 shadow-lg opacity-0 group-hover:opacity-100 hover:scale-110 hidden md:flex"
+                        className="absolute right-2 md:right-8 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white backdrop-blur-sm transition-all border border-white/5 hover:border-white/20 hidden md:flex"
                     >
-                        <ChevronRightIcon className="w-6 h-6 md:w-8 md:h-8" />
+                        <ChevronRightIcon className="w-6 h-6" />
                     </button>
                 </>
             )}
 
-            {/* 3. Content Container */}
-            <div className="relative z-10 flex flex-col justify-end h-full p-4 sm:p-6 md:p-12 lg:p-16 max-w-5xl pointer-events-none">
-                {/* Content wrapper with pointer-events-auto to allow clicking buttons */}
-                <div className="space-y-2 md:space-y-6 transition-all duration-500 ease-in-out transform translate-y-0 opacity-100 pointer-events-auto">
-                    {/* Metadata Row */}
-                    <div className="flex items-center flex-wrap gap-2 md:gap-3 mb-1">
+            {/* --- 4. Content Content --- */}
+            <div className="relative z-20 h-full max-w-7xl mx-auto px-4 sm:px-6 md:px-12 flex flex-col justify-end md:justify-center pb-8 md:pb-0 pointer-events-none">
+                <div className="w-full md:max-w-2xl space-y-4 md:space-y-6 pointer-events-auto">
+                    
+                    {/* Top Badges */}
+                    <div className="flex items-center flex-wrap gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <StatusBadge status={activeTask.status} />
-                        <span className="px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-white/10 backdrop-blur-md text-blue-100 font-bold text-[10px] md:text-xs tracking-wide uppercase border border-white/10 flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300 text-xs font-bold tracking-wide uppercase backdrop-blur-md">
+                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shadow-[0_0_5px_rgba(129,140,248,0.8)]"></span>
                             {activeTask.company}
                         </span>
                     </div>
                     
                     {/* Title */}
-                    <h1 className="text-xl sm:text-3xl md:text-4xl lg:text-6xl font-extrabold text-white leading-tight drop-shadow-2xl line-clamp-2">
+                    <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] tracking-tight drop-shadow-xl animate-in fade-in slide-in-from-bottom-3 duration-700 delay-100">
                         {activeTask.task_name}
                     </h1>
                     
-                    {/* Time & Countdown */}
-                    <div className="flex flex-wrap items-center text-gray-200 text-[10px] md:text-base gap-2 md:gap-6 font-medium">
-                        <span className="flex items-center gap-1 md:gap-2 bg-black/30 px-2 py-0.5 md:px-3 md:py-1.5 rounded-lg backdrop-blur-sm border border-white/5">
-                            <CalendarIcon className="w-3 h-3 md:w-5 md:h-5 text-gray-300" />
-                            {new Date(activeTask.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        {['listening', 'scheduled', 'pending'].includes(activeTask.status.toLowerCase()) && (
-                            <span className="text-yellow-400 font-bold flex items-center gap-2 border-l border-white/20 pl-2 md:pl-6">
-                                <ClockIcon className="w-3 h-3 md:w-5 md:h-5"/>
-                                <Countdown targetDate={activeTask.start_time} />
+                    {/* Meta Info Grid */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-6 text-sm text-slate-300 font-medium animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 rounded-lg bg-white/5 border border-white/10">
+                                <CalendarIcon className="w-4 h-4 text-indigo-300" />
+                            </div>
+                            <span>
+                                {new Date(activeTask.start_time).toLocaleString('zh-CN', { month: 'long', day: 'numeric' })}
+                                <span className="mx-2 opacity-50">|</span>
+                                {new Date(activeTask.start_time).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
+                        </div>
+
+                        {['listening', 'scheduled', 'pending'].includes(activeTask.status.toLowerCase()) && (
+                            <div className="flex items-center gap-2 text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+                                <ClockIcon className="w-4 h-4" />
+                                <span className="font-bold tracking-wide">
+                                    <Countdown targetDate={activeTask.start_time} />
+                                </span>
+                            </div>
                         )}
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-2 md:gap-4 pt-1 md:pt-4">
+                    {/* CTA Buttons */}
+                    <div className="flex flex-wrap items-center gap-3 pt-2 md:pt-4 animate-in fade-in slide-in-from-bottom-5 duration-700 delay-300">
                         <a 
                             href={activeTask.live_url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 md:gap-3 px-3 py-1.5 md:px-8 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg md:rounded-xl font-bold shadow-xl shadow-blue-600/30 transition-all transform hover:scale-105 hover:shadow-2xl text-xs md:text-lg"
+                            className="group flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-900/20 transition-all hover:scale-105"
                         >
-                            <PlayIcon className="w-3 h-3 md:w-5 md:h-6" />
-                            <span>{['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看回放/详情'}</span>
+                            <PlayIcon className="w-5 h-5 fill-current" />
+                            <span>
+                                {['recording', 'downloading'].includes(activeTask.status.toLowerCase()) ? '进入直播间' : '观看详情'}
+                            </span>
                         </a>
                         
                         {['finished', 'completed'].includes(activeTask.status.toLowerCase()) && (
                             <button 
                                 onClick={() => onViewReport(activeTask)}
-                                className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-6 md:py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-lg md:rounded-xl font-semibold border border-white/20 transition-all hover:border-white/40 text-xs md:text-base"
+                                className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl font-semibold backdrop-blur-sm transition-all hover:border-white/30"
                             >
-                                <DocumentTextIcon className="w-3 h-3 md:w-5 md:h-5" />
-                                <span className="hidden sm:inline">阅读AI报告</span>
-                                <span className="sm:hidden">AI报告</span>
+                                <DocumentTextIcon className="w-5 h-5 text-slate-300" />
+                                <span>阅读 AI 报告</span>
                             </button>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* 4. Pagination Indicators (Dots) */}
+            {/* --- 5. Pagination Dots --- */}
             {hasMultiple && (
-                <div className="absolute bottom-3 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 md:gap-2 z-20">
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
                     {playlist.map((_, idx) => (
                         <button 
                             key={idx}
                             onClick={(e) => { e.stopPropagation(); setActiveIndex(idx); }}
-                            className={`w-1 h-1 md:w-2 md:h-2 rounded-full transition-all duration-300 ${idx === activeIndex ? 'bg-white w-4 md:w-8' : 'bg-white/40 hover:bg-white/80'}`}
+                            className={`h-1.5 rounded-full transition-all duration-500 ${idx === activeIndex ? 'w-8 bg-indigo-500' : 'w-2 bg-slate-600 hover:bg-slate-500'}`}
                         />
                     ))}
                 </div>
