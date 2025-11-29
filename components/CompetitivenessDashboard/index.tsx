@@ -242,18 +242,24 @@ const IntelligenceMatrix: React.FC = () => {
         }
     };
 
+    // Dark Mode Theme Wrapper
+    const themeClass = viewMode === 'matrix' ? 'bg-[#020617]' : 'bg-slate-50/50';
+    const textClass = viewMode === 'matrix' ? 'text-slate-300' : 'text-slate-800';
+    const borderClass = viewMode === 'matrix' ? 'border-slate-800' : 'border-slate-200';
+    const headerBgClass = viewMode === 'matrix' ? 'bg-[#020617] border-b border-slate-800' : 'bg-white border-b border-slate-200';
+
     return (
-        <div className="flex flex-col h-full bg-slate-50/50 relative">
+        <div className={`flex flex-col h-full relative transition-colors duration-500 ${themeClass}`}>
             {/* Filter Bar */}
-            <div className="px-6 py-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10 flex-shrink-0">
+            <div className={`px-6 py-4 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10 flex-shrink-0 transition-colors ${headerBgClass}`}>
                 <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-slate-500 text-sm font-bold mr-2">
+                    <div className={`flex items-center gap-2 text-sm font-bold mr-2 ${viewMode === 'matrix' ? 'text-cyan-500' : 'text-slate-500'}`}>
                         <FunnelIcon className="w-4 h-4" />
                         <span>筛选</span>
                     </div>
                     
                     <select 
-                        className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
+                        className={`text-sm font-medium rounded-lg focus:ring-2 block p-2.5 min-w-[140px] outline-none transition-colors ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700 text-cyan-100 focus:ring-cyan-500 focus:border-cyan-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-indigo-500 focus:border-indigo-500'}`}
                         value={filters.brand}
                         onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
                     >
@@ -262,7 +268,7 @@ const IntelligenceMatrix: React.FC = () => {
                     </select>
 
                     <select 
-                        className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
+                        className={`text-sm font-medium rounded-lg focus:ring-2 block p-2.5 min-w-[140px] outline-none transition-colors ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700 text-cyan-100 focus:ring-cyan-500 focus:border-cyan-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-indigo-500 focus:border-indigo-500'}`}
                         value={filters.dimension}
                         onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
                     >
@@ -271,7 +277,7 @@ const IntelligenceMatrix: React.FC = () => {
                     </select>
                 </div>
 
-                <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <div className={`flex items-center p-1 rounded-lg border ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
                     <button 
                         onClick={() => { setViewMode('list'); setSelectedItem(null); }}
                         className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -280,7 +286,7 @@ const IntelligenceMatrix: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => { setViewMode('matrix'); setSelectedItem(null); }}
-                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'matrix' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'matrix' ? 'bg-cyan-600 text-white shadow-sm shadow-cyan-900/50' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <TableCellsIcon className="w-4 h-4" /> 矩阵
                     </button>
@@ -292,14 +298,14 @@ const IntelligenceMatrix: React.FC = () => {
                 
                 {/* 1. Left/Main List Panel */}
                 <div className={`
-                    flex flex-col min-w-0 bg-white transition-all duration-300 ease-in-out
+                    flex flex-col min-w-0 transition-all duration-300 ease-in-out
                     ${viewMode === 'matrix' 
-                        ? 'w-full' 
-                        : (selectedItem ? 'w-[350px] flex-shrink-0 border-r border-slate-200' : 'w-full')}
+                        ? 'w-full bg-[#020617]' 
+                        : (selectedItem ? 'w-[350px] flex-shrink-0 border-r border-slate-200 bg-white' : 'w-full bg-white')}
                 `}>
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
                         {viewMode === 'list' ? (
-                            <div className="space-y-3">
+                            <div className="space-y-3 p-4">
                                 {isLoading ? (
                                      <div className="flex flex-col items-center justify-center py-20 space-y-4">
                                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
@@ -419,7 +425,7 @@ const IntelligenceMatrix: React.FC = () => {
 
             {/* Matrix View Detail Modal */}
             {isDetailModalOpen && selectedItem && viewMode === 'matrix' && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
                     <div className="bg-white rounded-2xl w-full max-w-[95vw] h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b bg-gray-50 flex-shrink-0">
                             <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
