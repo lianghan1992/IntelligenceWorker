@@ -294,7 +294,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-slate-50">
             {/* Minimal Header with Filter */}
-            <header className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center flex-shrink-0 shadow-sm z-30">
+            <header className="bg-white border-b border-slate-200 px-4 py-3 md:px-6 flex justify-between items-center flex-shrink-0 shadow-sm z-30">
                 <div className="flex items-center gap-4">
                     {/* Brand Filter */}
                     <BrandMultiSelect 
@@ -316,7 +316,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-slate-400 hidden md:block">
                     共 {items.length} 条技术情报
                 </div>
             </header>
@@ -353,7 +353,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                                     onSelectHistory={handleHistoryClick}
                                 />
                             </div>
-                            <div className="flex-1 bg-gray-50 flex flex-col min-h-0">
+                            <div className="flex-1 bg-gray-50 flex flex-col min-h-0 hidden md:flex">
                                 {selectedSourceArticle ? (
                                     <EvidenceTrail selectedArticle={selectedSourceArticle} />
                                 ) : (

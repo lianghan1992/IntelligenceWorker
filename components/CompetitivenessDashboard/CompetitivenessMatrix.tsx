@@ -168,8 +168,9 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                 }
             `}</style>
 
-            <div className="flex-1 overflow-x-auto custom-scrollbar p-6">
-                <div className="flex gap-6 min-w-max pb-10">
+            <div className="flex-1 overflow-x-auto custom-scrollbar p-4 md:p-6 scroll-smooth">
+                {/* Mobile: Use snap scrolling. Desktop: Standard scrolling. */}
+                <div className="flex gap-4 md:gap-6 min-w-max pb-10 snap-x snap-mandatory md:snap-none">
                     
                     {/* Iterate Columns by Selected Brands */}
                     {brands.map((brand, colIndex) => {
@@ -179,7 +180,8 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                         return (
                             <div 
                                 key={brand} 
-                                className="flex-shrink-0 w-[360px] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
+                                // Mobile: w-[85vw] creates a carousel effect where next card is visible. Desktop: Fixed width.
+                                className="flex-shrink-0 w-[85vw] sm:w-[320px] md:w-[360px] snap-center flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
                                 style={{ animationDelay: `${colIndex * 100}ms` }}
                             >
                                 {/* Brand Header */}
