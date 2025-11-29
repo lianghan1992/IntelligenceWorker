@@ -17,7 +17,7 @@ import {
     ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    ArrowRightIcon, ViewListIcon, TableCellsIcon, EyeIcon
+    ArrowRightIcon, ViewListIcon, TableCellsIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
 import { CompetitivenessMatrix } from './CompetitivenessMatrix';
@@ -107,7 +107,7 @@ const DossierPanel: React.FC<{
                                     onClick={() => onSelectHistory(record)}
                                     className={`group cursor-pointer p-5 rounded-2xl border transition-all duration-300 ${
                                         isSelected 
-                                            ? 'bg-blue-50/50 border-blue-200 shadow-md ring-1 ring-blue-100' 
+                                            ? 'bg-white border-blue-500 shadow-lg shadow-blue-500/10 translate-x-2' 
                                             : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-md'
                                     }`}
                                 >
@@ -122,21 +122,11 @@ const DossierPanel: React.FC<{
                                         </div>
                                         <span className="text-xs text-slate-400 font-medium font-mono">{new Date(record.event_time).toLocaleDateString()}</span>
                                     </div>
-                                    <p className={`text-sm leading-relaxed transition-colors ${isSelected ? 'text-slate-900 font-medium' : 'text-slate-600'}`}>
+                                    <p className={`text-sm leading-relaxed transition-colors ${isSelected ? 'text-slate-800 font-medium' : 'text-slate-600 group-hover:text-slate-800'}`}>
                                         {record.description_snapshot}
                                     </p>
-                                    
-                                    {/* Explicit Action Button */}
-                                    <div className="mt-4 flex justify-end">
-                                        <button className={`
-                                            flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-all
-                                            ${isSelected 
-                                                ? 'bg-blue-600 text-white shadow-sm' 
-                                                : 'bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600'}
-                                        `}>
-                                            <EyeIcon className="w-3.5 h-3.5" />
-                                            查看原文
-                                        </button>
+                                    <div className="mt-3 pt-2 border-t border-slate-50 flex items-center text-xs text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <ArrowRightIcon className="w-3 h-3 mr-1" /> 点击查看原始文章
                                     </div>
                                 </div>
                             </div>
@@ -283,6 +273,8 @@ export const CompetitivenessDashboard: React.FC = () => {
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
         </div>
     );
