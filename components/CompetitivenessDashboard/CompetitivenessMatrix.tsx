@@ -4,7 +4,7 @@ import { TechItem, CompetitivenessDimension } from '../../types';
 import { 
     CheckCircleIcon, ShieldCheckIcon, ShieldExclamationIcon, 
     AnnotationIcon, QuestionMarkCircleIcon,
-    LightningBoltIcon, ChipIcon, GlobeIcon, CubeIcon, TruckIcon, FireIcon,
+    LightningBoltIcon, ChipIcon, GlobeIcon, CubeIcon, TruckIcon,
     ViewGridIcon
 } from '../icons';
 
@@ -64,14 +64,13 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
     const [hoveredTechName, setHoveredTechName] = useState<string | null>(null);
 
     // Data Processing
-    const { matrixMap, brandScores, activeSubDims, brandDimCounts } = useMemo(() => {
+    const { matrixMap, brandScores } = useMemo(() => {
+        // Map<Brand, Map<DimId, Map<SubName, Item>>>
         const map = new Map<string, Map<string, Map<string, TechItem>>>();
         const scores = new Map<string, number>();
-        const activeSubSet = new Set<string>(); // Stores `${dimId}::${subName}` that has data
-        const counts = new Map<string, Map<string, number>>(); // Brand -> DimID -> Count
 
         items.forEach(item => {
-            // Fuzzy match brand name if exact match fails
+            // Fuzzy match brand name
             let matchedBrand = brands.find(b => item.vehicle_brand.includes(b) || b.includes(item.vehicle_brand));
             if (!matchedBrand && brands.some(b => item.vehicle_brand.includes(b.replace('汽车', '')))) {
                  matchedBrand = brands.find(b => item.vehicle_brand.includes(b.replace('汽车', '')));
@@ -89,50 +88,17 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             if (!brandMap.has(dimId)) brandMap.set(dimId, new Map());
             const dimMap = brandMap.get(dimId)!;
             
-            // De-duplication logic: latest & highest reliability
+            // De-duplication: latest & highest reliability
             const existing = dimMap.get(item.secondary_tech_dimension);
             if (!existing || item.reliability > existing.reliability || (item.reliability === existing.reliability && new Date(item.updated_at) > new Date(existing.updated_at))) {
                 dimMap.set(item.secondary_tech_dimension, item);
-                
-                // Only count unique items (post-deduplication logic implies we count distinct sub-dims effectively, 
-                // but simpler is to count items processed. Here we count "active items" for display)
-                if (!counts.has(matchedBrand)) counts.set(matchedBrand, new Map());
-                const bCounts = counts.get(matchedBrand)!;
-                // We increment only if we are replacing or adding new. 
-                // However, a simple increment in loop counts ALL records (history included if not careful).
-                // But getTechItems usually returns Golden Records (1 per sub-dim per car). 
-                // So simple increment is fine.
             }
 
             scores.set(matchedBrand, (scores.get(matchedBrand) || 0) + (item.reliability * 10));
-            
-            // Mark sub-dimension as active globally (if at least one selected brand has it)
-            activeSubSet.add(`${dimId}::${item.secondary_tech_dimension}`);
         });
 
-        // Recalculate counts based on the final map to be accurate after dedup
-        map.forEach((brandDimMap, brand) => {
-            if (!counts.has(brand)) counts.set(brand, new Map());
-            const bCounts = counts.get(brand)!;
-            brandDimMap.forEach((subMap, dimId) => {
-                bCounts.set(dimId, subMap.size);
-            });
-        });
-
-        return { matrixMap: map, brandScores: scores, activeSubDims: activeSubSet, brandDimCounts: counts };
+        return { matrixMap: map, brandScores: scores };
     }, [items, dimensions, brands]);
-
-    // Filter Dimensions for Display
-    const visibleDimensions = useMemo(() => {
-        return dimensions.map(dim => {
-            // Filter sub-dimensions: Keep only if it exists in activeSubDims
-            const activeSubs = (dim.sub_dimensions || []).filter(sub => activeSubDims.has(`${dim.id}::${sub}`));
-            return {
-                ...dim,
-                sub_dimensions: activeSubs
-            };
-        }).filter(dim => dim.sub_dimensions.length > 0); // Hide primary dimension if no active sub-dimensions
-    }, [dimensions, activeSubDims]);
 
     if (isLoading) {
         return (
@@ -152,15 +118,6 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
         );
     }
 
-    if (visibleDimensions.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <ViewGridIcon className="w-12 h-12 mb-2 opacity-20" />
-                <p>当前选中的车企暂无相关技术情报数据</p>
-            </div>
-        );
-    }
-
     return (
         <div className="flex flex-col h-full bg-[#f8fafc]">
             <div className="flex-1 overflow-x-auto custom-scrollbar p-6">
@@ -170,7 +127,6 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                     {brands.map(brand => {
                         const score = brandScores.get(brand) || 0;
                         const brandData = matrixMap.get(brand);
-                        const brandCounts = brandDimCounts.get(brand);
 
                         return (
                             <div 
@@ -195,49 +151,57 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
 
                                 {/* Tech Specs Body - Vertical Stack */}
                                 <div className="flex-1 p-3 space-y-4 bg-slate-50/50">
-                                    {visibleDimensions.map((dim, dimIndex) => {
+                                    {dimensions.map((dim, dimIndex) => {
                                         const subDims = dim.sub_dimensions || [];
                                         const brandDimMap = brandData?.get(dim.id);
+                                        
+                                        // 1. Filter sub-dimensions that actually have data for this brand
+                                        const activeSubDimsForBrand = subDims.filter(sub => brandDimMap?.has(sub));
+                                        
+                                        // 2. If no active sub-dimensions, completely hide (fold) this primary dimension block
+                                        if (activeSubDimsForBrand.length === 0) return null;
+
                                         const dimIconColor = getDimensionColor(dimIndex);
                                         const DimIcon = getDimensionIcon(dim.name);
-                                        const itemCount = brandCounts?.get(dim.id) || 0;
+                                        const itemCount = activeSubDimsForBrand.length;
 
                                         return (
-                                            <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
+                                            <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300">
                                                 {/* Level 1: Primary Dimension Header */}
                                                 <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
                                                     <div className="flex items-center gap-2">
                                                         <DimIcon className="w-4 h-4 opacity-80" />
                                                         <span className="text-sm font-bold tracking-wide">{dim.name}</span>
                                                     </div>
-                                                    {itemCount > 0 && (
-                                                        <span className="text-[10px] bg-white/30 backdrop-blur-sm px-1.5 py-0.5 rounded font-bold">
-                                                            {itemCount}
-                                                        </span>
-                                                    )}
+                                                    {/* Count Badge */}
+                                                    <span className="text-[10px] bg-white/40 backdrop-blur-md px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                                        {itemCount}
+                                                    </span>
                                                 </div>
 
                                                 <div className="divide-y divide-slate-50">
-                                                    {subDims.map(sub => {
+                                                    {activeSubDimsForBrand.map(sub => {
                                                         const item = brandDimMap?.get(sub);
-                                                        const conf = item ? getReliabilityConfig(item.reliability) : null;
-                                                        const Icon = conf ? conf.icon : null;
+                                                        // Item is guaranteed to exist here due to filter above
+                                                        if (!item) return null;
+
+                                                        const conf = getReliabilityConfig(item.reliability);
+                                                        const Icon = conf.icon;
                                                         
                                                         // "Peer Highlight" Logic
-                                                        const isMatch = hoveredTechName && item?.name === hoveredTechName;
-                                                        const isDimmed = hoveredTechName && item?.name !== hoveredTechName;
+                                                        const isMatch = hoveredTechName && item.name === hoveredTechName;
+                                                        const isDimmed = hoveredTechName && item.name !== hoveredTechName;
 
                                                         return (
                                                             <div 
                                                                 key={sub} 
                                                                 className={`
-                                                                    p-4 transition-all duration-300 relative group
+                                                                    p-4 transition-all duration-300 relative group cursor-pointer bg-white hover:bg-slate-50
                                                                     ${isMatch ? 'bg-indigo-50 z-10 scale-[1.02] shadow-md ring-1 ring-indigo-100' : ''}
                                                                     ${isDimmed ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}
-                                                                    ${!item ? 'bg-slate-50/30' : 'bg-white hover:bg-slate-50 cursor-pointer'}
                                                                 `}
-                                                                onClick={() => item && onItemClick(item)}
-                                                                onMouseEnter={() => item && setHoveredTechName(item.name)}
+                                                                onClick={() => onItemClick(item)}
+                                                                onMouseEnter={() => setHoveredTechName(item.name)}
                                                                 onMouseLeave={() => setHoveredTechName(null)}
                                                             >
                                                                 {/* Level 2: Secondary Dimension Label */}
@@ -245,40 +209,26 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-1.5 py-0.5 rounded-sm">
                                                                         {sub}
                                                                     </span>
-                                                                    {item && conf && (
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <span className={`text-[9px] text-slate-400 font-mono`}>
-                                                                                {new Date(item.updated_at).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}
-                                                                            </span>
-                                                                            <span className={`w-1.5 h-1.5 rounded-full ${conf.bar}`}></span>
-                                                                        </div>
-                                                                    )}
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className={`text-[9px] text-slate-400 font-mono`}>
+                                                                            {new Date(item.updated_at).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}
+                                                                        </span>
+                                                                        <span className={`w-2 h-2 rounded-full ${conf.bar}`}></span>
+                                                                    </div>
                                                                 </div>
 
-                                                                {item ? (
-                                                                    <>
-                                                                        <div className="font-bold text-slate-800 text-sm leading-snug mb-1.5 group-hover:text-indigo-700 transition-colors">
-                                                                            {item.name}
-                                                                        </div>
-                                                                        
-                                                                        {/* Reliability Badge inline if crucial, or just keep color bar */}
-                                                                        {conf && (
-                                                                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${conf.bg} ${conf.color} ${conf.border} mb-1.5`}>
-                                                                                {Icon && <Icon className="w-3 h-3" />}
-                                                                                {conf.label}
-                                                                            </div>
-                                                                        )}
+                                                                <div className="font-bold text-slate-800 text-sm leading-snug mb-1.5 group-hover:text-indigo-700 transition-colors">
+                                                                    {item.name}
+                                                                </div>
+                                                                
+                                                                <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${conf.bg} ${conf.color} ${conf.border} mb-1.5`}>
+                                                                    <Icon className="w-3 h-3" />
+                                                                    {conf.label}
+                                                                </div>
 
-                                                                        <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                                                            {item.description}
-                                                                        </div>
-                                                                    </>
-                                                                ) : (
-                                                                    <div className="text-xs text-slate-300 italic py-2 flex items-center gap-2">
-                                                                        <div className="w-4 h-px bg-slate-200"></div>
-                                                                        暂无情报
-                                                                    </div>
-                                                                )}
+                                                                <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                                    {item.description}
+                                                                </div>
                                                             </div>
                                                         );
                                                     })}
@@ -286,6 +236,17 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                             </div>
                                         );
                                     })}
+                                    
+                                    {/* Fallback if all dimensions are hidden */}
+                                    {dimensions.every(dim => {
+                                        const brandDimMap = brandData?.get(dim.id);
+                                        const subDims = dim.sub_dimensions || [];
+                                        return !subDims.some(sub => brandDimMap?.has(sub));
+                                    }) && (
+                                        <div className="text-center py-10 text-slate-400">
+                                            <p className="text-xs">暂无任何技术情报</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
