@@ -1,11 +1,10 @@
-
 import React, { useState, useMemo } from 'react';
 import { TechItem, CompetitivenessDimension } from '../../types';
 import { 
     CheckCircleIcon, ShieldCheckIcon, ShieldExclamationIcon, 
     AnnotationIcon, QuestionMarkCircleIcon,
     LightningBoltIcon, ChipIcon, GlobeIcon, CubeIcon, TruckIcon,
-    ViewGridIcon
+    ViewGridIcon, SparklesIcon
 } from '../icons';
 
 // Add missing icons locally if needed or map existing ones
@@ -64,11 +63,11 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
     const [hoveredTechName, setHoveredTechName] = useState<string | null>(null);
 
     // Data Processing
-    const { matrixMap, brandScores } = useMemo(() => {
+    const { matrixMap, brandCounts, maxCount } = useMemo(() => {
         // Map<Brand, Map<DimId, Map<SubName, Item>>>
         const map = new Map<string, Map<string, Map<string, TechItem>>>();
-        const scores = new Map<string, number>();
-
+        
+        // 1. Build Map & Deduplicate
         items.forEach(item => {
             // Fuzzy match brand name
             let matchedBrand = brands.find(b => item.vehicle_brand.includes(b) || b.includes(item.vehicle_brand));
@@ -93,11 +92,22 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             if (!existing || item.reliability > existing.reliability || (item.reliability === existing.reliability && new Date(item.updated_at) > new Date(existing.updated_at))) {
                 dimMap.set(item.secondary_tech_dimension, item);
             }
-
-            scores.set(matchedBrand, (scores.get(matchedBrand) || 0) + (item.reliability * 10));
         });
 
-        return { matrixMap: map, brandScores: scores };
+        // 2. Count Total Discovered Items per Brand
+        const counts = new Map<string, number>();
+        let max = 1; // Default to 1 to avoid division by zero
+
+        map.forEach((dimMap, brand) => {
+            let c = 0;
+            dimMap.forEach((subMap) => {
+                c += subMap.size;
+            });
+            counts.set(brand, c);
+            if (c > max) max = c;
+        });
+
+        return { matrixMap: map, brandCounts: counts, maxCount: max };
     }, [items, dimensions, brands]);
 
     if (isLoading) {
@@ -120,32 +130,78 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc]">
+            <style>{`
+                @keyframes slideInUp {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes growWidth {
+                    from { width: 0; }
+                }
+                .animate-slide-up {
+                    animation: slideInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    opacity: 0;
+                }
+                .animate-grow {
+                    animation: growWidth 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                }
+                /* Glossy Shine Effect */
+                .hover-shine {
+                    position: relative;
+                    overflow: hidden;
+                }
+                .hover-shine::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 50%;
+                    height: 100%;
+                    background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+                    transform: skewX(-25deg);
+                    transition: 0s;
+                    pointer-events: none;
+                }
+                .hover-shine:hover::after {
+                    left: 200%;
+                    transition: 0.6s ease-in-out;
+                }
+            `}</style>
+
             <div className="flex-1 overflow-x-auto custom-scrollbar p-6">
                 <div className="flex gap-6 min-w-max pb-10">
                     
                     {/* Iterate Columns by Selected Brands */}
-                    {brands.map(brand => {
-                        const score = brandScores.get(brand) || 0;
+                    {brands.map((brand, colIndex) => {
+                        const count = brandCounts.get(brand) || 0;
                         const brandData = matrixMap.get(brand);
 
                         return (
                             <div 
                                 key={brand} 
-                                className="flex-shrink-0 w-[360px] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                                className="flex-shrink-0 w-[360px] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
+                                style={{ animationDelay: `${colIndex * 100}ms` }}
                             >
                                 {/* Brand Header */}
                                 <div className="p-5 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md">
-                                    <div className="flex justify-between items-center mb-2">
+                                    <div className="flex justify-between items-center mb-3">
                                         <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{brand}</h3>
                                         <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 font-bold text-xs text-slate-500">
                                             {brand.substring(0, 1)}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style={{ width: `${Math.min(100, score / 2)}%` }}></div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full animate-grow" 
+                                                style={{ width: `${Math.max(5, (count / maxCount) * 100)}%` }}
+                                            ></div>
                                         </div>
-                                        <span className="text-[10px] font-bold text-slate-400">竞争力: {score}</span>
+                                        <div className="flex items-baseline gap-1 text-slate-600">
+                                            <span className="text-xs">收录新技术</span>
+                                            <span className="text-sm font-extrabold text-indigo-600">{count}</span>
+                                            <span className="text-[10px] text-slate-400">项</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -196,7 +252,7 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                                             <div 
                                                                 key={sub} 
                                                                 className={`
-                                                                    p-4 transition-all duration-300 relative group cursor-pointer bg-white hover:bg-slate-50
+                                                                    p-4 transition-all duration-300 relative group cursor-pointer bg-white hover:bg-slate-50 hover-shine
                                                                     ${isMatch ? 'bg-indigo-50 z-10 scale-[1.02] shadow-md ring-1 ring-indigo-100' : ''}
                                                                     ${isDimmed ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}
                                                                 `}
@@ -244,6 +300,7 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                         return !subDims.some(sub => brandDimMap?.has(sub));
                                     }) && (
                                         <div className="text-center py-10 text-slate-400">
+                                            <SparklesIcon className="w-8 h-8 mb-2 mx-auto opacity-20" />
                                             <p className="text-xs">暂无任何技术情报</p>
                                         </div>
                                     )}
