@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { DocumentTextIcon, RssIcon, VideoCameraIcon, ChartIcon, SparklesIcon } from '../icons';
-import { searchArticlesFiltered, getDashboardOverview, getDeepInsightTasksStats, getLivestreamTasks } from '../../api';
+import { searchArticlesFiltered, getTechItems, getDeepInsightTasksStats, getLivestreamTasks } from '../../api';
 
 // --- Animated Number Component ---
 const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
@@ -94,11 +94,11 @@ export const DashboardWidgets: React.FC = () => {
                 const now = new Date();
                 const todayStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T00:00:00`;
 
-                const [articlesRes, kbRes, deepRes, eventsRes] = await Promise.all([
+                const [articlesRes, techItems, deepRes, eventsRes] = await Promise.all([
                     // 1. 情报服务：今日文章
                     searchArticlesFiltered({ publish_date_start: todayStart, query_text: '*', limit: 1, page: 1 }).catch(() => ({ total: 0 })),
-                    // 2. 竞争力服务：知识库总数
-                    getDashboardOverview().catch(() => ({ kb_total: 0 })),
+                    // 2. 竞争力服务：获取技术情报列表并统计数量 (替代旧版 Dashboard API)
+                    getTechItems({ limit: 1000 }).catch(() => []),
                     // 3. 深度洞察服务：已处理文档
                     getDeepInsightTasksStats().catch(() => ({ completed: 0 })),
                     // 4. 直播服务：即将开始
@@ -107,7 +107,7 @@ export const DashboardWidgets: React.FC = () => {
 
                 setStats({
                     articlesToday: articlesRes.total || 0,
-                    kbTotal: kbRes.kb_total || 0,
+                    kbTotal: Array.isArray(techItems) ? techItems.length : 0,
                     docsProcessed: deepRes.completed || 0,
                     upcomingEvents: eventsRes.total || 0
                 });
