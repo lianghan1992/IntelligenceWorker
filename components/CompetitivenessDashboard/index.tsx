@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
     TechItem,
     TechItemHistory,
@@ -12,13 +12,15 @@ import {
     getBrands,
     getDimensions
 } from '../../api/competitiveness';
+import { getArticleById } from '../../api/intelligence';
 import { 
     ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    ArrowRightIcon
+    ArrowRightIcon, ViewListIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
+import { CompetitivenessMatrix } from './CompetitivenessMatrix';
 
 // --- Helper Functions ---
 const getReliabilityInfo = (score: number) => {
@@ -138,6 +140,8 @@ const DossierPanel: React.FC<{
 
 // --- Component: IntelligenceMatrix (Main List) ---
 const IntelligenceMatrix: React.FC = () => {
+    const [viewMode, setViewMode] = useState<'list' | 'matrix'>('list');
+    
     const [items, setItems] = useState<TechItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [filters, setFilters] = useState({ brand: '', dimension: '' });
@@ -149,6 +153,7 @@ const IntelligenceMatrix: React.FC = () => {
     // Detail View State
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<TechItemHistory | null>(null);
+    const [selectedSourceArticle, setSelectedSourceArticle] = useState<InfoItem | null>(null);
 
     useEffect(() => {
         getBrands().then(setBrands);
@@ -158,10 +163,11 @@ const IntelligenceMatrix: React.FC = () => {
     const fetchItems = async () => {
         setIsLoading(true);
         try {
+            const limit = viewMode === 'matrix' ? 500 : 50; // Matrix needs more data
             const res = await getTechItems({
                 vehicle_brand: filters.brand || undefined,
                 tech_dimension: filters.dimension || undefined,
-                limit: 50
+                limit: limit 
             });
             setItems(res);
         } catch (e) {
@@ -173,7 +179,7 @@ const IntelligenceMatrix: React.FC = () => {
 
     useEffect(() => {
         fetchItems();
-    }, [filters]);
+    }, [filters, viewMode]);
 
     const handleItemClick = async (item: TechItem) => {
         try {
@@ -181,11 +187,15 @@ const IntelligenceMatrix: React.FC = () => {
             const detail = await getTechItemDetail(item.id);
             setSelectedItem(detail);
             
+            // Reset article preview
+            setSelectedSourceArticle(null);
+
             // Auto select latest history item
             if (detail.history && detail.history.length > 0) {
                 // Sort by time desc
                 const sorted = [...detail.history].sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
-                setSelectedHistory(sorted[0]);
+                const latest = sorted[0];
+                handleHistoryClick(latest); // Trigger article fetch logic
             } else {
                 setSelectedHistory(null);
             }
@@ -194,120 +204,159 @@ const IntelligenceMatrix: React.FC = () => {
         }
     };
 
-    // Construct a pseudo InfoItem for EvidenceTrail based on selected history
-    const articleForEvidence = useMemo((): InfoItem | null => {
-        if (!selectedHistory) return null;
-        return {
-            id: selectedHistory.article_id,
-            title: '技术情报来源文章', // Metadata not available in this API, use placeholder
-            content: '', // EvidenceTrail will fetch HTML content
-            original_url: '#', // Not available in this API response
-            source_name: '原始信源',
-            point_name: '技术追踪',
-            point_id: '',
-            publish_date: selectedHistory.event_time,
-            created_at: selectedHistory.event_time
-        };
-    }, [selectedHistory]);
+    const handleHistoryClick = async (history: TechItemHistory) => {
+        setSelectedHistory(history);
+        if (history.article_id) {
+            // Fetch article metadata to display in EvidenceTrail
+            try {
+                const articleInfo = await getArticleById(history.article_id);
+                setSelectedSourceArticle(articleInfo);
+            } catch (e) {
+                console.error("Failed to load source article", e);
+                // Fallback struct if API fails
+                setSelectedSourceArticle({
+                    id: history.article_id,
+                    title: '无法加载标题',
+                    content: '',
+                    original_url: '#',
+                    source_name: '未知来源',
+                    point_name: '',
+                    point_id: '',
+                    publish_date: history.event_time,
+                    created_at: history.event_time
+                });
+            }
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-slate-50/50">
             {/* Filter Bar */}
-            <div className="px-6 py-4 bg-white border-b border-slate-200 flex flex-wrap items-center gap-3 shadow-sm z-10 flex-shrink-0">
-                <div className="flex items-center gap-2 text-slate-500 text-sm font-bold mr-2">
-                    <FunnelIcon className="w-4 h-4" />
-                    <span>筛选</span>
-                </div>
-                
-                <select 
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
-                    value={filters.brand}
-                    onChange={e => setFilters({...filters, brand: e.target.value})}
-                >
-                    <option value="">所有品牌</option>
-                    {brands.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+            <div className="px-6 py-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-slate-500 text-sm font-bold mr-2">
+                        <FunnelIcon className="w-4 h-4" />
+                        <span>筛选</span>
+                    </div>
+                    
+                    <select 
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
+                        value={filters.brand}
+                        onChange={e => setFilters({...filters, brand: e.target.value})}
+                    >
+                        <option value="">所有品牌</option>
+                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
 
-                <select 
-                    className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
-                    value={filters.dimension}
-                    onChange={e => setFilters({...filters, dimension: e.target.value})}
-                >
-                    <option value="">所有技术维度</option>
-                    {dimensions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                </select>
+                    <select 
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
+                        value={filters.dimension}
+                        onChange={e => setFilters({...filters, dimension: e.target.value})}
+                    >
+                        <option value="">所有技术维度</option>
+                        {dimensions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                    </select>
+                </div>
+
+                <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button 
+                        onClick={() => setViewMode('list')}
+                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <ViewListIcon className="w-4 h-4" /> 列表
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('matrix')}
+                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'matrix' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <ViewGridIcon className="w-4 h-4" /> 全景矩阵
+                    </button>
+                </div>
             </div>
 
             {/* Main Content Split */}
             <div className="flex-1 flex overflow-hidden">
                 
-                {/* List View */}
-                <div className={`flex-1 flex flex-col min-w-0 border-r border-slate-200 bg-white transition-all duration-500 ease-in-out ${selectedItem ? 'hidden lg:flex lg:max-w-[450px]' : ''}`}>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                        {isLoading ? (
-                             <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
-                                 <span className="text-sm text-slate-500">正在检索情报库...</span>
-                             </div>
-                        ) : items.length === 0 ? (
-                            <div className="text-center text-slate-400 py-20">
-                                <ViewGridIcon className="w-12 h-12 mx-auto mb-2 opacity-20"/>
-                                <p>暂无符合条件的情报</p>
+                {/* View Area (List or Matrix) */}
+                <div className={`flex-1 flex flex-col min-w-0 border-r border-slate-200 bg-white transition-all duration-500 ease-in-out ${selectedItem ? 'hidden xl:flex xl:max-w-[50%]' : ''}`}>
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                        {viewMode === 'list' ? (
+                            <div className="space-y-3">
+                                {isLoading ? (
+                                     <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                                         <span className="text-sm text-slate-500">正在检索情报库...</span>
+                                     </div>
+                                ) : items.length === 0 ? (
+                                    <div className="text-center text-slate-400 py-20">
+                                        <ViewGridIcon className="w-12 h-12 mx-auto mb-2 opacity-20"/>
+                                        <p>暂无符合条件的情报</p>
+                                    </div>
+                                ) : (
+                                    items.map(item => {
+                                        const relConf = getReliabilityInfo(item.reliability);
+                                        const isSelected = selectedItem?.id === item.id;
+
+                                        return (
+                                            <div 
+                                                key={item.id}
+                                                onClick={() => handleItemClick(item)}
+                                                className={`group p-5 rounded-2xl border cursor-pointer transition-all duration-200 relative overflow-hidden ${
+                                                    isSelected 
+                                                        ? 'border-indigo-500 bg-indigo-50/30 shadow-md ring-1 ring-indigo-500/20' 
+                                                        : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5'
+                                                }`}
+                                            >
+                                                {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>}
+                                                
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${relConf.badge} border-transparent`}>
+                                                            <relConf.Icon className="w-3 h-3 mr-1" />
+                                                            {relConf.text}
+                                                        </span>
+                                                        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{item.vehicle_brand} {item.vehicle_model}</span>
+                                                    </div>
+                                                    <span className="text-[10px] font-mono text-slate-400">{new Date(item.updated_at).toLocaleDateString()}</span>
+                                                </div>
+                                                
+                                                <h3 className={`text-base font-bold mb-2 line-clamp-1 transition-colors ${isSelected ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
+                                                    {item.name}
+                                                </h3>
+                                                <p className="text-xs text-slate-500 mb-4 line-clamp-2 leading-relaxed">{item.description}</p>
+                                                
+                                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-3 border-t border-slate-50">
+                                                    <div className="flex items-center gap-1">
+                                                        <span>{item.tech_dimension}</span>
+                                                        <ChevronRightIcon className="w-2.5 h-2.5"/>
+                                                        <span className="font-semibold text-slate-600">{item.secondary_tech_dimension}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
                             </div>
                         ) : (
-                            items.map(item => {
-                                const relConf = getReliabilityInfo(item.reliability);
-                                const isSelected = selectedItem?.id === item.id;
-
-                                return (
-                                    <div 
-                                        key={item.id}
-                                        onClick={() => handleItemClick(item)}
-                                        className={`group p-5 rounded-2xl border cursor-pointer transition-all duration-200 relative overflow-hidden ${
-                                            isSelected 
-                                                ? 'border-indigo-500 bg-indigo-50/30 shadow-md ring-1 ring-indigo-500/20' 
-                                                : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5'
-                                        }`}
-                                    >
-                                        {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>}
-                                        
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${relConf.badge} border-transparent`}>
-                                                    <relConf.Icon className="w-3 h-3 mr-1" />
-                                                    {relConf.text}
-                                                </span>
-                                                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{item.vehicle_brand} {item.vehicle_model}</span>
-                                            </div>
-                                            <span className="text-[10px] font-mono text-slate-400">{new Date(item.updated_at).toLocaleDateString()}</span>
-                                        </div>
-                                        
-                                        <h3 className={`text-base font-bold mb-2 line-clamp-1 transition-colors ${isSelected ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-                                            {item.name}
-                                        </h3>
-                                        <p className="text-xs text-slate-500 mb-4 line-clamp-2 leading-relaxed">{item.description}</p>
-                                        
-                                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-3 border-t border-slate-50">
-                                            <div className="flex items-center gap-1">
-                                                <span>{item.tech_dimension}</span>
-                                                <ChevronRightIcon className="w-2.5 h-2.5"/>
-                                                <span className="font-semibold text-slate-600">{item.secondary_tech_dimension}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })
+                            // Matrix View
+                            <CompetitivenessMatrix 
+                                items={items} 
+                                brands={filters.brand ? [filters.brand] : brands}
+                                dimensions={filters.dimension ? dimensions.filter(d => d.name === filters.dimension) : dimensions}
+                                onItemClick={handleItemClick}
+                                isLoading={isLoading}
+                            />
                         )}
                     </div>
                 </div>
 
                 {/* Detail View */}
                 {selectedItem ? (
-                    <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500">
+                    <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 shadow-2xl z-20">
                         {/* Mobile Close Button */}
                         <button 
                             onClick={() => setSelectedItem(null)}
-                            className="lg:hidden absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg z-50 text-slate-500 hover:text-slate-800 border border-slate-100"
+                            className="xl:hidden absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg z-50 text-slate-500 hover:text-slate-800 border border-slate-100"
                         >
                             <CloseIcon className="w-5 h-5" />
                         </button>
@@ -318,14 +367,14 @@ const IntelligenceMatrix: React.FC = () => {
                                 <DossierPanel 
                                     item={selectedItem}
                                     selectedHistoryId={selectedHistory?.id || null}
-                                    onSelectHistory={setSelectedHistory}
+                                    onSelectHistory={handleHistoryClick}
                                 />
                             </div>
                             
                             {/* Right: Article Viewer */}
                             <div className="flex-[1.5] bg-white flex flex-col h-full overflow-hidden">
-                                {articleForEvidence ? (
-                                    <EvidenceTrail selectedArticle={articleForEvidence} />
+                                {selectedSourceArticle ? (
+                                    <EvidenceTrail selectedArticle={selectedSourceArticle} />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 p-8 bg-slate-50/50">
                                         <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border border-slate-200">
@@ -339,7 +388,7 @@ const IntelligenceMatrix: React.FC = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-[3] hidden lg:flex flex-col items-center justify-center bg-slate-50/50 text-slate-400 border-l border-slate-200/50">
+                    <div className="flex-[3] hidden xl:flex flex-col items-center justify-center bg-slate-50/50 text-slate-400 border-l border-slate-200/50">
                         <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
                             <ViewGridIcon className="w-16 h-16 text-slate-200" />
                         </div>

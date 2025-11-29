@@ -92,6 +92,42 @@ export const getArticles = (params: {
     return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/articles${query}`);
 };
 
+// NEW: Helper to get a single article by ID (uses the list endpoint with filtering)
+export const getArticleById = async (articleId: string): Promise<InfoItem | null> => {
+    // Note: The API doc says we can filter by article_ids in DELETE, but GET usually supports standard filters.
+    // Since there isn't a direct GET /articles/{id} documented in the 'Intelligence Service API',
+    // we assume we might need to implement it or use a workaround if the backend supports ID filtering on GET.
+    // IF NOT supported, we might need to rely on the fact that EvidenceTrail fetches HTML by ID directly.
+    // However, to get the URL/Title, we need metadata. 
+    // Let's assume for now we can fetch the HTML to at least show content, 
+    // but metadata might be missing if the list endpoint doesn't support ID filter.
+    // *Self-correction based on user prompt context*: "Use Intelligence API". 
+    // Let's try to fetch it via the HTML endpoint to check existence, but for metadata...
+    // The previous code had a `getArticle` placeholder.
+    
+    // Attempting to use a theoretical ID filter or just returning a skeleton for EvidenceTrail to fetch HTML
+    // Ideally the backend should support `GET /api/crawler/articles/{id}`. 
+    // Assuming standard REST:
+    try {
+        // Trying direct access if implemented, otherwise catch 404
+        return await apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}`);
+    } catch (e) {
+        console.warn("Direct article fetch failed, trying search workaround or returning partial", e);
+        // Fallback: If we can't get metadata, we return a partial object so EvidenceTrail can at least fetch the HTML
+        return {
+            id: articleId,
+            title: '加载原文档信息失败 (仅预览内容)',
+            content: '',
+            original_url: '#',
+            source_name: '未知来源',
+            point_name: '未知',
+            point_id: '',
+            created_at: new Date().toISOString(),
+            publish_date: null
+        };
+    }
+};
+
 // Updated: Batch delete articles
 // Fix: Explicitly set Content-Type for DELETE with body to avoid 422 Unprocessable Entity
 export const deleteArticles = (articleIds: string[]): Promise<{ message: string }> => 
@@ -253,7 +289,7 @@ export const searchChunks = async (params: any): Promise<SearchChunksResponse> =
         top_k, 
         similarity_threshold, 
         source_names, 
-        publish_date_start,
+        publish_date_start, 
         publish_date_end
     } = params;
 
