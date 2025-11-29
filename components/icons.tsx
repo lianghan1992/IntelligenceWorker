@@ -322,7 +322,7 @@ export const MicrophoneIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =
 
 export const PhotoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <Icon {...props} viewBox="0 0 24 24" fill="currentColor">
-    <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
+    <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
   </Icon>
 );
 
@@ -343,3 +343,33 @@ export const ArrowsPointingOutIcon: React.FC<React.SVGProps<SVGSVGElement>> = (p
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
     </Icon>
   );
+
+export const LightningBoltIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+    </Icon>
+);
+
+export const ChipIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+    </Icon>
+);
+
+export const CubeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+    </Icon>
+);
+
+export const TruckIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24" strokeWidth={1.5} fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12" />
+    </Icon>
+);
+
+export const FireIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M12.316 3.051a1.5 1.5 0 01.063 2.122l-2.022 2.871c.216.096.42.22.607.368l2.73-3.896a1.5 1.5 0 012.122-.063l.995.995a1.5 1.5 0 01-.063 2.122l-2.09 2.982c.45.32.793.728 1.056 1.188l2.982-2.09a1.5 1.5 0 012.122.063l.995.995a1.5 1.5 0 01-.063 2.122l-2.73 3.896c-.34.484-.77.91-1.248 1.272l2.09 2.982a1.5 1.5 0 01-.063 2.122l-.995.995a1.5 1.5 0 01-2.122-.063l-2.982-2.09c-.484.34-.99.61-1.52.77l-1.074 2.242a1.5 1.5 0 01-2.83 0l-1.074-2.242c-.53-.16-1.036-.43-1.52-.77l-2.982 2.09a1.5 1.5 0 01-2.122-.063l-.995-.995a1.5 1.5 0 01.063-2.122l2.09-2.982a6.47 6.47 0 01-1.056-1.188l-2.982 2.09a1.5 1.5 0 01-2.122-.063l-.995-.995a1.5 1.5 0 01.063-2.122l2.73-3.896a6.47 6.47 0 011.248-1.272L3.05 5.234a1.5 1.5 0 01.063-2.122l.995-.995a1.5 1.5 0 012.122.063l2.022 2.871c.28-.148.574-.268.88-.354l.94-1.978a1.5 1.5 0 012.83 0l.94 1.978c.306.086.6.206.88.354l2.022-2.871a1.5 1.5 0 012.122-.063l.995.995z" clipRule="evenodd" />
+    </Icon>
+);

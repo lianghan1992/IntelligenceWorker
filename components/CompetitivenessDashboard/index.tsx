@@ -138,71 +138,50 @@ const DossierPanel: React.FC<{
     );
 };
 
-// --- Component: IntelligenceMatrix (Main List) ---
-const IntelligenceMatrix: React.FC = () => {
-    const [viewMode, setViewMode] = useState<'list' | 'matrix'>('list');
-    
+// --- Main Component ---
+export const CompetitivenessDashboard: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [filters, setFilters] = useState({ brand: '', dimension: '' });
-    const [page, setPage] = useState(1); // List view pagination
-    
-    // Metadata for filters
     const [brands, setBrands] = useState<string[]>([]);
     const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
 
-    // Detail View State (Selected Item for List Mode / Modal for Matrix Mode)
+    // Detail Modal State
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<TechItemHistory | null>(null);
     const [selectedSourceArticle, setSelectedSourceArticle] = useState<InfoItem | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     useEffect(() => {
-        getBrands().then(setBrands);
-        getDimensions().then(setDimensions);
+        const init = async () => {
+            setIsLoading(true);
+            try {
+                const [b, d] = await Promise.all([getBrands(), getDimensions()]);
+                setBrands(b);
+                setDimensions(d);
+                const techItems = await getTechItems({ limit: 1000 }); // Get plenty for matrix
+                setItems(techItems);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        init();
     }, []);
-
-    const fetchItems = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const limit = viewMode === 'matrix' ? 500 : 50; 
-            const res = await getTechItems({
-                vehicle_brand: filters.brand || undefined,
-                tech_dimension: filters.dimension || undefined,
-                skip: viewMode === 'list' ? (page - 1) * 20 : 0, // No pagination for matrix view
-                limit: limit 
-            });
-            setItems(res);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [filters, page, viewMode]);
-
-    useEffect(() => {
-        fetchItems();
-    }, [fetchItems]);
 
     const handleItemClick = async (item: TechItem) => {
         try {
-            // Fetch full detail with history
             const detail = await getTechItemDetail(item.id);
             setSelectedItem(detail);
             
             // Auto select latest history item
             let initialHistory: TechItemHistory | null = null;
             if (detail.history && detail.history.length > 0) {
-                // Sort by time desc
                 const sorted = [...detail.history].sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
                 initialHistory = sorted[0];
             }
             handleHistoryClick(initialHistory); 
-
-            // If in matrix mode, open modal. If list mode, just set selected item to show 3-column view.
-            if (viewMode === 'matrix') {
-                setIsDetailModalOpen(true);
-            }
+            setIsDetailModalOpen(true);
         } catch (e) {
             console.error("Failed to load details");
         }
@@ -215,231 +194,55 @@ const IntelligenceMatrix: React.FC = () => {
                 const articleInfo = await getArticleById(history.article_id);
                 setSelectedSourceArticle(articleInfo);
             } catch (e) {
-                console.error("Failed to load source article", e);
-                // Fallback struct if API fails
-                setSelectedSourceArticle({
-                    id: history.article_id,
-                    title: '无法加载标题',
-                    content: '',
-                    original_url: '#',
-                    source_name: '未知来源',
-                    point_name: '',
-                    point_id: '',
-                    publish_date: history.event_time,
-                    created_at: history.event_time
-                });
+                // Fallback if API fails
+                setSelectedSourceArticle(null);
             }
         } else {
             setSelectedSourceArticle(null);
         }
     };
 
-    const closeModal = () => {
-        setIsDetailModalOpen(false);
-        // Only clear selected item in matrix mode, in list mode deselecting handles layout change
-        if (viewMode === 'matrix') {
-            setSelectedItem(null);
-        }
-    };
-
-    // Dark Mode Theme Wrapper
-    const themeClass = viewMode === 'matrix' ? 'bg-[#020617]' : 'bg-slate-50/50';
-    const textClass = viewMode === 'matrix' ? 'text-slate-300' : 'text-slate-800';
-    const borderClass = viewMode === 'matrix' ? 'border-slate-800' : 'border-slate-200';
-    const headerBgClass = viewMode === 'matrix' ? 'bg-[#020617] border-b border-slate-800' : 'bg-white border-b border-slate-200';
-
     return (
-        <div className={`flex flex-col h-full relative transition-colors duration-500 ${themeClass}`}>
-            {/* Filter Bar */}
-            <div className={`px-6 py-4 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10 flex-shrink-0 transition-colors ${headerBgClass}`}>
-                <div className="flex items-center gap-3">
-                    <div className={`flex items-center gap-2 text-sm font-bold mr-2 ${viewMode === 'matrix' ? 'text-cyan-500' : 'text-slate-500'}`}>
-                        <FunnelIcon className="w-4 h-4" />
-                        <span>筛选</span>
+        <div className="h-full flex flex-col bg-slate-50">
+            <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
+                <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
+                    <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
+                        <ChartIcon className="w-5 h-5 text-white" />
                     </div>
-                    
-                    <select 
-                        className={`text-sm font-medium rounded-lg focus:ring-2 block p-2.5 min-w-[140px] outline-none transition-colors ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700 text-cyan-100 focus:ring-cyan-500 focus:border-cyan-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-indigo-500 focus:border-indigo-500'}`}
-                        value={filters.brand}
-                        onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
-                    >
-                        <option value="">所有品牌</option>
-                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+                    竞争力看板 
+                    <span className="text-[10px] font-bold text-indigo-600 ml-2 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-wide hidden md:inline-block">
+                        Competitiveness Matrix
+                    </span>
+                </h1>
+            </header>
 
-                    <select 
-                        className={`text-sm font-medium rounded-lg focus:ring-2 block p-2.5 min-w-[140px] outline-none transition-colors ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700 text-cyan-100 focus:ring-cyan-500 focus:border-cyan-500' : 'bg-slate-50 border-slate-200 text-slate-700 focus:ring-indigo-500 focus:border-indigo-500'}`}
-                        value={filters.dimension}
-                        onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
-                    >
-                        <option value="">所有技术维度</option>
-                        {dimensions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                    </select>
-                </div>
+            <main className="flex-1 overflow-hidden relative">
+                <CompetitivenessMatrix 
+                    items={items}
+                    brands={brands}
+                    dimensions={dimensions}
+                    onItemClick={handleItemClick}
+                    isLoading={isLoading}
+                />
+            </main>
 
-                <div className={`flex items-center p-1 rounded-lg border ${viewMode === 'matrix' ? 'bg-slate-900 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
-                    <button 
-                        onClick={() => { setViewMode('list'); setSelectedItem(null); }}
-                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <ViewListIcon className="w-4 h-4" /> 列表
-                    </button>
-                    <button 
-                        onClick={() => { setViewMode('matrix'); setSelectedItem(null); }}
-                        className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'matrix' ? 'bg-cyan-600 text-white shadow-sm shadow-cyan-900/50' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <TableCellsIcon className="w-4 h-4" /> 矩阵
-                    </button>
-                </div>
-            </div>
-
-            {/* Main Content Split */}
-            <div className="flex-1 flex overflow-hidden">
-                
-                {/* 1. Left/Main List Panel */}
-                <div className={`
-                    flex flex-col min-w-0 transition-all duration-300 ease-in-out
-                    ${viewMode === 'matrix' 
-                        ? 'w-full bg-[#020617]' 
-                        : (selectedItem ? 'w-[350px] flex-shrink-0 border-r border-slate-200 bg-white' : 'w-full bg-white')}
-                `}>
-                    <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
-                        {viewMode === 'list' ? (
-                            <div className="space-y-3 p-4">
-                                {isLoading ? (
-                                     <div className="flex flex-col items-center justify-center py-20 space-y-4">
-                                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
-                                         <span className="text-sm text-slate-500">正在检索情报库...</span>
-                                     </div>
-                                ) : items.length === 0 ? (
-                                    <div className="text-center text-slate-400 py-20">
-                                        <ViewGridIcon className="w-12 h-12 mx-auto mb-2 opacity-20"/>
-                                        <p>暂无符合条件的情报</p>
-                                    </div>
-                                ) : (
-                                    items.map(item => {
-                                        const relConf = getReliabilityInfo(item.reliability);
-                                        const isSelected = selectedItem?.id === item.id;
-
-                                        return (
-                                            <div 
-                                                key={item.id}
-                                                onClick={() => handleItemClick(item)}
-                                                className={`group p-5 rounded-2xl border cursor-pointer transition-all duration-200 relative overflow-hidden ${
-                                                    isSelected 
-                                                        ? 'border-indigo-500 bg-indigo-50/30 shadow-md ring-1 ring-indigo-500/20' 
-                                                        : 'border-slate-100 bg-white hover:border-indigo-200 hover:shadow-lg hover:-translate-y-0.5'
-                                                }`}
-                                            >
-                                                {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>}
-                                                
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${relConf.badge} border-transparent`}>
-                                                            <relConf.Icon className="w-3 h-3 mr-1" />
-                                                            {relConf.text}
-                                                        </span>
-                                                        <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{item.vehicle_brand} {item.vehicle_model}</span>
-                                                    </div>
-                                                    <span className="text-[10px] font-mono text-slate-400">{new Date(item.updated_at).toLocaleDateString()}</span>
-                                                </div>
-                                                
-                                                <h3 className={`text-base font-bold mb-2 line-clamp-1 transition-colors ${isSelected ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-                                                    {item.name}
-                                                </h3>
-                                                <p className="text-xs text-slate-500 mb-4 line-clamp-2 leading-relaxed">{item.description}</p>
-                                                
-                                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-3 border-t border-slate-50">
-                                                    <div className="flex items-center gap-1">
-                                                        <span>{item.tech_dimension}</span>
-                                                        <ChevronRightIcon className="w-2.5 h-2.5"/>
-                                                        <span className="font-semibold text-slate-600">{item.secondary_tech_dimension}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        ) : (
-                            // Matrix View Component
-                            <CompetitivenessMatrix 
-                                items={items} 
-                                brands={filters.brand ? [filters.brand] : brands}
-                                dimensions={filters.dimension ? dimensions.filter(d => d.name === filters.dimension) : dimensions}
-                                onItemClick={handleItemClick}
-                                isLoading={isLoading}
-                            />
-                        )}
-                    </div>
-                    {/* Simple Pagination for List View */}
-                    {viewMode === 'list' && (
-                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center flex-shrink-0">
-                            <span className="text-xs text-gray-500">每页 20 条</span>
-                            <div className="flex gap-2">
-                                <button disabled={page<=1} onClick={() => setPage(p=>p-1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronLeftIcon className="w-4 h-4"/></button>
-                                <span className="px-3 py-1.5 bg-white border rounded-lg text-sm font-medium shadow-sm">{page}</span>
-                                <button disabled={items.length < 20} onClick={() => setPage(p=>p+1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronRightIcon className="w-4 h-4"/></button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 2 & 3. Middle & Right Panels (Detail & Evidence) - Only in List Mode when Selected */}
-                {viewMode === 'list' && selectedItem && (
-                    <div className="flex-1 flex min-w-0 bg-slate-50 animate-in slide-in-from-right-8 duration-500 relative">
-                        {/* Mobile Close Button */}
-                        <button 
-                            onClick={() => setSelectedItem(null)}
-                            className="xl:hidden absolute top-4 right-4 p-2 bg-white rounded-full shadow-lg z-50 text-slate-500 hover:text-slate-800 border border-slate-100"
-                        >
-                            <CloseIcon className="w-5 h-5" />
-                        </button>
-
-                        {/* Middle: Dossier Panel */}
-                        <div className="flex-1 min-w-[320px] max-w-[450px] border-r border-slate-200 bg-white flex flex-col h-full">
-                            <DossierPanel 
-                                item={selectedItem}
-                                selectedHistoryId={selectedHistory?.id || null}
-                                onSelectHistory={handleHistoryClick}
-                            />
-                        </div>
-                        
-                        {/* Right: Evidence Trail */}
-                        <div className="flex-1 min-w-[320px] bg-white flex flex-col h-full overflow-hidden">
-                            {selectedSourceArticle ? (
-                                <EvidenceTrail selectedArticle={selectedSourceArticle} />
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 p-8 bg-slate-50/50">
-                                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border border-slate-200">
-                                        <DocumentTextIcon className="w-10 h-10 text-slate-300" />
-                                    </div>
-                                    <p className="font-bold text-slate-500">暂无信源预览</p>
-                                    <p className="text-sm mt-2 max-w-xs mx-auto">点击左侧时间轴中的卡片以查看原始文章详情。</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Matrix View Detail Modal */}
-            {isDetailModalOpen && selectedItem && viewMode === 'matrix' && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
+            {/* Detail Modal */}
+            {isDetailModalOpen && selectedItem && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
                     <div className="bg-white rounded-2xl w-full max-w-[95vw] h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b bg-gray-50 flex-shrink-0">
                             <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                                 <SparklesIcon className="w-5 h-5 text-indigo-600" />
                                 情报档案：{selectedItem.name}
                             </h3>
-                            <button onClick={closeModal} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                            <button onClick={() => setIsDetailModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
                                 <CloseIcon className="w-6 h-6" />
                             </button>
                         </div>
                         
                         <div className="flex-1 flex flex-col md:flex-row min-h-0">
                             {/* Left Panel: Dossier */}
-                            <div className="w-full md:w-[400px] border-r border-slate-200 bg-white flex-shrink-0 flex flex-col min-h-0">
+                            <div className="w-full md:w-[450px] border-r border-slate-200 bg-white flex-shrink-0 flex flex-col min-h-0">
                                 <DossierPanel 
                                     item={selectedItem}
                                     selectedHistoryId={selectedHistory?.id || null}
@@ -464,35 +267,14 @@ const IntelligenceMatrix: React.FC = () => {
                     </div>
                 </div>
             )}
-        </div>
-    );
-};
-
-// --- Main Component ---
-export const CompetitivenessDashboard: React.FC = () => {
-    return (
-        <div className="h-full flex flex-col bg-slate-100">
-            <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
-                <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
-                    <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
-                        <ChartIcon className="w-5 h-5 text-white" />
-                    </div>
-                    竞争力看板 
-                    <span className="text-[10px] font-bold text-indigo-600 ml-2 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-wide">
-                        COMPETITIVENESS INSIGHTS
-                    </span>
-                </h1>
-            </header>
-
-            <main className="flex-1 overflow-hidden relative">
-                <IntelligenceMatrix />
-            </main>
             
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
             `}</style>
         </div>
     );
