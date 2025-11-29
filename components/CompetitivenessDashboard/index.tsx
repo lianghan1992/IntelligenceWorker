@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     TechItem,
     TechItemHistory,
@@ -14,10 +14,10 @@ import {
 } from '../../api/competitiveness';
 import { getArticleById } from '../../api/intelligence';
 import { 
-    ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
+    CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
-    ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    ArrowRightIcon, ViewListIcon, TableCellsIcon, EyeIcon, GlobeIcon, CubeIcon
+    ChartIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
+    TableCellsIcon, EyeIcon, GlobeIcon, CubeIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
 import { CompetitivenessMatrix } from './CompetitivenessMatrix';
@@ -323,18 +323,6 @@ export const CompetitivenessDashboard: React.FC = () => {
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-                @keyframes grid-flow { from { background-position: 0 0; } to { background-position: 0 40px; } }
-                .animate-grid-flow { animation: grid-flow 2s linear infinite; }
-                @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-                @keyframes spin-reverse-slower { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
-                .animate-spin-slow { animation: spin-slow 20s linear infinite; }
-                .animate-spin-reverse-slower { animation: spin-reverse-slower 40s linear infinite; }
-                .animate-float-slow { animation: float-slow 6s ease-in-out infinite; }
-                @keyframes float-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-                @keyframes pulse-slow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
-                .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
-                @keyframes scan-vertical { 0% { transform: translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(400px); opacity: 0; } }
-                .animate-scan-vertical { animation: scan-vertical 3s linear infinite; }
             `}</style>
         </div>
     );
