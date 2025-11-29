@@ -17,7 +17,7 @@ import {
     ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
     ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    ArrowRightIcon, ViewListIcon
+    ArrowRightIcon, ViewListIcon, TableCellsIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
 import { CompetitivenessMatrix } from './CompetitivenessMatrix';
@@ -145,28 +145,31 @@ const IntelligenceMatrix: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [filters, setFilters] = useState({ brand: '', dimension: '' });
+    const [page, setPage] = useState(1); // List view pagination
     
     // Metadata for filters
     const [brands, setBrands] = useState<string[]>([]);
     const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
 
-    // Detail View State
+    // Detail View State (Selected Item for List Mode / Modal for Matrix Mode)
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<TechItemHistory | null>(null);
     const [selectedSourceArticle, setSelectedSourceArticle] = useState<InfoItem | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     useEffect(() => {
         getBrands().then(setBrands);
         getDimensions().then(setDimensions);
     }, []);
 
-    const fetchItems = async () => {
+    const fetchItems = useCallback(async () => {
         setIsLoading(true);
         try {
-            const limit = viewMode === 'matrix' ? 500 : 50; // Matrix needs more data
+            const limit = viewMode === 'matrix' ? 500 : 50; // Matrix needs more data to populate cells
             const res = await getTechItems({
                 vehicle_brand: filters.brand || undefined,
                 tech_dimension: filters.dimension || undefined,
+                skip: viewMode === 'list' ? (page - 1) * 20 : 0, // No pagination for matrix view
                 limit: limit 
             });
             setItems(res);
@@ -175,11 +178,11 @@ const IntelligenceMatrix: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [filters, page, viewMode]);
 
     useEffect(() => {
         fetchItems();
-    }, [filters, viewMode]);
+    }, [fetchItems]);
 
     const handleItemClick = async (item: TechItem) => {
         try {
@@ -187,28 +190,29 @@ const IntelligenceMatrix: React.FC = () => {
             const detail = await getTechItemDetail(item.id);
             setSelectedItem(detail);
             
-            // Reset article preview
-            setSelectedSourceArticle(null);
-
             // Auto select latest history item
+            let initialHistory: TechItemHistory | null = null;
             if (detail.history && detail.history.length > 0) {
                 // Sort by time desc
                 const sorted = [...detail.history].sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime());
-                const latest = sorted[0];
-                handleHistoryClick(latest); // Trigger article fetch logic
-            } else {
-                setSelectedHistory(null);
+                initialHistory = sorted[0];
+            }
+            handleHistoryClick(initialHistory); 
+
+            if (viewMode === 'matrix') {
+                setIsDetailModalOpen(true);
             }
         } catch (e) {
             console.error("Failed to load details");
         }
     };
 
-    const handleHistoryClick = async (history: TechItemHistory) => {
+    const handleHistoryClick = async (history: TechItemHistory | null) => {
         setSelectedHistory(history);
-        if (history.article_id) {
+        if (history?.article_id) {
             // Fetch article metadata to display in EvidenceTrail
             try {
+                // Use the new API to get metadata (URL, Title)
                 const articleInfo = await getArticleById(history.article_id);
                 setSelectedSourceArticle(articleInfo);
             } catch (e) {
@@ -226,11 +230,20 @@ const IntelligenceMatrix: React.FC = () => {
                     created_at: history.event_time
                 });
             }
+        } else {
+            setSelectedSourceArticle(null);
+        }
+    };
+
+    const closeModal = () => {
+        setIsDetailModalOpen(false);
+        if (viewMode === 'matrix') {
+            setSelectedItem(null);
         }
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50/50">
+        <div className="flex flex-col h-full bg-slate-50/50 relative">
             {/* Filter Bar */}
             <div className="px-6 py-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shadow-sm z-10 flex-shrink-0">
                 <div className="flex items-center gap-3">
@@ -242,7 +255,7 @@ const IntelligenceMatrix: React.FC = () => {
                     <select 
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
                         value={filters.brand}
-                        onChange={e => setFilters({...filters, brand: e.target.value})}
+                        onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
                     >
                         <option value="">所有品牌</option>
                         {brands.map(b => <option key={b} value={b}>{b}</option>)}
@@ -251,7 +264,7 @@ const IntelligenceMatrix: React.FC = () => {
                     <select 
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-sm font-medium rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
                         value={filters.dimension}
-                        onChange={e => setFilters({...filters, dimension: e.target.value})}
+                        onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
                     >
                         <option value="">所有技术维度</option>
                         {dimensions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
@@ -260,16 +273,16 @@ const IntelligenceMatrix: React.FC = () => {
 
                 <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
                     <button 
-                        onClick={() => setViewMode('list')}
+                        onClick={() => { setViewMode('list'); setSelectedItem(null); }}
                         className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
                         <ViewListIcon className="w-4 h-4" /> 列表
                     </button>
                     <button 
-                        onClick={() => setViewMode('matrix')}
+                        onClick={() => { setViewMode('matrix'); setSelectedItem(null); }}
                         className={`p-2 rounded-md transition-all flex items-center gap-2 text-xs font-bold ${viewMode === 'matrix' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        <ViewGridIcon className="w-4 h-4" /> 全景矩阵
+                        <TableCellsIcon className="w-4 h-4" /> 矩阵
                     </button>
                 </div>
             </div>
@@ -278,7 +291,7 @@ const IntelligenceMatrix: React.FC = () => {
             <div className="flex-1 flex overflow-hidden">
                 
                 {/* View Area (List or Matrix) */}
-                <div className={`flex-1 flex flex-col min-w-0 border-r border-slate-200 bg-white transition-all duration-500 ease-in-out ${selectedItem ? 'hidden xl:flex xl:max-w-[50%]' : ''}`}>
+                <div className={`flex-1 flex flex-col min-w-0 bg-white transition-all duration-500 ease-in-out ${selectedItem && viewMode === 'list' ? 'border-r border-slate-200 xl:max-w-[50%]' : ''}`}>
                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                         {viewMode === 'list' ? (
                             <div className="space-y-3">
@@ -338,7 +351,7 @@ const IntelligenceMatrix: React.FC = () => {
                                 )}
                             </div>
                         ) : (
-                            // Matrix View
+                            // Matrix View Component
                             <CompetitivenessMatrix 
                                 items={items} 
                                 brands={filters.brand ? [filters.brand] : brands}
@@ -348,10 +361,21 @@ const IntelligenceMatrix: React.FC = () => {
                             />
                         )}
                     </div>
+                    {/* Simple Pagination for List View */}
+                    {viewMode === 'list' && (
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center flex-shrink-0">
+                            <span className="text-xs text-gray-500">每页 20 条</span>
+                            <div className="flex gap-2">
+                                <button disabled={page<=1} onClick={() => setPage(p=>p-1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronLeftIcon className="w-4 h-4"/></button>
+                                <span className="px-3 py-1.5 bg-white border rounded-lg text-sm font-medium shadow-sm">{page}</span>
+                                <button disabled={items.length < 20} onClick={() => setPage(p=>p+1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronRightIcon className="w-4 h-4"/></button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Detail View */}
-                {selectedItem ? (
+                {/* Detail Panel (List View) */}
+                {viewMode === 'list' && selectedItem && (
                     <div className="flex-[3] flex flex-col min-w-0 bg-slate-50 overflow-hidden relative animate-in slide-in-from-right-8 duration-500 shadow-2xl z-20">
                         {/* Mobile Close Button */}
                         <button 
@@ -387,18 +411,50 @@ const IntelligenceMatrix: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                ) : (
-                    <div className="flex-[3] hidden xl:flex flex-col items-center justify-center bg-slate-50/50 text-slate-400 border-l border-slate-200/50">
-                        <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
-                            <ViewGridIcon className="w-16 h-16 text-slate-200" />
-                        </div>
-                        <h3 className="text-xl font-bold text-slate-600">选择一项情报以查看详情</h3>
-                        <p className="text-sm mt-3 text-slate-500 max-w-sm text-center">
-                            我们将为您展示该技术点的 <span className="text-indigo-500 font-semibold">全生命周期演进时间轴</span> 以及 <span className="text-indigo-500 font-semibold">原始证据链</span>。
-                        </p>
-                    </div>
                 )}
             </div>
+
+            {/* Matrix View Detail Modal */}
+            {isDetailModalOpen && selectedItem && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
+                    <div className="bg-white rounded-2xl w-full max-w-[95vw] h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 overflow-hidden">
+                        <div className="flex justify-between items-center p-4 border-b bg-gray-50 flex-shrink-0">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                                情报档案：{selectedItem.name}
+                            </h3>
+                            <button onClick={closeModal} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                                <CloseIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 flex flex-col md:flex-row min-h-0">
+                            {/* Left Panel: Dossier */}
+                            <div className="w-full md:w-[400px] border-r border-slate-200 bg-white flex-shrink-0 flex flex-col min-h-0">
+                                <DossierPanel 
+                                    item={selectedItem}
+                                    selectedHistoryId={selectedHistory?.id || null}
+                                    onSelectHistory={handleHistoryClick}
+                                />
+                            </div>
+                            
+                            {/* Right Panel: Evidence */}
+                            <div className="flex-1 bg-gray-50 flex flex-col min-h-0">
+                                {selectedSourceArticle ? (
+                                    <EvidenceTrail selectedArticle={selectedSourceArticle} />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400 p-8">
+                                        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border border-slate-200">
+                                            <DocumentTextIcon className="w-10 h-10 text-slate-300" />
+                                        </div>
+                                        <p className="font-bold text-slate-500">请选择左侧历史记录以查看原文</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

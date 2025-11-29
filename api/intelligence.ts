@@ -70,188 +70,38 @@ export const checkIntelligencePointHealth = (pointId: string): Promise<{ status:
 
 // NEW: Run crawler immediately
 export const runCrawler = (sourceName: string): Promise<{ message: string; source_name: string; module_path: string }> =>
-    apiFetch<{ message: string; source_name: string; module_path: string }>(
-        `${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, 
-        { method: 'POST' }
-    );
+    apiFetch<{ message: string; source_name: string; module_path: string }>(`${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, {
+        method: 'POST',
+    });
 
-
-// --- Articles Management (New RESTful APIs) ---
-
-// Updated: Get articles using new endpoint
-export const getArticles = (params: { 
-    page?: number; 
-    limit?: number; 
-    source_name?: string; 
-    point_name?: string;
-    publish_date_start?: string;
-    publish_date_end?: string;
-    point_ids?: string[];
-}): Promise<PaginatedResponse<InfoItem>> => {
+// --- Articles API ---
+export const getArticles = (params: any): Promise<PaginatedResponse<InfoItem>> => {
     const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/articles${query}`);
 };
 
-// NEW: Helper to get a single article by ID (uses the list endpoint with filtering)
-export const getArticleById = async (articleId: string): Promise<InfoItem | null> => {
-    // Note: The API doc says we can filter by article_ids in DELETE, but GET usually supports standard filters.
-    // Since there isn't a direct GET /articles/{id} documented in the 'Intelligence Service API',
-    // we assume we might need to implement it or use a workaround if the backend supports ID filtering on GET.
-    // IF NOT supported, we might need to rely on the fact that EvidenceTrail fetches HTML by ID directly.
-    // However, to get the URL/Title, we need metadata. 
-    // Let's assume for now we can fetch the HTML to at least show content, 
-    // but metadata might be missing if the list endpoint doesn't support ID filter.
-    // *Self-correction based on user prompt context*: "Use Intelligence API". 
-    // Let's try to fetch it via the HTML endpoint to check existence, but for metadata...
-    // The previous code had a `getArticle` placeholder.
-    
-    // Attempting to use a theoretical ID filter or just returning a skeleton for EvidenceTrail to fetch HTML
-    // Ideally the backend should support `GET /api/crawler/articles/{id}`. 
-    // Assuming standard REST:
-    try {
-        // Trying direct access if implemented, otherwise catch 404
-        return await apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}`);
-    } catch (e) {
-        console.warn("Direct article fetch failed, trying search workaround or returning partial", e);
-        // Fallback: If we can't get metadata, we return a partial object so EvidenceTrail can at least fetch the HTML
-        return {
-            id: articleId,
-            title: '加载原文档信息失败 (仅预览内容)',
-            content: '',
-            original_url: '#',
-            source_name: '未知来源',
-            point_name: '未知',
-            point_id: '',
-            created_at: new Date().toISOString(),
-            publish_date: null
-        };
-    }
-};
+export const getArticleById = (articleId: string): Promise<InfoItem> => 
+    apiFetch<InfoItem>(`${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}`);
 
-// Updated: Batch delete articles
-// Fix: Explicitly set Content-Type for DELETE with body to avoid 422 Unprocessable Entity
-export const deleteArticles = (articleIds: string[]): Promise<{ message: string }> => 
-    apiFetch<{ message: string }>(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+// Updated: Batch delete articles with query params to support GET-like calls if needed, or stick to body. 
+// Doc says query params supported for frontend link convenience.
+export const deleteArticles = (articleIds: string[]): Promise<void> => {
+    // Construct query string for IDs
+    const searchParams = new URLSearchParams();
+    articleIds.forEach(id => searchParams.append('article_ids', id));
+    return apiFetch<void>(`${INTELLIGENCE_SERVICE_PATH}/articles?${searchParams.toString()}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ article_ids: articleIds }),
     });
-
-// --- Search & Feed ---
-
-export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<SearchResult>> => {
-    // Destructure to separate query text/pagination from filters
-    const { query_text, page, limit, similarity_threshold, ...restFilters } = params;
-    
-    // Check if it's a general filter query (empty or '*')
-    const isGeneralFilter = !query_text || query_text === '*' || query_text.trim() === '';
-
-    // Helper to clean filters
-    const cleanFilters = (filters: any) => {
-        const cleaned: any = {};
-        Object.keys(filters).forEach(key => {
-            const val = filters[key];
-            if (val !== undefined && val !== null && !(Array.isArray(val) && val.length === 0) && val !== '') {
-                cleaned[key] = val;
-            }
-        });
-        return cleaned;
-    };
-
-    if (isGeneralFilter) {
-        // CASE 1: General Filtering (Feed)
-        const payload: any = {
-            ...cleanFilters({
-                source_names: restFilters.source_names,
-                publish_date_start: restFilters.publish_date_start,
-                publish_date_end: restFilters.publish_date_end,
-                point_ids: restFilters.point_ids,
-                min_influence_score: restFilters.min_influence_score,
-                sentiment: restFilters.sentiment,
-            }),
-            page: page || 1,
-            limit: limit || 20
-        };
-
-        return apiFetch<PaginatedResponse<SearchResult>>(`${INTELLIGENCE_SERVICE_PATH}/feed`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-
-    } else {
-        // CASE 2: Semantic/Keyword Search
-        const payload: any = {
-            query: query_text,
-            ...cleanFilters({
-                source_names: restFilters.source_names,
-                publish_date_start: restFilters.publish_date_start,
-                publish_date_end: restFilters.publish_date_end,
-                point_ids: restFilters.point_ids,
-                min_influence_score: restFilters.min_influence_score,
-                sentiment: restFilters.sentiment,
-            }),
-            top_k: 100, // Use reasonable top_k for semantic search
-            // min_score: similarity_threshold || 0.2, // API might handle this differently now, passing payload directly
-            page: page || 1,
-            limit: limit || 20,
-        };
-
-        // Use combined search for semantic + filtering
-        const response = await apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/search/combined`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-
-        // Map semantic results to SearchResult format
-        const items = (response.items || []).map((item: any) => ({
-            id: item.article_id ? String(item.article_id) : (item.id ? String(item.id) : `temp_${Math.random()}`),
-            title: item.title || item.article_title || '相关情报片段',
-            content: item.content_chunk || item.content || '',
-            original_url: item.original_url || item.article_url || '#',
-            source_name: item.source_name || '智能检索',
-            point_name: item.point_name || '',
-            point_id: item.point_id || '',
-            publish_date: item.publish_date,
-            created_at: item.created_at || new Date().toISOString(),
-            similarity_score: item.score
-        }));
-
-        return {
-            items: items,
-            total: response.total || items.length,
-            page: response.page || 1,
-            limit: response.limit || items.length,
-            totalPages: 1 // Semantic search pagination logic varies
-        };
-    }
 };
 
-export const processUrlToInfoItem = (url: string, setFeedback: (msg: string) => void): Promise<InfoItem> => {
-    // Deprecated or placeholder logic as per new doc, keep for compatibility if used
-    setFeedback('分析内容并提取关键信息...');
-    return new Promise((resolve, reject) => reject("Feature deprecated in new API"));
-};
-
-// --- HTML Report API ---
-export const getArticleHtml = async (articleId: string): Promise<string | null> => {
+export const getArticleHtml = async (articleId: string): Promise<string> => {
     const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}/html`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
     const response = await fetch(url, { headers });
-
-    if (response.status === 404) {
-        return null;
-    }
-
-    if (!response.ok) {
-        console.warn(`Failed to fetch HTML for article ${articleId}: ${response.status}`);
-        return null;
-    }
-
+    if (!response.ok) return '';
     return response.text();
 };
 
@@ -259,123 +109,93 @@ export const downloadArticlePdf = async (articleId: string): Promise<Blob> => {
     const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}/pdf`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
+    if (token) headers.set('Authorization', `Bearer ${token}`);
     const response = await fetch(url, { headers });
-
-    if (response.status === 404) {
-        throw new Error("报告尚未生成，请稍后再试");
-    }
-
-    if (!response.ok) {
-        const errorText = await response.text().catch(() => '下载失败');
-        throw new Error(errorText || `下载失败: ${response.status}`);
-    }
-
+    if (!response.ok) throw new Error('下载失败');
     return response.blob();
 };
 
-export const toggleHtmlGeneration = (enable: boolean): Promise<{ ok: boolean, enabled: boolean }> =>
-    apiFetch<{ ok: boolean, enabled: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/html-generation/toggle${createApiQuery({ enable })}`, {
-        method: 'POST'
+export const generateArticlePdf = (articleId: string): Promise<{ ok: boolean, pdf_generated: boolean }> =>
+    apiFetch<{ ok: boolean, pdf_generated: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/report/pdf/${articleId}`, {
+        method: 'POST',
     });
 
-// --- Chunk Search API ---
-export const searchChunks = async (params: any): Promise<SearchChunksResponse> => {
-    const { 
-        query_text, 
-        top_k, 
-        similarity_threshold, 
-        source_names, 
-        publish_date_start, 
-        publish_date_end
-    } = params;
-
-    const payload: any = {
-        query_text: query_text || '*',
-        point_ids: [], // Add specific filters if needed
-        source_names: source_names || [],
-        similarity_threshold: similarity_threshold,
-        top_k: top_k || 20,
-        include_article_content: false
-    };
-
-    return apiFetch<SearchChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, {
+export const toggleHtmlGeneration = (enable: boolean): Promise<{ ok: boolean; enabled: boolean }> =>
+    apiFetch<{ ok: boolean; enabled: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/html-generation/toggle?enable=${enable}`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+    });
+
+export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ ok: boolean; message: string; initialized: boolean }> => {
+    const formData = new FormData();
+    formData.append('secure_1psid', data.secure_1psid);
+    formData.append('secure_1psidts', data.secure_1psidts);
+    if (data.http_proxy) formData.append('http_proxy', data.http_proxy);
+    
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
+        method: 'POST',
+        body: formData,
     });
 };
 
-export const exportChunks = (params: any): Promise<ExportChunksResponse> =>
-    apiFetch<ExportChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks/export`, {
+export const checkGeminiCookies = (): Promise<{ has_cookie: boolean; valid: boolean }> =>
+    apiFetch<{ has_cookie: boolean; valid: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies/check`);
+
+
+// --- Search API ---
+export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<InfoItem>> => {
+    return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
         body: JSON.stringify(params),
     });
-
-
-// --- Intelligence Stats (Replaces Intelligence Tasks) ---
-// Updated to match /tasks/stats response
-export const getIntelligenceStats = (): Promise<{ 
-    sources: number; 
-    points: number; 
-    active_points: number; 
-    articles: number; 
-    vectors: number; 
-    schedules_active: number 
-}> => {
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 };
 
-// --- LLM Search API ---
+// ... keep other search functions ...
+export const getFeed = (params: any): Promise<PaginatedResponse<InfoItem>> => {
+    return apiFetch<PaginatedResponse<InfoItem>>(`${INTELLIGENCE_SERVICE_PATH}/feed`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+};
+
+export const searchChunks = (params: any): Promise<SearchChunksResponse> => {
+    return apiFetch<SearchChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+};
+
+export const exportChunks = (params: any): Promise<ExportChunksResponse> => {
+    return apiFetch<ExportChunksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/chunks/export`, {
+        method: 'POST',
+        body: JSON.stringify(params),
+    });
+};
+
+// --- LLM Search Task API ---
 export const createLlmSearchTask = (data: LlmSearchRequest): Promise<LlmSearchResponse> =>
     apiFetch<LlmSearchResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/llm`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const getLlmSearchTasks = (params: any): Promise<LlmSearchTasksResponse> => {
+export const getLlmSearchTasks = (params: { page?: number; limit?: number }): Promise<LlmSearchTasksResponse> => {
     const query = createApiQuery(params);
     return apiFetch<LlmSearchTasksResponse>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks${query}`);
 };
 
-export const getLlmSearchTask = (taskId: string): Promise<LlmSearchTaskDetail> => {
-    return apiFetch<LlmSearchTaskDetail>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks/${taskId}`);
-};
+export const getLlmSearchTask = (taskId: string): Promise<LlmSearchTaskDetail> =>
+    apiFetch<LlmSearchTaskDetail>(`${INTELLIGENCE_SERVICE_PATH}/search/tasks/${taskId}`);
 
 export const downloadLlmTaskResult = async (taskId: string): Promise<Blob> => {
     const url = `${INTELLIGENCE_SERVICE_PATH}/search/tasks/${taskId}/download`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
     const response = await fetch(url, { headers });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-        throw new Error(errorData.message || '下载失败');
-    }
+    if (!response.ok) throw new Error('下载失败');
     return response.blob();
 };
 
-// --- Gemini Management ---
-export const updateGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ message: string; initialized: boolean }> => {
-    const formData = new FormData();
-    formData.append('secure_1psid', data.secure_1psid);
-    formData.append('secure_1psidts', data.secure_1psidts);
-    
-    if (data.http_proxy && data.http_proxy.trim() !== '') {
-        formData.append('http_proxy', data.http_proxy.trim());
-    }
-
-    return apiFetch<{ message: string; initialized: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
-        method: 'POST',
-        body: formData,
-    });
-}
-
-export const checkGeminiCookies = (): Promise<{ has_cookie: boolean; valid: boolean }> =>
-    apiFetch<{ has_cookie: boolean; valid: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies/check`);
+export const getIntelligenceStats = (): Promise<any> => 
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
