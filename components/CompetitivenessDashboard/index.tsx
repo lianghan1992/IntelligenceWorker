@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
     TechItem,
     TechItemHistory,
@@ -14,14 +14,13 @@ import {
 } from '../../api/competitiveness';
 import { getArticleById } from '../../api/intelligence';
 import { 
-    CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, 
+    ChevronDownIcon, CloseIcon, DocumentTextIcon, CheckCircleIcon, BrainIcon, ClockIcon, SearchIcon, 
     ShieldExclamationIcon, ShieldCheckIcon, AnnotationIcon, QuestionMarkCircleIcon,
-    ChartIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
-    TableCellsIcon, EyeIcon, GlobeIcon, CubeIcon
+    ChartIcon, FunnelIcon, ChevronLeftIcon, ChevronRightIcon, SparklesIcon, ViewGridIcon,
+    ArrowRightIcon, ViewListIcon, TableCellsIcon, EyeIcon
 } from '../icons';
 import { EvidenceTrail } from '../StrategicCockpit/EvidenceTrail';
 import { CompetitivenessMatrix } from './CompetitivenessMatrix';
-import { CyberTerrainView, HolographicTwinView, SupplyGalaxyView } from './ThreeDViews';
 
 // --- Helper Functions ---
 const getReliabilityInfo = (score: number) => {
@@ -150,15 +149,11 @@ const DossierPanel: React.FC<{
 };
 
 // --- Main Component ---
-type ViewMode = 'matrix' | 'terrain' | 'twin' | 'galaxy';
-
 export const CompetitivenessDashboard: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [brands, setBrands] = useState<string[]>([]);
     const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
-    
-    const [viewMode, setViewMode] = useState<ViewMode>('matrix');
 
     // Detail Modal State
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
@@ -217,63 +212,28 @@ export const CompetitivenessDashboard: React.FC = () => {
         }
     };
 
-    const tabs: { id: ViewMode; label: string; icon: React.FC<any> }[] = [
-        { id: 'matrix', label: '全景矩阵', icon: TableCellsIcon },
-        { id: 'terrain', label: '赛博地形', icon: ViewGridIcon },
-        { id: 'twin', label: '全息双生', icon: CubeIcon },
-        { id: 'galaxy', label: '星系引力', icon: GlobeIcon },
-    ];
-
     return (
         <div className="h-full flex flex-col bg-slate-50">
             <header className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center flex-shrink-0 shadow-sm z-20">
-                <div className="flex items-center gap-6">
-                    <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
-                        <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
-                            <ChartIcon className="w-5 h-5 text-white" />
-                        </div>
-                        竞争力看板 
-                    </h1>
-                    
-                    {/* View Switcher Tabs */}
-                    <div className="flex items-center bg-slate-100 rounded-lg p-1">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setViewMode(tab.id)}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                                    viewMode === tab.id 
-                                        ? 'bg-white text-indigo-600 shadow-sm' 
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                <tab.icon className="w-4 h-4" />
-                                {tab.label}
-                            </button>
-                        ))}
+                <h1 className="text-xl font-extrabold text-slate-800 flex items-center gap-3 tracking-tight">
+                    <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
+                        <ChartIcon className="w-5 h-5 text-white" />
                     </div>
-                </div>
+                    竞争力看板 
+                    <span className="text-[10px] font-bold text-indigo-600 ml-2 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100 uppercase tracking-wide hidden md:inline-block">
+                        Competitiveness Matrix
+                    </span>
+                </h1>
             </header>
 
             <main className="flex-1 overflow-hidden relative">
-                {viewMode === 'matrix' && (
-                    <CompetitivenessMatrix 
-                        items={items}
-                        brands={brands}
-                        dimensions={dimensions}
-                        onItemClick={handleItemClick}
-                        isLoading={isLoading}
-                    />
-                )}
-                {viewMode === 'terrain' && (
-                    <CyberTerrainView items={items} brands={brands} onItemClick={handleItemClick} />
-                )}
-                {viewMode === 'twin' && (
-                    <HolographicTwinView items={items} brands={brands} onItemClick={handleItemClick} />
-                )}
-                {viewMode === 'galaxy' && (
-                    <SupplyGalaxyView items={items} brands={brands} onItemClick={handleItemClick} />
-                )}
+                <CompetitivenessMatrix 
+                    items={items}
+                    brands={brands}
+                    dimensions={dimensions}
+                    onItemClick={handleItemClick}
+                    isLoading={isLoading}
+                />
             </main>
 
             {/* Detail Modal */}

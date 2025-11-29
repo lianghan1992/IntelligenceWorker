@@ -4,7 +4,7 @@ import { TechItem, CompetitivenessDimension } from '../../types';
 import { 
     CheckCircleIcon, ShieldCheckIcon, ShieldExclamationIcon, 
     AnnotationIcon, QuestionMarkCircleIcon, ChevronRightIcon,
-    ArrowsPointingOutIcon, ArrowsPointingInIcon
+    ChevronDownIcon, EyeIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon
 } from '../icons';
 
 interface CompetitivenessMatrixProps {
@@ -18,11 +18,11 @@ interface CompetitivenessMatrixProps {
 // --- Visual Helpers ---
 const getReliabilityConfig = (score: number) => {
     switch (score) {
-        case 4: return { label: '已证实', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircleIcon };
-        case 3: return { label: '高可信', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: ShieldCheckIcon };
-        case 2: return { label: '传闻', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: AnnotationIcon };
-        case 1: return { label: '辟谣', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: ShieldExclamationIcon };
-        default: return { label: '未知', color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: QuestionMarkCircleIcon };
+        case 4: return { label: '已证实', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: CheckCircleIcon, dot: 'bg-emerald-500' };
+        case 3: return { label: '高可信', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200', icon: ShieldCheckIcon, dot: 'bg-blue-500' };
+        case 2: return { label: '传闻', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: AnnotationIcon, dot: 'bg-amber-500' };
+        case 1: return { label: '辟谣', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200', icon: ShieldExclamationIcon, dot: 'bg-red-500' };
+        default: return { label: '未知', color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: QuestionMarkCircleIcon, dot: 'bg-slate-300' };
     }
 };
 
@@ -211,12 +211,11 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                         );
                                     }
 
-                                    // Expanded View: Handle empty sub_dimensions case
+                                    // Expanded View
                                     if (dim.sub_dimensions.length === 0) {
                                         return <td key={`${brand}-${dim.id}-empty`} className="border-b border-r border-slate-200 bg-slate-50/20"></td>;
                                     }
 
-                                    // Expanded View: Render cells for each sub-dimension
                                     return dim.sub_dimensions.map(sub => {
                                         const item = brandDimData?.get(sub);
                                         
@@ -258,12 +257,13 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                             </td>
                                         );
                                     });
-                                })}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                                });
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
+    </div>
     );
 };
