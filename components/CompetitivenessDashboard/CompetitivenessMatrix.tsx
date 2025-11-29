@@ -169,8 +169,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             `}</style>
 
             <div className="flex-1 overflow-x-auto custom-scrollbar p-4 md:p-6 scroll-smooth">
-                {/* Mobile: Use snap scrolling. Desktop: Standard scrolling. */}
-                <div className="flex gap-4 md:gap-6 min-w-max pb-10 snap-x snap-mandatory md:snap-none">
+                {/* 
+                    Mobile Optimization: 
+                    - snap-x snap-mandatory: Enables scroll snapping 
+                    - h-full: Ensures children can fill height 
+                */}
+                <div className="flex gap-4 md:gap-6 min-w-max pb-4 h-full snap-x snap-mandatory md:snap-none items-start">
                     
                     {/* Iterate Columns by Selected Brands */}
                     {brands.map((brand, colIndex) => {
@@ -181,11 +185,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                             <div 
                                 key={brand} 
                                 // Mobile: w-[85vw] creates a carousel effect where next card is visible. Desktop: Fixed width.
-                                className="flex-shrink-0 w-[85vw] sm:w-[320px] md:w-[360px] snap-center flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
+                                // Added h-full to force card to take full height of container, enabling inner scroll.
+                                className="flex-shrink-0 w-[85vw] sm:w-[320px] md:w-[360px] h-full snap-center flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
                                 style={{ animationDelay: `${colIndex * 100}ms` }}
                             >
                                 {/* Brand Header */}
-                                <div className="p-5 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md">
+                                <div className="p-5 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md flex-shrink-0">
                                     <div className="flex justify-between items-center mb-3">
                                         <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{brand}</h3>
                                         <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 font-bold text-xs text-slate-500">
@@ -207,8 +212,8 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Tech Specs Body - Vertical Stack */}
-                                <div className="flex-1 p-3 space-y-4 bg-slate-50/50">
+                                {/* Tech Specs Body - Vertical Stack with Inner Scrolling */}
+                                <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6">
                                     {dimensions.map((dim, dimIndex) => {
                                         const subDims = dim.sub_dimensions || [];
                                         const brandDimMap = brandData?.get(dim.id);
@@ -224,7 +229,7 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                         const itemCount = activeSubDimsForBrand.length;
 
                                         return (
-                                            <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300">
+                                            <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300 flex-shrink-0">
                                                 {/* Level 1: Primary Dimension Header */}
                                                 <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
                                                     <div className="flex items-center gap-2">
