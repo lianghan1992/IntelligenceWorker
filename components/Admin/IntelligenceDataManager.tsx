@@ -2,8 +2,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { InfoItem, SystemSource } from '../../types';
 import { getArticles, deleteArticles, getSources } from '../../api';
-import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckCircleIcon } from '../icons';
+import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckCircleIcon, DownloadIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
+
+const Spinner: React.FC = () => (
+    <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
 
 export const IntelligenceDataManager: React.FC = () => {
     const [articles, setArticles] = useState<InfoItem[]>([]);
@@ -21,6 +28,10 @@ export const IntelligenceDataManager: React.FC = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
+
+    // Export State
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportCount, setExportCount] = useState(0);
 
     // Load Sources for Filter
     useEffect(() => {
@@ -91,6 +102,91 @@ export const IntelligenceDataManager: React.FC = () => {
         }
     };
 
+    const handleExportCsv = async () => {
+        if (isExporting) return;
+        setIsExporting(true);
+        setExportCount(0);
+
+        try {
+            const BATCH_SIZE = 50;
+            let currentPage = 1;
+            let allItems: InfoItem[] = [];
+            let totalItems = 0;
+
+            // 1. Loop to fetch all data
+            // eslint-disable-next-line no-constant-condition
+            while (true) {
+                const response = await getArticles({
+                    ...filters,
+                    page: currentPage,
+                    limit: BATCH_SIZE
+                });
+
+                const newItems = response.items || [];
+                allItems = [...allItems, ...newItems];
+                totalItems = response.total;
+                setExportCount(allItems.length);
+
+                // Stop if we fetched fewer than limit (last page) or reached total
+                if (newItems.length < BATCH_SIZE || allItems.length >= totalItems) {
+                    break;
+                }
+                currentPage++;
+            }
+
+            if (allItems.length === 0) {
+                alert("当前筛选条件下无数据可导出");
+                return;
+            }
+
+            // 2. Generate CSV Content
+            const headers = ['标题', '发布日期', '来源', '正文内容'];
+            
+            // Helper to escape CSV fields
+            const escape = (text: string | null | undefined) => {
+                if (!text) return '""';
+                // Replace double quotes with two double quotes, and wrap in quotes
+                return `"${String(text).replace(/"/g, '""')}"`; 
+            };
+
+            const csvRows = [headers.join(',')];
+
+            for (const item of allItems) {
+                const dateStr = item.publish_date
+                    ? new Date(item.publish_date).toLocaleDateString()
+                    : new Date(item.created_at).toLocaleDateString();
+
+                const row = [
+                    escape(item.title),
+                    escape(dateStr),
+                    escape(item.source_name),
+                    escape(item.content)
+                ];
+                csvRows.push(row.join(','));
+            }
+
+            // Add BOM for Excel to recognize Chinese characters correctly
+            const csvString = '\uFEFF' + csvRows.join('\n');
+
+            // 3. Trigger Download
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `文章库导出_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+        } catch (err: any) {
+            alert(`导出失败: ${err.message}`);
+        } finally {
+            setIsExporting(false);
+            setExportCount(0);
+        }
+    };
+
     return (
         <div className="h-full flex flex-col relative overflow-hidden">
             {/* Filters Bar */}
@@ -114,9 +210,25 @@ export const IntelligenceDataManager: React.FC = () => {
                 
                 <div className="flex-1"></div>
 
-                <button onClick={loadArticles} className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-all" title="刷新">
-                    <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleExportCsv}
+                        disabled={isExporting}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border shadow-sm transition-all ${
+                            isExporting 
+                                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed' 
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200'
+                        }`}
+                        title="导出当前筛选结果为CSV"
+                    >
+                        {isExporting ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
+                        <span>{isExporting ? `正在导出 (${exportCount})...` : '导出 CSV'}</span>
+                    </button>
+
+                    <button onClick={loadArticles} className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-all" title="刷新">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             {/* Main Content Split View */}
