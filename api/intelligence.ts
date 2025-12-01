@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -6,7 +7,7 @@ import {
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
     SearchResult,
    SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
-   LlmSearchTasksResponse, LlmSearchTaskDetail
+   LlmSearchTasksResponse, LlmSearchTaskDetail, GenericCrawlerTaskItem
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -73,6 +74,34 @@ export const runCrawler = (sourceName: string): Promise<{ message: string; sourc
     apiFetch<{ message: string; source_name: string; module_path: string }>(`${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, {
         method: 'POST',
     });
+
+// --- Generic Crawler APIs (Jina + Zhipu) ---
+
+export const createGenericPoint = (data: Partial<Subscription>): Promise<{ message: string, point_id: string }> => 
+    apiFetch<{ message: string, point_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/generic/points`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updateGenericPoint = (pointId: string, data: Partial<Subscription>): Promise<Subscription> => 
+    apiFetch<Subscription>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const getGenericSources = (): Promise<{ source_name: string }[]> => 
+    apiFetch<{ source_name: string }[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/sources`);
+
+export const getGenericPoints = (sourceName?: string): Promise<Subscription[]> => {
+    const params = sourceName ? { source_name: sourceName } : {};
+    return apiFetch<Subscription[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/points${createApiQuery(params)}`);
+};
+
+export const getGenericTasks = (params: any): Promise<PaginatedResponse<GenericCrawlerTaskItem>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<GenericCrawlerTaskItem>>(`${INTELLIGENCE_SERVICE_PATH}/generic/tasks${query}`);
+};
+
 
 // --- Articles API ---
 export const getArticles = (params: any): Promise<PaginatedResponse<InfoItem>> => {

@@ -202,6 +202,20 @@ export interface LlmSearchTasksResponse {
     items: LlmSearchTaskItem[];
 }
 
+// --- Generic Crawler ---
+export interface GenericCrawlerTaskItem {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time?: string;
+    created_at: string;
+}
+
 
 // --- Livestream / Events ---
 
