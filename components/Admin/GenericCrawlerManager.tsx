@@ -13,28 +13,30 @@ const Spinner: React.FC = () => (
 
 // --- Sub-components ---
 const PointCard: React.FC<{ point: GenericPoint; onEdit: (p: GenericPoint) => void; onToggle: (p: GenericPoint) => void }> = ({ point, onEdit, onToggle }) => (
-    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:border-indigo-200 group">
-        <div className="flex justify-between items-start mb-2">
+    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:border-indigo-200 group flex flex-col h-full">
+        <div className="flex justify-between items-start mb-3">
             <div>
-                <h4 className="font-bold text-slate-800 text-base">{point.point_name}</h4>
-                <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
-                    <ServerIcon className="w-3 h-3"/> {point.source_name}
+                <h4 className="font-bold text-slate-800 text-base line-clamp-1" title={point.point_name}>{point.point_name}</h4>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                    <ServerIcon className="w-3.5 h-3.5"/> {point.source_name}
                 </div>
             </div>
-            <div className={`w-2 h-2 rounded-full ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+            <div className={`w-2.5 h-2.5 rounded-full ${point.is_active ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-slate-300'}`}></div>
         </div>
         
-        <p className="text-xs text-blue-600 truncate bg-blue-50 px-2 py-1 rounded border border-blue-100 mb-3 font-mono" title={point.point_url}>{point.point_url}</p>
+        <div className="bg-slate-50 rounded-lg p-2 mb-4 border border-slate-100">
+            <p className="text-xs text-slate-600 truncate font-mono" title={point.point_url}>{point.point_url}</p>
+        </div>
         
-        <div className="flex justify-between items-center border-t border-slate-50 pt-3 mt-auto">
-            <div className="flex items-center gap-1 text-xs text-slate-400">
-                <ClockIcon className="w-3 h-3" /> {point.cron_schedule}
+        <div className="flex justify-between items-center border-t border-slate-100 pt-3 mt-auto">
+            <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                <ClockIcon className="w-3.5 h-3.5" /> {point.cron_schedule}
             </div>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => onToggle(point)} className={`p-1.5 rounded-lg transition-colors ${point.is_active ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
+            <div className="flex gap-2">
+                <button onClick={() => onToggle(point)} className={`p-1.5 rounded-lg transition-colors ${point.is_active ? 'text-red-500 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`} title={point.is_active ? "暂停" : "启用"}>
                     {point.is_active ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
                 </button>
-                <button onClick={() => onEdit(point)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                <button onClick={() => onEdit(point)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="编辑">
                     <GearIcon className="w-4 h-4" />
                 </button>
             </div>
@@ -102,8 +104,8 @@ export const GenericCrawlerManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-white">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                <div className="flex gap-4">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div className="flex gap-6">
                     <button onClick={() => setActiveView('points')} className={`text-sm font-bold flex items-center gap-2 pb-2 border-b-2 transition-all ${activeView === 'points' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                         <GearIcon className="w-4 h-4" /> 采集点配置
                     </button>
@@ -111,11 +113,13 @@ export const GenericCrawlerManager: React.FC = () => {
                         <ViewListIcon className="w-4 h-4" /> 任务监控
                     </button>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={() => activeView === 'points' ? fetchPoints() : fetchTasks()} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`} /></button>
+                <div className="flex gap-3">
+                    <button onClick={() => activeView === 'points' ? fetchPoints() : fetchTasks()} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm">
+                        <RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`} />
+                    </button>
                     {activeView === 'points' && (
-                        <button onClick={() => { setEditingPoint(null); setFormData({ source_name: '', point_name: '', point_url: '', cron_schedule: '0 */6 * * *' }); setIsModalOpen(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition-colors">
-                            <PlusIcon className="w-3 h-3" /> 新建
+                        <button onClick={() => { setEditingPoint(null); setFormData({ source_name: '', point_name: '', point_url: '', cron_schedule: '0 */6 * * *' }); setIsModalOpen(true); }} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700 transition-all hover:-translate-y-0.5">
+                            <PlusIcon className="w-3.5 h-3.5" /> 新建
                         </button>
                     )}
                 </div>
@@ -123,42 +127,49 @@ export const GenericCrawlerManager: React.FC = () => {
 
             <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar">
                 {activeView === 'points' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {points.map(p => <PointCard key={p.id} point={p} onEdit={(pt) => { setEditingPoint(pt); setFormData({source_name:pt.source_name, point_name:pt.point_name, point_url:pt.point_url, cron_schedule:pt.cron_schedule}); setIsModalOpen(true); }} onToggle={handleTogglePoint} />)}
+                        {points.length === 0 && !isLoading && (
+                            <div className="col-span-full text-center py-20 text-slate-400">暂无配置</div>
+                        )}
                     </div>
                 ) : (
                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table className="w-full text-sm text-left text-slate-500">
                             <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
                                 <tr>
-                                    <th className="px-6 py-3">来源 / 采集点</th>
-                                    <th className="px-6 py-3">类型</th>
-                                    <th className="px-6 py-3">阶段</th>
-                                    <th className="px-6 py-3">详情</th>
-                                    <th className="px-6 py-3">开始时间</th>
+                                    <th className="px-6 py-4">来源 / 采集点</th>
+                                    <th className="px-6 py-4">类型</th>
+                                    <th className="px-6 py-4">阶段</th>
+                                    <th className="px-6 py-4">详情</th>
+                                    <th className="px-6 py-4">开始时间</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
                                 {tasks.map(t => (
-                                    <tr key={t.id} className="hover:bg-slate-50">
-                                        <td className="px-6 py-3">
+                                    <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4">
                                             <div className="font-bold text-slate-800">{t.point_name}</div>
-                                            <div className="text-xs text-slate-400">{t.source_name}</div>
+                                            <div className="text-xs text-slate-400 mt-0.5">{t.source_name}</div>
                                         </td>
-                                        <td className="px-6 py-3"><span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs font-medium border border-blue-100">{t.task_type}</span></td>
-                                        <td className="px-6 py-3 text-slate-700 font-medium">{t.stage}</td>
-                                        <td className="px-6 py-3 text-xs font-mono text-slate-500 max-w-xs truncate">{t.detail_info}</td>
-                                        <td className="px-6 py-3 text-xs text-slate-400">{new Date(t.start_time).toLocaleString()}</td>
+                                        <td className="px-6 py-4"><span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-bold border border-blue-100">{t.task_type}</span></td>
+                                        <td className="px-6 py-4 font-medium text-slate-700">{t.stage}</td>
+                                        <td className="px-6 py-4 text-xs font-mono text-slate-500 max-w-xs truncate" title={t.detail_info}>{t.detail_info}</td>
+                                        <td className="px-6 py-4 text-xs text-slate-400 tabular-nums">{new Date(t.start_time).toLocaleString()}</td>
                                     </tr>
                                 ))}
+                                {tasks.length === 0 && !isLoading && (
+                                    <tr><td colSpan={5} className="text-center py-10 text-slate-400">暂无任务记录</td></tr>
+                                )}
                             </tbody>
                         </table>
                         {/* Pagination controls for tasks */}
-                        <div className="p-3 border-t border-slate-100 flex justify-between items-center">
-                            <span className="text-xs text-slate-400">Total {taskTotal}</span>
+                        <div className="p-4 border-t border-slate-100 flex justify-between items-center bg-white">
+                            <span className="text-xs text-slate-400">共 {taskTotal} 条记录</span>
                             <div className="flex gap-2">
-                                <button disabled={taskPage <= 1} onClick={() => setTaskPage(p=>p-1)} className="px-3 py-1 text-xs border rounded hover:bg-slate-50 disabled:opacity-50">Prev</button>
-                                <button disabled={tasks.length < 15} onClick={() => setTaskPage(p=>p+1)} className="px-3 py-1 text-xs border rounded hover:bg-slate-50 disabled:opacity-50">Next</button>
+                                <button disabled={taskPage <= 1} onClick={() => setTaskPage(p=>p-1)} className="px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-colors">上一页</button>
+                                <span className="text-xs font-medium px-2 py-1.5">{taskPage}</span>
+                                <button disabled={tasks.length < 15} onClick={() => setTaskPage(p=>p+1)} className="px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-colors">下一页</button>
                             </div>
                         </div>
                     </div>
@@ -166,18 +177,33 @@ export const GenericCrawlerManager: React.FC = () => {
             </div>
 
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in zoom-in-95">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-                        <h3 className="text-lg font-bold mb-4 text-slate-800">{editingPoint ? '编辑' : '新建'}采集点</h3>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-white/20">
+                        <h3 className="text-lg font-bold mb-6 text-slate-800 flex items-center gap-2">
+                            <GearIcon className="w-5 h-5 text-indigo-600" />
+                            {editingPoint ? '编辑' : '新建'}采集点
+                        </h3>
                         <div className="space-y-4">
-                            <input type="text" value={formData.source_name} onChange={e => setFormData({...formData, source_name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="来源名称 (e.g. 盖世汽车)" />
-                            <input type="text" value={formData.point_name} onChange={e => setFormData({...formData, point_name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="采集点名称 (e.g. 行业资讯)" />
-                            <input type="url" value={formData.point_url} onChange={e => setFormData({...formData, point_url: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="https://..." />
-                            <input type="text" value={formData.cron_schedule} onChange={e => setFormData({...formData, cron_schedule: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Crontab (e.g. 0 */6 * * *)" />
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">来源名称</label>
+                                <input type="text" value={formData.source_name} onChange={e => setFormData({...formData, source_name: e.target.value})} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow" placeholder="e.g. 盖世汽车" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">采集点名称</label>
+                                <input type="text" value={formData.point_name} onChange={e => setFormData({...formData, point_name: e.target.value})} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow" placeholder="e.g. 行业资讯" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">目标 URL</label>
+                                <input type="url" value={formData.point_url} onChange={e => setFormData({...formData, point_url: e.target.value})} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow" placeholder="https://..." />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">CRON 表达式</label>
+                                <input type="text" value={formData.cron_schedule} onChange={e => setFormData({...formData, cron_schedule: e.target.value})} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow font-mono" placeholder="e.g. 0 */6 * * *" />
+                            </div>
                         </div>
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 bg-slate-100 rounded-lg text-sm font-bold hover:bg-slate-200">取消</button>
-                            <button onClick={handleSavePoint} className="px-4 py-2 text-white bg-indigo-600 rounded-lg text-sm font-bold hover:bg-indigo-700">保存</button>
+                        <div className="flex justify-end gap-3 mt-8">
+                            <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 text-slate-600 bg-slate-100 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors">取消</button>
+                            <button onClick={handleSavePoint} className="px-5 py-2.5 text-white bg-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md transition-all hover:scale-[1.02]">保存配置</button>
                         </div>
                     </div>
                 </div>

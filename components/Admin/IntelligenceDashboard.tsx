@@ -41,7 +41,7 @@ const PipelineView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-4 self-start">
+            <div className="flex overflow-x-auto space-x-1 bg-slate-100 p-1 rounded-xl mb-4 self-start max-w-full">
                 {[
                     { id: 'generic', label: '通用爬虫 & 任务', icon: ServerIcon },
                     { id: 'pending', label: '人工审核队列', icon: CheckCircleIcon },
@@ -51,7 +51,7 @@ const PipelineView: React.FC = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`
-                            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
+                            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap
                             ${activeTab === tab.id 
                                 ? 'bg-white text-indigo-600 shadow-sm' 
                                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}
@@ -63,10 +63,10 @@ const PipelineView: React.FC = () => {
                 ))}
             </div>
             
-            <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                {activeTab === 'generic' && <GenericCrawlerManager />}
-                {activeTab === 'pending' && <PendingArticlesManager />}
-                {activeTab === 'standard' && <IntelligencePointManager />}
+            <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
+                {activeTab === 'generic' && <div className="absolute inset-0 overflow-hidden"><GenericCrawlerManager /></div>}
+                {activeTab === 'pending' && <div className="absolute inset-0 overflow-hidden"><PendingArticlesManager /></div>}
+                {activeTab === 'standard' && <div className="absolute inset-0 overflow-hidden"><IntelligencePointManager /></div>}
             </div>
         </div>
     );
@@ -78,7 +78,7 @@ const RetrievalView: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-300">
-            <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl mb-4 self-start">
+            <div className="flex overflow-x-auto space-x-1 bg-slate-100 p-1 rounded-xl mb-4 self-start max-w-full">
                 {[
                     { id: 'chunk', label: '分段语义检索', icon: ViewGridIcon },
                     { id: 'llm', label: 'LLM 智能分析', icon: SparklesIcon },
@@ -88,7 +88,7 @@ const RetrievalView: React.FC = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`
-                            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
+                            flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap
                             ${activeTab === tab.id 
                                 ? 'bg-white text-purple-600 shadow-sm' 
                                 : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}
@@ -100,10 +100,10 @@ const RetrievalView: React.FC = () => {
                 ))}
             </div>
 
-            <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                {activeTab === 'chunk' && <IntelligenceChunkManager />}
-                {activeTab === 'llm' && <LlmSortingManager />}
-                {activeTab === 'library' && <IntelligenceDataManager />}
+            <div className="flex-1 min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden relative">
+                {activeTab === 'chunk' && <div className="absolute inset-0 overflow-hidden"><IntelligenceChunkManager /></div>}
+                {activeTab === 'llm' && <div className="absolute inset-0 overflow-hidden"><LlmSortingManager /></div>}
+                {activeTab === 'library' && <div className="absolute inset-0 overflow-hidden"><IntelligenceDataManager /></div>}
             </div>
         </div>
     );
@@ -116,11 +116,11 @@ export const IntelligenceDashboard: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Top Navigation Bar */}
-            <div className="bg-white border-b border-slate-200 px-6 pt-4 pb-0 flex-shrink-0 z-10 sticky top-0">
+            <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-4 pb-0 flex-shrink-0 z-10 sticky top-0">
                 <div className="flex items-center justify-between mb-4">
                     <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">情报中台</h1>
                 </div>
-                <div className="flex gap-8">
+                <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar">
                     {[
                         { id: 'cockpit', label: '系统驾驶舱', icon: ChartIcon },
                         { id: 'pipeline', label: '采集流水线', icon: ServerIcon },
@@ -130,7 +130,7 @@ export const IntelligenceDashboard: React.FC = () => {
                             key={item.id}
                             onClick={() => setMainView(item.id as any)}
                             className={`
-                                pb-3 px-1 border-b-2 font-bold text-sm flex items-center gap-2 transition-all
+                                pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap
                                 ${mainView === item.id 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}

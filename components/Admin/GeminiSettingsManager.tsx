@@ -70,9 +70,9 @@ export const GeminiSettingsManager: React.FC = () => {
     const st = getStatusDisplay();
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* HTML Generation Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:border-indigo-200 transition-colors">
                 <div>
                     <div className="flex items-center gap-3 mb-4">
                         <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><DocumentTextIcon className="w-6 h-6" /></div>
@@ -88,18 +88,18 @@ export const GeminiSettingsManager: React.FC = () => {
                         </div>
                     )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => handleToggleHtml(true)} disabled={isTogglingHtml} className="py-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2">
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                    <button onClick={() => handleToggleHtml(true)} disabled={isTogglingHtml} className="py-2.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                         {isTogglingHtml ? <Spinner /> : <PlayIcon className="w-4 h-4"/>} 开启
                     </button>
-                    <button onClick={() => handleToggleHtml(false)} disabled={isTogglingHtml} className="py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2">
+                    <button onClick={() => handleToggleHtml(false)} disabled={isTogglingHtml} className="py-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                         {isTogglingHtml ? <Spinner /> : <StopIcon className="w-4 h-4"/>} 关闭
                     </button>
                 </div>
             </div>
 
             {/* Gemini Config Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 hover:border-purple-200 transition-colors">
                 <div className="flex justify-between items-start mb-6">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><SparklesIcon className="w-6 h-6" /></div>
@@ -115,21 +115,26 @@ export const GeminiSettingsManager: React.FC = () => {
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-3">
-                    <input type="password" value={formData.secure_1psid} onChange={e => setFormData(p => ({ ...p, secure_1psid: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none" placeholder="__Secure-1PSID" />
-                    <input type="password" value={formData.secure_1psidts} onChange={e => setFormData(p => ({ ...p, secure_1psidts: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none" placeholder="__Secure-1PSIDTS" />
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <input type="password" value={formData.secure_1psid} onChange={e => setFormData(p => ({ ...p, secure_1psid: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-shadow" placeholder="__Secure-1PSID" />
+                    </div>
+                    <div>
+                        <input type="password" value={formData.secure_1psidts} onChange={e => setFormData(p => ({ ...p, secure_1psidts: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-shadow" placeholder="__Secure-1PSIDTS" />
+                    </div>
                     <div className="relative">
                         <ServerIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                        <input type="text" value={formData.http_proxy} onChange={e => setFormData(p => ({ ...p, http_proxy: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-9 pr-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none" placeholder="HTTP Proxy (Optional)" />
+                        <input type="text" value={formData.http_proxy} onChange={e => setFormData(p => ({ ...p, http_proxy: e.target.value }))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-9 pr-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-shadow" placeholder="HTTP Proxy (Optional)" />
                     </div>
                     
                     {status && (
-                        <div className={`text-xs p-2 rounded ${status.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                        <div className={`text-xs p-3 rounded-lg flex items-center gap-2 ${status.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                            {status.type === 'success' ? <CheckCircleIcon className="w-4 h-4"/> : <ShieldExclamationIcon className="w-4 h-4"/>}
                             {status.message}
                         </div>
                     )}
 
-                    <button type="submit" disabled={isLoading} className="w-full py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                    <button type="submit" disabled={isLoading} className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
                         {isLoading ? <Spinner white /> : '保存配置'}
                     </button>
                 </form>

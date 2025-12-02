@@ -39,9 +39,9 @@ export const LlmSortingManager: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-white">
-            <div className="p-6 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <SparklesIcon className="w-5 h-5 text-purple-600" /> 新建 LLM 分析任务
+            <div className="p-6 border-b border-slate-100 bg-gradient-to-b from-white to-purple-50/30">
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg">
+                    <SparklesIcon className="w-6 h-6 text-purple-600" /> 新建 LLM 分析任务
                 </h3>
                 <div className="flex gap-4">
                     <input 
@@ -49,34 +49,42 @@ export const LlmSortingManager: React.FC = () => {
                         value={query} 
                         onChange={e => setQuery(e.target.value)} 
                         placeholder="输入分析指令 (e.g. 提取所有关于固态电池的新闻并按时间排序)..." 
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-5 py-4 focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm text-base"
                     />
-                    <button onClick={handleCreate} disabled={isCreating || !query} className="px-6 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center gap-2">
-                        {isCreating ? <Spinner /> : <SparklesIcon className="w-4 h-4"/>} 开始分析
+                    <button onClick={handleCreate} disabled={isCreating || !query} className="px-8 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 transition-all flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95">
+                        {isCreating ? <Spinner /> : <SparklesIcon className="w-5 h-5"/>} 开始分析
                     </button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-auto p-6 bg-slate-50/50 custom-scrollbar">
-                <div className="flex justify-between items-center mb-4 px-2">
-                    <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide">任务历史</h4>
-                    <button onClick={fetchTasks} className="text-slate-400 hover:text-purple-600 p-1"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/></button>
+                <div className="flex justify-between items-center mb-6 px-2">
+                    <h4 className="font-bold text-slate-600 text-sm uppercase tracking-wide flex items-center gap-2">
+                        <ClockIcon className="w-4 h-4" /> 任务历史
+                    </h4>
+                    <button onClick={fetchTasks} className="text-slate-400 hover:text-purple-600 p-2 hover:bg-white rounded-lg transition-colors">
+                        <RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/>
+                    </button>
                 </div>
                 
                 <div className="space-y-4">
                     {tasks.map(task => (
-                        <div key={task.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="font-medium text-slate-800 text-sm max-w-2xl truncate">{task.prompt_text}</div>
-                                <span className="text-xs font-mono text-slate-400">ID: {task.id.slice(0,8)}</span>
+                        <div key={task.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:border-purple-200 group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="font-bold text-slate-800 text-base max-w-3xl line-clamp-2 leading-relaxed">{task.prompt_text}</div>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">ID: {task.id.slice(0,8)}</span>
                             </div>
-                            <div className="flex items-center gap-6 text-xs text-slate-500 mt-3">
-                                <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(task.created_at).toLocaleString()}</span>
-                                <span className="flex items-center gap-1"><ChartIcon className="w-3 h-3"/> 已处理: <strong className="text-slate-700">{task.processed_count}</strong></span>
-                                <span className="flex items-center gap-1"><CheckCircleIcon className="w-3 h-3 text-green-500"/> 命中: <strong className="text-green-600">{task.matched_count}</strong></span>
+                            <div className="flex items-center gap-6 text-xs text-slate-500 mt-2 pt-3 border-t border-slate-50">
+                                <span className="flex items-center gap-1.5"><ClockIcon className="w-3.5 h-3.5 text-slate-400"/> {new Date(task.created_at).toLocaleString()}</span>
+                                <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded"><ChartIcon className="w-3.5 h-3.5 text-blue-500"/> 已处理: <strong className="text-slate-700">{task.processed_count}</strong></span>
+                                <span className="flex items-center gap-1.5 bg-green-50 px-2 py-0.5 rounded text-green-700 border border-green-100"><CheckCircleIcon className="w-3.5 h-3.5"/> 命中: <strong>{task.matched_count}</strong></span>
                             </div>
                         </div>
                     ))}
+                    
+                    {tasks.length === 0 && !isLoading && (
+                        <div className="text-center py-20 text-slate-400">暂无历史任务</div>
+                    )}
                 </div>
             </div>
         </div>
