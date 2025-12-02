@@ -382,10 +382,7 @@ export interface PendingArticle {
     original_url: string;
     title: string;
     publish_date: string;
-    content: string;
-    crawl_metadata: any;
-    status: string;
-    created_at: string;
+    crawl_metadata?: any;
 }
 
 export interface CrawlerPoint {
