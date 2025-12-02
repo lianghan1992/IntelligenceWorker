@@ -387,3 +387,20 @@ export interface PendingArticle {
     status: string;
     created_at: string;
 }
+
+export interface CrawlerPoint {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    is_active: boolean;
+    type: 'manual' | 'generic';
+    created_at?: string;
+}
+
+export interface SourceWithPoints {
+    source_name: string;
+    source_type: 'manual' | 'generic' | 'mixed';
+    points: CrawlerPoint[];
+}

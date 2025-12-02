@@ -7,7 +7,7 @@ import {
     SearchResult,
    SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
    LlmSearchTasksResponse, LlmSearchTaskDetail,
-   GenericPoint, GenericTask, PendingArticle
+   GenericPoint, GenericTask, PendingArticle, SourceWithPoints
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -28,6 +28,9 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
 export const getSources = (): Promise<SystemSource[]> => apiFetch<SystemSource[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
 
 export const getSourceNames = (): Promise<string[]> => apiFetch<string[]>(`${INTELLIGENCE_SERVICE_PATH}/sources/names`);
+
+export const getSourcesAndPoints = (): Promise<SourceWithPoints[]> =>
+    apiFetch<SourceWithPoints[]>(`${INTELLIGENCE_SERVICE_PATH}/sources-and-points`);
 
 // Updated: Delete source by name
 export const deleteSource = (sourceName: string): Promise<void> => 
