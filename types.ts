@@ -287,8 +287,15 @@ export interface TechDimensionCategory {
 }
 
 export interface TechAnalysisTask {
-    task_id: string;
-    status: string;
+    id: string;
+    article_id: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
+    tech_name: string;
+    tech_description: string;
+    reliability: number;
 }
 
 export interface CompetitivenessStatus {
@@ -342,4 +349,41 @@ export interface PaginatedDocumentsResponse {
     items: DocumentTask[];
     total: number;
     totalPages: number;
+}
+
+export interface GenericPoint {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    is_active: boolean;
+    created_at: string;
+}
+
+export interface GenericTask {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time?: string;
+    created_at: string;
+}
+
+export interface PendingArticle {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    original_url: string;
+    title: string;
+    publish_date: string;
+    content: string;
+    crawl_metadata: any;
+    status: string;
+    created_at: string;
 }

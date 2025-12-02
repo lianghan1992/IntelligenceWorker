@@ -6,7 +6,8 @@ import {
     Subscription, InfoItem, SystemSource, PaginatedResponse, 
     SearchResult,
    SearchChunksResponse, ExportChunksResponse, LlmSearchRequest, LlmSearchResponse,
-   LlmSearchTasksResponse, LlmSearchTaskDetail
+   LlmSearchTasksResponse, LlmSearchTaskDetail,
+   GenericPoint, GenericTask, PendingArticle
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 import { getUserSubscribedSources } from './user';
@@ -72,6 +73,44 @@ export const checkIntelligencePointHealth = (pointId: string): Promise<{ status:
 export const runCrawler = (sourceName: string): Promise<{ message: string; source_name: string; module_path: string }> =>
     apiFetch<{ message: string; source_name: string; module_path: string }>(`${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, {
         method: 'POST',
+    });
+
+// --- Generic Crawler API ---
+export const createGenericPoint = (data: Partial<GenericPoint>): Promise<{ message: string, point_id: string }> =>
+    apiFetch<{ message: string, point_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/generic/points`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updateGenericPoint = (pointId: string, data: Partial<GenericPoint>): Promise<GenericPoint> =>
+    apiFetch<GenericPoint>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const getGenericSources = (): Promise<{ source_name: string }[]> =>
+    apiFetch<{ source_name: string }[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/sources`);
+
+export const getGenericPoints = (sourceName: string): Promise<GenericPoint[]> =>
+    apiFetch<GenericPoint[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/points${createApiQuery({ source_name: sourceName })}`);
+
+export const getGenericTasks = (params: any): Promise<PaginatedResponse<GenericTask>> =>
+    apiFetch<PaginatedResponse<GenericTask>>(`${INTELLIGENCE_SERVICE_PATH}/generic/tasks${createApiQuery(params)}`);
+
+// --- Pending Articles API ---
+export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> =>
+    apiFetch<PaginatedResponse<PendingArticle>>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles${createApiQuery(params)}`);
+
+export const confirmPendingArticles = (articleIds: string[]): Promise<{ message: string; confirmed_count: number }> =>
+    apiFetch<{ message: string; confirmed_count: number }>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ article_ids: articleIds }),
+    });
+
+export const deletePendingArticles = (articleIds: string[]): Promise<{ message: string; deleted_count: number }> =>
+    apiFetch<{ message: string; deleted_count: number }>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/delete`, {
+        method: 'POST',
+        body: JSON.stringify({ article_ids: articleIds }),
     });
 
 // --- Articles API ---

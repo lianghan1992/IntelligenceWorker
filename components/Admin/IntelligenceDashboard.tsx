@@ -5,12 +5,16 @@ import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
-import { RssIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
+import { GenericCrawlerManager } from './GenericCrawlerManager';
+import { PendingArticlesManager } from './PendingArticlesManager';
+import { RssIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, GearIcon, ServerIcon, CheckCircleIcon } from '../icons';
 
-type IntelligenceSubView = 'overview' | 'data' | 'chunks' | 'llm' | 'gemini';
+type IntelligenceSubView = 'overview' | 'data' | 'chunks' | 'llm' | 'gemini' | 'generic' | 'pending';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
     { view: 'overview', label: '系统概览与配置', icon: RssIcon },
+    { view: 'generic', label: '通用爬虫配置', icon: ServerIcon }, // New
+    { view: 'pending', label: '待确认文章', icon: CheckCircleIcon }, // New
     { view: 'data', label: '文章库管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '向量分段', icon: ViewGridIcon },
     { view: 'llm', label: 'AI 智能分拣', icon: SparklesIcon },
@@ -22,7 +26,9 @@ export const IntelligenceDashboard: React.FC = () => {
 
     const renderSubView = () => {
         switch (subView) {
-            case 'overview': return <IntelligencePointManager />; // Merged View
+            case 'overview': return <IntelligencePointManager />; 
+            case 'generic': return <GenericCrawlerManager />; // New
+            case 'pending': return <PendingArticlesManager />; // New
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
             case 'llm': return <LlmSortingManager />;
@@ -34,7 +40,6 @@ export const IntelligenceDashboard: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             <div className="flex-shrink-0 bg-white border-b border-slate-200 shadow-sm px-6 pt-4 pb-2">
-                {/* Removed the H1 title as requested */}
                 <div className="overflow-x-auto">
                      <style>{`
                         .scrollbar-hide::-webkit-scrollbar {

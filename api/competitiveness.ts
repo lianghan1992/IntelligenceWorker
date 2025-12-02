@@ -8,13 +8,13 @@ export const getCompetitivenessStatus = (): Promise<CompetitivenessStatus> =>
     apiFetch<CompetitivenessStatus>(`${COMPETITIVENESS_SERVICE_PATH}/status`);
 
 export const toggleCompetitivenessService = (enable: boolean): Promise<{ enabled: boolean }> =>
-    apiFetch<{ enabled: boolean }>(`${COMPETITIVENESS_SERVICE_PATH}/toggle`, {
+    apiFetch<{ enabled: boolean }>(`${COMPETITIVENESS_SERVICE_PATH}/control`, {
         method: 'POST',
-        body: JSON.stringify({ enable }),
+        body: JSON.stringify({ enabled: enable }),
     });
 
 export const refreshCompetitivenessCookie = (data: { secure_1psid: string; secure_1psidts: string }): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${COMPETITIVENESS_SERVICE_PATH}/cookie`, {
+    apiFetch<{ message: string }>(`${COMPETITIVENESS_SERVICE_PATH}/cookie/refresh`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -50,7 +50,7 @@ export const addBrand = (name: string): Promise<{ name: string }> =>
     });
 
 export const batchUpdateSecondaryDimension = (data: any): Promise<any> =>
-    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/batch-update-secondary`, {
+    apiFetch(`${COMPETITIVENESS_SERVICE_PATH}/secondary-dimensions/batch-update`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
