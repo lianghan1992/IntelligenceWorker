@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getSourcesAndPoints, toggleSource, toggleIntelligencePoint, runCrawler } from '../../api';
+import { getSourcesAndPoints, toggleSource, toggleIntelligencePoint, runCrawler, runGenericPoint } from '../../api';
 import { SourceWithPoints, CrawlerPoint } from '../../types';
 import { 
     ServerIcon, RefreshIcon, PlayIcon, 
     GlobeIcon, ClockIcon, ExternalLinkIcon,
     ChevronDownIcon, ChevronRightIcon,
-    StopIcon
+    StopIcon, LightningBoltIcon
 } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -115,23 +115,29 @@ const IntelligenceOverview: React.FC = () => {
         }
     };
 
+    const handleRunPoint = async (point: CrawlerPoint) => {
+        if (processingPoint || point.type !== 'generic') return;
+        setProcessingPoint(point.id);
+        try {
+            await runGenericPoint(point.id);
+            alert(`已触发 "${point.point_name}" 的立即采集任务。`);
+        } catch (e: any) {
+            alert(`启动失败: ${e.message}`);
+        } finally {
+            setProcessingPoint(null);
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-200 bg-white sticky top-0 z-10 flex justify-between items-center shadow-sm">
-                <div>
-                    <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
-                        <ServerIcon className="w-6 h-6 text-indigo-600" />
-                        情报源概览
-                    </h2>
-                    <p className="text-sm text-slate-500 mt-1">管理全网信息采集渠道及其运行状态</p>
-                </div>
+            {/* Minimal Header */}
+            <div className="px-6 py-3 border-b border-slate-200 bg-white sticky top-0 z-10 flex justify-end items-center shadow-sm">
                 <button 
                     onClick={fetchData} 
-                    className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group"
+                    className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group text-slate-400"
                     title="刷新数据"
                 >
-                    <RefreshIcon className={`w-5 h-5 text-slate-400 group-hover:text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
+                    <RefreshIcon className={`w-4 h-4 group-hover:text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
                 </button>
             </div>
 
@@ -215,7 +221,7 @@ const IntelligenceOverview: React.FC = () => {
                                                         <th className="px-6 py-3 font-medium w-1/3">目标 URL</th>
                                                         <th className="px-6 py-3 font-medium w-1/6">频率 (Cron)</th>
                                                         <th className="px-6 py-3 font-medium text-center w-24">状态</th>
-                                                        <th className="px-6 py-3 font-medium text-right w-24">操作</th>
+                                                        <th className="px-6 py-3 font-medium text-right w-32">操作</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
@@ -252,18 +258,31 @@ const IntelligenceOverview: React.FC = () => {
                                                                 </div>
                                                             </td>
                                                             <td className="px-6 py-3.5 text-right">
-                                                                <button 
-                                                                    onClick={() => handleTogglePoint(point)}
-                                                                    disabled={processingPoint === point.id}
-                                                                    className={`p-1.5 rounded-lg transition-colors ${
-                                                                        point.is_active 
-                                                                            ? 'text-red-500 hover:bg-red-50' 
-                                                                            : 'text-green-600 hover:bg-green-50'
-                                                                    }`}
-                                                                    title={point.is_active ? "暂停" : "启用"}
-                                                                >
-                                                                    {processingPoint === point.id ? <Spinner /> : point.is_active ? <StopIcon className="w-4 h-4"/> : <PlayIcon className="w-4 h-4"/>}
-                                                                </button>
+                                                                <div className="flex justify-end gap-2">
+                                                                    {/* Run Button (Only for Generic) */}
+                                                                    {point.type === 'generic' && (
+                                                                        <button 
+                                                                            onClick={() => handleRunPoint(point)}
+                                                                            disabled={processingPoint === point.id}
+                                                                            className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                                                            title="立即采集"
+                                                                        >
+                                                                            {processingPoint === point.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4"/>}
+                                                                        </button>
+                                                                    )}
+                                                                    <button 
+                                                                        onClick={() => handleTogglePoint(point)}
+                                                                        disabled={processingPoint === point.id}
+                                                                        className={`p-1.5 rounded-lg transition-colors ${
+                                                                            point.is_active 
+                                                                                ? 'text-red-500 hover:bg-red-50' 
+                                                                                : 'text-green-600 hover:bg-green-50'
+                                                                        }`}
+                                                                        title={point.is_active ? "暂停" : "启用"}
+                                                                    >
+                                                                        {processingPoint === point.id ? <Spinner /> : point.is_active ? <StopIcon className="w-4 h-4"/> : <PlayIcon className="w-4 h-4"/>}
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     ))}
@@ -289,9 +308,6 @@ export const IntelligenceDashboard: React.FC = () => {
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Top Navigation Bar */}
             <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-4 pb-0 flex-shrink-0 z-10 sticky top-0">
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">情报中台</h1>
-                </div>
                 <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar">
                     <button
                         onClick={() => setMainView('overview')}

@@ -72,9 +72,15 @@ export const toggleSource = (sourceName: string, enable: boolean): Promise<{ suc
 export const checkIntelligencePointHealth = (pointId: string): Promise<{ status: string, message: string, last_success_time?: string }> =>
     apiFetch<{ status: string, message: string, last_success_time?: string }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/health`);
 
-// NEW: Run crawler immediately
+// NEW: Run crawler immediately (Source Level)
 export const runCrawler = (sourceName: string): Promise<{ message: string; source_name: string; module_path: string }> =>
     apiFetch<{ message: string; source_name: string; module_path: string }>(`${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, {
+        method: 'POST',
+    });
+
+// NEW: Run generic point immediately (Point Level)
+export const runGenericPoint = (pointId: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}/run-now`, {
         method: 'POST',
     });
 
