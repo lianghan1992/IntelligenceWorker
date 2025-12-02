@@ -1,643 +1,381 @@
-# 爬虫服务 API 文档
+# 爬虫服务 (Crawler Service)
 
-说明：本文件基于 `services/crawler/router.py` 的实际实现整理，供前后端及集成方使用。
+## 1. 概述
 
-## 基础信息
-- 服务模块：`crawler`
-- 认证：所有接口默认需要认证；使用项目统一的认证机制（Bearer Token）。
-- 基础路径：`/api/crawler`
+`Crawler Service` 是情报平台的核心组件之一，负责从各种外部情报源（如新闻网站、社交媒体等）自动收集数据。它通过灵活的调度机制、可扩展的爬虫模块和统一的数据处理流程，确保平台能够持续获取最新、最相关的情报。收集到的文章数据会经过清洗、存储，并生成向量嵌入，以支持后续的语义搜索、推荐和分析功能。
 
-## 接口列表
+## 2. 核心概念
 
-### 1. Sources & Points
+### 2.1 情报类型 (Intelligence Type)
 
-#### Create Point
-- Path: `/api/crawler/points`
-- Method: `POST`
-- Description: Create a new intelligence point and generate its parser file.
-- 请求体：
-  ```json
-  {
-    "source_name": "盖世汽车",
-    "point_name": "行业资讯",
-    "point_url": "https://example.com/news",
-    "cron_schedule": "0 */2 * * *"
-  }
-  ```
-- 响应：
-  - `201`: `{"message": "Intelligence point created successfully", "point_id": "<uuid>"}`
-  - `400`: 创建失败（如已存在）
+为了适应不同类型的情报源，系统引入了 `intelligence_type` 字段。它定义了情报的来源类别，例如：
 
-#### List Points by Source
-- Path: `/api/crawler/points`
-- Method: `GET`
-- Param: `source_name` (query, required)
-- Response: `List[IntelligencePointPublic]`
-  ```json
-  [
-    {
-      "id": "<uuid>",
-      "source_name": "盖世汽车",
-      "point_name": "行业资讯",
-      "point_url": "...",
-      "cron_schedule": "...",
-      "is_active": true,
-      ...
-    }
-  ]
-  ```
+-   `news_website`: 新闻网站或博客
+-   `video`: 视频平台 (例如 Bilibili)
+-   `social_media`: 社交媒体平台 (例如微博)
+-   `wechat_official_account`: 微信公众号
 
-#### Delete Points (Batch)
-- Path: `/api/crawler/points`
-- Method: `DELETE`
-- Body:
-  ```json
-  {
-    "point_ids": ["<uuid1>", "<uuid2>"]
-  }
-  ```
-- 响应：
-  - `200`: `{"message": "Successfully deleted X intelligence point(s)."}`
-  - `404`: 未找到匹配的情报点
+这个字段使得系统能够针对不同类型的情报源采用不同的处理策略和数据模型。
 
-#### List All Sources
-- Path: `/api/crawler/sources`
-- Method: `GET`
-- Response:
-  ```json
-  [
-    {
-      "id": "<uuid>",
-      "source_name": "盖世汽车",
-      "subscription_count": 0
-    }
-  ]
-  ```
+### 2.2 情报点 (Intelligence Point) 与调度 (Crawler Schedule)
 
-#### List Source Names
-- Path: `/api/crawler/sources/names`
-- Method: `GET`
-- Description: List all source names (excluding `通用子爬虫`)
-- Response: `["盖世汽车", "艾邦智造", ...]`
+- `IntelligencePoint`：在同一情报源下的细分“情报点”，对应一个具体的 RSS 源或某一列表页/频道页。它保存 `source_name`、`point_name`、`point_url`、`cron_schedule`、`parser_module_path` 等信息。
+- `CrawlerSchedule`：调度器扫描 `crawlers/` 目录得到的“爬虫入口”记录。每个记录指向一个爬虫模块的路径和该模块声明的初始 URL、类型与 CRON。运行时，爬虫模块可以在内部将多个子列表/分类视为多个 `IntelligencePoint`。
 
-#### Delete Source
-- Path: `/api/crawler/sources/{source_name}`
-- Method: `DELETE`
-- Description: Delete a source and all associated points and data.
-- Response:
-  - `200`: `{"message": "Source '...' and its X associated points were deleted."}`
+通过该模式，同一种解析逻辑只需一个爬虫模块，模块内部以“多情报点（参数化）”驱动，避免为每个页面/每个 RSS 再复制出多个模块，减少冗余。
 
-#### Check Crawler Health
-- Path: `/api/crawler/points/{point_id}/health`
-- Method: `GET`
-- Description: Basic connectivity test to ensure parser and fetching are healthy.
-- 响应：
-  ```json
-  {
-    "status": "healthy",
-    "message": "Crawler appears to be working correctly.",
-    "last_success_time": "2024-11-26T12:00:00"
-  }
-  ```
-  - `status` 可能值: `healthy`, `unhealthy`, `warning`, `error`
+### 2.3 文章存储与向量化 (Article Storage and Vectorization)
 
-#### Toggle Crawler
-- Path: `/api/crawler/points/{point_id}/toggle`
-- Method: `POST`
-- Description: Enable/disable a specific point, persisted to DB and scheduler.
-- 请求体：
-  ```json
-  { "enable": true }
-  ```
-- 响应：
-  - `200`: `{"success": true, "message": "Crawler ... has been enabled."}`
-  - `404`: 情报点不存在
+所有通过爬虫收集到的文章数据都将统一存储在 `CollectedArticle` 数据库表中。为了实现高级的语义搜索和分析，每篇文章的内容都会被自动分割成更小的文本块，并利用预训练的嵌入模型生成高维向量（即向量嵌入）。这些向量存储在 `ArticleVector` 表中，是实现内容理解和智能推荐的基础。
 
-#### Toggle All Points for Source
-- Path: `/api/crawler/sources/{source_name}/toggle`
-- Method: `POST`
-- Description: Enable/disable all points for a source and sync schedules.
-- 请求体：
-  ```json
-  { "enable": false }
-  ```
-- 响应：`{"success": true, "message": "Source '盖世汽车' points disabled: 12"}`
+## 3. 架构设计
 
----
+`Crawler Service` 的目录结构如下：
 
-### 2. 文章管理
+```
+services/crawler/
+├── __init__.py
+├── config.py             # 爬虫服务的配置
+├── crawlers/             # 存放具体的爬虫模块
+│   ├── __init__.py
+│   └── ...               # 各个情报源的爬虫目录和文件
+├── manager.py            # 爬虫管理相关逻辑 (如果存在)
+├── models.py             # SQLAlchemy ORM 模型定义 (IntelligenceSource, IntelligencePoint, CrawlerSchedule, CollectedArticle, ArticleVector)
+├── router.py             # FastAPI 路由定义 (如果存在 API 接口)
+├── services.py           # 核心服务逻辑，如文章存储与向量化、嵌入服务等
+└── worker.py             # 爬虫调度器和执行器
+```
 
-#### 获取文章列表（分页/筛选）
-- 路径：`/api/crawler/articles`
-- 方法：`GET`
-- 参数：
-  - `source_name`: 按情报源名称过滤
-  - `point_name`: 按情报点名称过滤
-  - `point_ids`: 按情报点ID列表过滤 (List)
-  - `publish_date_start`: 发布日期起始 (YYYY-MM-DD)
-  - `publish_date_end`: 发布日期结束 (YYYY-MM-DD)
-  - `page`: 页码 (默认1)
-  - `limit`: 每页数量 (默认20)
-- 响应：
-  ```json
-  {
-    "total": 100,
-    "page": 1,
-    "limit": 20,
-    "items": [CollectedArticlePublic]
-  }
-  ```
+### 3.1 `models.py`
 
-#### 批量删除文章
-- 路径：`/api/crawler/articles`
-- 方法：`DELETE`
-- 描述：批量删除文章及其关联的向量分段、输出状态记录。
-- 参数（Query）：
-  - `article_ids`：可重复的查询参数，如 `?article_ids=id1&article_ids=id2`
-  - 说明：为便于前端直接使用链接方式删除，现支持通过 Query 传递 ID 列表。
-- cURL 示例：
-  ```bash
-  curl -X DELETE "http://127.0.0.1:7657/api/crawler/articles?article_ids=ID_1&article_ids=ID_2" \
-    -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-  ```
-- 响应：
-  - `200`: `{"message": "Successfully deleted X article(s) and their associated vectors."}`
-  - `404`: 未找到匹配的文章
+定义了爬虫服务相关的 SQLAlchemy ORM 模型和 Pydantic 模型，包括：
 
-#### 获取文章详情（按ID）
-- 路径：`/api/crawler/articles/{article_id}`
-- 方法：`GET`
-- 描述：传入文章ID，返回文章的标题、发布时间、文章内容、文章原始URL。
-- 响应：
-  ```json
-  {
-    "id": "<uuid>",
-    "title": "文章标题",
-    "publish_date": "2024-11-26",
-    "content": "文章正文内容...",
-    "original_url": "https://example.com/article"
-  }
-  ```
-  - `404`: 未找到文章
+-   `CrawlerSchedule`: 爬虫调度配置模型。
+-   `CollectedArticle`: 收集到的文章数据模型，包含文章内容、元数据和 `intelligence_type` 字段。
+-   `ArticleVector`: 文章内容块的向量嵌入模型。
 
----
+### 3.2 `services.py`
 
-### 3. Search & Feed
+包含了爬虫服务的核心业务逻辑，例如：
 
-#### Get Intelligence Feed
-- Path: `/api/crawler/feed`
-- Method: `POST`
-- Description: Fetch feed with filters and sort by publish date.
-- 请求体：
-  ```json
-  {
-    "point_ids": ["..."],
-    "source_names": ["..."],
-    "publish_date_start": "2024-01-01",
-    "publish_date_end": "2024-12-31",
-    "min_influence_score": 5,
-    "sentiment": ["positive"],
-    "page": 1,
-    "limit": 20
-  }
-  ```
-- 响应：`PaginatedFeedResponse`
+-   `EmbeddingService` 及其实现：负责生成文本的向量嵌入。
+-   `store_and_vectorize_article()`: 负责将文章数据存储到数据库，并进行内容分割和向量化。
 
-#### Chunk Vector Search
-- Path: `/api/crawler/search/chunks`
-- Method: `POST`
-- Description: Semantic search over chunk embeddings.
-- 请求体：
-  ```json
-  {
-    "query_text": "电池热管理",
-    "point_ids": [],
-    "source_names": [],
-    "similarity_threshold": 0.5,
-    "include_article_content": false,
-    "top_k": 10
-  }
-  ```
-- 响应：`ChunkSearchResponse`
+### 3.3 `worker.py`
 
-#### Export Chunk Search Results
-- Path: `/api/crawler/search/chunks/export`
-- Method: `POST`
-- Description: Export chunk search results for CSV.
-- 响应：`ChunkExportResponse`
+包含了爬虫的调度和执行逻辑：
 
-#### Articles Semantic Search
-- Path: `/api/crawler/search/articles`
-- Method: `POST`
-- Description: Semantic search across selected points.
-- 请求体：
-  ```json
-  {
-    "query_text": "...",
-    "point_ids": ["..."],
-    "top_k": 5
-  }
-  ```
-- 响应：`List[Dict]`
+-   `discover_crawlers()`: 扫描 `crawlers/` 目录，动态发现并加载爬虫模块，同步 `CrawlerSchedule`。模块内部仍可派生多个 `IntelligencePoint`。
+-   `run_scheduler()`: 负责根据 `CrawlerSchedule` 的配置，定时触发爬虫任务。
+-   `run_executor()`: 负责执行具体的爬虫任务（通过调用 `run_crawler()`）。
 
-#### Filtered Semantic Search
-- Path: `/api/crawler/search/articles_filtered`
-- Method: `POST`
-- Description: Combine filters with semantic search.
-- 请求体：`FilteredSearchRequest`
-- 响应：`PaginatedArticleSearchResponse`
+### 3.4 `crawlers/` 目录
 
-#### Combined Search (Legacy)
-- Path: `/api/crawler/search/combined`
-- Method: `POST`
-- Body: `CombinedSearchRequest`
-- Response: `PaginatedArticleSearchResponse`
+该目录用于存放所有具体的爬虫实现。每个情报源通常会有一个独立的子目录，子目录下包含一个 `crawler.py` 文件，实现该情报源的爬取逻辑。
 
----
+## 4. 爬虫模块开发指南（情报点映射模式）
 
-### 4. LLM Search Tasks
+为保证调度器正确发现并执行爬虫，请在每个爬虫目录下的 `crawler.py` 中遵循以下约定：
 
-#### Start LLM Search Task
-- Path: `/api/crawler/search/llm`
-- Method: `POST`
-- Description: Run prompt-driven relevance analysis and export CSV with progress.
-- 请求体：
-  ```json
-  {
-    "query_text": "查找关于固态电池的最新进展",
-    "publish_date_start": "2024-01-01",
-    "publish_date_end": "2024-06-01",
-    "source_names": ["盖世汽车"]
-  }
-  ```
-- 响应：`LLMSearchResponse` (包含 `task_id`)
+1) 必须定义以下常量，用于在数据库中同步调度信息：
+   - `SOURCE_NAME`: 情报源的可读名称
+   - `POINTS`: 情报点映射，键为点名，值为列表页/RSS URL
+   - `CRON_SCHEDULE`: 定时表达式，例如 `"*/15 * * * *"`
+   - `INITIAL_URL`: 初始入口地址或频道页（如是 RSS 可填分类页）
+   - `INTELLIGENCE_TYPE`: 情报类型字符串，例如 `"news"`、`"report"`
 
-#### List LLM Search Tasks
-- Path: `/api/crawler/search/tasks`
-- Method: `GET`
-- Params: `page`, `limit`
-- Response: `SearchTaskListResponse` (includes stats)
+2) 必须实现函数签名 `def run_crawler(db: Session) -> None`：
+   - 调度器会在独立线程中调用该函数，并传入数据库会话 `db`
+   - 遍历 `POINTS` 映射，以 `point_name/point_url` 维度解析并入库
+   - 采集到的文章请调用 `services.store_and_vectorize_article(...)` 完成存储与向量化
+   - 如果需要限速与去重，请使用模块 `services.crawler.config` 中的配置项与 `store_and_vectorize_article` 内置去重能力
 
-#### Get LLM Search Task Detail
-- Path: `/api/crawler/search/tasks/{task_id}`
-- Method: `GET`
-- Response: task detail with progress stats
+3) 目录结构示例（简化为每源一个模块）：
+```
+crawlers/
+  情报源A/
+    crawler.py
+```
 
-#### Download Task CSV
-- Path: `/api/crawler/search/tasks/{task_id}/download`
-- Method: `GET`
-- Params:
-  - `with_content`: bool (default True)
-  - `both`: bool (default False, if True returns zip bundle)
-- Response: file stream
+4) 运行注意事项：
+   - 新增或修改爬虫后，调度器会在下次扫描时自动同步到 `CrawlerSchedule` 表
+   - 如需暂停某个爬虫，可将其文件从 `crawlers` 目录移除或在数据库中将 `is_active` 设为 0
+   - 避免在 `run_crawler` 中长时间阻塞；如需网络等待，请设置合适的请求间隔
 
----
+以上约定与当前 `worker.py` 的调度逻辑保持一致。调度以模块路径为唯一键，同一源的多个子点由 `POINTS` 映射驱动。
 
-### 5. 报告与工具
+要开发一个新的爬虫模块，请遵循以下步骤和规范：
 
-#### 获取任务统计信息
-- 路径：`/api/crawler/tasks/stats`
-- 方法：`GET`
-- 响应：
-  ```json
-  {
-    "sources": 10,
-    "points": 20,
-    "active_points": 18,
-    "articles": 5000,
-    "vectors": 15000,
-    "schedules_active": 18
-  }
-  ```
+### 4.1 目录结构
 
-#### 获取文章 HTML 报告
-- 路径：`/api/crawler/articles/{article_id}/html`
-- 方法：`GET`
-- 响应：HTML 内容
+在 `services/crawler/crawlers/` 目录下为你的情报源创建一个新的目录（例如 `my_source/`），在该目录下创建 `crawler.py` 文件。
 
-#### 下载文章 PDF
-- 路径：`/api/crawler/articles/{article_id}/pdf`
-- 方法：`GET`
-- 描述：如果 PDF 不存在，会尝试调用 Playwright 生成。
-- 响应：PDF 文件流
+```
+services/crawler/crawlers/
+└── my_source/
+    └── crawler.py
+```
 
-#### 手动触发 PDF 生成
-- 路径：`/api/crawler/report/pdf/{article_id}`
-- 方法：`POST`
-- 响应：`{"ok": true, "pdf_generated": true}`
+### 4.2 `crawler.py` 文件规范（最小实现）
 
-#### 开关 HTML 生成功能
-- 路径：`/api/crawler/html-generation/toggle`
-- 方法：`POST`
-- 参数：`enable` (query, bool)
-- 响应：`{"ok": true, "enabled": true}`
+1) 在文件顶部定义常量：
+- `SOURCE_NAME` (str): 如 `"我的新闻源"`
+- `INTELLIGENCE_TYPE` (str): 如 `"news_website"`
+- `CRON_SCHEDULE` (str): 如 `"0 */6 * * *"`
+- `POINTS` (dict[str,str]): 如 `{ "行业": "https://.../rss?cid=108" }`
 
-#### 检查 Gemini Cookie
-- 路径：`/api/crawler/gemini/cookies/check`
-- 方法：`GET`
-- 响应：`{"has_cookie": true, "valid": true}`
+2) 实现入口函数：
+- `def run_crawler(db: Session) -> None`：遍历 `POINTS`，每个键为 `point_name`，每个值为 `point_url`，解析文章并调用主服务入库接口。
 
-#### 更新 Gemini Cookie（仅支持表单）
-- 路径：`/api/crawler/gemini/cookies`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求类型：`multipart/form-data` 或 `application/x-www-form-urlencoded`
-- 请求字段：
-  - `secure_1psid` (必填)
-  - `secure_1psidts` (必填)
-  - `http_proxy` (可选)
-- cURL 示例：
-  ```bash
-  curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
-    -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-    -F "secure_1psid=<值>" -F "secure_1psidts=<值>" -F "http_proxy=http://127.0.0.1:20171"
-  ```
+3) 入库与增量（建议）：
+- 使用 `get_last_crawled_article(db, source_name, point_name, point_url)` 控制增量、避免重复。
+- 使用 `store_and_vectorize_article(article_data, db)` 存储并向量化，务必包含 `source_name`、`point_name`、`point_url`。
 
----
+示例（简化）：
+```python
+from typing import Dict, Any, List
+from datetime import datetime
+import logging, httpx
+from sqlalchemy.orm import Session
+from services.crawler.services import store_and_vectorize_article, get_last_crawled_article
 
-### 6. 立即执行子爬虫
+logger = logging.getLogger(__name__)
 
-#### 立即触发执行（按情报源）
-- 路径：`/api/crawler/crawlers/{source_name}/run-now`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 描述：根据 `services/crawler/crawlers/{source_name}/crawler.py` 自动加载并在后台线程中立即执行该爬虫的 `run_crawler(db: Session)`。此接口不阻塞请求，返回启动状态。
-- 路径参数：
-  - `source_name`: 情报源目录名或该爬虫在代码中声明的 `SOURCE_NAME`
-- cURL 示例：
+SOURCE_NAME = "示例源"
+INTELLIGENCE_TYPE = "news_website"
+CRON_SCHEDULE = "0 8 * * *"
+POINTS: Dict[str, str] = {"分类A": "https://example.com/rss/a.xml"}
+
+def _parse_list(url: str) -> List[str]:
+    r = httpx.get(url, timeout=15); r.raise_for_status(); return []
+
+def _parse_detail(url: str) -> Dict[str, Any]:
+    r = httpx.get(url, timeout=15); r.raise_for_status(); return {"title": "", "publish_date": datetime.utcnow(), "content": ""}
+
+def run_crawler(db: Session):
+    for point_name, point_url in POINTS.items():
+        last = get_last_crawled_article(db, SOURCE_NAME, point_name, point_url)
+        for article_url in _parse_list(point_url):
+            if last and article_url == last.get("original_url"): break
+            data = _parse_detail(article_url)
+            if not data: continue
+            data.update({
+                "original_url": article_url,
+                "source_name": SOURCE_NAME,
+                "point_name": point_name,
+                "intelligence_type": INTELLIGENCE_TYPE,
+                "point_url": point_url,
+                "cron_schedule": CRON_SCHEDULE,
+                "parser_module_path": f"services.crawler.crawlers.{SOURCE_NAME}.crawler",
+            })
+            store_and_vectorize_article(data, db)
+```
+
+### 4.3 运行与接口
+- 环境与启动：
+  - 使用虚拟环境：`source venv/bin/activate`
+  - 启动服务：`python -m uvicorn main:app --host 0.0.0.0 --port 7657 --reload`
+  - 仅保留主服务 `.env` 必要项：`ZHIPUAI_API_KEY`、`ZHIPUAI_LLM_MODEL`、`ZHIPUAI_CONCURRENCY`、`EMBEDDING_PROVIDER`、`EMBEDDING_MODEL_NAME`、`CRAWLER_EARLIEST_DATE`、`CRAWLER_HTTP_PROXY`、`CRAWLER_SOCKS5_PROXY`
+ - API 前缀：应用启用 `root_path=/api`，接口统一以 `/api` 开头。
+
+### 4.4 开发建议
+- 列表解析与详情解析分离，函数短小清晰。
+- 用 `get_last_crawled_article` 做增量控制，减少重复与翻页。
+- 每篇文章都传入 `source_name`、`point_name`、`point_url`，确保自动绑定情报点。
+- 代码保持简洁可读，避免复杂嵌套；不编写独立测试文件。
+
+## 5. 工作流程
+
+1.  **服务启动**: 当 `IntelligencePlatform` 启动时，`services/crawler/worker.py` 中的 `discover_crawlers()` 函数会被调用。
+2.  **爬虫发现与同步**: `discover_crawlers()` 会扫描 `services/crawler/crawlers/` 目录，动态加载所有 `crawler.py` 文件，提取其定义的常量，并与 `CrawlerSchedule` 数据库表进行同步。这包括添加新的爬虫配置、更新现有配置以及标记不再存在的爬虫为非活跃状态。
+3.  **调度器启动**: `run_scheduler()` 函数启动，它会根据 `CrawlerSchedule` 表中每个爬虫的 `CRON_SCHEDULE` 配置，定时安排 `run_crawler()` 函数的执行。
+4.  **爬虫执行**: 当到达预定的调度时间时，调度器会触发相应爬虫模块的 `run_crawler()` 函数。
+5.  **数据处理**: `run_crawler()` 函数负责执行以下操作：
+    - 对同源下的多个子点进行迭代（每个子点对应一个 `point_url`）。
+    - 在子点维度进行增量判断（对比最近文章的 URL/日期）。
+    - 解析详情、调用 `store_and_vectorize_article()` 入库与向量化，同时传入 `point_url`/`cron_schedule`/`parser_module_path`，使系统自动创建或绑定 `IntelligencePoint`。
+
+## 6. 依赖管理
+
+如果你的爬虫模块需要额外的 Python 库，请确保将其添加到项目的 `requirements.txt` 文件中，并使用 `pip install -r requirements.txt` 命令安装到虚拟环境中。
+
+## 7. API 文档（Crawler Service）
+
+所有接口前缀为 `/api/crawler`。鉴权：在请求头添加 `Authorization: Bearer <accessToken>`（登录接口：`POST /api/user/login`）。
+
+### 源与点管理
+
+- `GET /api/crawler/sources`：获取顶层情报源列表。
+- `GET /api/crawler/sources/names`：仅获取源名称列表。
+- `GET /api/crawler/points?source_name=...`：按源获取该源的情报点。
+- `GET /api/crawler/sources-and-points`：获取所有源与点并区分类型（`manual`/`generic`/`mixed`）。
+- `POST /api/crawler/points`：创建手动情报点（`source_name`、`point_name`、`point_url`、`cron_schedule`）。
+- `POST /api/crawler/points/{point_id}/toggle`：启停单个子爬虫。
+- `GET /api/crawler/points/{point_id}/health`：检查子爬虫健康。
+- `POST /api/crawler/sources/{source_name}/toggle`：启停整源下所有点。
+- `DELETE /api/crawler/points`：按 `point_ids` 批量删除情报点。
+- `DELETE /api/crawler/sources/{source_name}`：删除整源（及其所有点）。
+
+### 通用子爬虫（Generic）
+
+- `POST /api/crawler/generic/points`：创建通用点。
+- `PUT /api/crawler/generic/points/{point_id}`：更新通用点（名称、URL、CRON、启停）。
+- `DELETE /api/crawler/generic/points/{point_id}`：删除通用点。
+- `POST /api/crawler/generic/points/{point_id}/toggle`：启停通用点。
+- `POST /api/crawler/generic/points/{point_id}/run-now`：立即执行单个通用点。
+- `GET /api/crawler/generic/points?source_name=...`：列出通用点（可按源过滤）。
+- `GET /api/crawler/generic/sources`：列出通用源。
+- `PUT /api/crawler/generic/sources/{source_name}`：编辑通用源（重命名、CRON、启停）。
+- `POST /api/crawler/generic/sources/{source_name}/toggle`：启停整源所有通用点。
+- `DELETE /api/crawler/generic/sources/{source_name}`：删除仅含通用点的源。
+- `GET /api/crawler/generic/tasks?page=1&limit=20`：通用爬虫任务分页懒加载。
+- `GET /api/crawler/pending/articles?page=1&limit=20`：待确认文章分页。
+- `POST /api/crawler/pending/articles/confirm`：确认文章（`article_ids`）。
+- `POST /api/crawler/pending/articles/delete`：删除待确认文章（`article_ids`）。
+
+### 文章与附件
+
+- `GET /api/crawler/articles`：分页获取文章（支持源名、点名、点ID、日期范围筛选）。
+- `GET /api/crawler/articles/{article_id}`：获取文章详情。
+- `DELETE /api/crawler/articles`：批量删除文章（支持 Query 或 JSON 传 `article_ids`）。
+- `DELETE /api/crawler/articles/{article_id}`：删除单篇文章。
+- `GET /api/crawler/articles/{article_id}/html`：获取文章报告 HTML。
+- `GET /api/crawler/articles/{article_id}/pdf`：下载文章 PDF（如不存在自动转换）。
+- `POST /api/crawler/report/pdf/{article_id}`：按需生成 PDF 并标记状态。
+- `GET /api/crawler/tasks/stats`：获取采集任务统计。
+
+### 统一语义检索
+
+- `POST /api/crawler/search/chunks`：分段向量检索，支持过滤与返回摘要、关键词、实体。
+- `POST /api/crawler/search/chunks_paged`：分段向量检索分页懒加载。
+  - 请求体：`query_text`、可选 `point_ids`、`source_names`、`publish_date_start`、`publish_date_end`、`similarity_threshold`、`include_article_content`、`chunk_size_filter`、`page`、`limit`
+  - 返回：`{ total, page, limit, items: [ { article_id, chunk_index, chunk_text, chunk_size, similarity_score, article_title, article_url, article_publish_date, source_name, point_name, article_summary, article_keywords, article_entities, article_content? } ] }`
+- `POST /api/crawler/search/chunks/export`：将检索结果按文章汇总导出结构化数据。
+- `POST /api/crawler/search/articles`：按点范围 Top-K 语义检索。
+- `POST /api/crawler/search/articles_filtered`：带过滤与分页的文章级检索。
+- `POST /api/crawler/search/combined`：兼容旧接口的组合检索（filters+query）。
+- `POST /api/crawler/feed`：信息流（影响力、情感、时间等过滤）。
+
+### LLM 相关检索任务
+
+- `POST /api/crawler/search/llm`：按提示词执行相关性判断与总结，生成任务目录与 CSV。
+- `GET /api/crawler/search/tasks`：分页列出检索任务（含统计）。
+- `GET /api/crawler/search/tasks/{task_id}`：查看任务详情。
+- `GET /api/crawler/search/tasks/{task_id}/download?with_content=true&both=false`：下载 CSV 或 ZIP。
+
+### Cookie 与生成
+
+- `POST /api/crawler/gemini/cookies`：刷新 Gemini Cookie（表单：`secure_1psid`、`secure_1psidts`、可选 `http_proxy`）。
+- `GET /api/crawler/gemini/cookies/check`：检查 Cookie 健康。
+- `POST /api/crawler/html-generation/toggle`：切换 HTML 生成开关。
+
+### 运行控制
+
+- `POST /api/crawler/crawlers/{source_name}/run-now`：立即执行指定源爬虫。
+
+## 8. 场景示例（前端调用）
+
+### 场景A：源/点管理页
+
+- 加载源与点：
 ```bash
-curl -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+curl -s "http://127.0.0.1:7657/api/crawler/sources-and-points" -H "Authorization: Bearer $TOKEN"
 ```
-- 返回示例 (200 OK)：
-```json
-{
-  "message": "started",
-  "source_name": "盖世汽车",
-  "module_path": "services.crawler.crawlers.盖世汽车.crawler"
-}
+- 启停整源：
+```bash
+curl -s -X POST "http://127.0.0.1:7657/api/crawler/sources/盖世汽车/toggle" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{"enable": false}'
 ```
-- 说明：
-- 若 `source_name` 不存在或无法加载，返回 `404`。
-- 新增任何爬虫目录（包含 `crawler.py` 并定义 `SOURCE_NAME`、`CRON_SCHEDULE`、`INTELLIGENCE_TYPE`、`INITIAL_URL`、`POINTS`/`POINTS_DEFAULT`、以及 `run_crawler(db)`）均可自动被此接口发现并触发。
+- 启停单点：
+```bash
+curl -s -X POST "http://127.0.0.1:7657/api/crawler/points/<point_id>/toggle" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{"enable": true}'
+```
 
----
+### 场景B：通用子爬虫配置页
 
-### 7. 通用子爬虫（Jina + 智谱，串行）
+- 列出通用源与点：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/generic/sources" -H "Authorization: Bearer $TOKEN"
+curl -s "http://127.0.0.1:7657/api/crawler/generic/points?source_name=通用子爬虫" -H "Authorization: Bearer $TOKEN"
+```
+- 编辑通用源：
+```bash
+curl -s -X PUT "http://127.0.0.1:7657/api/crawler/generic/sources/通用子爬虫" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{"new_name":"通用子爬虫","cron_schedule":"0 */2 * * *","is_active":true}'
+```
+- 立即执行单点：
+```bash
+curl -s -X POST "http://127.0.0.1:7657/api/crawler/generic/points/<point_id>/run-now" -H "Authorization: Bearer $TOKEN"
+```
 
-#### 创建通用情报点
-- 路径：`/api/crawler/generic/points`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求体：
-  ```json
-  {
-    "source_name": "盖世汽车",
-    "point_name": "行业资讯",
-    "point_url": "https://example.com/list",
-    "cron_schedule": "0 */6 * * *"
-  }
-  ```
-- 响应：`{"message": "Generic point created successfully", "point_id": "<uuid>"}`
+### 场景C：语义检索页（分页懒加载）
 
-#### 编辑通用情报点
-- 路径：`/api/crawler/generic/points/{point_id}`
-- 方法：`PUT`
-- 认证：需要Bearer Token
-- 请求体支持字段：`source_name`, `point_name`, `point_url`, `cron_schedule`, `is_active`
-- 响应：`IntelligencePointPublic`
+- 第1页：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/search/chunks_paged" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{
+  "query_text": "智能座舱",
+  "source_names": ["盖世汽车","36KR"],
+  "similarity_threshold": 0.55,
+  "page": 1,
+  "limit": 20
+}'
+```
+- 第2页：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/search/chunks_paged" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{
+  "query_text": "智能座舱",
+  "source_names": ["盖世汽车","36KR"],
+  "similarity_threshold": 0.55,
+  "page": 2,
+  "limit": 20
+}'
+```
 
-#### 获取通用情报源
-- 路径：`/api/crawler/generic/sources`
-- 方法：`GET`
-- 响应：`[{"source_name": "盖世汽车"}, ...]`
+### 场景D：文章详情与附件
 
-#### 获取通用情报点
-- 路径：`/api/crawler/generic/points` 或 `?source_name=...`
-- 方法：`GET`
-- 响应：`List[IntelligencePointPublic]`
-  - 若未提供 `source_name`，返回所有通用情报点
+- 加载详情：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/articles/<article_id>" -H "Authorization: Bearer $TOKEN"
+```
+- 打开 HTML 报告：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/articles/<article_id>/html" -H "Authorization: Bearer $TOKEN"
+```
+- 下载 PDF：
+```bash
+curl -L "http://127.0.0.1:7657/api/crawler/articles/<article_id>/pdf" -H "Authorization: Bearer $TOKEN"
+```
 
-#### 查询通用爬虫任务（懒加载）
-- 路径：`/api/crawler/generic/tasks`
-- 方法：`GET`
-- 参数：`page`, `limit`, `source_name`(可选), `point_name`(可选)
-- 响应：
-  ```json
-  {
-    "total": 123,
-    "page": 1,
-    "limit": 20,
-    "items": [
-      {
-        "id": "<uuid>",
-        "source_name": "盖世汽车",
-        "point_name": "行业资讯",
-        "url": "https://example.com/list",
-        "task_type": "文章列表提取",
-        "stage": "AI识别",
-        "detail_info": "links=42",
-        "start_time": "2025-12-01T10:00:00+08:00",
-        "end_time": "2025-12-01T10:02:00+08:00",
-        "created_at": "2025-12-01T10:02:00+08:00"
-      }
-    ]
-  }
-  ```
+### 场景E：LLM 检索任务与结果下载
 
-#### 配置说明
-- 目录：`services/crawler/crawlers/通用子爬虫`
-- `.env` 支持：`ZHIPU_API_KEYS`, `ZHIPU_LLM_MODEL`, `JINA_API_KEYS`（可为空）、`PROMPT_LIST_EXTRACT`, `PROMPT_DETAIL_PARSE`, `CRON_SCHEDULE` 等。
-- 提示词：`prompts/list_extract.json`、`prompts/detail_parse.json`
-- Jina默认无需密钥；若配置 `JINA_API_KEYS` 使用第一个密钥。
+- 创建任务：
+```bash
+curl -s -X POST "http://127.0.0.1:7657/api/crawler/search/llm" \
+ -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+ -d '{"query_text":"新能源汽车电池安全"}'
+```
+- 轮询任务列表与详情：
+```bash
+curl -s "http://127.0.0.1:7657/api/crawler/search/tasks" -H "Authorization: Bearer $TOKEN"
+curl -s "http://127.0.0.1:7657/api/crawler/search/tasks/<task_id>" -H "Authorization: Bearer $TOKEN"
+```
+- 下载结果：
+```bash
+curl -L "http://127.0.0.1:7657/api/crawler/search/tasks/<task_id>/download?with_content=true" -H "Authorization: Bearer $TOKEN"
+```
 
-### 8. 未确认文章管理
+### 场景F：立即运行爬虫源
 
-#### 查询未确认文章（懒加载）
-- 路径：`/api/crawler/pending/articles`
-- 方法：`GET`
-- 认证：需要Bearer Token
-- 参数：`page`, `limit`, `source_name`(可选), `point_name`(可选)
-- 响应：
-  ```json
-  {
-    "total": 123,
-    "page": 1,
-    "limit": 20,
-    "items": [
-      {
-        "id": "<uuid>",
-        "source_name": "盖世汽车",
-        "point_name": "行业资讯",
-        "point_url": "https://example.com/list",
-        "original_url": "https://example.com/article",
-        "title": "文章标题",
-        "publish_date": "2025-12-01T10:00:00+08:00",
-        "content": "文章内容",
-        "crawl_metadata": {"jina_response_length": 1000, "glm_parsed": true, "crawl_time": "2025-12-01T10:00:00+08:00"},
-        "status": "pending",
-        "created_at": "2025-12-01T10:00:00+08:00"
-      }
-    ]
-  }
-  ```
+```bash
+curl -s -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" -H "Authorization: Bearer $TOKEN"
+```
 
-#### 确认未确认文章入库
-- 路径：`/api/crawler/pending/articles/confirm`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求体：
-  ```json
-  {
-    "article_ids": ["<uuid1>", "<uuid2>"]
-  }
-  ```
-- 响应：`{"message": "Successfully confirmed 2 pending article(s)", "confirmed_count": 2}`
-
-#### 删除未确认文章
-- 路径：`/api/crawler/pending/articles/delete`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求体：
-  ```json
-  {
-    "article_ids": ["<uuid1>", "<uuid2>"]
-  }
-  ```
-- 响应：`{"message": "Successfully deleted 2 pending article(s)", "deleted_count": 2}`
-### 9. Generic Sub-Crawler Logging (.env)
-- Path: `services/crawler/crawlers/通用子爬虫/.env`
-- Settings:
-  - `LOG_SAVE_ENABLED`: `true/false` — save raw Jina output and structured LLM results
-  - `LOG_SAVE_DIR`: target directory for logs (defaults to crawler folder)
-- File naming examples:
-  - `YYYYMMDD_HHMMSS_<source>_<point>_list_jina.md`
-  - `YYYYMMDD_HHMMSS_<source>_<point>_list_ai.json`
-  - `YYYYMMDD_HHMMSS_<source>_<point>_detail_<hash>_jina.md`
--  `YYYYMMDD_HHMMSS_<source>_<point>_detail_<hash>_ai.json`
-
-### 10. 前端使用指南（操作流程）
-
-本节从前端视角提供可直接落地的流程指导，包含通用爬虫管理、未确认文章处理、分段向量检索与导出、LLM 指令检索、HTML 生成配置与状态监测。所有接口均在 `crawler` 服务下，基础路径为 `/api/crawler`。
-
-#### 10.1 通用爬虫管理：新增、编辑、删除、启用/停止、立即开始
-
-- 新增通用情报点
-  - 路径：`POST /api/crawler/generic/points`
-  - 请求体示例：
-    ```json
-    {
-      "source_name": "盖世汽车",
-      "point_name": "行业资讯",
-      "point_url": "https://example.com/list",
-      "cron_schedule": "0 */6 * * *"
-    }
-    ```
-- 编辑通用情报点
-  - 路径：`PUT /api/crawler/generic/points/{point_id}`
-  - 支持字段：`source_name`, `point_name`, `point_url`, `cron_schedule`, `is_active`
-- 删除通用情报点
-  - 路径：`DELETE /api/crawler/generic/points/{point_id}`
-- 启用/停止单个通用情报点
-  - 路径：`POST /api/crawler/generic/points/{point_id}/toggle`
-  - 请求体：`{"enable": true}` 或 `{"enable": false}`
-- 批量启用/停止（按情报源，仅作用于通用子爬虫）
-  - 路径：`POST /api/crawler/generic/sources/{source_name}/toggle`
-  - 请求体：`{"enable": true|false}`
-- 立即开始执行（全部通用情报点）
-  - 路径：`POST /api/crawler/crawlers/通用子爬虫/run-now`
-  - 说明：触发 `通用子爬虫` 模块的后台执行；将处理当前处于启用状态的所有通用情报点。
-- 立即开始执行（仅某一个通用情报点）
-  - 推荐流程：
-    1) `GET /api/crawler/generic/points?source_name=...` 列出该源下的点
-    2) 对非目标点调用 `POST /api/crawler/generic/points/{id}/toggle` 设为禁用
-    3) 确保目标点已启用（`enable=true`）
-    4) 调用 `POST /api/crawler/crawlers/通用子爬虫/run-now`
-    5) 可选：任务完成后恢复其他点的启用状态
-
-> 提示：如需一次性对某个源下所有点（不限爬虫类型）启停，可使用 `POST /api/crawler/sources/{source_name}/toggle`。
-
-#### 10.2 未确认文章：通过与拒绝（懒加载）
-
-- 列表查询（懒加载）
-  - 路径：`GET /api/crawler/pending/articles`
-  - 参数：`page`, `limit`, `source_name`(可选), `point_name`(可选)
-  - 前端建议：以滚动或“加载更多”方式递增 `page` 实现懒加载。
-- 通过（入库）
-  - 路径：`POST /api/crawler/pending/articles/confirm`
-  - 请求体示例：
-    ```json
-    { "article_ids": ["<uuid1>", "<uuid2>"] }
-    ```
-- 拒绝（删除）
-  - 路径：`POST /api/crawler/pending/articles/delete`
-  - 请求体示例：
-    ```json
-    { "article_ids": ["<uuid1>", "<uuid2>"] }
-    ```
-
-#### 10.3 分段向量检索与导出（关键词、TopK、相似度、源、时间段；含懒加载思路）
-
-- 分段向量检索
-  - 路径：`POST /api/crawler/search/chunks`
-  - 请求体示例：
-    ```json
-    {
-      "query_text": "电池热管理",
-      "source_names": ["盖世汽车"],
-      "publish_date_start": "2025-11-01",
-      "publish_date_end": "2025-11-30",
-      "similarity_threshold": 0.55,
-      "top_k": 20,
-      "include_article_content": false,
-      "chunk_size_filter": "medium"
-    }
-    ```
-  - 懒加载建议：
-    - 该接口按 `top_k` 返回前 K 个最相关分段；前端可通过逐步增大 `top_k`（如 20→40→60）实现“加载更多”。
-    - 返回包含 `total_chunks`/`total_articles`，可用于展示剩余可加载数量。
-- 检索结果导出（CSV）
-  - 路径：`POST /api/crawler/search/chunks/export`
-  - 说明：与检索同参；后端将按文章维度合并命中的分段，并返回导出数据。
-
-#### 10.4 LLM 指令检索（任务式、可下载 CSV）
-
-- 启动检索任务
-  - 路径：`POST /api/crawler/search/llm`
-  - 请求体示例：
-    ```json
-    {
-      "query_text": "查找固态电池的最新进展",
-      "publish_date_start": "2025-10-01",
-      "publish_date_end": "2025-11-30",
-      "source_names": ["盖世汽车"]
-    }
-    ```
-- 任务列表与统计（分页）
-  - 路径：`GET /api/crawler/search/tasks`
-  - 参数：`page`, `limit`
-- 任务详情与进度
-  - 路径：`GET /api/crawler/search/tasks/{task_id}`
-- 导出 CSV
-  - 路径：`GET /api/crawler/search/tasks/{task_id}/download`
-  - 参数：`with_content`（是否包含原文）、`both`（为 true 时打包双版本 ZIP）
-
-#### 10.5 HTML 生成配置：启停、Gemini Cookie、状态监测
-
-- 开启/关闭 HTML 生成
-  - 路径：`POST /api/crawler/html-generation/toggle?enable=true|false`
-  - 响应：`{"ok": true, "enabled": true|false}`
-- 配置 Gemini Cookie（表单）
-  - 路径：`POST /api/crawler/gemini/cookies`
-  - 字段：`secure_1psid`, `secure_1psidts`, `http_proxy`(可选，建议中国大陆网络配置)
-  - 示例：
-    ```bash
-    curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
-      -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-      -F "secure_1psid=<值>" -F "secure_1psidts=<值>" -F "http_proxy=http://127.0.0.1:20171"
-    ```
-- 监测 Cookie 状态
-  - 路径：`GET /api/crawler/gemini/cookies/check`
-  - 响应：`{"has_cookie": true|false, "valid": true|false}`
-- 生成结果校验
-  - 路径：`GET /api/crawler/articles/{article_id}/html`（存在则返回 HTML，404 表示未生成）
+提示：端口默认 `7657`；如你的环境占用该端口，请替换为实际端口。
