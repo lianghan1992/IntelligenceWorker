@@ -1,6 +1,6 @@
 
 import { COMPETITIVENESS_SERVICE_PATH } from '../config';
-import { TechAnalysisTask, TechItem, CompetitivenessStatus, CompetitivenessDimension } from '../types';
+import { TechAnalysisTask, TechItem, CompetitivenessStatus, CompetitivenessDimension, DataQueryResponse } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- Service Status ---
@@ -73,6 +73,15 @@ export const getTechItems = (params: { skip?: number; limit?: number; vehicle_br
 export const getTechItemDetail = (itemId: string): Promise<TechItem> => {
     return apiFetch<TechItem>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items/${itemId}`);
 }
+
+// --- Generic Data Query (for Dashboards) ---
+export const queryData = <T>(params: any, body: any): Promise<DataQueryResponse<T>> => {
+    const query = createApiQuery(params);
+    return apiFetch<DataQueryResponse<T>>(`${COMPETITIVENESS_SERVICE_PATH}/data/query${query}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+    });
+};
 
 // --- Review Process ---
 
