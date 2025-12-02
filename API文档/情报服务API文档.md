@@ -9,12 +9,12 @@
 
 ## 接口列表
 
-### 1. 情报源与情报点管理
+### 1. Sources & Points
 
-#### 创建情报点
-- 路径：`/api/crawler/points`
-- 方法：`POST`
-- 描述：创建新的情报点，并自动生成对应的解析器文件。
+#### Create Point
+- Path: `/api/crawler/points`
+- Method: `POST`
+- Description: Create a new intelligence point and generate its parser file.
 - 请求体：
   ```json
   {
@@ -28,11 +28,11 @@
   - `201`: `{"message": "Intelligence point created successfully", "point_id": "<uuid>"}`
   - `400`: 创建失败（如已存在）
 
-#### 获取指定情报源下的情报点
-- 路径：`/api/crawler/points`
-- 方法：`GET`
-- 参数：`source_name` (query, required)
-- 响应：`List[IntelligencePointPublic]`
+#### List Points by Source
+- Path: `/api/crawler/points`
+- Method: `GET`
+- Param: `source_name` (query, required)
+- Response: `List[IntelligencePointPublic]`
   ```json
   [
     {
@@ -47,10 +47,10 @@
   ]
   ```
 
-#### 批量删除情报点
-- 路径：`/api/crawler/points`
-- 方法：`DELETE`
-- 请求体：
+#### Delete Points (Batch)
+- Path: `/api/crawler/points`
+- Method: `DELETE`
+- Body:
   ```json
   {
     "point_ids": ["<uuid1>", "<uuid2>"]
@@ -60,10 +60,10 @@
   - `200`: `{"message": "Successfully deleted X intelligence point(s)."}`
   - `404`: 未找到匹配的情报点
 
-#### 获取所有情报源
-- 路径：`/api/crawler/sources`
-- 方法：`GET`
-- 响应：
+#### List All Sources
+- Path: `/api/crawler/sources`
+- Method: `GET`
+- Response:
   ```json
   [
     {
@@ -74,23 +74,23 @@
   ]
   ```
 
-#### 获取所有情报源名称列表
-- 路径：`/api/crawler/sources/names`
-- 方法：`GET`
-- 描述：获取所有情报源名称（已过滤掉 `通用子爬虫`）
-- 响应：`["盖世汽车", "艾邦智造", ...]`
+#### List Source Names
+- Path: `/api/crawler/sources/names`
+- Method: `GET`
+- Description: List all source names (excluding `通用子爬虫`)
+- Response: `["盖世汽车", "艾邦智造", ...]`
 
-#### 删除情报源
-- 路径：`/api/crawler/sources/{source_name}`
-- 方法：`DELETE`
-- 描述：删除一个情报源及其下的所有情报点和数据。
-- 响应：
+#### Delete Source
+- Path: `/api/crawler/sources/{source_name}`
+- Method: `DELETE`
+- Description: Delete a source and all associated points and data.
+- Response:
   - `200`: `{"message": "Source '...' and its X associated points were deleted."}`
 
-#### 检测爬虫健康度
-- 路径：`/api/crawler/points/{point_id}/health`
-- 方法：`GET`
-- 描述：自行判断当前爬虫是否还可以正常爬取数据解析，而没有被反爬虫或其他。会尝试导入解析器并进行简单的连通性测试。
+#### Check Crawler Health
+- Path: `/api/crawler/points/{point_id}/health`
+- Method: `GET`
+- Description: Basic connectivity test to ensure parser and fetching are healthy.
 - 响应：
   ```json
   {
@@ -101,10 +101,10 @@
   ```
   - `status` 可能值: `healthy`, `unhealthy`, `warning`, `error`
 
-#### 启用/禁用爬虫
-- 路径：`/api/crawler/points/{point_id}/toggle`
-- 方法：`POST`
-- 描述：启用或禁用某个具体情报点，并持久化到数据库与调度器（入口调度项将同步更新）。
+#### Toggle Crawler
+- Path: `/api/crawler/points/{point_id}/toggle`
+- Method: `POST`
+- Description: Enable/disable a specific point, persisted to DB and scheduler.
 - 请求体：
   ```json
   { "enable": true }
@@ -113,10 +113,10 @@
   - `200`: `{"success": true, "message": "Crawler ... has been enabled."}`
   - `404`: 情报点不存在
 
-#### 批量启用/禁用某情报源下所有情报点
-- 路径：`/api/crawler/sources/{source_name}/toggle`
-- 方法：`POST`
-- 描述：对某个情报源的所有情报点执行启用/禁用，并同步调度表 `CrawlerSchedule` 的入口项。
+#### Toggle All Points for Source
+- Path: `/api/crawler/sources/{source_name}/toggle`
+- Method: `POST`
+- Description: Enable/disable all points for a source and sync schedules.
 - 请求体：
   ```json
   { "enable": false }
@@ -182,12 +182,12 @@
 
 ---
 
-### 3. 搜索与信息流
+### 3. Search & Feed
 
-#### 获取情报信息流 (Feed)
-- 路径：`/api/crawler/feed`
-- 方法：`POST`
-- 描述：获取情报信息流，支持多种筛选条件，并按发布日期排序。
+#### Get Intelligence Feed
+- Path: `/api/crawler/feed`
+- Method: `POST`
+- Description: Fetch feed with filters and sort by publish date.
 - 请求体：
   ```json
   {
@@ -203,10 +203,10 @@
   ```
 - 响应：`PaginatedFeedResponse`
 
-#### 分段向量检索 (Chunks Search)
-- 路径：`/api/crawler/search/chunks`
-- 方法：`POST`
-- 描述：基于分段向量进行语义检索。
+#### Chunk Vector Search
+- Path: `/api/crawler/search/chunks`
+- Method: `POST`
+- Description: Semantic search over chunk embeddings.
 - 请求体：
   ```json
   {
@@ -220,16 +220,16 @@
   ```
 - 响应：`ChunkSearchResponse`
 
-#### 导出分段检索结果
-- 路径：`/api/crawler/search/chunks/export`
-- 方法：`POST`
-- 描述：导出分段向量检索结果，通常用于生成CSV。
+#### Export Chunk Search Results
+- Path: `/api/crawler/search/chunks/export`
+- Method: `POST`
+- Description: Export chunk search results for CSV.
 - 响应：`ChunkExportResponse`
 
-#### 文章语义搜索 (Articles Semantic Search)
-- 路径：`/api/crawler/search/articles`
-- 方法：`POST`
-- 描述：根据自然语言文本，在指定情报点范围内进行语义搜索，返回相关文章。
+#### Articles Semantic Search
+- Path: `/api/crawler/search/articles`
+- Method: `POST`
+- Description: Semantic search across selected points.
 - 请求体：
   ```json
   {
@@ -240,27 +240,27 @@
   ```
 - 响应：`List[Dict]`
 
-#### 组合筛选与语义搜索
-- 路径：`/api/crawler/search/articles_filtered`
-- 方法：`POST`
-- 描述：结合结构化筛选和语义搜索。
+#### Filtered Semantic Search
+- Path: `/api/crawler/search/articles_filtered`
+- Method: `POST`
+- Description: Combine filters with semantic search.
 - 请求体：`FilteredSearchRequest`
 - 响应：`PaginatedArticleSearchResponse`
 
-#### 组合搜索 (兼容旧版)
-- 路径：`/api/crawler/search/combined`
-- 方法：`POST`
-- 请求体：`CombinedSearchRequest`
-- 响应：`PaginatedArticleSearchResponse`
+#### Combined Search (Legacy)
+- Path: `/api/crawler/search/combined`
+- Method: `POST`
+- Body: `CombinedSearchRequest`
+- Response: `PaginatedArticleSearchResponse`
 
 ---
 
-### 4. LLM 检索任务
+### 4. LLM Search Tasks
 
-#### 发起 LLM 检索任务
-- 路径：`/api/crawler/search/llm`
-- 方法：`POST`
-- 描述：基于提示词的LLM相关性检索并导出CSV（含进度）。
+#### Start LLM Search Task
+- Path: `/api/crawler/search/llm`
+- Method: `POST`
+- Description: Run prompt-driven relevance analysis and export CSV with progress.
 - 请求体：
   ```json
   {
@@ -272,24 +272,24 @@
   ```
 - 响应：`LLMSearchResponse` (包含 `task_id`)
 
-#### 获取 LLM 检索任务列表
-- 路径：`/api/crawler/search/tasks`
-- 方法：`GET`
-- 参数：`page`, `limit`
-- 响应：`SearchTaskListResponse` (包含任务统计信息)
+#### List LLM Search Tasks
+- Path: `/api/crawler/search/tasks`
+- Method: `GET`
+- Params: `page`, `limit`
+- Response: `SearchTaskListResponse` (includes stats)
 
-#### 获取单个 LLM 检索任务详情
-- 路径：`/api/crawler/search/tasks/{task_id}`
-- 方法：`GET`
-- 响应：任务详情字典（包含进度统计）
+#### Get LLM Search Task Detail
+- Path: `/api/crawler/search/tasks/{task_id}`
+- Method: `GET`
+- Response: task detail with progress stats
 
-#### 下载任务结果 CSV
-- 路径：`/api/crawler/search/tasks/{task_id}/download`
-- 方法：`GET`
-- 参数：
-  - `with_content`: bool (默认 True)
-  - `both`: bool (默认 False, 若为 True 则下载 zip 包)
-- 响应：文件流
+#### Download Task CSV
+- Path: `/api/crawler/search/tasks/{task_id}/download`
+- Method: `GET`
+- Params:
+  - `with_content`: bool (default True)
+  - `both`: bool (default False, if True returns zip bundle)
+- Response: file stream
 
 ---
 
@@ -413,9 +413,10 @@ curl -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" \
 - 响应：`[{"source_name": "盖世汽车"}, ...]`
 
 #### 获取通用情报点
-- 路径：`/api/crawler/generic/points?source_name=...`
+- 路径：`/api/crawler/generic/points` 或 `?source_name=...`
 - 方法：`GET`
 - 响应：`List[IntelligencePointPublic]`
+  - 若未提供 `source_name`，返回所有通用情报点
 
 #### 查询通用爬虫任务（懒加载）
 - 路径：`/api/crawler/generic/tasks`
@@ -504,3 +505,139 @@ curl -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" \
   }
   ```
 - 响应：`{"message": "Successfully deleted 2 pending article(s)", "deleted_count": 2}`
+### 9. Generic Sub-Crawler Logging (.env)
+- Path: `services/crawler/crawlers/通用子爬虫/.env`
+- Settings:
+  - `LOG_SAVE_ENABLED`: `true/false` — save raw Jina output and structured LLM results
+  - `LOG_SAVE_DIR`: target directory for logs (defaults to crawler folder)
+- File naming examples:
+  - `YYYYMMDD_HHMMSS_<source>_<point>_list_jina.md`
+  - `YYYYMMDD_HHMMSS_<source>_<point>_list_ai.json`
+  - `YYYYMMDD_HHMMSS_<source>_<point>_detail_<hash>_jina.md`
+-  `YYYYMMDD_HHMMSS_<source>_<point>_detail_<hash>_ai.json`
+
+### 10. 前端使用指南（操作流程）
+
+本节从前端视角提供可直接落地的流程指导，包含通用爬虫管理、未确认文章处理、分段向量检索与导出、LLM 指令检索、HTML 生成配置与状态监测。所有接口均在 `crawler` 服务下，基础路径为 `/api/crawler`。
+
+#### 10.1 通用爬虫管理：新增、编辑、删除、启用/停止、立即开始
+
+- 新增通用情报点
+  - 路径：`POST /api/crawler/generic/points`
+  - 请求体示例：
+    ```json
+    {
+      "source_name": "盖世汽车",
+      "point_name": "行业资讯",
+      "point_url": "https://example.com/list",
+      "cron_schedule": "0 */6 * * *"
+    }
+    ```
+- 编辑通用情报点
+  - 路径：`PUT /api/crawler/generic/points/{point_id}`
+  - 支持字段：`source_name`, `point_name`, `point_url`, `cron_schedule`, `is_active`
+- 删除通用情报点
+  - 路径：`DELETE /api/crawler/generic/points/{point_id}`
+- 启用/停止单个通用情报点
+  - 路径：`POST /api/crawler/generic/points/{point_id}/toggle`
+  - 请求体：`{"enable": true}` 或 `{"enable": false}`
+- 批量启用/停止（按情报源，仅作用于通用子爬虫）
+  - 路径：`POST /api/crawler/generic/sources/{source_name}/toggle`
+  - 请求体：`{"enable": true|false}`
+- 立即开始执行（全部通用情报点）
+  - 路径：`POST /api/crawler/crawlers/通用子爬虫/run-now`
+  - 说明：触发 `通用子爬虫` 模块的后台执行；将处理当前处于启用状态的所有通用情报点。
+- 立即开始执行（仅某一个通用情报点）
+  - 推荐流程：
+    1) `GET /api/crawler/generic/points?source_name=...` 列出该源下的点
+    2) 对非目标点调用 `POST /api/crawler/generic/points/{id}/toggle` 设为禁用
+    3) 确保目标点已启用（`enable=true`）
+    4) 调用 `POST /api/crawler/crawlers/通用子爬虫/run-now`
+    5) 可选：任务完成后恢复其他点的启用状态
+
+> 提示：如需一次性对某个源下所有点（不限爬虫类型）启停，可使用 `POST /api/crawler/sources/{source_name}/toggle`。
+
+#### 10.2 未确认文章：通过与拒绝（懒加载）
+
+- 列表查询（懒加载）
+  - 路径：`GET /api/crawler/pending/articles`
+  - 参数：`page`, `limit`, `source_name`(可选), `point_name`(可选)
+  - 前端建议：以滚动或“加载更多”方式递增 `page` 实现懒加载。
+- 通过（入库）
+  - 路径：`POST /api/crawler/pending/articles/confirm`
+  - 请求体示例：
+    ```json
+    { "article_ids": ["<uuid1>", "<uuid2>"] }
+    ```
+- 拒绝（删除）
+  - 路径：`POST /api/crawler/pending/articles/delete`
+  - 请求体示例：
+    ```json
+    { "article_ids": ["<uuid1>", "<uuid2>"] }
+    ```
+
+#### 10.3 分段向量检索与导出（关键词、TopK、相似度、源、时间段；含懒加载思路）
+
+- 分段向量检索
+  - 路径：`POST /api/crawler/search/chunks`
+  - 请求体示例：
+    ```json
+    {
+      "query_text": "电池热管理",
+      "source_names": ["盖世汽车"],
+      "publish_date_start": "2025-11-01",
+      "publish_date_end": "2025-11-30",
+      "similarity_threshold": 0.55,
+      "top_k": 20,
+      "include_article_content": false,
+      "chunk_size_filter": "medium"
+    }
+    ```
+  - 懒加载建议：
+    - 该接口按 `top_k` 返回前 K 个最相关分段；前端可通过逐步增大 `top_k`（如 20→40→60）实现“加载更多”。
+    - 返回包含 `total_chunks`/`total_articles`，可用于展示剩余可加载数量。
+- 检索结果导出（CSV）
+  - 路径：`POST /api/crawler/search/chunks/export`
+  - 说明：与检索同参；后端将按文章维度合并命中的分段，并返回导出数据。
+
+#### 10.4 LLM 指令检索（任务式、可下载 CSV）
+
+- 启动检索任务
+  - 路径：`POST /api/crawler/search/llm`
+  - 请求体示例：
+    ```json
+    {
+      "query_text": "查找固态电池的最新进展",
+      "publish_date_start": "2025-10-01",
+      "publish_date_end": "2025-11-30",
+      "source_names": ["盖世汽车"]
+    }
+    ```
+- 任务列表与统计（分页）
+  - 路径：`GET /api/crawler/search/tasks`
+  - 参数：`page`, `limit`
+- 任务详情与进度
+  - 路径：`GET /api/crawler/search/tasks/{task_id}`
+- 导出 CSV
+  - 路径：`GET /api/crawler/search/tasks/{task_id}/download`
+  - 参数：`with_content`（是否包含原文）、`both`（为 true 时打包双版本 ZIP）
+
+#### 10.5 HTML 生成配置：启停、Gemini Cookie、状态监测
+
+- 开启/关闭 HTML 生成
+  - 路径：`POST /api/crawler/html-generation/toggle?enable=true|false`
+  - 响应：`{"ok": true, "enabled": true|false}`
+- 配置 Gemini Cookie（表单）
+  - 路径：`POST /api/crawler/gemini/cookies`
+  - 字段：`secure_1psid`, `secure_1psidts`, `http_proxy`(可选，建议中国大陆网络配置)
+  - 示例：
+    ```bash
+    curl -X POST "http://127.0.0.1:7657/api/crawler/gemini/cookies" \
+      -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+      -F "secure_1psid=<值>" -F "secure_1psidts=<值>" -F "http_proxy=http://127.0.0.1:20171"
+    ```
+- 监测 Cookie 状态
+  - 路径：`GET /api/crawler/gemini/cookies/check`
+  - 响应：`{"has_cookie": true|false, "valid": true|false}`
+- 生成结果校验
+  - 路径：`GET /api/crawler/articles/{article_id}/html`（存在则返回 HTML，404 表示未生成）
