@@ -5,14 +5,12 @@ import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
-import { GenericCrawlerManager } from './GenericCrawlerManager';
-import { RssIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, GearIcon, GlobeIcon } from '../icons';
+import { RssIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon, GearIcon } from '../icons';
 
-type IntelligenceSubView = 'overview' | 'data' | 'chunks' | 'llm' | 'gemini' | 'generic';
+type IntelligenceSubView = 'overview' | 'data' | 'chunks' | 'llm' | 'gemini';
 
 const subNavItems: { view: IntelligenceSubView; label: string; icon: React.FC<any> }[] = [
     { view: 'overview', label: '系统概览与配置', icon: RssIcon },
-    { view: 'generic', label: '通用爬虫', icon: GlobeIcon },
     { view: 'data', label: '文章库管理', icon: DocumentTextIcon },
     { view: 'chunks', label: '向量分段', icon: ViewGridIcon },
     { view: 'llm', label: 'AI 智能分拣', icon: SparklesIcon },
@@ -25,7 +23,6 @@ export const IntelligenceDashboard: React.FC = () => {
     const renderSubView = () => {
         switch (subView) {
             case 'overview': return <IntelligencePointManager />; // Merged View
-            case 'generic': return <GenericCrawlerManager />;
             case 'data': return <IntelligenceDataManager />;
             case 'chunks': return <IntelligenceChunkManager />;
             case 'llm': return <LlmSortingManager />;

@@ -29,7 +29,7 @@
   - `400`: 创建失败（如已存在）
 
 #### 获取指定情报源下的情报点
-- 路径：`/api/crawler/points`
+- 路径：`/api/api/crawler/points`
 - 方法：`GET`
 - 参数：`source_name` (query, required)
 - 响应：`List[IntelligencePointPublic]`
@@ -48,7 +48,7 @@
   ```
 
 #### 批量删除情报点
-- 路径：`/api/crawler/points`
+- 路径：`/api/api/crawler/points`
 - 方法：`DELETE`
 - 请求体：
   ```json
@@ -162,22 +162,6 @@
 - 响应：
   - `200`: `{"message": "Successfully deleted X article(s) and their associated vectors."}`
   - `404`: 未找到匹配的文章
-
-#### 获取文章详情（按ID）
-- 路径：`/api/crawler/articles/{article_id}`
-- 方法：`GET`
-- 描述：传入文章ID，返回文章的标题、发布时间、文章内容、文章原始URL。
-- 响应：
-  ```json
-  {
-    "id": "<uuid>",
-    "title": "文章标题",
-    "publish_date": "2024-11-26",
-    "content": "文章正文内容...",
-    "original_url": "https://example.com/article"
-  }
-  ```
-  - `404`: 未找到文章
 
 ---
 
@@ -379,72 +363,3 @@ curl -X POST "http://127.0.0.1:7657/api/crawler/crawlers/盖世汽车/run-now" \
 - 说明：
 - 若 `source_name` 不存在或无法加载，返回 `404`。
 - 新增任何爬虫目录（包含 `crawler.py` 并定义 `SOURCE_NAME`、`CRON_SCHEDULE`、`INTELLIGENCE_TYPE`、`INITIAL_URL`、`POINTS`/`POINTS_DEFAULT`、以及 `run_crawler(db)`）均可自动被此接口发现并触发。
-
----
-
-### 7. 通用子爬虫（Jina + 智谱，串行）
-
-#### 创建通用情报点
-- 路径：`/api/crawler/generic/points`
-- 方法：`POST`
-- 认证：需要Bearer Token
-- 请求体：
-  ```json
-  {
-    "source_name": "盖世汽车",
-    "point_name": "行业资讯",
-    "point_url": "https://example.com/list",
-    "cron_schedule": "0 */6 * * *"
-  }
-  ```
-- 响应：`{"message": "Generic point created successfully", "point_id": "<uuid>"}`
-
-#### 编辑通用情报点
-- 路径：`/api/crawler/generic/points/{point_id}`
-- 方法：`PUT`
-- 认证：需要Bearer Token
-- 请求体支持字段：`source_name`, `point_name`, `point_url`, `cron_schedule`, `is_active`
-- 响应：`IntelligencePointPublic`
-
-#### 获取通用情报源
-- 路径：`/api/crawler/generic/sources`
-- 方法：`GET`
-- 响应：`[{"source_name": "盖世汽车"}, ...]`
-
-#### 获取通用情报点
-- 路径：`/api/crawler/generic/points?source_name=...`
-- 方法：`GET`
-- 响应：`List[IntelligencePointPublic]`
-
-#### 查询通用爬虫任务（懒加载）
-- 路径：`/api/crawler/generic/tasks`
-- 方法：`GET`
-- 参数：`page`, `limit`, `source_name`(可选), `point_name`(可选)
-- 响应：
-  ```json
-  {
-    "total": 123,
-    "page": 1,
-    "limit": 20,
-    "items": [
-      {
-        "id": "<uuid>",
-        "source_name": "盖世汽车",
-        "point_name": "行业资讯",
-        "url": "https://example.com/list",
-        "task_type": "文章列表提取",
-        "stage": "AI识别",
-        "detail_info": "links=42",
-        "start_time": "2025-12-01T10:00:00+08:00",
-        "end_time": "2025-12-01T10:02:00+08:00",
-        "created_at": "2025-12-01T10:02:00+08:00"
-      }
-    ]
-  }
-  ```
-
-#### 配置说明
-- 目录：`services/crawler/crawlers/通用子爬虫`
-- `.env` 支持：`ZHIPU_API_KEYS`, `ZHIPU_LLM_MODEL`, `JINA_API_KEYS`（可为空）、`PROMPT_LIST_EXTRACT`, `PROMPT_DETAIL_PARSE`, `CRON_SCHEDULE` 等。
-- 提示词：`prompts/list_extract.json`、`prompts/detail_parse.json`
-- Jina默认无需密钥；若配置 `JINA_API_KEYS` 使用第一个密钥。

@@ -32,7 +32,58 @@
     "enabled": true,
     "worker_enabled": true,
     "llm_provider": "gemini_cookie",
-    "cookie_health": "healthy" // healthy, unhealthy, unknown, error
+    "cookie_health": "healthy"
+  }
+  ```
+
+#### `GET /competitiveness/stats/overview`
+统计总览。
+- **Response**:
+  ```json
+  {
+    "stage1_total": 1234,
+    "stage2_items_total": 567,
+    "stage2_processed_tasks": 890
+  }
+  ```
+
+#### `GET /competitiveness/stats/by-brand`
+按车企统计主表数量。
+- **Response**:
+  ```json
+  [
+    {"vehicle_brand": "小米汽车", "count": 40},
+    {"vehicle_brand": "比亚迪", "count": 120}
+  ]
+  ```
+
+#### `GET /competitiveness/stats/by-dimension`
+按一级维度统计主表数量。
+- **Response**:
+  ```json
+  [
+    {"tech_dimension": "智能驾驶", "count": 100},
+    {"tech_dimension": "智能座舱", "count": 60}
+  ]
+  ```
+
+#### `GET /competitiveness/stats/reliability`
+主表可信度分布。
+- **Response**:
+  ```json
+  [
+    {"reliability": 4, "count": 50},
+    {"reliability": 3, "count": 30}
+  ]
+  ```
+
+#### `GET /competitiveness/stats/recent`
+近7天新增与更新数量。
+- **Response**:
+  ```json
+  {
+    "items_recent": 12,
+    "tasks_recent": 34
   }
   ```
 
@@ -156,7 +207,7 @@
   {
     "old_name": "激光雷达",
     "new_name": "LiDAR",
-    "tech_dimension": "智能驾驶" // 可选，指定一级维度范围
+    "tech_dimension": "智能驾驶"
   }
   ```
 - **Response**:
@@ -205,57 +256,47 @@
     "id": "uuid",
     "name": "一体式激光雷达",
     "vehicle_brand": "小米汽车",
-    ...
+    "latest_article_url": "https://example.com/original-article",
     "history": [
       {
         "id": "history-uuid",
-        "change_type": "Create", // or Update, Corroborate
+        "change_type": "Create",
         "reliability_snapshot": 3,
         "description_snapshot": "...",
         "event_time": "...",
         "article_id": "..."
-      },
-      ...
+      }
     ]
   }
   ```
+## 审核流程
 
-## Database Models
+为提升数据质量，新增人工审核步骤：二阶段写入的 `competitiveness_tech_items` 默认 `is_reviewed=false`，需人工审核通过后方可在查询接口默认返回。若审核不通过，支持批量删除该技术项以及其关联的一阶段原始记录与历史记录。
 
-### TechAnalysisTask (一阶段结果)
-- `article_id`: 关联文章ID
-- `vehicle_brand`: 车企
-- `vehicle_model`: 车型
-- `tech_dimension`: 一级技术维度
-- `secondary_tech_dimension`: 二级子维度
-- `tech_name`: 技术名称
-- `tech_description`: 技术描述
-- `reliability`: 可靠性评分 (1-4)
-- `is_processed_stage2`: 是否已进行二阶段处理
+### 新增字段
 
-### TechItem (二阶段结果 - 主表)
-- `id`: UUID
-- `vehicle_brand`: 车企
-- `vehicle_model`: 车型
-- `tech_dimension`: 一级技术维度
-- `secondary_tech_dimension`: 二级子维度
-- `name`: 标准化技术名称
-- `description`: 最新技术描述
-- `reliability`: 最新可信度
-- `latest_article_id`: 最近一次更新来源
-- `history`: 关联的历史记录列表
+- `TechItem.is_reviewed`：boolean，默认 `false`。已存在数据在迁移后默认视为 `false`，需人工逐步审核。
 
-### TechItemHistory (二阶段结果 - 历史记录)
-- `tech_item_id`: 关联主表ID
-- `raw_extraction_id`: 关联一阶段提取记录ID
-- `article_id`: 关联文章ID
-- `change_type`: 变更类型 (Create, Update, Corroborate)
-- `reliability_snapshot`: 当时可信度
-- `description_snapshot`: 当时描述
-- `event_time`: 发生时间
+### 接口
 
-### VehicleBrand
-- `name`: 车企名称
+- `GET /competitiveness/reviews/pending`
+  - 用途：分页懒加载待审核项
+  - 参数：`vehicle_brand?`、`tech_dimension?`、`skip=0`、`limit=50`
+  - 返回：`{ items: TechItemResponse[], total: number }`
 
-### TechDimension
-- `name`: 维度名称
+- `POST /competitiveness/reviews/{item_id}/approve`
+  - 用途：审核通过，标记 `is_reviewed=true`
+  - 返回：`TechItemResponse`
+
+- `DELETE /competitiveness/reviews/items`
+  - 用途：批量删除未通过项
+  - 请求体：`{ item_ids: string[] }`
+  - 逻辑：删除 `competitiveness_tech_items` 以及其关联的 `competitiveness_tech_history`；同时删除历史中关联的 `raw_extraction_id` 对应的一阶段 `competitiveness_analysis_tasks` 记录；不影响其它无关数据。
+
+### 查询行为调整
+
+- `GET /competitiveness/tech-items` 增加 `only_reviewed` 参数，默认为 `true`。前端默认只显示已审核的技术项；若需要查看全部或配合审核界面，可传 `only_reviewed=false`。
+
+### 兼容性与迁移说明
+
+- 迁移会为 `competitiveness_tech_items` 增加 `is_reviewed` 字段，默认 `false`，不影响现有查询但默认查询接口只返回已审核项；如需保留原行为可传 `only_reviewed=false`。

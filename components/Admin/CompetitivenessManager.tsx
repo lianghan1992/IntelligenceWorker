@@ -5,7 +5,8 @@ import {
     getBrands, addBrand,
     batchUpdateSecondaryDimension, analyzeArticleStage1,
     refreshCompetitivenessCookie,
-    getTechItems, getTechItemDetail
+    getTechItems, getTechItemDetail,
+    getPendingReviews, approveReviewItem, rejectReviewItems
 } from '../../api/competitiveness';
 import { CompetitivenessStatus, TechAnalysisTask, CompetitivenessDimension, TechItem } from '../../types';
 import { 
@@ -13,7 +14,7 @@ import {
     PlayIcon, StopIcon, ViewGridIcon, TagIcon, PlusIcon, SparklesIcon,
     FunnelIcon, ChartIcon, ChevronRightIcon, QuestionMarkCircleIcon,
     TrashIcon, PencilIcon, CloseIcon, DatabaseIcon, EyeIcon, ChevronLeftIcon,
-    AnnotationIcon, ShieldCheckIcon, ClockIcon
+    AnnotationIcon, ShieldCheckIcon, ClockIcon, CheckIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -514,6 +515,189 @@ const DimensionEditorModal: React.FC<{
     );
 };
 
+// --- Sub-View: Review Queue (New) ---
+const ReviewQueue: React.FC = () => {
+    const [items, setItems] = useState<TechItem[]>([]);
+    const [total, setTotal] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isActionLoading, setIsActionLoading] = useState<string | null>(null); // itemId
+    const [filters, setFilters] = useState({ brand: '', dimension: '' });
+    const [page, setPage] = useState(1);
+    
+    // Meta for filters
+    const [brands, setBrands] = useState<string[]>([]);
+    const [dimensions, setDimensions] = useState<string[]>([]);
+
+    useEffect(() => {
+        getBrands().then(setBrands);
+        getDimensions().then(ds => setDimensions(ds.map(d => d.name)));
+    }, []);
+
+    const fetchPending = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await getPendingReviews({
+                vehicle_brand: filters.brand || undefined,
+                tech_dimension: filters.dimension || undefined,
+                skip: (page - 1) * 20,
+                limit: 20
+            });
+            setItems(res.items);
+            setTotal(res.total);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [filters, page]);
+
+    useEffect(() => {
+        fetchPending();
+    }, [fetchPending]);
+
+    const handleApprove = async (itemId: string) => {
+        setIsActionLoading(itemId);
+        try {
+            await approveReviewItem(itemId);
+            // Remove locally
+            setItems(prev => prev.filter(i => i.id !== itemId));
+            setTotal(prev => prev - 1);
+        } catch (e) {
+            alert('审核失败');
+        } finally {
+            setIsActionLoading(null);
+        }
+    };
+
+    const handleReject = async (itemId: string) => {
+        if (!confirm('确定要拒绝并删除此条情报吗？此操作不可恢复。')) return;
+        setIsActionLoading(itemId);
+        try {
+            await rejectReviewItems([itemId]);
+            setItems(prev => prev.filter(i => i.id !== itemId));
+            setTotal(prev => prev - 1);
+        } catch (e) {
+            alert('拒绝失败');
+        } finally {
+            setIsActionLoading(null);
+        }
+    };
+
+    return (
+        <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
+            {/* Header & Filters */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <ShieldCheckIcon className="w-6 h-6 text-indigo-600" /> 情报审核队列
+                    <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{total} 待审</span>
+                </h3>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <select 
+                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
+                        value={filters.brand}
+                        onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
+                    >
+                        <option value="">所有品牌</option>
+                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <select 
+                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
+                        value={filters.dimension}
+                        onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
+                    >
+                        <option value="">所有维度</option>
+                        {dimensions.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <button onClick={fetchPending} className="p-2 text-gray-500 hover:text-indigo-600 bg-white border rounded-lg shadow-sm hover:shadow transition-all">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/>
+                    </button>
+                </div>
+            </div>
+
+            {/* Content List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50 rounded-2xl border border-gray-200 p-4">
+                {isLoading ? (
+                    <div className="text-center py-20"><Spinner /></div>
+                ) : items.length === 0 ? (
+                    <div className="text-center py-20 flex flex-col items-center gap-4 text-gray-400">
+                        <CheckCircleIcon className="w-16 h-16 text-green-100" />
+                        <p>所有情报已审核完毕</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                        {items.map(item => {
+                            const rel = getReliabilityBadge(item.reliability);
+                            const isLoadingThis = isActionLoading === item.id;
+                            
+                            return (
+                                <div key={item.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 mb-2 text-xs font-bold uppercase tracking-wide">
+                                            <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">{item.vehicle_brand}</span>
+                                            <ChevronRightIcon className="w-3 h-3 text-gray-300" />
+                                            <span className="text-gray-500">{item.tech_dimension}</span>
+                                            <span className="text-gray-300">/</span>
+                                            <span className="text-gray-500">{item.secondary_tech_dimension}</span>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 mb-2 truncate" title={item.name}>{item.name}</h4>
+                                        <p className="text-sm text-gray-600 leading-relaxed mb-4">{item.description}</p>
+                                        <div className="flex items-center gap-4 text-xs">
+                                            <span className={`px-2 py-0.5 rounded font-bold ${rel.className}`}>
+                                                {rel.text} ({item.reliability})
+                                            </span>
+                                            <span className="text-gray-400 flex items-center gap-1">
+                                                <ClockIcon className="w-3 h-3" /> {new Date(item.created_at).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex md:flex-col items-center justify-center gap-3 border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6 min-w-[120px]">
+                                        <button 
+                                            onClick={() => handleApprove(item.id)}
+                                            disabled={!!isActionLoading}
+                                            className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {isLoadingThis ? <WhiteSpinner /> : <CheckIcon className="w-4 h-4" />}
+                                            通过
+                                        </button>
+                                        <button 
+                                            onClick={() => handleReject(item.id)}
+                                            disabled={!!isActionLoading}
+                                            className="w-full py-2 px-4 bg-white border border-red-200 text-red-600 hover:bg-red-50 text-sm font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            <CloseIcon className="w-4 h-4" />
+                                            拒绝
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+            
+            {/* Simple Pagination */}
+            <div className="flex justify-between items-center px-2">
+                <button 
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => p - 1)}
+                    className="px-4 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    上一页
+                </button>
+                <span className="text-sm text-gray-500">第 {page} 页</span>
+                <button 
+                    disabled={items.length < 20}
+                    onClick={() => setPage(p => p + 1)}
+                    className="px-4 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    下一页
+                </button>
+            </div>
+        </div>
+    );
+};
+
 // --- Sub-View: Intelligence Database (Stage 2) ---
 const IntelligenceDatabase: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
@@ -745,7 +929,7 @@ const IntelligenceDatabase: React.FC = () => {
 
 // --- Main Layout ---
 export const CompetitivenessManager: React.FC = () => {
-    const [tab, setTab] = useState<'status' | 'meta' | 'data'>('status');
+    const [tab, setTab] = useState<'status' | 'meta' | 'data' | 'reviews'>('status');
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
@@ -757,6 +941,7 @@ export const CompetitivenessManager: React.FC = () => {
                         { id: 'status', label: '服务监控', icon: ChartIcon },
                         { id: 'meta', label: '元数据管理', icon: ViewGridIcon },
                         { id: 'data', label: '技术情报库', icon: DatabaseIcon },
+                        { id: 'reviews', label: '情报审核', icon: ShieldCheckIcon },
                     ].map(item => (
                         <button
                             key={item.id}
@@ -779,6 +964,7 @@ export const CompetitivenessManager: React.FC = () => {
                 {tab === 'status' && <StatusControlPanel />}
                 {tab === 'meta' && <MetadataManager />}
                 {tab === 'data' && <IntelligenceDatabase />}
+                {tab === 'reviews' && <ReviewQueue />}
             </div>
         </div>
     );
