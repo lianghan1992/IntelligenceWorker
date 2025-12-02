@@ -3,15 +3,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
     getSourcesAndPoints, toggleSource, toggleIntelligencePoint, 
     runCrawler, runGenericPoint, 
-    getGenericTasks, getPendingArticles, confirmPendingArticles, deletePendingArticles 
+    getGenericTasks, getPendingArticles, confirmPendingArticles, deletePendingArticles,
+    createGenericPoint
 } from '../../api';
 import { SourceWithPoints, CrawlerPoint, GenericTask, PendingArticle } from '../../types';
 import { 
     ServerIcon, RefreshIcon, PlayIcon, 
     GlobeIcon, ClockIcon, ExternalLinkIcon,
-    ChevronDownIcon, ChevronRightIcon,
+    ChevronRightIcon,
     StopIcon, LightningBoltIcon, ViewListIcon,
-    CheckCircleIcon, TrashIcon, CheckIcon, ChevronLeftIcon
+    CheckCircleIcon, TrashIcon, CheckIcon, PlusIcon, CloseIcon
 } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -510,29 +511,112 @@ const PendingArticlesList: React.FC = () => {
     );
 };
 
+const GenericPointModal: React.FC<{ onClose: () => void; onSuccess: () => void }> = ({ onClose, onSuccess }) => {
+    const [formData, setFormData] = useState({
+        source_name: '通用子爬虫',
+        point_name: '',
+        point_url: '',
+        cron_schedule: '0 */6 * * *'
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.source_name || !formData.point_name || !formData.point_url) return;
+        setIsLoading(true);
+        setError('');
+        try {
+            await createGenericPoint(formData);
+            onSuccess();
+            onClose();
+            alert('通用情报点创建成功');
+        } catch (err: any) {
+            setError(err.message || '创建失败');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800">新建通用情报点</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">来源名称</label>
+                        <input name="source_name" value={formData.source_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: 行业通用源" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">采集点名称</label>
+                        <input name="point_name" value={formData.point_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: 某某新闻列表" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">目标 URL</label>
+                        <input name="point_url" value={formData.point_url} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://..." />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">采集频率 (Cron)</label>
+                        <input name="cron_schedule" value={formData.cron_schedule} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                        <p className="text-[10px] text-gray-400 mt-1">默认: 0 */6 * * * (每6小时)</p>
+                    </div>
+
+                    {error && <p className="text-red-500 text-xs">{error}</p>}
+
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-200 transition-colors">取消</button>
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                            {isLoading ? '提交中...' : '创建'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
 // --- Generic Crawler Module Wrapper ---
 const GenericCrawlerModule: React.FC = () => {
     const [subTab, setSubTab] = useState<'tasks' | 'pending'>('tasks');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50 p-6 gap-6">
             {/* Sub-Navigation */}
-            <div className="flex gap-4 border-b border-slate-200 pb-1">
-                <button
-                    onClick={() => setSubTab('tasks')}
-                    className={`pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
-                        subTab === 'tasks' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
+            <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => setSubTab('tasks')}
+                        className={`pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                            subTab === 'tasks' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <ViewListIcon className="w-4 h-4" /> 任务监控
+                    </button>
+                    <button
+                        onClick={() => setSubTab('pending')}
+                        className={`pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
+                            subTab === 'pending' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
+                        }`}
+                    >
+                        <CheckCircleIcon className="w-4 h-4" /> 内容审核
+                    </button>
+                </div>
+                
+                {/* Create Point Button */}
+                <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700 transition-all hover:-translate-y-0.5 mb-1"
                 >
-                    <ViewListIcon className="w-4 h-4" /> 任务监控
-                </button>
-                <button
-                    onClick={() => setSubTab('pending')}
-                    className={`pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap ${
-                        subTab === 'pending' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'
-                    }`}
-                >
-                    <CheckCircleIcon className="w-4 h-4" /> 内容审核
+                    <PlusIcon className="w-3.5 h-3.5" /> 创建情报点
                 </button>
             </div>
 
@@ -540,6 +624,8 @@ const GenericCrawlerModule: React.FC = () => {
             <div className="flex-1 min-h-0">
                 {subTab === 'tasks' ? <GenericTaskList /> : <PendingArticlesList />}
             </div>
+
+            {isModalOpen && <GenericPointModal onClose={() => setIsModalOpen(false)} onSuccess={() => { /* Optional refresh logic if needed */ }} />}
         </div>
     );
 };
