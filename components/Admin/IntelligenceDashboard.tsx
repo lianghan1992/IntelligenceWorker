@@ -319,7 +319,7 @@ export const IntelligenceDashboard: React.FC = () => {
                         `}
                     >
                         <ServerIcon className={`w-5 h-5 ${mainView === 'overview' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                        数据概览
+                        爬虫数据概览
                     </button>
                 </div>
             </div>
