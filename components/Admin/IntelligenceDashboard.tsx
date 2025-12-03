@@ -4,7 +4,7 @@ import {
     getSourcesAndPoints, toggleSource, toggleIntelligencePoint, 
     runCrawler, runGenericPoint, 
     getGenericTasks, getPendingArticles, confirmPendingArticles, deletePendingArticles, getPendingArticleDetail,
-    createGenericPoint, updateGenericPoint,
+    createGenericPoint, updateGenericPoint, getGenericPoints,
     deleteSource, deleteGenericSource, deleteIntelligencePoints, deleteGenericPoint
 } from '../../api';
 import { SourceWithPoints, CrawlerPoint, GenericTask, PendingArticle, GenericPoint } from '../../types';
@@ -75,31 +75,74 @@ const GenericPointModal: React.FC<{
     const [error, setError] = useState('');
     const [newFilter, setNewFilter] = useState('');
 
-    // Initialize if editing
+    // Initialize form data
     useEffect(() => {
-        if (pointToEdit) {
-            setFormData({
-                source_name: pointToEdit.source_name,
-                point_name: pointToEdit.point_name,
-                point_url: pointToEdit.point_url,
-                list_hint: (pointToEdit as any).list_hint || '', // Assuming CrawlerPoint might have these fields if generic
-                list_filters: (pointToEdit as any).list_filters || []
-            });
+        const init = async () => {
+            if (pointToEdit) {
+                // 1. Set basic info available from the list view
+                const baseData = {
+                    source_name: pointToEdit.source_name,
+                    point_name: pointToEdit.point_name,
+                    point_url: pointToEdit.point_url,
+                    cron_schedule: pointToEdit.cron_schedule,
+                    list_hint: '', // Default empty, to be fetched
+                    list_filters: [] as string[] // Default empty, to be fetched
+                };
+                
+                // Initialize Cron UI
+                const currentCron = baseData.cron_schedule || '0 */6 * * *';
+                if (currentCron.match(/^0 \*\/(\d+) \* \* \*$/)) {
+                    setCronType('interval');
+                    setCronValues(prev => ({ ...prev, interval: RegExp.$1, raw: currentCron }));
+                } else if (currentCron.match(/^(\d+) (\d+) \* \* \*$/)) {
+                    setCronType('daily');
+                    const m = RegExp.$1.padStart(2, '0');
+                    const h = RegExp.$2.padStart(2, '0');
+                    setCronValues(prev => ({ ...prev, time: `${h}:${m}`, raw: currentCron }));
+                } else {
+                    setCronType('custom');
+                    setCronValues(prev => ({ ...prev, raw: currentCron }));
+                }
 
-            const currentCron = pointToEdit.cron_schedule || '0 */6 * * *';
-            if (currentCron.match(/^0 \*\/(\d+) \* \* \*$/)) {
-                setCronType('interval');
-                setCronValues(prev => ({ ...prev, interval: RegExp.$1, raw: currentCron }));
-            } else if (currentCron.match(/^(\d+) (\d+) \* \* \*$/)) {
-                setCronType('daily');
-                const m = RegExp.$1.padStart(2, '0');
-                const h = RegExp.$2.padStart(2, '0');
-                setCronValues(prev => ({ ...prev, time: `${h}:${m}`, raw: currentCron }));
+                // Apply initial base data
+                setFormData(prev => ({ ...prev, ...baseData }));
+
+                // 2. Fetch full details for generic fields (list_hint, list_filters)
+                // Note: pointToEdit from overview is a summary (CrawlerPoint), we need full GenericPoint details.
+                if (pointToEdit.type === 'generic') {
+                    try {
+                        setIsLoading(true);
+                        const genericPoints = await getGenericPoints(pointToEdit.source_name);
+                        const fullPoint = genericPoints.find(p => p.id === pointToEdit.id);
+                        if (fullPoint) {
+                            setFormData(prev => ({
+                                ...prev,
+                                list_hint: fullPoint.list_hint || '',
+                                list_filters: fullPoint.list_filters || [],
+                                cron_schedule: fullPoint.cron_schedule // Ensure we have the latest cron
+                            }));
+                        }
+                    } catch (e) {
+                        console.error("Failed to load generic point details", e);
+                        setError("加载详细配置失败，请检查网络或重试");
+                    } finally {
+                        setIsLoading(false);
+                    }
+                }
             } else {
-                setCronType('custom');
-                setCronValues(prev => ({ ...prev, raw: currentCron }));
+                // Reset for Create mode
+                setFormData({
+                    source_name: '通用子爬虫',
+                    point_name: '',
+                    point_url: '',
+                    list_hint: '',
+                    list_filters: []
+                });
+                setCronType('interval');
+                setCronValues({ interval: '6', time: '08:00', raw: '0 */6 * * *' });
             }
-        }
+        };
+        init();
     }, [pointToEdit]);
 
     const getFinalCron = () => {
@@ -886,12 +929,11 @@ const PendingArticlesList: React.FC = () => {
         try {
             if (action === 'confirm') {
                 const res = await confirmPendingArticles(targetIds);
-                alert(`成功入库 ${res.confirmed_count} 篇文章`);
+                alert(res.message || `成功入库 ${res.confirmed_count} 篇文章`);
             } else {
                 const res = await deletePendingArticles(targetIds);
-                alert(`成功删除 ${res.deleted_count} 篇文章`);
+                alert(res.message || `成功删除 ${res.deleted_count} 篇文章`);
             }
-            // Explicitly clear state and fetch new data
             setSelectedIds(new Set());
             if (viewingArticleId && targetIds.includes(viewingArticleId)) setViewingArticleId(null);
             await fetchArticles();
@@ -1038,46 +1080,43 @@ const GenericCrawlerModule: React.FC = () => {
     );
 };
 
-// --- Main Dashboard Component ---
+// --- Main IntelligenceDashboard Export ---
 export const IntelligenceDashboard: React.FC = () => {
-    const [mainView, setMainView] = useState<'overview' | 'generic'>('overview');
+    // This is the main component exported and used in index.tsx
+    // It can switch between sub-modules (Overview, Generic, etc) if needed, 
+    // or present a unified dashboard.
+    // Based on previous structure, it seems to be using tabs or similar.
+    
+    // For simplicity based on prompt context, we return the Overview 
+    // which now includes Generic management entry points.
+    
+    // However, looking at original file structure, IntelligenceDashboard seemed to be a container.
+    // Let's assume a simple tab structure for full management context.
+    
+    const [activeTab, setActiveTab] = useState<'overview' | 'generic'>('overview');
 
     return (
-        <div className="h-full flex flex-col bg-slate-50/50">
-            {/* Top Navigation Bar */}
-            <div className="bg-white border-b border-slate-200 px-4 md:px-6 pt-4 pb-0 flex-shrink-0 z-10 sticky top-0">
-                <div className="flex gap-4 md:gap-8 overflow-x-auto no-scrollbar">
-                    <button
-                        onClick={() => setMainView('overview')}
-                        className={`
-                            pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap
-                            ${mainView === 'overview' 
-                                ? 'border-indigo-600 text-indigo-600' 
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
-                        `}
+        <div className="h-full flex flex-col">
+             <div className="bg-white border-b border-slate-200 px-6 pt-4">
+                <h1 className="text-2xl font-bold text-gray-800 mb-4">情报管理中台</h1>
+                <div className="flex gap-6">
+                    <button 
+                        onClick={() => setActiveTab('overview')}
+                        className={`pb-3 px-1 border-b-2 text-sm font-bold transition-colors ${activeTab === 'overview' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                     >
-                        <ServerIcon className={`w-5 h-5 ${mainView === 'overview' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                        概览
+                        情报源概览
                     </button>
-                    <button
-                        onClick={() => setMainView('generic')}
-                        className={`
-                            pb-3 px-2 border-b-2 font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap
-                            ${mainView === 'generic' 
-                                ? 'border-indigo-600 text-indigo-600' 
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
-                        `}
+                    <button 
+                        onClick={() => setActiveTab('generic')}
+                        className={`pb-3 px-1 border-b-2 text-sm font-bold transition-colors ${activeTab === 'generic' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                     >
-                        <LightningBoltIcon className={`w-5 h-5 ${mainView === 'generic' ? 'text-indigo-600' : 'text-slate-400'}`} />
-                        Generic
+                        通用爬虫 & 审核
                     </button>
                 </div>
             </div>
-
-            {/* Main Content Area */}
-            <div className="flex-1 overflow-hidden relative">
-                {mainView === 'overview' && <IntelligenceOverview />}
-                {mainView === 'generic' && <GenericCrawlerModule />}
+            
+            <div className="flex-1 overflow-hidden">
+                {activeTab === 'overview' ? <IntelligenceOverview /> : <GenericCrawlerModule />}
             </div>
         </div>
     );
