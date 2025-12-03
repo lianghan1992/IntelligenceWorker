@@ -1,4 +1,7 @@
-
+<change>
+<file>components/Admin/IntelligenceDashboard.tsx</file>
+<description>Inject source_name into points for edit modal context; Improve generic point modal data fetching; Ensure feedback for pending article actions.</description>
+<content><![CDATA[
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
     getSourcesAndPoints, toggleSource, toggleIntelligencePoint, 
@@ -109,11 +112,14 @@ const GenericPointModal: React.FC<{
 
                 // 2. Fetch full details for generic fields (list_hint, list_filters)
                 // Note: pointToEdit from overview is a summary (CrawlerPoint), we need full GenericPoint details.
-                if (pointToEdit.type === 'generic') {
+                // IMPORTANT: Ensure pointToEdit.source_name is valid.
+                if (pointToEdit.type === 'generic' && pointToEdit.source_name) {
                     try {
                         setIsLoading(true);
+                        // Fetch detailed configuration for this point
                         const genericPoints = await getGenericPoints(pointToEdit.source_name);
                         const fullPoint = genericPoints.find(p => p.id === pointToEdit.id);
+                        
                         if (fullPoint) {
                             setFormData(prev => ({
                                 ...prev,
@@ -625,7 +631,10 @@ const IntelligenceOverview: React.FC = () => {
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody className="divide-y divide-slate-100">
-                                                                    {source.points.map(point => (
+                                                                    {source.points.map(point => {
+                                                                        // IMPORTANT: Augment point with parent source_name for handlers
+                                                                        const pointWithSource = { ...point, source_name: source.source_name };
+                                                                        return (
                                                                         <tr key={point.id} className="hover:bg-slate-100/50 transition-colors">
                                                                             <td className="px-12 py-3">
                                                                                 <div className="flex items-center gap-2">
@@ -657,7 +666,7 @@ const IntelligenceOverview: React.FC = () => {
                                                                                     {point.type === 'generic' && (
                                                                                         <>
                                                                                             <button 
-                                                                                                onClick={() => handleRunPoint(point)}
+                                                                                                onClick={() => handleRunPoint(pointWithSource)}
                                                                                                 disabled={processingAction === `run_point_${point.id}`}
                                                                                                 className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
                                                                                                 title="立即采集"
@@ -665,7 +674,7 @@ const IntelligenceOverview: React.FC = () => {
                                                                                                 {processingAction === `run_point_${point.id}` ? <Spinner /> : <LightningBoltIcon className="w-3.5 h-3.5"/>}
                                                                                             </button>
                                                                                             <button 
-                                                                                                onClick={() => handleEditGenericPoint(point)}
+                                                                                                onClick={() => handleEditGenericPoint(pointWithSource)}
                                                                                                 className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
                                                                                                 title="编辑"
                                                                                             >
@@ -674,7 +683,7 @@ const IntelligenceOverview: React.FC = () => {
                                                                                         </>
                                                                                     )}
                                                                                     <button 
-                                                                                        onClick={() => handleTogglePoint(point)}
+                                                                                        onClick={() => handleTogglePoint(pointWithSource)}
                                                                                         disabled={processingAction === `toggle_point_${point.id}`}
                                                                                         className={`p-1 rounded transition-colors ${
                                                                                             point.is_active 
@@ -686,7 +695,7 @@ const IntelligenceOverview: React.FC = () => {
                                                                                         {processingAction === `toggle_point_${point.id}` ? <Spinner /> : point.is_active ? <StopIcon className="w-3.5 h-3.5"/> : <PlayIcon className="w-3.5 h-3.5"/>}
                                                                                     </button>
                                                                                     <button 
-                                                                                        onClick={() => setDeleteTarget({ type: 'point', data: point })}
+                                                                                        onClick={() => setDeleteTarget({ type: 'point', data: pointWithSource })}
                                                                                         className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                                                                                         title="删除"
                                                                                     >
@@ -695,7 +704,7 @@ const IntelligenceOverview: React.FC = () => {
                                                                                 </div>
                                                                             </td>
                                                                         </tr>
-                                                                    ))}
+                                                                    );})}
                                                                 </tbody>
                                                             </table>
                                                         </div>
@@ -1121,3 +1130,5 @@ export const IntelligenceDashboard: React.FC = () => {
         </div>
     );
 };
+]]></content>
+</change>
