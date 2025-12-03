@@ -4,7 +4,8 @@ import {
     getSourcesAndPoints, toggleSource, toggleIntelligencePoint, 
     runCrawler, runGenericPoint, 
     getGenericTasks, getPendingArticles, confirmPendingArticles, deletePendingArticles, getPendingArticleDetail,
-    createGenericPoint, updateGenericPoint
+    createGenericPoint, updateGenericPoint,
+    deleteSource, deleteGenericSource, deleteIntelligencePoints, deleteGenericPoint
 } from '../../api';
 import { SourceWithPoints, CrawlerPoint, GenericTask, PendingArticle } from '../../types';
 import { 
@@ -15,6 +16,7 @@ import {
     CheckCircleIcon, TrashIcon, CheckIcon, PlusIcon, CloseIcon,
     SearchIcon, EyeIcon, DocumentTextIcon
 } from '../icons';
+import { ConfirmationModal } from './ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -61,6 +63,10 @@ const IntelligenceOverview: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
     const [processingAction, setProcessingAction] = useState<string | null>(null); // composite key for loading state
+    
+    // Deletion state
+    const [deleteTarget, setDeleteTarget] = useState<{ type: 'source' | 'point', data: any } | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Filters
     const [filterSource, setFilterSource] = useState('');
@@ -187,6 +193,34 @@ const IntelligenceOverview: React.FC = () => {
         }
     };
 
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
+        try {
+            if (deleteTarget.type === 'source') {
+                const source = deleteTarget.data as SourceWithPoints;
+                if (source.source_type === 'generic') {
+                    await deleteGenericSource(source.source_name);
+                } else {
+                    await deleteSource(source.source_name);
+                }
+            } else {
+                const point = deleteTarget.data as CrawlerPoint;
+                if (point.type === 'generic') {
+                    await deleteGenericPoint(point.id);
+                } else {
+                    await deleteIntelligencePoints([point.id]);
+                }
+            }
+            await fetchData();
+            setDeleteTarget(null);
+        } catch (e: any) {
+            alert(`删除失败: ${e.message}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Header / Filter Bar */}
@@ -307,6 +341,14 @@ const IntelligenceOverview: React.FC = () => {
                                                         >
                                                             全关
                                                         </button>
+                                                        <div className="h-4 w-px bg-slate-200"></div>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'source', data: source }); }}
+                                                            className="text-xs font-medium text-slate-400 hover:text-red-600 p-1 rounded hover:bg-slate-100 transition-colors"
+                                                            title="删除来源"
+                                                        >
+                                                            <TrashIcon className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -376,6 +418,13 @@ const IntelligenceOverview: React.FC = () => {
                                                                                     >
                                                                                         {processingAction === `toggle_point_${point.id}` ? <Spinner /> : point.is_active ? <StopIcon className="w-3.5 h-3.5"/> : <PlayIcon className="w-3.5 h-3.5"/>}
                                                                                     </button>
+                                                                                    <button 
+                                                                                        onClick={() => setDeleteTarget({ type: 'point', data: point })}
+                                                                                        className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                                                        title="删除"
+                                                                                    >
+                                                                                        <TrashIcon className="w-3.5 h-3.5" />
+                                                                                    </button>
                                                                                 </div>
                                                                             </td>
                                                                         </tr>
@@ -394,11 +443,23 @@ const IntelligenceOverview: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {deleteTarget && (
+                <ConfirmationModal
+                    title={`确认删除${deleteTarget.type === 'source' ? '情报源' : '采集点'}`}
+                    message={`确定要删除 ${deleteTarget.type === 'source' ? `"${(deleteTarget.data as SourceWithPoints).source_name}" 及其下所有采集点` : `"${(deleteTarget.data as CrawlerPoint).point_name}"`} 吗？此操作不可恢复。`}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                    confirmText="永久删除"
+                    variant="destructive"
+                    isLoading={isDeleting}
+                />
+            )}
         </div>
     );
 };
 
-// --- Submodule: Generic Crawler Tasks ---
+// --- Generic Crawler Tasks Wrapper (Already implemented) ---
 const GenericTaskList: React.FC = () => {
     const [tasks, setTasks] = useState<GenericTask[]>([]);
     const [total, setTotal] = useState(0);

@@ -97,8 +97,18 @@ export const updateGenericPoint = (pointId: string, data: Partial<GenericPoint> 
         body: JSON.stringify(data),
     });
 
+export const deleteGenericPoint = (pointId: string): Promise<{ ok: boolean }> =>
+    apiFetch<{ ok: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`, {
+        method: 'DELETE',
+    });
+
 export const getGenericSources = (): Promise<{ source_name: string }[]> =>
     apiFetch<{ source_name: string }[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/sources`);
+
+export const deleteGenericSource = (sourceName: string): Promise<{ ok: boolean }> =>
+    apiFetch<{ ok: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/generic/sources/${encodeURIComponent(sourceName)}`, {
+        method: 'DELETE',
+    });
 
 export const getGenericPoints = (sourceName: string): Promise<GenericPoint[]> =>
     apiFetch<GenericPoint[]>(`${INTELLIGENCE_SERVICE_PATH}/generic/points${createApiQuery({ source_name: sourceName })}`);
