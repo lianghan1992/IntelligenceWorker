@@ -81,6 +81,7 @@ const GenericPointModal: React.FC<{
         const init = async () => {
             if (pointToEdit) {
                 // 1. Set basic info available from the list view immediately
+                // Note: We access properties that might exist on CrawlerPoint or we default them
                 const baseData = {
                     source_name: pointToEdit.source_name || '',
                     point_name: pointToEdit.point_name || '',
@@ -109,6 +110,7 @@ const GenericPointModal: React.FC<{
                 setFormData(prev => ({ ...prev, ...baseData }));
 
                 // 2. Fetch full details for generic fields (list_hint, list_filters)
+                // We need the source_name to fetch the list of generic points
                 if (pointToEdit.type === 'generic' && pointToEdit.source_name) {
                     try {
                         setIsLoading(true);

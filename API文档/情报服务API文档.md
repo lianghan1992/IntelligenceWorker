@@ -120,7 +120,7 @@
 
 - 接口：`POST /api/crawler/generic/points`
   - 功能：创建通用情报点
-  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`、可选 `list_hint`
+  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`、可选 `list_hint`、可选 `list_filters[]`
   - 返回字段：`message`、`point_id`
   - 返回示例：
     ```json
@@ -129,7 +129,7 @@
 
 - 接口：`PUT /api/crawler/generic/points/{point_id}`
   - 功能：更新通用点（名称、URL、CRON、启停）
-  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`、`list_hint`
+  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`、`list_hint`、`list_filters[]`
   - 返回字段：同 `IntelligencePointPublic`
   - 返回示例：见上文 `GET /points` 的返回结构（字段一致）
 
@@ -205,10 +205,28 @@
 - 接口：`GET /api/crawler/generic/tasks?page=1&limit=20`
   - 功能：通用爬虫任务懒加载分页
   - 字段：Query：`page`、`limit`、可选 `source_name`、`point_name`
-  - 返回字段：`total`、`page`、`limit`、`items[]`（字段见 `GenericCrawlerTaskPublic`：`id`、`source_name`、`point_name`、`url`、`task_type`、`stage`、`detail_info`、`start_time`、`end_time`、`created_at`）
+  - 返回字段：`total`、`page`、`limit`、`items[]`（字段见 `GenericCrawlerTaskPublic`：`id`、`source_name`、`point_name`、`url`、`task_type`、`stage`、`detail_info`(JSON)、`start_time`、`end_time`、`created_at`）
   - 返回示例：
     ```json
-    {"total":2,"page":1,"limit":20,"items":[{"id":"t1","source_name":"通用子爬虫","point_name":"列表页","url":"https://...","task_type":"文章列表提取","stage":"AI识别","detail_info":"links=30","start_time":"...","end_time":"...","created_at":"..."}]}
+    {"total":2,"page":1,"limit":20,"items":[{"id":"t1","source_name":"通用子爬虫","point_name":"列表页","url":"https://...","task_type":"文章列表提取","stage":"AI识别","detail_info":{"links":30,"filters":["https://www.autohome.com.cn/news/"]},"start_time":"...","end_time":"...","created_at":"..."}]}
+    ```
+
+- 接口：`GET /api/crawler/generic/overview`
+  - 功能：通用子爬虫概览统计
+  - 字段：无
+  - 返回字段：`sources_count`、`points_count`、`active_points`、`articles_count`、`pending_total`、`pending_by_status`、`tasks_total`、`tasks_last_24h`
+  - 返回示例：
+    ```json
+    {"sources_count":3,"points_count":9,"active_points":7,"articles_count":216,"pending_total":14,"pending_by_status":{"pending":12,"confirmed":2},"tasks_total":482,"tasks_last_24h":36}
+    ```
+
+- 接口：`GET /api/crawler/generic/points/{point_id}`
+  - 功能：获取单个通用点的详细信息（含筛选器、提示词）
+  - 字段：Path：`point_id`
+  - 返回字段：`id`、`source_name`、`point_name`、`url`、`cron_schedule`、`is_active`、`created_at`、`updated_at`、`list_hint?`、`list_filters?[]`
+  - 返回示例：
+    ```json
+    {"id":"19bf...","source_name":"通用子爬虫","point_name":"新闻频道","url":"https://example.com/news","cron_schedule":"0 */6 * * *","is_active":true,"created_at":"...","updated_at":"...","list_hint":"仅保留带日期的新闻条目","list_filters":["https://www.autohome.com.cn/news/"]}
     ```
 
 - 接口：`GET /api/crawler/pending/articles?page=1&limit=20`
