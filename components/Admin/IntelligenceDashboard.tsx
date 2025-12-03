@@ -63,6 +63,7 @@ const GenericPointModal: React.FC<{
         source_name: '通用子爬虫',
         point_name: '',
         point_url: '',
+        cron_schedule: '0 */6 * * *',
         list_hint: '',
         list_filters: [] as string[]
     });
@@ -79,18 +80,18 @@ const GenericPointModal: React.FC<{
     useEffect(() => {
         const init = async () => {
             if (pointToEdit) {
-                // 1. Set basic info available from the list view
+                // 1. Set basic info available from the list view immediately
                 const baseData = {
-                    source_name: pointToEdit.source_name,
-                    point_name: pointToEdit.point_name,
-                    point_url: pointToEdit.point_url,
-                    cron_schedule: pointToEdit.cron_schedule,
-                    list_hint: '', // Default empty, to be fetched
-                    list_filters: [] as string[] // Default empty, to be fetched
+                    source_name: pointToEdit.source_name || '',
+                    point_name: pointToEdit.point_name || '',
+                    point_url: pointToEdit.point_url || '',
+                    cron_schedule: pointToEdit.cron_schedule || '0 */6 * * *',
+                    list_hint: '', 
+                    list_filters: [] as string[]
                 };
                 
-                // Initialize Cron UI
-                const currentCron = baseData.cron_schedule || '0 */6 * * *';
+                // Initialize Cron UI based on existing schedule
+                const currentCron = baseData.cron_schedule;
                 if (currentCron.match(/^0 \*\/(\d+) \* \* \*$/)) {
                     setCronType('interval');
                     setCronValues(prev => ({ ...prev, interval: RegExp.$1, raw: currentCron }));
@@ -108,8 +109,6 @@ const GenericPointModal: React.FC<{
                 setFormData(prev => ({ ...prev, ...baseData }));
 
                 // 2. Fetch full details for generic fields (list_hint, list_filters)
-                // Note: pointToEdit from overview is a summary (CrawlerPoint), we need full GenericPoint details.
-                // IMPORTANT: Ensure pointToEdit.source_name is valid.
                 if (pointToEdit.type === 'generic' && pointToEdit.source_name) {
                     try {
                         setIsLoading(true);
@@ -122,7 +121,9 @@ const GenericPointModal: React.FC<{
                                 ...prev,
                                 list_hint: fullPoint.list_hint || '',
                                 list_filters: fullPoint.list_filters || [],
-                                cron_schedule: fullPoint.cron_schedule // Ensure we have the latest cron
+                                // Also update cron/url in case they changed in backend but list view was stale
+                                cron_schedule: fullPoint.cron_schedule || prev.cron_schedule,
+                                point_url: fullPoint.point_url || prev.point_url
                             }));
                         }
                     } catch (e) {
@@ -138,6 +139,7 @@ const GenericPointModal: React.FC<{
                     source_name: '通用子爬虫',
                     point_name: '',
                     point_url: '',
+                    cron_schedule: '0 */6 * * *',
                     list_hint: '',
                     list_filters: []
                 });
