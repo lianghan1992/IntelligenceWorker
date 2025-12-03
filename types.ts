@@ -383,6 +383,9 @@ export interface PendingArticle {
     title: string;
     publish_date: string;
     crawl_metadata?: any;
+    content?: string; // Content is now optional for list view, but present for detail view
+    status?: string;
+    created_at?: string;
 }
 
 export interface CrawlerPoint {

@@ -1,4 +1,4 @@
-# 爬虫服务 API 文档
+# 爬虫服务 API 文档（独立版）
 
 说明：本文件位于 `services/crawler` 下，包含接口名称、功能、字段、返回示例。所有接口统一前缀为 `/api/crawler`，鉴权请在请求头添加 `Authorization: Bearer <accessToken>`（登录接口：`POST /api/user/login`）。
 
@@ -120,7 +120,7 @@
 
 - 接口：`POST /api/crawler/generic/points`
   - 功能：创建通用情报点
-  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`
+  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`、可选 `list_hint`
   - 返回字段：`message`、`point_id`
   - 返回示例：
     ```json
@@ -129,7 +129,7 @@
 
 - 接口：`PUT /api/crawler/generic/points/{point_id}`
   - 功能：更新通用点（名称、URL、CRON、启停）
-  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`
+  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`、`list_hint`
   - 返回字段：同 `IntelligencePointPublic`
   - 返回示例：见上文 `GET /points` 的返回结构（字段一致）
 
@@ -476,3 +476,13 @@
   - 详情：`GET /api/crawler/articles/{article_id}`
   - HTML 报告：`GET /api/crawler/articles/{article_id}/html`
   - PDF 下载：`GET /api/crawler/articles/{article_id}/pdf`；按需生成：`POST /api/crawler/report/pdf/{article_id}`
+
+提示：端口默认 `7657`；如你的环境占用该端口，请替换为实际端口。
+- 接口：`GET /api/crawler/pending/articles/{article_id}`
+  - 功能：获取待确认文章详情
+  - 字段：Path：`article_id`
+  - 返回字段：见 `CrawlerPendingArticlePublic`
+  - 返回示例：
+    ```json
+    {"id":"a1","source_name":"通用子爬虫","point_name":"行业","point_url":"https://...","original_url":"https://...","title":"标题","publish_date":"2025-11-26","content":"...","crawl_metadata":{"jina_response_length":1234},"status":"pending","created_at":"2025-11-26T10:00:00+08:00"}
+    ```

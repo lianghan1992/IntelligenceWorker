@@ -85,13 +85,13 @@ export const runGenericPoint = (pointId: string): Promise<{ message: string }> =
     });
 
 // --- Generic Crawler API ---
-export const createGenericPoint = (data: Partial<GenericPoint>): Promise<{ message: string, point_id: string }> =>
+export const createGenericPoint = (data: { source_name: string; point_name: string; point_url: string; cron_schedule: string; list_hint?: string }): Promise<{ message: string, point_id: string }> =>
     apiFetch<{ message: string, point_id: string }>(`${INTELLIGENCE_SERVICE_PATH}/generic/points`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateGenericPoint = (pointId: string, data: Partial<GenericPoint>): Promise<GenericPoint> =>
+export const updateGenericPoint = (pointId: string, data: Partial<GenericPoint> & { list_hint?: string }): Promise<GenericPoint> =>
     apiFetch<GenericPoint>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -109,6 +109,9 @@ export const getGenericTasks = (params: any): Promise<PaginatedResponse<GenericT
 // --- Pending Articles API ---
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> =>
     apiFetch<PaginatedResponse<PendingArticle>>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles${createApiQuery(params)}`);
+
+export const getPendingArticleDetail = (articleId: string): Promise<PendingArticle> =>
+    apiFetch<PendingArticle>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/${articleId}`);
 
 export const confirmPendingArticles = (articleIds: string[]): Promise<{ message: string; confirmed_count: number }> =>
     apiFetch<{ message: string; confirmed_count: number }>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/confirm`, {
