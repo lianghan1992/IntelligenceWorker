@@ -1,7 +1,4 @@
-<change>
-<file>components/Admin/IntelligenceDashboard.tsx</file>
-<description>Inject source_name into points for edit modal context; Improve generic point modal data fetching; Ensure feedback for pending article actions.</description>
-<content><![CDATA[
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
     getSourcesAndPoints, toggleSource, toggleIntelligencePoint, 
@@ -1130,5 +1127,3 @@ export const IntelligenceDashboard: React.FC = () => {
         </div>
     );
 };
-]]></content>
-</change>
