@@ -7,14 +7,14 @@ import {
     createGenericPoint, updateGenericPoint,
     deleteSource, deleteGenericSource, deleteIntelligencePoints, deleteGenericPoint
 } from '../../api';
-import { SourceWithPoints, CrawlerPoint, GenericTask, PendingArticle } from '../../types';
+import { SourceWithPoints, CrawlerPoint, GenericTask, PendingArticle, GenericPoint } from '../../types';
 import { 
     ServerIcon, RefreshIcon, PlayIcon, 
     GlobeIcon, ClockIcon, ExternalLinkIcon,
     ChevronRightIcon, ChevronDownIcon,
     StopIcon, LightningBoltIcon, ViewListIcon,
     CheckCircleIcon, TrashIcon, CheckIcon, PlusIcon, CloseIcon,
-    SearchIcon, EyeIcon, DocumentTextIcon
+    SearchIcon, EyeIcon, DocumentTextIcon, GearIcon, PencilIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -37,15 +37,9 @@ const getTypeBadge = (type: string) => {
 const formatCron = (cron: string) => {
     if (!cron) return '-';
     // Basic heuristics for common patterns
+    if (cron.match(/^0 \*\/(\d+) \* \* \*$/)) return `每${RegExp.$1}小时`;
     if (cron.includes('*/30 * * * *')) return '每30分钟';
-    if (cron.includes('0 * * * *')) return '每1小时';
-    if (cron.includes('0 */2 * * *')) return '每2小时';
-    if (cron.includes('0 */3 * * *')) return '每3小时';
-    if (cron.includes('0 */4 * * *')) return '每4小时';
-    if (cron.includes('0 */6 * * *')) return '每6小时';
-    if (cron.includes('0 */8 * * *')) return '每8小时';
-    if (cron.includes('0 */12 * * *')) return '每12小时';
-    if (cron.includes('0 0 * * *')) return '每天';
+    if (cron.match(/^(\d+) (\d+) \* \* \*$/)) return `每天 ${String(RegExp.$2).padStart(2,'0')}:${String(RegExp.$1).padStart(2,'0')}`;
     if (cron.includes('0 0 * * 0')) return '每周';
     return cron;
 };
@@ -56,19 +50,228 @@ const formatBJTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 };
 
-// --- Submodule: Overview (Refactored to Table with Filters) ---
+// --- Generic Point Modal (Create / Edit) ---
+const GenericPointModal: React.FC<{ 
+    onClose: () => void; 
+    onSuccess: () => void;
+    pointToEdit?: CrawlerPoint | null;
+}> = ({ onClose, onSuccess, pointToEdit }) => {
+    const isEditing = !!pointToEdit;
+    
+    // Form State
+    const [formData, setFormData] = useState({
+        source_name: '通用子爬虫',
+        point_name: '',
+        point_url: '',
+        list_hint: '',
+        list_filters: [] as string[]
+    });
+
+    // Cron Builder State
+    const [cronType, setCronType] = useState<'interval' | 'daily' | 'custom'>('interval');
+    const [cronValues, setCronValues] = useState({ interval: '6', time: '08:00', raw: '0 */6 * * *' });
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [newFilter, setNewFilter] = useState('');
+
+    // Initialize if editing
+    useEffect(() => {
+        if (pointToEdit) {
+            setFormData({
+                source_name: pointToEdit.source_name,
+                point_name: pointToEdit.point_name,
+                point_url: pointToEdit.point_url,
+                list_hint: (pointToEdit as any).list_hint || '', // Assuming CrawlerPoint might have these fields if generic
+                list_filters: (pointToEdit as any).list_filters || []
+            });
+
+            const currentCron = pointToEdit.cron_schedule || '0 */6 * * *';
+            if (currentCron.match(/^0 \*\/(\d+) \* \* \*$/)) {
+                setCronType('interval');
+                setCronValues(prev => ({ ...prev, interval: RegExp.$1, raw: currentCron }));
+            } else if (currentCron.match(/^(\d+) (\d+) \* \* \*$/)) {
+                setCronType('daily');
+                const m = RegExp.$1.padStart(2, '0');
+                const h = RegExp.$2.padStart(2, '0');
+                setCronValues(prev => ({ ...prev, time: `${h}:${m}`, raw: currentCron }));
+            } else {
+                setCronType('custom');
+                setCronValues(prev => ({ ...prev, raw: currentCron }));
+            }
+        }
+    }, [pointToEdit]);
+
+    const getFinalCron = () => {
+        if (cronType === 'interval') return `0 */${cronValues.interval} * * *`;
+        if (cronType === 'daily') {
+            const [hh, mm] = cronValues.time.split(':');
+            return `${Number(mm)} ${Number(hh)} * * *`;
+        }
+        return cronValues.raw;
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddFilter = (e?: React.MouseEvent) => {
+        e?.preventDefault();
+        const trimmed = newFilter.trim();
+        if (trimmed && !formData.list_filters.includes(trimmed)) {
+            setFormData(prev => ({ ...prev, list_filters: [...prev.list_filters, trimmed] }));
+            setNewFilter('');
+        }
+    };
+
+    const handleRemoveFilter = (filter: string) => {
+        setFormData(prev => ({ ...prev, list_filters: prev.list_filters.filter(f => f !== filter) }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.source_name || !formData.point_name || !formData.point_url) return;
+        
+        setIsLoading(true);
+        setError('');
+        const finalCron = getFinalCron();
+
+        try {
+            if (isEditing && pointToEdit) {
+                await updateGenericPoint(pointToEdit.id, {
+                    ...formData,
+                    cron_schedule: finalCron,
+                    is_active: pointToEdit.is_active // Preserve status
+                });
+                alert('通用情报点更新成功');
+            } else {
+                await createGenericPoint({
+                    ...formData,
+                    cron_schedule: finalCron
+                });
+                alert('通用情报点创建成功');
+            }
+            onSuccess();
+            onClose();
+        } catch (err: any) {
+            setError(err.message || (isEditing ? '更新失败' : '创建失败'));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-bold text-gray-800">{isEditing ? '编辑通用情报点' : '新建通用情报点'}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon className="w-5 h-5"/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">来源名称</label>
+                        <input name="source_name" value={formData.source_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" placeholder="例如: 行业通用源" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">采集点名称</label>
+                        <input name="point_name" value={formData.point_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: 某某新闻列表" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">目标 URL</label>
+                        <input name="point_url" value={formData.point_url} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://..." />
+                    </div>
+                    
+                    {/* Cron Builder */}
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <label className="block text-xs font-bold text-slate-500 mb-2">采集频率设置</label>
+                        <div className="flex gap-2 mb-2">
+                            <button type="button" onClick={() => setCronType('interval')} className={`flex-1 py-1.5 text-xs rounded border ${cronType === 'interval' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>按间隔</button>
+                            <button type="button" onClick={() => setCronType('daily')} className={`flex-1 py-1.5 text-xs rounded border ${cronType === 'daily' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>每天定时</button>
+                            <button type="button" onClick={() => setCronType('custom')} className={`flex-1 py-1.5 text-xs rounded border ${cronType === 'custom' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' : 'bg-white border-slate-200 text-slate-600'}`}>自定义</button>
+                        </div>
+
+                        {cronType === 'interval' && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-600">每</span>
+                                <input type="number" min="1" max="23" value={cronValues.interval} onChange={(e) => setCronValues({...cronValues, interval: e.target.value})} className="w-16 border rounded px-2 py-1 text-center text-sm" />
+                                <span className="text-sm text-slate-600">小时执行一次</span>
+                            </div>
+                        )}
+                        {cronType === 'daily' && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-600">每天</span>
+                                <input type="time" value={cronValues.time} onChange={(e) => setCronValues({...cronValues, time: e.target.value})} className="border rounded px-2 py-1 text-sm" />
+                                <span className="text-sm text-slate-600">执行</span>
+                            </div>
+                        )}
+                        {cronType === 'custom' && (
+                            <div>
+                                <input type="text" value={cronValues.raw} onChange={(e) => setCronValues({...cronValues, raw: e.target.value})} className="w-full border rounded px-3 py-1.5 text-sm font-mono" placeholder="Cron Expression" />
+                                <p className="text-[10px] text-slate-400 mt-1">分 时 日 月 周 (e.g. 0 12 * * *)</p>
+                            </div>
+                        )}
+                        <div className="mt-2 text-[10px] text-indigo-500 font-mono">
+                            预览: {getFinalCron()}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">URL 过滤器 (可选)</label>
+                        <div className="flex gap-2 mb-2">
+                            <input 
+                                value={newFilter} 
+                                onChange={e => setNewFilter(e.target.value)} 
+                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddFilter())}
+                                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+                                placeholder="输入关键词 (如 /2024/)" 
+                            />
+                            <button type="button" onClick={handleAddFilter} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-bold text-gray-600">添加</button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {formData.list_filters.map(f => (
+                                <span key={f} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded border border-indigo-100">
+                                    {f}
+                                    <button type="button" onClick={() => handleRemoveFilter(f)} className="hover:text-red-500"><CloseIcon className="w-3 h-3"/></button>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 mb-1">列表选择器 (可选)</label>
+                        <input name="list_hint" value={formData.list_hint} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="CSS selector for list items" />
+                    </div>
+
+                    {error && <p className="text-red-500 text-xs">{error}</p>}
+
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-200 transition-colors">取消</button>
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                            {isLoading ? '提交中...' : (isEditing ? '保存修改' : '创建')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// --- Submodule: Overview ---
 const IntelligenceOverview: React.FC = () => {
     const [data, setData] = useState<SourceWithPoints[]>([]);
     const [filteredData, setFilteredData] = useState<SourceWithPoints[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
-    const [processingAction, setProcessingAction] = useState<string | null>(null); // composite key for loading state
+    const [processingAction, setProcessingAction] = useState<string | null>(null);
     
-    // Deletion state
+    // Generic Modal State
+    const [isGenericModalOpen, setIsGenericModalOpen] = useState(false);
+    const [pointToEdit, setPointToEdit] = useState<CrawlerPoint | null>(null);
+
     const [deleteTarget, setDeleteTarget] = useState<{ type: 'source' | 'point', data: any } | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // Filters
     const [filterSource, setFilterSource] = useState('');
     const [filterType, setFilterType] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
@@ -78,7 +281,6 @@ const IntelligenceOverview: React.FC = () => {
         try {
             const res = await getSourcesAndPoints();
             setData(res);
-            // Initially expand all
             setExpandedSources(new Set(res.map(s => s.source_name)));
         } catch (e) {
             console.error("Failed to load overview", e);
@@ -93,22 +295,17 @@ const IntelligenceOverview: React.FC = () => {
 
     useEffect(() => {
         let result = data;
-
         if (filterSource.trim()) {
             const lower = filterSource.toLowerCase();
             result = result.filter(s => s.source_name.toLowerCase().includes(lower));
         }
-
         if (filterType !== 'all') {
             result = result.filter(s => s.source_type === filterType);
         }
-
         if (filterStatus !== 'all') {
             const isActive = filterStatus === 'active';
-            // If filtering by status, check if ANY point matches status or if source has points matching status
             result = result.filter(s => s.points.some(p => p.is_active === isActive));
         }
-
         setFilteredData(result);
     }, [data, filterSource, filterType, filterStatus]);
 
@@ -143,7 +340,6 @@ const IntelligenceOverview: React.FC = () => {
         setProcessingAction(actionKey);
         try {
             await toggleSource(sourceName, enable);
-            // Optimistic update
             setData(prev => prev.map(s => {
                 if (s.source_name === sourceName) {
                     return { ...s, points: s.points.map(p => ({ ...p, is_active: enable })) };
@@ -221,12 +417,22 @@ const IntelligenceOverview: React.FC = () => {
         }
     };
 
+    const handleOpenCreateGeneric = () => {
+        setPointToEdit(null);
+        setIsGenericModalOpen(true);
+    };
+
+    const handleEditGenericPoint = (point: CrawlerPoint) => {
+        setPointToEdit(point);
+        setIsGenericModalOpen(true);
+    };
+
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Header / Filter Bar */}
             <div className="px-6 py-4 border-b border-slate-200 bg-white sticky top-0 z-10 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
-                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative">
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-center">
+                    <div className="relative w-full md:w-auto">
                         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input 
                             type="text" 
@@ -240,7 +446,7 @@ const IntelligenceOverview: React.FC = () => {
                     <select 
                         value={filterType}
                         onChange={(e) => setFilterType(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full md:w-auto"
                     >
                         <option value="all">所有类型</option>
                         <option value="manual">手动配置</option>
@@ -251,7 +457,7 @@ const IntelligenceOverview: React.FC = () => {
                     <select 
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                        className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white w-full md:w-auto"
                     >
                         <option value="all">所有状态</option>
                         <option value="active">运行中</option>
@@ -259,13 +465,22 @@ const IntelligenceOverview: React.FC = () => {
                     </select>
                 </div>
 
-                <button 
-                    onClick={fetchData} 
-                    className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group text-slate-500"
-                    title="刷新数据"
-                >
-                    <RefreshIcon className={`w-4 h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleOpenCreateGeneric}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700 transition-all hover:-translate-y-0.5"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>新建通用点</span>
+                    </button>
+                    <button 
+                        onClick={fetchData} 
+                        className="p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm group text-slate-500"
+                        title="刷新数据"
+                    >
+                        <RefreshIcon className={`w-4 h-4 group-hover:rotate-180 transition-transform duration-500 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
             {/* Table Content */}
@@ -397,14 +612,23 @@ const IntelligenceOverview: React.FC = () => {
                                                                             <td className="px-6 py-3 text-right">
                                                                                 <div className="flex justify-end gap-2">
                                                                                     {point.type === 'generic' && (
-                                                                                        <button 
-                                                                                            onClick={() => handleRunPoint(point)}
-                                                                                            disabled={processingAction === `run_point_${point.id}`}
-                                                                                            className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                                                                                            title="立即采集"
-                                                                                        >
-                                                                                            {processingAction === `run_point_${point.id}` ? <Spinner /> : <LightningBoltIcon className="w-3.5 h-3.5"/>}
-                                                                                        </button>
+                                                                                        <>
+                                                                                            <button 
+                                                                                                onClick={() => handleRunPoint(point)}
+                                                                                                disabled={processingAction === `run_point_${point.id}`}
+                                                                                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                                                                                                title="立即采集"
+                                                                                            >
+                                                                                                {processingAction === `run_point_${point.id}` ? <Spinner /> : <LightningBoltIcon className="w-3.5 h-3.5"/>}
+                                                                                            </button>
+                                                                                            <button 
+                                                                                                onClick={() => handleEditGenericPoint(point)}
+                                                                                                className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                                                                                title="编辑"
+                                                                                            >
+                                                                                                <PencilIcon className="w-3.5 h-3.5" />
+                                                                                            </button>
+                                                                                        </>
                                                                                     )}
                                                                                     <button 
                                                                                         onClick={() => handleTogglePoint(point)}
@@ -453,6 +677,14 @@ const IntelligenceOverview: React.FC = () => {
                     confirmText="永久删除"
                     variant="destructive"
                     isLoading={isDeleting}
+                />
+            )}
+
+            {isGenericModalOpen && (
+                <GenericPointModal 
+                    onClose={() => setIsGenericModalOpen(false)} 
+                    onSuccess={() => { fetchData(); }} 
+                    pointToEdit={pointToEdit}
                 />
             )}
         </div>
@@ -652,11 +884,22 @@ const PendingArticlesList: React.FC = () => {
         
         setProcessing(true);
         try {
-            if (action === 'confirm') await confirmPendingArticles(targetIds);
-            else await deletePendingArticles(targetIds);
-            fetchArticles();
+            if (action === 'confirm') {
+                const res = await confirmPendingArticles(targetIds);
+                alert(`成功入库 ${res.confirmed_count} 篇文章`);
+            } else {
+                const res = await deletePendingArticles(targetIds);
+                alert(`成功删除 ${res.deleted_count} 篇文章`);
+            }
+            // Explicitly clear state and fetch new data
+            setSelectedIds(new Set());
             if (viewingArticleId && targetIds.includes(viewingArticleId)) setViewingArticleId(null);
-        } catch (e) { alert('操作失败'); } finally { setProcessing(false); }
+            await fetchArticles();
+        } catch (e: any) { 
+            alert(`操作失败: ${e.message}`); 
+        } finally { 
+            setProcessing(false); 
+        }
     };
 
     const toggleSelect = (id: string) => {
@@ -759,127 +1002,9 @@ const PendingArticlesList: React.FC = () => {
     );
 };
 
-const GenericPointModal: React.FC<{ onClose: () => void; onSuccess: () => void }> = ({ onClose, onSuccess }) => {
-    const [formData, setFormData] = useState({
-        source_name: '通用子爬虫',
-        point_name: '',
-        point_url: '',
-        cron_schedule: '0 */6 * * *',
-        list_hint: '',
-        list_filters: [] as string[]
-    });
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [newFilter, setNewFilter] = useState('');
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleAddFilter = (e?: React.MouseEvent) => {
-        e?.preventDefault();
-        const trimmed = newFilter.trim();
-        if (trimmed && !formData.list_filters.includes(trimmed)) {
-            setFormData(prev => ({ ...prev, list_filters: [...prev.list_filters, trimmed] }));
-            setNewFilter('');
-        }
-    };
-
-    const handleRemoveFilter = (filter: string) => {
-        setFormData(prev => ({ ...prev, list_filters: prev.list_filters.filter(f => f !== filter) }));
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!formData.source_name || !formData.point_name || !formData.point_url) return;
-        setIsLoading(true);
-        setError('');
-        try {
-            await createGenericPoint(formData);
-            onSuccess();
-            onClose();
-            alert('通用情报点创建成功');
-        } catch (err: any) {
-            setError(err.message || '创建失败');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto custom-scrollbar">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-800">新建通用情报点</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><CloseIcon className="w-5 h-5"/></button>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">来源名称</label>
-                        <input name="source_name" value={formData.source_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: 行业通用源" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">采集点名称</label>
-                        <input name="point_name" value={formData.point_name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: 某某新闻列表" />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">目标 URL</label>
-                        <input name="point_url" value={formData.point_url} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="https://..." />
-                    </div>
-                    
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">URL 过滤器 (可选)</label>
-                        <div className="flex gap-2 mb-2">
-                            <input 
-                                value={newFilter} 
-                                onChange={e => setNewFilter(e.target.value)} 
-                                onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddFilter())}
-                                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-                                placeholder="输入关键词 (如 /2024/)" 
-                            />
-                            <button type="button" onClick={handleAddFilter} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-bold text-gray-600">添加</button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {formData.list_filters.map(f => (
-                                <span key={f} className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 text-xs rounded border border-indigo-100">
-                                    {f}
-                                    <button type="button" onClick={() => handleRemoveFilter(f)} className="hover:text-red-500"><CloseIcon className="w-3 h-3"/></button>
-                                </span>
-                            ))}
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-1">仅抓取包含上述关键词的链接。留空则抓取所有。</p>
-                    </div>
-
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">列表选择器 (可选)</label>
-                        <input name="list_hint" value={formData.list_hint} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="CSS selector for list items" />
-                        <p className="text-[10px] text-gray-400 mt-1">留空则由 AI 自动识别</p>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">采集频率 (Cron)</label>
-                        <input name="cron_schedule" value={formData.cron_schedule} onChange={handleChange} className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                        <p className="text-[10px] text-gray-400 mt-1">默认: 0 */6 * * * (每6小时)</p>
-                    </div>
-
-                    {error && <p className="text-red-500 text-xs">{error}</p>}
-
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-200 transition-colors">取消</button>
-                        <button type="submit" disabled={isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
-                            {isLoading ? '提交中...' : '创建'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}
-
 // --- Generic Crawler Module Wrapper ---
 const GenericCrawlerModule: React.FC = () => {
     const [subTab, setSubTab] = useState<'tasks' | 'pending'>('tasks');
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50 p-6 gap-6">
@@ -903,22 +1028,12 @@ const GenericCrawlerModule: React.FC = () => {
                         <CheckCircleIcon className="w-4 h-4" /> 内容审核
                     </button>
                 </div>
-                
-                {/* Create Point Button */}
-                <button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700 transition-all hover:-translate-y-0.5 mb-1"
-                >
-                    <PlusIcon className="w-3.5 h-3.5" /> 创建情报点
-                </button>
             </div>
 
             {/* Content Area */}
             <div className="flex-1 min-h-0">
                 {subTab === 'tasks' ? <GenericTaskList /> : <PendingArticlesList />}
             </div>
-
-            {isModalOpen && <GenericPointModal onClose={() => setIsModalOpen(false)} onSuccess={() => { /* Optional refresh logic if needed */ }} />}
         </div>
     );
 };
