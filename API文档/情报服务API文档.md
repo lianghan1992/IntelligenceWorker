@@ -120,7 +120,7 @@
 
 - 接口：`POST /api/crawler/generic/points`
   - 功能：创建通用情报点
-  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`、可选 `list_hint`、可选 `list_filters[]`
+  - 字段：JSON：`source_name`、`point_name`、`point_url`、`cron_schedule`、可选 `list_hint`
   - 返回字段：`message`、`point_id`
   - 返回示例：
     ```json
@@ -129,7 +129,7 @@
 
 - 接口：`PUT /api/crawler/generic/points/{point_id}`
   - 功能：更新通用点（名称、URL、CRON、启停）
-  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`、`list_hint`、`list_filters[]`
+  - 字段：JSON（可选）：`source_name`、`point_name`、`point_url`、`cron_schedule`、`is_active`、`list_hint`
   - 返回字段：同 `IntelligencePointPublic`
   - 返回示例：见上文 `GET /points` 的返回结构（字段一致）
 

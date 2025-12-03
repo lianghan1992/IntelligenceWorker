@@ -399,7 +399,6 @@ export interface CrawlerPoint {
     is_active: boolean;
     type: 'manual' | 'generic';
     created_at?: string;
-    list_filters?: string[];
 }
 
 export interface SourceWithPoints {

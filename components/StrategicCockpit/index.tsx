@@ -93,7 +93,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ 
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
 
             setArticles(response.items || []);
-            setPagination({ page: page, totalPages: calculatedTotalPages, total: response.total });
+            setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
             // On desktop: Auto-select first article only on initial load if none selected
             if (window.innerWidth >= 768) {
