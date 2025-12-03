@@ -359,6 +359,8 @@ export interface GenericPoint {
     cron_schedule: string;
     is_active: boolean;
     created_at: string;
+    list_hint?: string;
+    list_filters?: string[];
 }
 
 export interface GenericTask {
@@ -397,6 +399,7 @@ export interface CrawlerPoint {
     is_active: boolean;
     type: 'manual' | 'generic';
     created_at?: string;
+    list_filters?: string[];
 }
 
 export interface SourceWithPoints {
