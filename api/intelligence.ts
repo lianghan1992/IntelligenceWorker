@@ -1,63 +1,63 @@
+
 // src/api/intelligence.ts
 
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { PaginatedResponse } from '../types';
 
-// --- Types based on new API Docs ---
+// --- Types ---
 
-export interface SourcePublic {
-    id: string;
-    name: string;
-    main_url: string;
-    points_count: number;
-    articles_count: number;
-    created_at: string;
+export interface IntelligenceSourcePublic {
+    id: string; // May be UUID or just name depending on backend, treating as string
+    source_name: string;
+    source_type: 'manual' | 'generic' | 'mixed';
+    points_count?: number;
+    created_at?: string;
+    updated_at?: string;
+    points?: IntelligencePointPublic[];
 }
 
-export interface PointPublic {
+export interface IntelligencePointPublic {
     id: string;
-    source_id: string;
+    source_id?: string;
     source_name: string;
-    name: string;
-    url: string;
+    point_name: string; // mapped from 'name' in some responses
+    point_url: string;  // mapped from 'url'
     cron_schedule: string;
     is_active: boolean;
-    mode?: string;
-    url_filters?: string[];
-    extra_hint?: string;
-    enable_pagination?: boolean;
-    initial_pages?: number;
-    last_crawl_time?: string;
+    type?: 'manual' | 'generic';
+    last_triggered_at?: string;
     created_at: string;
+    // Generic specific
+    list_hint?: string;
+    list_filters?: string[];
 }
 
-export interface TaskPublic {
+export interface GenericCrawlerTaskPublic {
     id: string;
     source_name: string;
     point_name: string;
-    task_type: string;
     url: string;
-    status: string;
-    start_time?: string;
+    task_type: string;
+    stage: string;
+    detail_info: any;
+    start_time: string;
     end_time?: string;
-    retry_count: number;
     created_at: string;
 }
 
 export interface PendingArticlePublic {
     id: string;
-    point_id?: string;
     source_name: string;
     point_name: string;
+    point_url: string;
     original_url: string;
     title: string;
     publish_date?: string;
     content?: string;
     status: string;
-    created_at: string;
-    updated_at: string;
     crawl_metadata?: any;
+    created_at: string;
 }
 
 export interface ArticlePublic {
@@ -69,152 +69,226 @@ export interface ArticlePublic {
     content: string;
     source_name: string;
     point_name: string;
-    is_atomic?: boolean;
     created_at: string;
-    updated_at: string;
+    summary?: string;
+    keywords?: string[];
+    sentiment?: string;
 }
 
-// --- Sources ---
+export interface IntelligenceStats {
+    sources: number;
+    points: number;
+    active_points: number;
+    articles: number;
+    vectors: number;
+    schedules_active: number;
+}
 
-export const getSources = (): Promise<SourcePublic[]> => 
-    apiFetch<SourcePublic[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+// --- Sources & Points Management ---
 
-export const createSource = (data: { name: string; main_url: string }): Promise<SourcePublic> =>
-    apiFetch<SourcePublic>(`${INTELLIGENCE_SERVICE_PATH}/sources`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
+// GET /api/crawler/sources-and-points
+export const getSourcesAndPoints = (params?: { source_name?: string; point_id?: string }): Promise<IntelligenceSourcePublic[]> => 
+    apiFetch<IntelligenceSourcePublic[]>(`${INTELLIGENCE_SERVICE_PATH}/sources-and-points${createApiQuery(params)}`);
 
-// Note: Delete/Toggle sources are not explicitly in the main workflow doc, 
-// but implied or might be supported. We keep them if compatible or mock.
-// The docs only listed GET /sources and POST /sources. 
-// We will assume creation is the main "Admin" action.
+// GET /api/crawler/points
+export const getPoints = (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => 
+    apiFetch<IntelligencePointPublic[]>(`${INTELLIGENCE_SERVICE_PATH}/points${createApiQuery(params)}`);
 
-// --- Points ---
-
-export const getPoints = (params?: { source_name?: string }): Promise<PointPublic[]> => 
-    apiFetch<PointPublic[]>(`${INTELLIGENCE_SERVICE_PATH}/points${createApiQuery(params)}`);
-
+// POST /api/crawler/points (Manual)
 export const createPoint = (data: {
     source_name: string;
-    name: string;
-    url: string;
+    point_name: string;
+    point_url: string;
     cron_schedule: string;
-    mode?: string;
-    url_filters?: string[];
-    extra_hint?: string;
-    enable_pagination?: boolean;
-    initial_pages?: number;
-}): Promise<PointPublic> => {
-    return apiFetch<PointPublic>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+}): Promise<{ message: string; point_id: string }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const togglePoint = (pointId: string, enable: boolean): Promise<{ ok: boolean; enabled: boolean }> =>
-    apiFetch<{ ok: boolean; enabled: boolean }>(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/toggle`, {
+// POST /api/crawler/generic/points (Generic)
+export const createGenericPoint = (data: {
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    list_hint?: string;
+    list_filters?: string[];
+}): Promise<{ message: string; point_id: string }> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/points`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+// PUT /api/crawler/generic/points/{point_id}
+export const updateGenericPoint = (pointId: string, data: Partial<IntelligencePointPublic>): Promise<IntelligencePointPublic> => {
+    return apiFetch<IntelligencePointPublic>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+// POST /api/crawler/points/{point_id}/toggle
+export const togglePoint = (pointId: string, enable: boolean): Promise<{ success: boolean; message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/toggle`, {
         method: 'POST',
         body: JSON.stringify({ enable }),
     });
 
-export const deletePoints = (pointIds: string[]): Promise<{ deleted: number }> =>
-    apiFetch<{ deleted: number }>(`${INTELLIGENCE_SERVICE_PATH}/points`, {
+// POST /api/crawler/sources/{source_name}/toggle
+export const toggleSource = (sourceName: string, enable: boolean): Promise<{ ok: boolean; affected_points: number; enabled: boolean }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enable }),
+    });
+
+// DELETE /api/crawler/points
+export const deletePoints = (pointIds: string[]): Promise<{ message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
-        body: JSON.stringify(pointIds),
+        body: JSON.stringify({ point_ids: pointIds }),
+    });
+
+// DELETE /api/crawler/sources/{source_name}
+export const deleteSource = (sourceName: string): Promise<{ message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}`, {
+        method: 'DELETE',
+    });
+
+// GET /api/crawler/points/{point_id}/health
+export const checkPointHealth = (pointId: string): Promise<{ status: 'healthy' | 'warning' | 'unhealthy' | 'error'; message: string; last_success_time?: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points/${pointId}/health`);
+
+// --- Execution Control ---
+
+// POST /api/crawler/crawlers/{source_name}/run-now (Manual Source)
+export const runCrawlerSource = (sourceName: string): Promise<{ message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/crawlers/${encodeURIComponent(sourceName)}/run-now`, {
+        method: 'POST',
+    });
+
+// POST /api/crawler/generic/points/{point_id}/run-now (Generic Point)
+export const runGenericPoint = (pointId: string): Promise<{ message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}/run-now`, {
+        method: 'POST',
     });
 
 // --- Tasks / Logs ---
 
-export const getTasks = (params: { status_filter?: string; page?: number; limit?: number }): Promise<TaskPublic[]> =>
-    apiFetch<TaskPublic[]>(`${INTELLIGENCE_SERVICE_PATH}/tasks${createApiQuery(params)}`);
+// GET /api/crawler/generic/tasks
+export const getGenericTasks = (params: { page?: number; limit?: number; source_name?: string }): Promise<{ total: number; page: number; limit: number; items: GenericCrawlerTaskPublic[] }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/tasks${createApiQuery(params)}`);
+
+// GET /api/crawler/tasks/stats
+export const getIntelligenceStats = (): Promise<IntelligenceStats> =>
+    apiFetch<IntelligenceStats>(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
 
 // --- Pending Articles (Review) ---
 
 export const getPendingArticles = (params: { page?: number; limit?: number }): Promise<PaginatedResponse<PendingArticlePublic>> =>
-    apiFetch<PaginatedResponse<PendingArticlePublic>>(`${INTELLIGENCE_SERVICE_PATH}/pending${createApiQuery(params)}`);
+    apiFetch<PaginatedResponse<PendingArticlePublic>>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles${createApiQuery(params)}`);
 
-export const confirmPendingArticles = (ids: string[]): Promise<{ confirmed: number }> =>
-    apiFetch<{ confirmed: number }>(`${INTELLIGENCE_SERVICE_PATH}/pending/confirm`, {
+export const getPendingArticleDetail = (articleId: string): Promise<PendingArticlePublic> =>
+    apiFetch<PendingArticlePublic>(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/${articleId}`);
+
+export const confirmPendingArticles = (article_ids: string[]): Promise<{ message: string; confirmed_count: number }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/confirm`, {
         method: 'POST',
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ article_ids }),
     });
 
-export const rejectPendingArticles = (ids: string[]): Promise<{ rejected: number }> =>
-    apiFetch<{ rejected: number }>(`${INTELLIGENCE_SERVICE_PATH}/pending/reject`, {
+export const rejectPendingArticles = (article_ids: string[]): Promise<{ message: string; deleted_count: number }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/pending/articles/delete`, {
         method: 'POST',
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ article_ids }),
     });
 
 // --- Articles (Assets) ---
 
-export const getArticles = (params: { source_name?: string; point_name?: string; page?: number; limit?: number }): Promise<PaginatedResponse<ArticlePublic>> =>
+export const getArticles = (params: { source_name?: string; point_name?: string; publish_date_start?: string; page?: number; limit?: number }): Promise<PaginatedResponse<ArticlePublic>> =>
     apiFetch<PaginatedResponse<ArticlePublic>>(`${INTELLIGENCE_SERVICE_PATH}/articles${createApiQuery(params)}`);
 
 export const getArticleDetail = (articleId: string): Promise<ArticlePublic> =>
     apiFetch<ArticlePublic>(`${INTELLIGENCE_SERVICE_PATH}/articles/${articleId}`);
 
-// --- Legacy / Compatibility / Mocked Methods ---
-// Keeping these to ensure other components don't break during the transition.
-
-export const getArticleById = getArticleDetail;
+export const deleteArticles = (article_ids: string[]): Promise<{ message: string }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, {
+        method: 'DELETE',
+        body: JSON.stringify({ article_ids }),
+    });
 
 export const getArticleHtml = async (id: string): Promise<string> => {
-    // Mock implementation or mapped to detail
-    const article = await getArticleDetail(id);
-    return article.content; // Simple fallback
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${id}/html`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(url, { headers });
+    return response.text();
 };
 
 export const downloadArticlePdf = async (id: string): Promise<Blob> => {
-    // Placeholder, as PDF download isn't in new doc
-    throw new Error("PDF download not supported in this version.");
-}
-
-export const searchArticlesFiltered = async (params: any): Promise<{ items: any[], total: number, page: number }> => {
-    // Map legacy search to new getArticles
-    const res = await getArticles({ 
-        page: params.page, 
-        limit: params.limit,
-        source_name: params.source_names?.[0] // Simplified mapping
-    });
-    return {
-        items: res.items, // Use items from paginated response
-        total: res.total, // Use total from paginated response
-        page: params.page || 1
-    };
+    const url = `${INTELLIGENCE_SERVICE_PATH}/articles/${id}/pdf`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('PDF download failed');
+    return response.blob();
 };
 
-// Removed conflicting exports that are present in api/user.ts
-// export const getUserPois ...
-// export const getUserSubscribedSources ...
-// export const addUserSourceSubscription ...
-// export const deleteUserSourceSubscription ...
+export const generateArticlePdf = (id: string): Promise<{ ok: boolean; pdf_generated: boolean }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/report/pdf/${id}`, { method: 'POST' });
 
-// Re-export for compatibility with IntelligencePointManager if it still exists
-export const getPointsBySourceName = (sourceName: string) => getPoints({ source_name: sourceName });
-export const deleteSource = async (name: string) => {}; // No delete source in doc
-export const toggleSource = async (name: string, enable: boolean) => {}; // No toggle source in doc
-export const runCrawler = async (sourceName: string) => {}; // No run crawler in doc
-export const checkIntelligencePointHealth = async (id: string) => ({ status: 'unknown', message: 'Not supported' });
+// --- Search (Chunks) ---
+export const searchChunks = (data: any): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
 
-export const searchChunks = async (params: any) => ({ results: [] });
-export const exportChunks = async (params: any) => ({ export_data: [] });
-export const createLlmSearchTask = async (data: any) => {};
-export const getLlmSearchTasks = async (params: any) => ({ items: [], total: 0 });
+export const exportChunks = (data: any): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/chunks/export`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
 
-// Updated Stubs to accept arguments
-export const getGenericSources = async () => [] as any[];
-export const getGenericPoints = async (sourceName?: string) => [] as any[];
-export const createGenericPoint = async (data: any) => ({} as any);
-export const updateGenericPoint = async (id: string, data: any) => ({} as any);
-export const getGenericTasks = async (params: any) => ({ items: [], total: 0 });
-
-export const getPendingArticleDetail = async (id: string) => ({} as any);
+// --- Legacy Aliases/Stubs for compatibility ---
+export const getSources = async (): Promise<any[]> => {
+    // Adapter to old format if needed, or just return source-and-points mapped
+    const res = await getSourcesAndPoints();
+    return res.map(s => ({ id: s.id, name: s.source_name, points_count: s.points?.length || 0 }));
+};
+export const getArticleById = getArticleDetail;
 export const deletePendingArticles = rejectPendingArticles;
-export const deleteArticles = async (ids: string[]) => {}; 
-export const getIntelligenceStats = async () => ({ sources: 0, points: 0, active_points: 0, articles: 0, vectors: 0, schedules_active: 0 });
+// For searchArticlesFiltered, map to getArticles with query logic if available, or keep using old endpoint if valid. 
+// The new doc has `/api/crawler/search/articles_filtered`.
+export const searchArticlesFiltered = (data: any): Promise<any> => 
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
 
-// Updated Stubs to accept arguments
-export const updateGeminiCookies = async (data: any) => ({} as any);
-export const checkGeminiCookies = async () => ({ has_cookie: false, valid: false });
-export const toggleHtmlGeneration = async (enable: boolean) => ({} as any);
+// --- Settings ---
+export const updateGeminiCookies = (data: any): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, {
+        method: 'POST',
+        body: data instanceof FormData ? data : new URLSearchParams(data) // API expects Form Data
+    });
+
+export const checkGeminiCookies = (): Promise<{ has_cookie: boolean; valid: boolean }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies/check`);
+
+export const toggleHtmlGeneration = (enable: boolean): Promise<{ ok: boolean; enabled: boolean }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/html-generation/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enable })
+    });
+
+// --- LLM Tasks ---
+export const createLlmSearchTask = (data: any): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/llm`, { method: 'POST', body: JSON.stringify(data) });
+
+export const getLlmSearchTasks = (params: any): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/tasks${createApiQuery(params)}`);

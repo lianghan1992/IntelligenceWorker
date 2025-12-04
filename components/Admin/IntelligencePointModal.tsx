@@ -82,16 +82,16 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 // "Edit" is implemented as Create + Delete since there's no update API
                 await createPoint({
                     source_name: formData.source_name,
-                    name: formData.point_name,
-                    url: formData.point_url,
+                    point_name: formData.point_name,
+                    point_url: formData.point_url,
                     cron_schedule: formData.cron_schedule
                 });
                 await deletePoints([pointToEdit.id]);
             } else {
                 await createPoint({
                     source_name: formData.source_name,
-                    name: formData.point_name,
-                    url: formData.point_url,
+                    point_name: formData.point_name,
+                    point_url: formData.point_url,
                     cron_schedule: formData.cron_schedule
                 });
             }

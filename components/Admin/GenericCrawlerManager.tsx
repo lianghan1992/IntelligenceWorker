@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GenericPoint, GenericTask } from '../../types';
-import { createGenericPoint, updateGenericPoint, getGenericSources, getGenericPoints, getGenericTasks } from '../../api';
+import { createGenericPoint, updateGenericPoint, getSourcesAndPoints, getGenericTasks } from '../../api';
 import { PlusIcon, RefreshIcon, ServerIcon, ClockIcon, PlayIcon, StopIcon, GearIcon, ViewListIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -62,11 +62,30 @@ export const GenericCrawlerManager: React.FC = () => {
     const fetchPoints = useCallback(async () => {
         setIsLoading(true);
         try {
-            const sources = await getGenericSources();
+            // Get all sources and their points
+            const sources = await getSourcesAndPoints();
             const allPoints: GenericPoint[] = [];
+            
+            // Filter for generic points
             for (const src of sources) {
-                const res = await getGenericPoints(src.source_name);
-                if (res) allPoints.push(...res);
+                if (src.points) {
+                    for (const p of src.points) {
+                        if (p.type === 'generic') {
+                             // Map IntelligencePointPublic to GenericPoint
+                             allPoints.push({
+                                 id: p.id,
+                                 source_name: p.source_name,
+                                 point_name: p.point_name,
+                                 point_url: p.point_url,
+                                 cron_schedule: p.cron_schedule,
+                                 is_active: p.is_active,
+                                 created_at: p.created_at,
+                                 list_hint: p.list_hint,
+                                 list_filters: p.list_filters
+                             });
+                        }
+                    }
+                }
             }
             setPoints(allPoints);
         } catch (e) { console.error(e); } finally { setIsLoading(false); }

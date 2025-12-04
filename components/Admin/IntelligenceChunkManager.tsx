@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchChunkResult } from '../../types';
-import { searchChunks, getSources, exportChunks, SourcePublic } from '../../api';
+import { searchChunks, getSources, exportChunks, IntelligenceSourcePublic } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -25,9 +25,9 @@ export const IntelligenceChunkManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [filters, setFilters] = useState({ query_text: '', source_names: [] as string[], similarity_threshold: 0.5, top_k: 50 });
-    const [sources, setSources] = useState<SourcePublic[]>([]);
+    const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
 
-    useEffect(() => { getSources().then(setSources).catch(console.error); }, []);
+    useEffect(() => { getSources().then((sources: any[]) => setSources(sources as IntelligenceSourcePublic[])).catch(console.error); }, []);
 
     const handleSearch = async () => {
         if (!filters.query_text.trim()) return;

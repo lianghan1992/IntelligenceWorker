@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { InfoItem, SystemSource } from '../../types';
-import { getArticles, deleteArticles, getSources, SourcePublic, ArticlePublic } from '../../api';
+import { getArticles, deleteArticles, getSources, IntelligenceSourcePublic, ArticlePublic } from '../../api';
 import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckCircleIcon, DownloadIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -24,7 +24,7 @@ export const IntelligenceDataManager: React.FC = () => {
         publish_date_end: '',
     });
 
-    const [sources, setSources] = useState<SourcePublic[]>([]);
+    const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [selectedArticle, setSelectedArticle] = useState<ArticlePublic | null>(null);
@@ -35,7 +35,7 @@ export const IntelligenceDataManager: React.FC = () => {
 
     // Load Sources for Filter
     useEffect(() => {
-        getSources().then(setSources).catch(console.error);
+        getSources().then((sources: any[]) => setSources(sources as IntelligenceSourcePublic[])).catch(console.error);
     }, []);
 
     const loadArticles = useCallback(async () => {
@@ -199,7 +199,7 @@ export const IntelligenceDataManager: React.FC = () => {
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
                     >
                         <option value="">所有来源</option>
-                        {sources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                        {sources.map(s => <option key={s.id} value={s.source_name || (s as any).name}>{s.source_name || (s as any).name}</option>)}
                     </select>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">

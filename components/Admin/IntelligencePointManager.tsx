@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPointsBySourceName, deletePoints, createPoint, deleteSource, togglePoint, toggleSource, checkIntelligencePointHealth, runCrawler } from '../../api';
+import { getSources, getPoints, deletePoints, createPoint, deleteSource, togglePoint, toggleSource, checkPointHealth, runCrawlerSource } from '../../api';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon, GlobeIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -65,13 +65,13 @@ export const IntelligencePointManager: React.FC = () => {
             
             await Promise.all(mappedSources.map(async (source) => {
                 // Use source_name
-                const points = await getPointsBySourceName(source.source_name);
+                const points = await getPoints({ source_name: source.source_name });
                 // Map PointPublic to Subscription (Subscription is used in props as type)
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
                     source_name: p.source_name,
-                    point_name: p.name,
-                    point_url: p.url,
+                    point_name: p.point_name,
+                    point_url: p.point_url,
                     cron_schedule: p.cron_schedule,
                     is_active: p.is_active
                 }));
@@ -164,7 +164,7 @@ export const IntelligencePointManager: React.FC = () => {
     const handleCheckHealth = async (point: Subscription) => {
         setCheckingHealth(point.id);
         try {
-            const res = await checkIntelligencePointHealth(point.id);
+            const res = await checkPointHealth(point.id);
             setHealthStatus(prev => ({ ...prev, [point.id]: res }));
         } catch (e: any) {
             setHealthStatus(prev => ({ ...prev, [point.id]: { status: 'error', message: e.message } }));
@@ -178,7 +178,7 @@ export const IntelligencePointManager: React.FC = () => {
         if (runningSource) return;
         setRunningSource(source.source_name);
         try {
-            await runCrawler(source.source_name);
+            await runCrawlerSource(source.source_name);
             alert(`已触发 "${source.source_name}" 的立即采集任务，请关注系统看板的指标变化。`);
         } catch (e: any) {
             alert(`启动失败: ${e.message}`);
