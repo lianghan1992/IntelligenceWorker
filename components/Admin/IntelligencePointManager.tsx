@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPoints, deletePoints, createPoint, deleteSource, togglePoint, toggleSource, checkPointHealth, runCrawlerSource } from '../../api';
-import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon, GlobeIcon, StopIcon } from '../icons';
+import { getSources, getPoints, deletePoints, deleteSource, togglePoint, toggleSource, runCrawlerSource } from '../../api';
+import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CloseIcon, ServerIcon, PlayIcon, ChevronRightIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
 import { IntelligenceStats } from './IntelligenceTaskManager';
@@ -37,13 +37,10 @@ export const IntelligencePointManager: React.FC = () => {
     const [confirmDeleteSource, setConfirmDeleteSource] = useState<SystemSource | null>(null);
     const [confirmDeletePoint, setConfirmDeletePoint] = useState<Subscription | null>(null);
     
-    const [healthStatus, setHealthStatus] = useState<Record<string, { status: string, message: string }>>({});
-    const [checkingHealth, setCheckingHealth] = useState<string | null>(null);
     const [togglingPoint, setTogglingPoint] = useState<string | null>(null);
-    const [togglingSource, setTogglingSource] = useState<string | null>(null);
     const [runningSource, setRunningSource] = useState<string | null>(null);
     
-    // Expanded states for accordion - Default open all for better overview in new design
+    // Expanded states for accordion
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
 
     const fetchData = useCallback(async () => {
@@ -51,12 +48,12 @@ export const IntelligencePointManager: React.FC = () => {
         setError(null);
         try {
             const fetchedSources = await getSources();
-            // Map SourcePublic to SystemSource
+            // Map IntelligenceSourcePublic to SystemSource
             const mappedSources: SystemSource[] = fetchedSources.map(s => ({
                 id: s.id,
                 source_name: s.name,
-                source_type: 'manual', // default or determine from props
-                points_count: s.points_count
+                points_count: s.points_count,
+                articles_count: s.articles_count
             }));
             setSources(mappedSources);
 
@@ -64,16 +61,18 @@ export const IntelligencePointManager: React.FC = () => {
             const initialExpanded = new Set<string>();
             
             await Promise.all(mappedSources.map(async (source) => {
-                // Use source_name
                 const points = await getPoints({ source_name: source.source_name });
-                // Map PointPublic to Subscription (Subscription is used in props as type)
+                // Map IntelligencePointPublic to Subscription
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
+                    source_id: p.source_id,
                     source_name: p.source_name,
-                    point_name: p.point_name,
-                    point_url: p.point_url,
+                    point_name: p.name,
+                    point_url: p.url,
                     cron_schedule: p.cron_schedule,
-                    is_active: p.is_active
+                    is_active: p.is_active,
+                    url_filters: p.url_filters,
+                    extra_hint: p.extra_hint
                 }));
                 initialExpanded.add(source.source_name);
             }));
@@ -107,6 +106,7 @@ export const IntelligencePointManager: React.FC = () => {
     const handleDeleteSource = async () => {
         if (!confirmDeleteSource) return;
         try {
+            // Assuming we delete all points to 'delete' the source effectivly
             await deleteSource(confirmDeleteSource.source_name);
             fetchData();
         } catch (e: any) {
@@ -127,7 +127,7 @@ export const IntelligencePointManager: React.FC = () => {
                 const newMap = { ...prev };
                 const list = newMap[point.source_name];
                 if (list) {
-                    newMap[point.source_name] = list.map(p => p.id === point.id ? { ...p, is_active: newStatus ? 1 : 0 } : p);
+                    newMap[point.source_name] = list.map(p => p.id === point.id ? { ...p, is_active: newStatus } : p);
                 }
                 return newMap;
             });
@@ -140,36 +140,23 @@ export const IntelligencePointManager: React.FC = () => {
 
     const handleToggleSource = async (e: React.MouseEvent, sourceName: string, currentStatus: boolean) => {
         e.stopPropagation();
-        setTogglingSource(sourceName);
         try {
             const newStatus = !currentStatus;
-            await toggleSource(sourceName, newStatus);
+            // Toggle all points under this source
+            const points = pointsBySource[sourceName] || [];
+            await Promise.all(points.map(p => togglePoint(p.id, newStatus)));
             
-            // Optimistic update all points under this source
+            // Optimistic update
             setPointsBySource(prev => {
                 const newMap = { ...prev };
                 const list = newMap[sourceName];
                 if (list) {
-                    newMap[sourceName] = list.map(p => ({ ...p, is_active: newStatus ? 1 : 0 }));
+                    newMap[sourceName] = list.map(p => ({ ...p, is_active: newStatus }));
                 }
                 return newMap;
             });
         } catch (e: any) {
             alert(`源状态切换失败: ${e.message}`);
-        } finally {
-            setTogglingSource(null);
-        }
-    };
-
-    const handleCheckHealth = async (point: Subscription) => {
-        setCheckingHealth(point.id);
-        try {
-            const res = await checkPointHealth(point.id);
-            setHealthStatus(prev => ({ ...prev, [point.id]: res }));
-        } catch (e: any) {
-            setHealthStatus(prev => ({ ...prev, [point.id]: { status: 'error', message: e.message } }));
-        } finally {
-            setCheckingHealth(null);
         }
     };
 
@@ -179,7 +166,7 @@ export const IntelligencePointManager: React.FC = () => {
         setRunningSource(source.source_name);
         try {
             await runCrawlerSource(source.source_name);
-            alert(`已触发 "${source.source_name}" 的立即采集任务，请关注系统看板的指标变化。`);
+            alert(`已触发 "${source.source_name}" 的立即采集任务。`);
         } catch (e: any) {
             alert(`启动失败: ${e.message}`);
         } finally {
@@ -209,7 +196,7 @@ export const IntelligencePointManager: React.FC = () => {
     return (
         <div className="h-full flex flex-col space-y-6">
             
-            {/* 1. Dashboard Section (Merged) */}
+            {/* 1. Dashboard Section */}
             <section className="flex-shrink-0">
                 <IntelligenceStats compact={false} />
             </section>
@@ -239,7 +226,7 @@ export const IntelligencePointManager: React.FC = () => {
 
                 {error && <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-100 text-sm flex items-center gap-2"><CloseIcon className="w-4 h-4"/>{error}</div>}
 
-                {/* Multi-dimensional Table Container */}
+                {/* Table Container */}
                 <div className="flex-1 overflow-auto custom-scrollbar">
                     {/* Desktop Table View */}
                     <table className="w-full text-sm text-left hidden md:table">
@@ -249,15 +236,14 @@ export const IntelligencePointManager: React.FC = () => {
                                 <th className="px-6 py-3 font-medium">目标 URL</th>
                                 <th className="px-6 py-3 font-medium w-40">采集频率</th>
                                 <th className="px-6 py-3 font-medium w-32">运行状态</th>
-                                <th className="px-6 py-3 font-medium w-32">健康检查</th>
                                 <th className="px-6 py-3 font-medium text-right w-24">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {isLoading && sources.length === 0 ? (
-                                <tr><td colSpan={6} className="py-20 text-center text-slate-400">加载中...</td></tr>
+                                <tr><td colSpan={5} className="py-20 text-center text-slate-400">加载中...</td></tr>
                             ) : sources.length === 0 ? (
-                                <tr><td colSpan={6} className="py-20 text-center text-slate-400">暂无配置</td></tr>
+                                <tr><td colSpan={5} className="py-20 text-center text-slate-400">暂无配置</td></tr>
                             ) : sources.map(source => {
                                 const points = pointsBySource[source.source_name] || [];
                                 const isExpanded = expandedSources.has(source.source_name);
@@ -267,7 +253,7 @@ export const IntelligencePointManager: React.FC = () => {
                                     <React.Fragment key={source.id}>
                                         {/* Source Group Header */}
                                         <tr className="bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
-                                            <td colSpan={6} className="px-4 py-2">
+                                            <td colSpan={5} className="px-4 py-2">
                                                 <div className="flex items-center justify-between">
                                                     <div 
                                                         className="flex items-center gap-3 cursor-pointer select-none"
@@ -285,7 +271,6 @@ export const IntelligencePointManager: React.FC = () => {
                                                     
                                                     {/* Source Actions Toolbar */}
                                                     <div className="flex items-center gap-4">
-                                                        {/* Run Now */}
                                                         <button
                                                             onClick={(e) => handleRunCrawler(e, source)}
                                                             disabled={runningSource === source.source_name}
@@ -298,7 +283,6 @@ export const IntelligencePointManager: React.FC = () => {
                                                             运行
                                                         </button>
 
-                                                        {/* Toggle All */}
                                                         <button
                                                             onClick={(e) => handleToggleSource(e, source.source_name, isActive)}
                                                             className={`text-xs font-medium flex items-center gap-1 px-2 py-1 rounded transition-colors ${
@@ -352,25 +336,6 @@ export const IntelligencePointManager: React.FC = () => {
                                                     >
                                                         <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${point.is_active ? 'translate-x-4' : 'translate-x-0'}`} />
                                                     </button>
-                                                </td>
-                                                <td className="px-6 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        {healthStatus[point.id] ? (
-                                                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${healthStatus[point.id].status === 'healthy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                                                {healthStatus[point.id].status === 'healthy' ? '正常' : '异常'}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-xs text-slate-300">--</span>
-                                                        )}
-                                                        <button 
-                                                            onClick={() => handleCheckHealth(point)} 
-                                                            disabled={checkingHealth === point.id}
-                                                            className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded"
-                                                            title="检查连接"
-                                                        >
-                                                            <ShieldCheckIcon className={`w-4 h-4 ${checkingHealth === point.id ? 'animate-pulse text-indigo-400' : ''}`} />
-                                                        </button>
-                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-3 text-right">
                                                     <button 
@@ -427,9 +392,6 @@ export const IntelligencePointManager: React.FC = () => {
                                                         <ClockIcon className="w-3 h-3" /> {getCronLabel(point.cron_schedule)}
                                                     </span>
                                                     <div className="flex gap-3">
-                                                        <button onClick={() => handleCheckHealth(point)} className="text-indigo-600 flex items-center gap-1">
-                                                            <ShieldCheckIcon className="w-3 h-3" /> 检查
-                                                        </button>
                                                         <button onClick={() => setConfirmDeletePoint(point)} className="text-red-500 flex items-center gap-1">
                                                             <TrashIcon className="w-3 h-3" /> 删除
                                                         </button>
@@ -450,7 +412,7 @@ export const IntelligencePointManager: React.FC = () => {
             {confirmDeleteSource && (
                 <ConfirmationModal
                     title="删除情报源"
-                    message={`确定要删除 "${confirmDeleteSource.source_name}" 及其下所有采集点和历史数据吗？此操作不可恢复。`}
+                    message={`确定要删除 "${confirmDeleteSource.source_name}" 及其下所有采集点吗？`}
                     onConfirm={handleDeleteSource}
                     onCancel={() => setConfirmDeleteSource(null)}
                     confirmText="确认删除"

@@ -39,11 +39,14 @@ export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 
 
 export interface Subscription {
     id: string;
+    source_id?: string;
     source_name: string;
     point_name: string;
     point_url: string;
     cron_schedule: string;
     is_active: boolean | number;
+    url_filters?: string[];
+    extra_hint?: string;
 }
 
 export interface PlanDetails {
@@ -88,8 +91,12 @@ export interface LivestreamPrompt {
 export interface SystemSource {
     id: string;
     source_name: string;
-    source_type: string;
+    main_url?: string;
     points_count?: number;
+    articles_count?: number;
+    created_at?: string;
+    // UI helper
+    points?: Subscription[];
 }
 
 export interface InfoItem {
@@ -380,14 +387,27 @@ export interface PendingArticle {
     id: string;
     source_name: string;
     point_name: string;
-    point_url: string;
+    point_url?: string;
     original_url: string;
     title: string;
-    publish_date: string;
-    crawl_metadata?: any;
-    content?: string; // Content is now optional for list view, but present for detail view
+    publish_date?: string;
+    content?: string; 
     status?: string;
     created_at?: string;
+}
+
+// New Task Public Interface for Intelligence Collection
+export interface TaskPublic {
+    id: string;
+    source_name: string;
+    point_name: string;
+    task_type: string;
+    url: string;
+    status: string;
+    start_time?: string;
+    end_time?: string;
+    retry_count: number;
+    created_at: string;
 }
 
 export interface CrawlerPoint {

@@ -7,7 +7,7 @@ import {
     getPendingArticles, getPendingArticleDetail, confirmPendingArticles, rejectPendingArticles,
     getArticles, getArticleHtml, generateArticlePdf, downloadArticlePdf,
     IntelligenceSourcePublic, IntelligencePointPublic, GenericCrawlerTaskPublic, 
-    PendingArticlePublic, ArticlePublic
+    PendingArticlePublic, ArticlePublic, DashboardSource, DashboardPoint
 } from '../../api/intelligence';
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
@@ -89,7 +89,7 @@ const OverviewPanel: React.FC = () => {
 // --- 2. Configuration Panel (Unified Sources & Points) ---
 
 const ConfigPanel: React.FC = () => {
-    const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
+    const [sources, setSources] = useState<DashboardSource[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
     
@@ -139,7 +139,7 @@ const ConfigPanel: React.FC = () => {
         setIsPointModalOpen(true);
     };
 
-    const handleOpenEdit = (point: IntelligencePointPublic) => {
+    const handleOpenEdit = (point: DashboardPoint) => {
         setModalData({
             id: point.id,
             source_name: point.source_name,
@@ -176,16 +176,20 @@ const ConfigPanel: React.FC = () => {
                     alert("Manual points update not supported via API directly. Recreating...");
                     await deletePoints([modalData.id]);
                     await createPoint({ 
-                        source_name: modalData.source_name, point_name: modalData.point_name, 
-                        point_url: modalData.point_url, cron_schedule: modalData.cron 
+                        source_name: modalData.source_name, 
+                        name: modalData.point_name, 
+                        url: modalData.point_url, 
+                        cron_schedule: modalData.cron 
                     });
                 }
             } else {
                 // Creating
                 if (modalData.type === 'manual') {
                     await createPoint({ 
-                        source_name: modalData.source_name, point_name: modalData.point_name, 
-                        point_url: modalData.point_url, cron_schedule: modalData.cron 
+                        source_name: modalData.source_name, 
+                        name: modalData.point_name, 
+                        url: modalData.point_url, 
+                        cron_schedule: modalData.cron 
                     });
                 } else {
                     await createGenericPoint({
@@ -218,7 +222,7 @@ const ConfigPanel: React.FC = () => {
         try { await deleteSource(name); fetchData(); } catch (e) { alert('删除失败'); }
     };
 
-    const handleHealthCheck = async (point: IntelligencePointPublic) => {
+    const handleHealthCheck = async (point: DashboardPoint) => {
         setCheckingHealthId(point.id);
         try {
             const res = await checkPointHealth(point.id);
@@ -230,7 +234,7 @@ const ConfigPanel: React.FC = () => {
         }
     };
 
-    const handleRunNow = async (source: IntelligenceSourcePublic, point?: IntelligencePointPublic) => {
+    const handleRunNow = async (source: DashboardSource, point?: DashboardPoint) => {
         const id = point ? point.id : source.source_name;
         setRunningId(id);
         try {
@@ -447,8 +451,16 @@ const ReviewPanel: React.FC = () => {
     const openDetail = async (id: string) => {
         setLoadingDetail(true);
         try {
-            const detail = await getPendingArticleDetail(id);
-            setViewingArticle(detail);
+            // Since detail endpoint is mocked as error in API, 
+            // we will simulate finding it from current list or just fail gracefully.
+            // In real app, pending list usually contains enough info for review or specific detail api exists.
+            const item = articles.find(a => a.id === id);
+            if (item) {
+                setViewingArticle(item);
+            } else {
+                const detail = await getPendingArticleDetail(id);
+                setViewingArticle(detail);
+            }
         } catch (e) { alert('加载详情失败'); }
         finally { setLoadingDetail(false); }
     };

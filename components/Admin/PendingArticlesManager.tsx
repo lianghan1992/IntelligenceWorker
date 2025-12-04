@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PendingArticlePublic } from '../../api/intelligence';
-import { getPendingArticles, confirmPendingArticles, deletePendingArticles, getPendingArticleDetail } from '../../api';
+import { getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api';
 import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -12,50 +12,28 @@ const Spinner: React.FC = () => (
 );
 
 const PendingArticleDetailModal: React.FC<{ 
-    articleId: string; 
+    article: PendingArticlePublic; 
     onClose: () => void; 
-    onAction: (id: string, action: 'confirm' | 'delete') => void;
-}> = ({ articleId, onClose, onAction }) => {
-    const [detail, setDetail] = useState<PendingArticlePublic | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            try {
-                // Calls: GET /api/crawler/pending/articles/{article_id}
-                const res = await getPendingArticleDetail(articleId);
-                setDetail(res as unknown as PendingArticlePublic); // Assuming apiFetch returns appropriate type
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
-    }, [articleId]);
-
-    if (loading) return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"><div className="bg-white p-4 rounded-xl"><svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg></div></div>;
-    if (!detail) return null;
-
+    onAction: (id: string, action: 'confirm' | 'reject') => void;
+}> = ({ article, onClose, onAction }) => {
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-start bg-slate-50">
                     <div className="pr-8">
-                        <h3 className="text-lg font-bold text-slate-900 leading-snug">{detail.title}</h3>
+                        <h3 className="text-lg font-bold text-slate-900 leading-snug">{article.title}</h3>
                         <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">{detail.source_name}</span>
-                            <span className="font-mono text-slate-400">{detail.point_name}</span>
+                            <span className="bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-medium">{article.source_name}</span>
+                            <span className="font-mono text-slate-400">{article.point_name}</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                            <a href={detail.original_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                            <a href={article.original_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
                                 <ExternalLinkIcon className="w-3 h-3"/> 原文链接
                             </a>
-                            {detail.publish_date && (
+                            {article.publish_date && (
                                 <>
                                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                    <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(detail.publish_date).toLocaleString()}</span>
+                                    <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(article.publish_date).toLocaleString()}</span>
                                 </>
                             )}
                         </div>
@@ -69,7 +47,7 @@ const PendingArticleDetailModal: React.FC<{
                     <div className="flex-1 bg-white p-8 border-r border-slate-200 shadow-sm overflow-auto custom-scrollbar">
                         <h4 className="font-bold text-xs text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">文章正文</h4>
                         <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
-                            {detail.content ? detail.content : <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200"><p>内容为空或未抓取正文</p></div>}
+                            {article.content ? article.content : <div className="flex flex-col items-center justify-center py-20 text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200"><p>内容为空或未抓取正文</p></div>}
                         </div>
                     </div>
 
@@ -80,7 +58,7 @@ const PendingArticleDetailModal: React.FC<{
                                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> 抓取元数据
                             </h4>
                             <div className="text-xs font-mono bg-slate-900 text-slate-300 p-3 rounded-lg border border-slate-800 overflow-auto max-h-80 custom-scrollbar">
-                                <pre>{JSON.stringify(detail.crawl_metadata || {}, null, 2)}</pre>
+                                <pre>{JSON.stringify(article.crawl_metadata || {}, null, 2)}</pre>
                             </div>
                         </div>
                         
@@ -91,15 +69,15 @@ const PendingArticleDetailModal: React.FC<{
                             <div className="space-y-3 text-xs">
                                 <div className="flex justify-between border-b border-slate-50 pb-2">
                                     <span className="text-slate-400">ID</span>
-                                    <span className="font-mono text-slate-600 select-all">{detail.id.substring(0,8)}...</span>
+                                    <span className="font-mono text-slate-600 select-all">{article.id.substring(0,8)}...</span>
                                 </div>
                                 <div className="flex justify-between border-b border-slate-50 pb-2">
                                     <span className="text-slate-400">状态</span>
-                                    <span className="font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded">{detail.status || 'Pending'}</span>
+                                    <span className="font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded">{article.status || 'Pending'}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-400">抓取时间</span>
-                                    <span className="text-slate-600">{new Date(detail.created_at || '').toLocaleDateString()}</span>
+                                    <span className="text-slate-600">{new Date(article.created_at || '').toLocaleDateString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -108,10 +86,10 @@ const PendingArticleDetailModal: React.FC<{
 
                 {/* Footer Actions */}
                 <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 z-10">
-                    <button onClick={() => onAction(detail.id, 'delete')} className="px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl text-sm font-bold border border-red-200 transition-colors flex items-center gap-2">
-                        <TrashIcon className="w-4 h-4"/> 拒绝并删除
+                    <button onClick={() => onAction(article.id, 'reject')} className="px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl text-sm font-bold border border-red-200 transition-colors flex items-center gap-2">
+                        <TrashIcon className="w-4 h-4"/> 拒绝并排除
                     </button>
-                    <button onClick={() => onAction(detail.id, 'confirm')} className="px-6 py-2.5 text-white bg-green-600 hover:bg-green-700 rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+                    <button onClick={() => onAction(article.id, 'confirm')} className="px-6 py-2.5 text-white bg-green-600 hover:bg-green-700 rounded-xl text-sm font-bold shadow-lg shadow-green-500/20 transition-all hover:-translate-y-0.5 flex items-center gap-2">
                         <CheckIcon className="w-4 h-4"/> 确认入库
                     </button>
                 </div>
@@ -129,7 +107,7 @@ export const PendingArticlesManager: React.FC = () => {
     const [processing, setProcessing] = useState(false);
     
     // View detail state
-    const [viewingArticleId, setViewingArticleId] = useState<string | null>(null);
+    const [viewingArticle, setViewingArticle] = useState<PendingArticlePublic | null>(null);
 
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
@@ -143,15 +121,15 @@ export const PendingArticlesManager: React.FC = () => {
 
     useEffect(() => { fetchArticles(); }, [fetchArticles]);
 
-    const handleAction = async (action: 'confirm' | 'delete', ids?: string[]) => {
+    const handleAction = async (action: 'confirm' | 'reject', ids?: string[]) => {
         const targetIds = ids || Array.from(selectedIds);
         if (targetIds.length === 0) return;
         setProcessing(true);
         try {
             if (action === 'confirm') await confirmPendingArticles(targetIds);
-            else await deletePendingArticles(targetIds);
+            else await rejectPendingArticles(targetIds);
             fetchArticles();
-            if (viewingArticleId && targetIds.includes(viewingArticleId)) setViewingArticleId(null);
+            if (viewingArticle && targetIds.includes(viewingArticle.id)) setViewingArticle(null);
         } catch (e) { alert('操作失败'); } finally { setProcessing(false); }
     };
 
@@ -179,8 +157,8 @@ export const PendingArticlesManager: React.FC = () => {
                     </button>
                     {selectedIds.size > 0 && (
                         <>
-                            <button onClick={() => handleAction('delete')} disabled={processing} className="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1.5">
-                                {processing ? <Spinner /> : <TrashIcon className="w-3.5 h-3.5"/>} 删除 ({selectedIds.size})
+                            <button onClick={() => handleAction('reject')} disabled={processing} className="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1.5">
+                                {processing ? <Spinner /> : <TrashIcon className="w-3.5 h-3.5"/>} 排除 ({selectedIds.size})
                             </button>
                             <button onClick={() => handleAction('confirm')} disabled={processing} className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-all flex items-center gap-1.5 shadow-md hover:-translate-y-0.5">
                                 {processing ? <Spinner /> : <CheckCircleIcon className="w-3.5 h-3.5"/>} 入库 ({selectedIds.size})
@@ -222,11 +200,10 @@ export const PendingArticlesManager: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between items-end">
                                     <div className="bg-slate-50 p-2 rounded-lg text-[10px] font-mono text-slate-500 break-all border border-slate-100/50 max-w-md truncate">
-                                        {/* JSON.stringify might fail on undefined props, added safety */}
                                         {article.crawl_metadata ? JSON.stringify(article.crawl_metadata) : '{}'}
                                     </div>
                                     <button 
-                                        onClick={(e) => { e.stopPropagation(); setViewingArticleId(article.id); }}
+                                        onClick={(e) => { e.stopPropagation(); setViewingArticle(article); }}
                                         className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
                                     >
                                         <EyeIcon className="w-3.5 h-3.5"/> 详情
@@ -249,10 +226,10 @@ export const PendingArticlesManager: React.FC = () => {
             </div>
 
             {/* Detail Modal */}
-            {viewingArticleId && (
+            {viewingArticle && (
                 <PendingArticleDetailModal 
-                    articleId={viewingArticleId}
-                    onClose={() => setViewingArticleId(null)}
+                    article={viewingArticle}
+                    onClose={() => setViewingArticle(null)}
                     onAction={(id, action) => handleAction(action, [id])}
                 />
             )}

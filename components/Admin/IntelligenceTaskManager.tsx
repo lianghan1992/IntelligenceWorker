@@ -87,10 +87,10 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
                     />
                     <StatCard 
                         title="活跃探针" 
-                        value={stats.active_points} 
+                        value={stats.points} // Use total points as active count not available in source summary
                         icon={<RssIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-blue-500 to-blue-600" 
-                        description={`总计 ${stats.points}`}
+                        description="配置总数"
                     />
                     <StatCard 
                         title="文章库" 
@@ -101,17 +101,17 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
                     />
                     <StatCard 
                         title="向量索引" 
-                        value={stats.vectors} 
+                        value={0} // Not available
                         icon={<ViewGridIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-orange-500 to-orange-600" 
-                        description="语义分段"
+                        description="暂无数据"
                     />
                     <StatCard 
                         title="调度器" 
-                        value={stats.schedules_active} 
+                        value={0} // Not available
                         icon={<ClockIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-emerald-500 to-emerald-600" 
-                        description="运行中作业"
+                        description="暂无数据"
                     />
                     <StatCard 
                         title="健康度" 

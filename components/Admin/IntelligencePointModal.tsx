@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ChevronUpDownIcon } from '../icons';
-import { createPoint, deletePoints } from '../../api';
+import { createPoint, deletePoints, getSources } from '../../api'; // Use getSources from API
 import { Subscription, SystemSource } from '../../types';
 
 interface IntelligencePointModalProps {
@@ -33,7 +34,9 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         source_name: '',
         point_name: '',
         point_url: '',
-        cron_schedule: '0 */6 * * *', // Default
+        cron_schedule: '0 */6 * * *',
+        url_filters: '',
+        extra_hint: ''
     });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -47,6 +50,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 point_name: pointToEdit.point_name,
                 point_url: pointToEdit.point_url,
                 cron_schedule: pointToEdit.cron_schedule,
+                url_filters: pointToEdit.url_filters ? pointToEdit.url_filters.join(',') : '',
+                extra_hint: pointToEdit.extra_hint || ''
             });
         }
     }, [pointToEdit]);
@@ -63,7 +68,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
     const isFormValid = formData.source_name.trim() && formData.point_name.trim() && formData.point_url.trim() && formData.cron_schedule.trim();
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
@@ -78,23 +83,20 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         setIsLoading(true);
         setError('');
         try {
+            // "Edit" is implemented as Create + Delete since update might not be fully supported or to ensure clean state
             if (pointToEdit) {
-                // "Edit" is implemented as Create + Delete since there's no update API
-                await createPoint({
-                    source_name: formData.source_name,
-                    point_name: formData.point_name,
-                    point_url: formData.point_url,
-                    cron_schedule: formData.cron_schedule
-                });
                 await deletePoints([pointToEdit.id]);
-            } else {
-                await createPoint({
-                    source_name: formData.source_name,
-                    point_name: formData.point_name,
-                    point_url: formData.point_url,
-                    cron_schedule: formData.cron_schedule
-                });
             }
+            
+            await createPoint({
+                source_name: formData.source_name,
+                name: formData.point_name,
+                url: formData.point_url,
+                cron_schedule: formData.cron_schedule,
+                url_filters: formData.url_filters ? formData.url_filters.split(',').map(s => s.trim()).filter(Boolean) : undefined,
+                extra_hint: formData.extra_hint || undefined
+            });
+
             onSuccess();
             onClose();
         } catch (err: any) {
@@ -135,8 +137,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                         <input name="point_name" type="text" value={formData.point_name} onChange={handleChange} placeholder="例如：行业资讯" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">情报点URL <span className="text-red-500">*</span></label>
-                        <input name="point_url" type="url" value={formData.point_url} onChange={handleChange} placeholder="https://auto.gasgoo.com/news/C-101" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">列表页 URL <span className="text-red-500">*</span></label>
+                        <input name="point_url" type="url" value={formData.point_url} onChange={handleChange} placeholder="https://..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
                     </div>
                     {/* Custom Dropdown for Cron */}
                     <div ref={dropdownRef}>
@@ -158,6 +160,15 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                 </ul>
                             )}
                         </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">URL 过滤 (可选)</label>
+                        <input name="url_filters" type="text" value={formData.url_filters} onChange={handleChange} placeholder="https://site.com/news/, https://site.com/tech/ (逗号分隔)" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" disabled={isLoading} />
+                        <p className="text-xs text-gray-500 mt-1">仅采集以此前缀开头的文章链接</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">LLM 解析提示 (可选)</label>
+                        <textarea name="extra_hint" value={formData.extra_hint} onChange={handleChange} placeholder="例如：只提取包含“智能座舱”的条目" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none" disabled={isLoading} />
                     </div>
                 </div>
 

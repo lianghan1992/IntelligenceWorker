@@ -199,7 +199,7 @@ export const IntelligenceDataManager: React.FC = () => {
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
                     >
                         <option value="">所有来源</option>
-                        {sources.map(s => <option key={s.id} value={s.source_name || (s as any).name}>{s.source_name || (s as any).name}</option>)}
+                        {sources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">
