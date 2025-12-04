@@ -337,7 +337,7 @@ const ReviewPanel: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getPendingArticles({ limit: 50 });
-            setArticles(res);
+            setArticles(res.items || []);
             setSelectedIds(new Set());
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, []);
@@ -440,7 +440,7 @@ const AssetPanel: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getArticles({ limit: 50 });
-            setArticles(res);
+            setArticles(res.items || []);
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, []);
 
