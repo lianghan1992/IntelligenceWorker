@@ -10,7 +10,8 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
     }
     
     // Only set JSON content type if body is NOT FormData AND NOT URLSearchParams
-    if (!(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && options.method !== 'GET' && options.method !== 'DELETE') {
+    // Allow DELETE to have body now for batch operations (removed && options.method !== 'DELETE')
+    if (!(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && options.method !== 'GET') {
         headers.set('Content-Type', 'application/json');
     }
 
