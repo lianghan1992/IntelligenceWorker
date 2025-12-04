@@ -3,13 +3,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
     getSources, createSource, deleteSource,
     getPoints, deletePoints, togglePoint, runPoint,
-    getTasks, IntelligenceSourcePublic, IntelligencePointPublic, IntelligenceTaskPublic
+    IntelligenceSourcePublic, IntelligencePointPublic
 } from '../../api/intelligence';
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
-    ClockIcon, ChartIcon, GearIcon, SparklesIcon,
-    ChevronRightIcon
+    ClockIcon, ChartIcon, GearIcon, SparklesIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PendingArticlesManager } from './PendingArticlesManager';
@@ -19,6 +18,7 @@ import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { IntelligenceStats } from './IntelligenceTaskManager';
+import { IntelligenceTasksPanel } from './IntelligenceTasksPanel';
 
 // --- Shared Components ---
 
@@ -39,7 +39,6 @@ const ConfigPanel: React.FC = () => {
     const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
     const [selectedSource, setSelectedSource] = useState<IntelligenceSourcePublic | null>(null);
     const [points, setPoints] = useState<IntelligencePointPublic[]>([]);
-    const [tasks, setTasks] = useState<IntelligenceTaskPublic[]>([]);
     
     // UI States
     const [isLoadingSources, setIsLoadingSources] = useState(false);
@@ -68,23 +67,17 @@ const ConfigPanel: React.FC = () => {
 
     useEffect(() => { fetchSources(); }, [fetchSources]);
 
-    const fetchPointsAndTasks = useCallback(async () => {
+    const fetchPoints = useCallback(async () => {
         if (!selectedSource) return;
         setIsLoadingPoints(true);
         try {
-            // Parallel fetch points and tasks
-            const [pts, tskRes] = await Promise.all([
-                getPoints({ source_name: selectedSource.name }),
-                // Assuming backend supports filtering tasks by source if needed, or we just show global recent
-                getTasks({ limit: 10 }) 
-            ]);
+            const pts = await getPoints({ source_name: selectedSource.name });
             setPoints(pts);
-            setTasks(tskRes.items || []);
         } catch (e) { console.error(e); }
         finally { setIsLoadingPoints(false); }
     }, [selectedSource]);
 
-    useEffect(() => { fetchPointsAndTasks(); }, [fetchPointsAndTasks]);
+    useEffect(() => { fetchPoints(); }, [fetchPoints]);
 
     const handleCreateSource = async () => {
         if (!newSourceForm.name || !newSourceForm.main_url) return;
@@ -113,7 +106,7 @@ const ConfigPanel: React.FC = () => {
         try {
             await deletePoints([confirmDelete.data.id]);
             setConfirmDelete(null);
-            fetchPointsAndTasks();
+            fetchPoints();
         } catch (e) { alert('删除失败'); }
     };
 
@@ -130,7 +123,6 @@ const ConfigPanel: React.FC = () => {
         try {
             await runPoint(point.id);
             alert('采集任务已触发');
-            fetchPointsAndTasks(); // Refresh tasks list
         } catch (e) { alert('启动失败'); }
     };
 
@@ -209,7 +201,7 @@ const ConfigPanel: React.FC = () => {
                 </div>
             </div>
 
-            {/* Main Area: Points & Tasks */}
+            {/* Main Area: Points */}
             <div className="flex-1 flex flex-col min-w-0 bg-white">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-20">
@@ -226,7 +218,7 @@ const ConfigPanel: React.FC = () => {
                     </div>
                     {selectedSource && (
                         <div className="flex gap-2">
-                            <button onClick={fetchPointsAndTasks} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors">
+                            <button onClick={fetchPoints} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors">
                                 <RefreshIcon className={`w-5 h-5 ${isLoadingPoints ? 'animate-spin' : ''}`} />
                             </button>
                             <button 
@@ -307,43 +299,6 @@ const ConfigPanel: React.FC = () => {
                                     </div>
                                 )}
                             </section>
-
-                            {/* Recent Tasks Section */}
-                            <section>
-                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                    <ClockIcon className="w-4 h-4" /> 系统近期任务
-                                </h4>
-                                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                                    <table className="w-full text-sm text-left text-slate-500">
-                                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
-                                            <tr>
-                                                <th className="px-6 py-3">任务类型</th>
-                                                <th className="px-6 py-3">来源/点位</th>
-                                                <th className="px-6 py-3">状态</th>
-                                                <th className="px-6 py-3">开始时间</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {tasks.map(t => (
-                                                <tr key={t.id} className="hover:bg-slate-50">
-                                                    <td className="px-6 py-3 font-medium text-slate-800">{t.task_type}</td>
-                                                    <td className="px-6 py-3">
-                                                        <div className="text-xs">{t.source_name}</div>
-                                                        <div className="text-slate-400 text-[10px]">{t.point_name}</div>
-                                                    </td>
-                                                    <td className="px-6 py-3">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === '已完成' ? 'bg-green-100 text-green-700' : t.status === '已失败' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                            {t.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-3 text-xs font-mono">{t.start_time ? new Date(t.start_time).toLocaleString() : '-'}</td>
-                                                </tr>
-                                            ))}
-                                            {tasks.length === 0 && <tr><td colSpan={4} className="text-center py-8 text-slate-400">暂无近期任务</td></tr>}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </section>
                         </div>
                     )}
                 </div>
@@ -353,7 +308,7 @@ const ConfigPanel: React.FC = () => {
             {isPointModalOpen && selectedSource && (
                 <IntelligencePointModal 
                     onClose={() => setIsPointModalOpen(false)} 
-                    onSuccess={fetchPointsAndTasks} 
+                    onSuccess={fetchPoints} 
                     pointToEdit={null} // Create Mode
                     sources={[selectedSource]} 
                     preSelectedSourceId={selectedSource.name}
@@ -389,16 +344,16 @@ const OverviewPanel: React.FC = () => {
 
 // --- Main Layout ---
 export const IntelligenceDashboard: React.FC = () => {
-    const [tab, setTab] = useState<'overview' | 'config' | 'pending' | 'data' | 'chunks' | 'llm' | 'settings'>('overview');
+    const [tab, setTab] = useState<'overview' | 'config' | 'tasks' | 'pending' | 'data' | 'chunks' | 'llm' | 'settings'>('overview');
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Header Tabs */}
             <div className="bg-white border-b px-6 pt-6 pb-0 flex-shrink-0 shadow-sm z-20 overflow-x-auto">
-                <h1 className="text-2xl font-extrabold text-slate-800 mb-6 tracking-tight">情报中台管理</h1>
                 <div className="flex gap-8">
                     <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={ChartIcon} label="概览" />
                     <TabButton active={tab === 'config'} onClick={() => setTab('config')} icon={ServerIcon} label="采集配置" />
+                    <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')} icon={ClockIcon} label="系统任务" />
                     <TabButton active={tab === 'pending'} onClick={() => setTab('pending')} icon={CheckCircleIcon} label="待审文章" />
                     <TabButton active={tab === 'data'} onClick={() => setTab('data')} icon={DatabaseIcon} label="情报资产" />
                     <TabButton active={tab === 'chunks'} onClick={() => setTab('chunks')} icon={ViewListIcon} label="向量索引" />
@@ -411,6 +366,7 @@ export const IntelligenceDashboard: React.FC = () => {
             <div className="flex-1 overflow-hidden relative">
                 {tab === 'overview' && <OverviewPanel />}
                 {tab === 'config' && <ConfigPanel />}
+                {tab === 'tasks' && <IntelligenceTasksPanel />}
                 {tab === 'pending' && <PendingArticlesManager />}
                 {tab === 'data' && <IntelligenceDataManager />}
                 {tab === 'chunks' && <IntelligenceChunkManager />}

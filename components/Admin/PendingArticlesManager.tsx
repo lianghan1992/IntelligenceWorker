@@ -93,6 +93,7 @@ export const PendingArticlesManager: React.FC = () => {
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
+    const [statusFilter, setStatusFilter] = useState('pending');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [processing, setProcessing] = useState(false);
     
@@ -101,12 +102,12 @@ export const PendingArticlesManager: React.FC = () => {
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await getPendingArticles({ page, limit: 20 });
+            const res = await getPendingArticles({ page, limit: 20, status: statusFilter });
             setArticles(res.items || []);
             setTotal(res.total || 0);
             setSelectedIds(new Set());
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
-    }, [page]);
+    }, [page, statusFilter]);
 
     useEffect(() => { fetchArticles(); }, [fetchArticles]);
 
@@ -136,10 +137,21 @@ export const PendingArticlesManager: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-white">
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                    <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-xs font-mono border border-orange-200">PENDING</span>
-                    待确认文章 <span className="text-slate-400 font-normal text-sm">({total})</span>
-                </h3>
+                <div className="flex items-center gap-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-xs font-mono border border-orange-200">AUDIT</span>
+                        待审核文章 <span className="text-slate-400 font-normal text-sm">({total})</span>
+                    </h3>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                        className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 outline-none"
+                    >
+                        <option value="pending">状态: 等待中</option>
+                        <option value="all">所有状态</option>
+                        {/* Add more options if backend supports filtering confirmed/rejected history here */}
+                    </select>
+                </div>
                 <div className="flex gap-3">
                     <button onClick={fetchArticles} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm">
                         <RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/>
@@ -169,7 +181,7 @@ export const PendingArticlesManager: React.FC = () => {
                     )}
                     
                     {isLoading && articles.length === 0 ? <div className="text-center py-20 text-slate-400">加载中...</div> :
-                     articles.length === 0 ? <div className="text-center py-20 text-slate-400">暂无待确认数据</div> :
+                     articles.length === 0 ? <div className="text-center py-20 text-slate-400">暂无数据</div> :
                      articles.map(article => (
                         <div key={article.id} onClick={() => toggleSelect(article.id)} className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer flex gap-4 group hover:shadow-md ${selectedIds.has(article.id) ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/20' : 'border-slate-200 hover:border-indigo-300'}`}>
                             <div className="flex items-start pt-1">

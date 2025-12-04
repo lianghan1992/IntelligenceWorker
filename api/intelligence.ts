@@ -141,7 +141,7 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
         });
 };
 
-export const getPendingArticles = (params: { page?: number; limit?: number }): Promise<PaginatedResponse<PendingArticlePublic>> =>
+export const getPendingArticles = (params: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<PendingArticlePublic>> =>
     apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/pending${createApiQuery(params)}`)
         .then(res => {
             if (Array.isArray(res)) return { items: res, total: 100, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
