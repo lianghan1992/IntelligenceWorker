@@ -14,7 +14,7 @@ export const API_BASE_URL = '/api';
 export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
 
 // Full path for the main intelligence data service
-export const INTELLIGENCE_SERVICE_PATH = `${API_BASE_URL}/crawler`;
+export const INTELLIGENCE_SERVICE_PATH = `${API_BASE_URL}/intelligence_collection`;
 
 // Full path for livestream analysis service
 export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;

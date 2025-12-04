@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SearchChunkResult, SystemSource } from '../../types';
-import { searchChunks, getSources, exportChunks } from '../../api';
+import { SearchChunkResult } from '../../types';
+import { searchChunks, getSources, exportChunks, SourcePublic } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -25,7 +25,7 @@ export const IntelligenceChunkManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [filters, setFilters] = useState({ query_text: '', source_names: [] as string[], similarity_threshold: 0.5, top_k: 50 });
-    const [sources, setSources] = useState<SystemSource[]>([]);
+    const [sources, setSources] = useState<SourcePublic[]>([]);
 
     useEffect(() => { getSources().then(setSources).catch(console.error); }, []);
 

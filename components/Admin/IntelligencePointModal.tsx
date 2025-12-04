@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ChevronUpDownIcon } from '../icons';
-import { createIntelligencePoint, deleteIntelligencePoints } from '../../api';
+import { createPoint, deletePoints } from '../../api';
 import { Subscription, SystemSource } from '../../types';
 
 interface IntelligencePointModalProps {
@@ -80,10 +80,20 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         try {
             if (pointToEdit) {
                 // "Edit" is implemented as Create + Delete since there's no update API
-                await createIntelligencePoint(formData);
-                await deleteIntelligencePoints([pointToEdit.id]);
+                await createPoint({
+                    source_name: formData.source_name,
+                    name: formData.point_name,
+                    url: formData.point_url,
+                    cron_schedule: formData.cron_schedule
+                });
+                await deletePoints([pointToEdit.id]);
             } else {
-                await createIntelligencePoint(formData);
+                await createPoint({
+                    source_name: formData.source_name,
+                    name: formData.point_name,
+                    url: formData.point_url,
+                    cron_schedule: formData.cron_schedule
+                });
             }
             onSuccess();
             onClose();

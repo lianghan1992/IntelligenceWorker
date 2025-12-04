@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { PendingArticle } from '../../types';
+import { PendingArticlePublic } from '../../api/intelligence';
 import { getPendingArticles, confirmPendingArticles, deletePendingArticles, getPendingArticleDetail } from '../../api';
 import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon } from '../icons';
 
@@ -16,7 +16,7 @@ const PendingArticleDetailModal: React.FC<{
     onClose: () => void; 
     onAction: (id: string, action: 'confirm' | 'delete') => void;
 }> = ({ articleId, onClose, onAction }) => {
-    const [detail, setDetail] = useState<PendingArticle | null>(null);
+    const [detail, setDetail] = useState<PendingArticlePublic | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,7 +25,7 @@ const PendingArticleDetailModal: React.FC<{
             try {
                 // Calls: GET /api/crawler/pending/articles/{article_id}
                 const res = await getPendingArticleDetail(articleId);
-                setDetail(res);
+                setDetail(res as unknown as PendingArticlePublic); // Assuming apiFetch returns appropriate type
             } catch (e) {
                 console.error(e);
             } finally {
@@ -52,8 +52,12 @@ const PendingArticleDetailModal: React.FC<{
                             <a href={detail.original_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
                                 <ExternalLinkIcon className="w-3 h-3"/> 原文链接
                             </a>
-                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                            <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(detail.publish_date).toLocaleString()}</span>
+                            {detail.publish_date && (
+                                <>
+                                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                    <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {new Date(detail.publish_date).toLocaleString()}</span>
+                                </>
+                            )}
                         </div>
                     </div>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><CloseIcon className="w-6 h-6"/></button>
@@ -117,7 +121,7 @@ const PendingArticleDetailModal: React.FC<{
 };
 
 export const PendingArticlesManager: React.FC = () => {
-    const [articles, setArticles] = useState<PendingArticle[]>([]);
+    const [articles, setArticles] = useState<PendingArticlePublic[]>([]);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
@@ -131,8 +135,8 @@ export const PendingArticlesManager: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getPendingArticles({ page, limit: 20 });
-            setArticles(res.items);
-            setTotal(res.total);
+            setArticles(res.items || []);
+            setTotal(res.total || 0);
             setSelectedIds(new Set());
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, [page]);
@@ -210,7 +214,7 @@ export const PendingArticlesManager: React.FC = () => {
                                     <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 whitespace-nowrap ml-3">{article.source_name}</span>
                                 </div>
                                 <div className="flex items-center gap-4 text-xs text-slate-400 mb-3 font-medium">
-                                    <span className="flex items-center gap-1.5"><ClockIcon className="w-3.5 h-3.5"/> {new Date(article.publish_date).toLocaleString()}</span>
+                                    {article.publish_date && <span className="flex items-center gap-1.5"><ClockIcon className="w-3.5 h-3.5"/> {new Date(article.publish_date).toLocaleString()}</span>}
                                     <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
                                     <a href={article.original_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 transition-colors">
                                         查看原文 <ExternalLinkIcon className="w-3 h-3"/>
@@ -218,7 +222,8 @@ export const PendingArticlesManager: React.FC = () => {
                                 </div>
                                 <div className="flex justify-between items-end">
                                     <div className="bg-slate-50 p-2 rounded-lg text-[10px] font-mono text-slate-500 break-all border border-slate-100/50 max-w-md truncate">
-                                        {JSON.stringify(article.crawl_metadata)}
+                                        {/* JSON.stringify might fail on undefined props, added safety */}
+                                        {article.crawl_metadata ? JSON.stringify(article.crawl_metadata) : '{}'}
                                     </div>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setViewingArticleId(article.id); }}

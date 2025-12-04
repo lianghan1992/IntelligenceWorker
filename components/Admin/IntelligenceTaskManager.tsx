@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getIntelligenceStats } from '../../api';
+import { getIntelligenceStats } from '../../api/intelligence';
 import { RefreshIcon, ServerIcon, DatabaseIcon, RssIcon, ViewGridIcon, ClockIcon, CheckCircleIcon } from '../icons';
 
 const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode; color: string; description: string }> = ({ title, value, icon, color, description }) => (

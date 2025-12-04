@@ -2,7 +2,7 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
-import { getArticleHtml, downloadArticlePdf } from '../../api/intelligence';
+import { getArticleHtml, downloadArticlePdf } from '../../api';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {

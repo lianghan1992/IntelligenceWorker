@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPointsBySourceName, deleteIntelligencePoints, createIntelligencePoint, deleteSource, toggleIntelligencePoint, toggleSource, checkIntelligencePointHealth, runCrawler } from '../../api';
+import { getSources, getPointsBySourceName, deletePoints, createPoint, deleteSource, togglePoint, toggleSource, checkIntelligencePointHealth, runCrawler } from '../../api';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CheckCircleIcon, CloseIcon, ServerIcon, ShieldCheckIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon, GlobeIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -51,14 +51,30 @@ export const IntelligencePointManager: React.FC = () => {
         setError(null);
         try {
             const fetchedSources = await getSources();
-            setSources(fetchedSources);
+            // Map SourcePublic to SystemSource
+            const mappedSources: SystemSource[] = fetchedSources.map(s => ({
+                id: s.id,
+                source_name: s.name,
+                source_type: 'manual', // default or determine from props
+                points_count: s.points_count
+            }));
+            setSources(mappedSources);
 
             const pointsMap: Record<string, Subscription[]> = {};
             const initialExpanded = new Set<string>();
             
-            await Promise.all(fetchedSources.map(async (source) => {
+            await Promise.all(mappedSources.map(async (source) => {
+                // Use source_name
                 const points = await getPointsBySourceName(source.source_name);
-                pointsMap[source.source_name] = points;
+                // Map PointPublic to Subscription (Subscription is used in props as type)
+                pointsMap[source.source_name] = points.map(p => ({
+                    id: p.id,
+                    source_name: p.source_name,
+                    point_name: p.name,
+                    point_url: p.url,
+                    cron_schedule: p.cron_schedule,
+                    is_active: p.is_active
+                }));
                 initialExpanded.add(source.source_name);
             }));
             
@@ -79,7 +95,7 @@ export const IntelligencePointManager: React.FC = () => {
     const handleDeletePoint = async () => {
         if (!confirmDeletePoint) return;
         try {
-            await deleteIntelligencePoints([confirmDeletePoint.id]);
+            await deletePoints([confirmDeletePoint.id]);
             fetchData();
         } catch (e: any) {
             alert("删除失败: " + e.message);
@@ -104,7 +120,7 @@ export const IntelligencePointManager: React.FC = () => {
         setTogglingPoint(point.id);
         try {
             const newStatus = !point.is_active;
-            await toggleIntelligencePoint(point.id, newStatus);
+            await togglePoint(point.id, newStatus);
             
             // Optimistic update
             setPointsBySource(prev => {

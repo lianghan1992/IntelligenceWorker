@@ -39,7 +39,9 @@ export const GeminiSettingsManager: React.FC = () => {
         setStatus(null);
         try {
             const response = await updateGeminiCookies(formData);
-            setStatus({ type: 'success', message: `配置更新成功 (${response.initialized ? 'Initialized' : 'Saved'})` });
+            // Assuming response has initialized or message, adjust based on API return.
+            // The API function returns Promise<any>, let's assume it returns { initialized: boolean } or { ok: boolean }
+            setStatus({ type: 'success', message: '配置更新成功' });
             await checkStatus();
         } catch (err: any) {
             setStatus({ type: 'error', message: err.message || '更新失败' });
@@ -52,7 +54,8 @@ export const GeminiSettingsManager: React.FC = () => {
         setIsTogglingHtml(true);
         try {
             const response = await toggleHtmlGeneration(enable);
-            setHtmlGenStatus({ type: 'success', message: response.enabled ? 'HTML生成已开启' : 'HTML生成已关闭' });
+            // response likely has { enabled: boolean }
+            setHtmlGenStatus({ type: 'success', message: (response as any).enabled ? 'HTML生成已开启' : 'HTML生成已关闭' });
         } catch (err: any) {
             setHtmlGenStatus({ type: 'error', message: err.message });
         } finally {

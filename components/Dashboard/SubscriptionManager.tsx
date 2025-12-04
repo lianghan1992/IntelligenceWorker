@@ -59,7 +59,14 @@ export const SubscriptionManager: React.FC = () => {
                 getSources(),
                 getUserSubscribedSources(),
             ]);
-            setSources(allSources);
+            // Map SourcePublic[] to SystemSource[]
+            const mappedSources: SystemSource[] = allSources.map(s => ({
+                id: s.id,
+                source_name: s.name,
+                source_type: 'manual', // or any default
+                points_count: s.points_count
+            }));
+            setSources(mappedSources);
             setSubscribedIds(new Set(subscribedSources.map(s => s.id)));
         } catch (err: any) {
             setError(err.message || '加载情报源失败');

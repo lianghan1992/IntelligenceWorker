@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { InfoItem, SystemSource } from '../../types';
-import { getArticles, deleteArticles, getSources } from '../../api';
+import { getArticles, deleteArticles, getSources, SourcePublic, ArticlePublic } from '../../api';
 import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckCircleIcon, DownloadIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 
@@ -13,7 +13,7 @@ const Spinner: React.FC = () => (
 );
 
 export const IntelligenceDataManager: React.FC = () => {
-    const [articles, setArticles] = useState<InfoItem[]>([]);
+    const [articles, setArticles] = useState<ArticlePublic[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
@@ -24,10 +24,10 @@ export const IntelligenceDataManager: React.FC = () => {
         publish_date_end: '',
     });
 
-    const [sources, setSources] = useState<SystemSource[]>([]);
+    const [sources, setSources] = useState<SourcePublic[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
+    const [selectedArticle, setSelectedArticle] = useState<ArticlePublic | null>(null);
 
     // Export State
     const [isExporting, setIsExporting] = useState(false);
@@ -110,7 +110,7 @@ export const IntelligenceDataManager: React.FC = () => {
         try {
             const BATCH_SIZE = 50;
             let currentPage = 1;
-            let allItems: InfoItem[] = [];
+            let allItems: ArticlePublic[] = [];
             let totalItems = 0;
 
             // 1. Loop to fetch all data
@@ -199,7 +199,7 @@ export const IntelligenceDataManager: React.FC = () => {
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 min-w-[140px]"
                     >
                         <option value="">所有来源</option>
-                        {sources.map(s => <option key={s.id} value={s.source_name}>{s.source_name}</option>)}
+                        {sources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-500">

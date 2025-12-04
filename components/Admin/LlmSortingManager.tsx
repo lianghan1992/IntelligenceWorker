@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { LlmSearchRequest, LlmSearchTaskItem } from '../../types';
-import { createLlmSearchTask, getLlmSearchTasks, getSourceNames } from '../../api';
+import { createLlmSearchTask, getLlmSearchTasks, getSources } from '../../api';
 import { SparklesIcon, RefreshIcon, ChartIcon, ClockIcon, CheckCircleIcon } from '../icons';
 
 const Spinner: React.FC = () => (
