@@ -29,6 +29,8 @@ export interface IntelligencePointPublic {
     extra_hint?: string;
     last_crawl_time?: string;
     created_at: string;
+    enable_pagination?: boolean;
+    initial_pages?: number;
 }
 
 export type GenericCrawlerTaskPublic = GenericTask;
@@ -94,6 +96,14 @@ export interface IntelligenceStats {
 export const getSources = (): Promise<IntelligenceSourcePublic[]> => 
     apiFetch<IntelligenceSourcePublic[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
 
+// POST /api/intelligence_collection/sources
+export const createSource = (data: { name: string; main_url: string }): Promise<IntelligenceSourcePublic> => {
+    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
 // Helper to get source names (Mapping from getSources)
 export const getSourceNames = async (): Promise<string[]> => {
     const sources = await getSources();
@@ -113,6 +123,8 @@ export const createPoint = (data: {
     url_filters?: string[];
     extra_hint?: string;
     mode?: string;
+    enable_pagination?: boolean;
+    initial_pages?: number;
 }): Promise<IntelligencePointPublic> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',

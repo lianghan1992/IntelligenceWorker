@@ -218,7 +218,7 @@ export const IntelligencePointManager: React.FC = () => {
                             className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow hover:bg-indigo-700 transition-all"
                         >
                             <PlusIcon className="w-4 h-4" /> 
-                            <span className="hidden sm:inline">新建采集</span>
+                            <span className="hidden sm:inline">新建情报点</span>
                             <span className="sm:hidden">新建</span>
                         </button>
                     </div>
