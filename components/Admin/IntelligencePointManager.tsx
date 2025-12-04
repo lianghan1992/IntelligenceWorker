@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runCrawlerSource, IntelligencePointPublic, IntelligenceSourcePublic } from '../../api';
+import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runPoint, IntelligencePointPublic, IntelligenceSourcePublic } from '../../api/intelligence';
+import { getUserSubscribedSources } from '../../api/user';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CloseIcon, ServerIcon, PlayIcon, ChevronRightIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -65,12 +66,12 @@ export const IntelligencePointManager: React.FC = () => {
                 // Map IntelligencePointPublic to Subscription
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
-                    source_id: p.source_id,
+                    source_id: p.source_name, // source_name used as ID often
                     source_name: p.source_name,
                     point_name: p.name,
                     point_url: p.url,
                     cron_schedule: p.cron_schedule,
-                    is_active: p.is_active,
+                    is_active: p.is_active ?? p.enabled,
                     url_filters: p.url_filters,
                     extra_hint: p.extra_hint
                 }));
@@ -162,7 +163,11 @@ export const IntelligencePointManager: React.FC = () => {
         if (runningSource) return;
         setRunningSource(source.source_name);
         try {
-            await runCrawlerSource(source.source_name);
+            // runCrawlerSource removed, iterating runPoint manually or assume backend support batch
+            // Since `runCrawlerSource` was removed from api/intelligence.ts based on new doc lacking it,
+            // we should iterate points.
+            const points = pointsBySource[source.source_name] || [];
+            await Promise.all(points.map(p => runPoint(p.id)));
             alert(`已触发 "${source.source_name}" 的立即采集任务。`);
         } catch (e: any) {
             alert(`启动失败: ${e.message}`);
@@ -195,7 +200,6 @@ export const IntelligencePointManager: React.FC = () => {
         if (!subscription) return null;
         return {
             id: subscription.id,
-            source_id: subscription.source_id || '',
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,
@@ -203,7 +207,7 @@ export const IntelligencePointManager: React.FC = () => {
             is_active: !!subscription.is_active,
             url_filters: subscription.url_filters,
             extra_hint: subscription.extra_hint,
-            created_at: '' // Not needed for edit/display in modal typically
+            created_at: ''
         };
     };
 
@@ -211,6 +215,7 @@ export const IntelligencePointManager: React.FC = () => {
         return sources.map(s => ({
             id: s.id,
             name: s.source_name,
+            main_url: '',
             points_count: s.points_count || 0,
             articles_count: s.articles_count || 0,
             created_at: ''

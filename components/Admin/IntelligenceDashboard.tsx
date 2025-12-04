@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
     getSources, createSource, deleteSource,
-    getPoints, createPoint, deletePoints, togglePoint, runPoint,
-    getIntelligenceStats, getTasks, IntelligenceSourcePublic, IntelligencePointPublic, IntelligenceTaskPublic
+    getPoints, deletePoints, togglePoint, runPoint,
+    getTasks, IntelligenceSourcePublic, IntelligencePointPublic, IntelligenceTaskPublic
 } from '../../api/intelligence';
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
-    ClockIcon, SearchIcon, ChartIcon, GearIcon, CloseIcon, SparklesIcon,
-    ChevronRightIcon, MenuIcon
+    ClockIcon, ChartIcon, GearIcon, SparklesIcon,
+    ChevronRightIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PendingArticlesManager } from './PendingArticlesManager';
@@ -18,6 +18,7 @@ import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
 import { IntelligencePointModal } from './IntelligencePointModal';
+import { IntelligenceStats } from './IntelligenceTaskManager';
 
 // --- Shared Components ---
 
@@ -32,54 +33,7 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.El
     </button>
 );
 
-// --- 1. Overview Panel ---
-
-const OverviewPanel: React.FC = () => {
-    const [stats, setStats] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-
-    const loadStats = async () => {
-        setLoading(true);
-        try {
-            const data = await getIntelligenceStats();
-            setStats(data);
-        } catch (e) { console.error(e); } 
-        finally { setLoading(false); }
-    };
-
-    useEffect(() => { loadStats(); }, []);
-
-    const StatCard = ({ title, value, icon: Icon, color, subText }: any) => (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-5 hover:shadow-md transition-shadow">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${color} bg-opacity-10 text-opacity-100`}>
-                <Icon className={`w-7 h-7 ${color.replace('bg-', 'text-')}`} />
-            </div>
-            <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
-                <div className="text-3xl font-extrabold text-slate-800 my-1">{value?.toLocaleString() || 0}</div>
-                <p className="text-xs text-slate-500 font-medium">{subText}</p>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="p-8 h-full overflow-y-auto bg-slate-50/50">
-            <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">情报系统全景</h2>
-                <button onClick={loadStats} className="p-2 bg-white border rounded-xl hover:text-indigo-600 shadow-sm transition-all"><RefreshIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /></button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="接入情报源" value={stats?.sources} icon={ServerIcon} color="bg-indigo-600" subText="Active Sources" />
-                <StatCard title="活跃采集点" value={stats?.points} icon={RssIcon} color="bg-blue-500" subText="Total Points" />
-                <StatCard title="情报资产" value={stats?.articles} icon={DatabaseIcon} color="bg-purple-600" subText="Collected Articles" />
-                <StatCard title="待审文章" value={stats?.pending} icon={CheckCircleIcon} color="bg-orange-500" subText="Pending Review" />
-            </div>
-        </div>
-    );
-};
-
-// --- 2. Configuration Panel (New Split View) ---
+// --- Configuration Panel (Source & Points) ---
 
 const ConfigPanel: React.FC = () => {
     const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
@@ -90,13 +44,11 @@ const ConfigPanel: React.FC = () => {
     // UI States
     const [isLoadingSources, setIsLoadingSources] = useState(false);
     const [isLoadingPoints, setIsLoadingPoints] = useState(false);
-    const [isLoadingTasks, setIsLoadingTasks] = useState(false);
     const [showCreateSource, setShowCreateSource] = useState(false);
     const [newSourceForm, setNewSourceForm] = useState({ name: '', main_url: '' });
     
     // Point Modal
     const [isPointModalOpen, setIsPointModalOpen] = useState(false);
-    const [pointToEdit, setPointToEdit] = useState<IntelligencePointPublic | null>(null); // Note: Edit logic needs delete+create in new API usually, or just use create modal for new
     
     // Delete Confirmation
     const [confirmDelete, setConfirmDelete] = useState<{ type: 'source' | 'point', data: any } | null>(null);
@@ -119,17 +71,17 @@ const ConfigPanel: React.FC = () => {
     const fetchPointsAndTasks = useCallback(async () => {
         if (!selectedSource) return;
         setIsLoadingPoints(true);
-        setIsLoadingTasks(true);
         try {
-            // Parallel fetch points and tasks (tasks are global but we can filter or just show top latest)
+            // Parallel fetch points and tasks
             const [pts, tskRes] = await Promise.all([
                 getPoints({ source_name: selectedSource.name }),
-                getTasks({ page: 1, limit: 10 }) // Show global recent tasks or implement source filter if API supports
+                // Assuming backend supports filtering tasks by source if needed, or we just show global recent
+                getTasks({ limit: 10 }) 
             ]);
             setPoints(pts);
             setTasks(tskRes.items || []);
         } catch (e) { console.error(e); }
-        finally { setIsLoadingPoints(false); setIsLoadingTasks(false); }
+        finally { setIsLoadingPoints(false); }
     }, [selectedSource]);
 
     useEffect(() => { fetchPointsAndTasks(); }, [fetchPointsAndTasks]);
@@ -166,9 +118,11 @@ const ConfigPanel: React.FC = () => {
     };
 
     const handleTogglePoint = async (point: IntelligencePointPublic) => {
+        const currentStatus = point.enabled ?? point.is_active;
         try {
-            await togglePoint(point.id, !point.is_active);
-            setPoints(prev => prev.map(p => p.id === point.id ? { ...p, is_active: !p.is_active } : p));
+            await togglePoint(point.id, !currentStatus);
+            // Optimistic update
+            setPoints(prev => prev.map(p => p.id === point.id ? { ...p, is_active: !currentStatus, enabled: !currentStatus } : p));
         } catch (e) { alert('操作失败'); }
     };
 
@@ -276,7 +230,7 @@ const ConfigPanel: React.FC = () => {
                                 <RefreshIcon className={`w-5 h-5 ${isLoadingPoints ? 'animate-spin' : ''}`} />
                             </button>
                             <button 
-                                onClick={() => { setPointToEdit(null); setIsPointModalOpen(true); }}
+                                onClick={() => setIsPointModalOpen(true)}
                                 className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95"
                             >
                                 <PlusIcon className="w-4 h-4" /> 新建采集点
@@ -305,48 +259,51 @@ const ConfigPanel: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                        {points.map(point => (
-                                            <div key={point.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                                                <div className={`absolute top-0 left-0 bottom-0 w-1 ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></div>
-                                                <div className="pl-3 flex flex-col h-full justify-between">
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <h5 className="font-bold text-slate-800">{point.name}</h5>
-                                                                {point.extra_hint && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-medium">Generic</span>}
+                                        {points.map(point => {
+                                            const isActive = point.enabled ?? point.is_active;
+                                            return (
+                                                <div key={point.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                                    <div className={`absolute top-0 left-0 bottom-0 w-1 ${isActive ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                                    <div className="pl-3 flex flex-col h-full justify-between">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <h5 className="font-bold text-slate-800">{point.name}</h5>
+                                                                    {point.extra_hint && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-medium">Generic</span>}
+                                                                </div>
+                                                                <a href={point.url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block max-w-[250px] font-mono mt-0.5">{point.url}</a>
                                                             </div>
-                                                            <a href={point.url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block max-w-[250px] font-mono mt-0.5">{point.url}</a>
+                                                            <div className="flex gap-1">
+                                                                <button 
+                                                                    onClick={() => handleRunPoint(point)}
+                                                                    className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded transition-colors" 
+                                                                    title="立即运行"
+                                                                >
+                                                                    <PlayIcon className="w-4 h-4" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleTogglePoint(point)}
+                                                                    className={`p-1.5 rounded transition-colors ${isActive ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-50'}`}
+                                                                    title={isActive ? "暂停" : "启用"}
+                                                                >
+                                                                    {isActive ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => setConfirmDelete({ type: 'point', data: point })}
+                                                                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                >
+                                                                    <TrashIcon className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex gap-1">
-                                                            <button 
-                                                                onClick={() => handleRunPoint(point)}
-                                                                className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded transition-colors" 
-                                                                title="立即运行"
-                                                            >
-                                                                <PlayIcon className="w-4 h-4" />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleTogglePoint(point)}
-                                                                className={`p-1.5 rounded transition-colors ${point.is_active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-50'}`}
-                                                                title={point.is_active ? "暂停" : "启用"}
-                                                            >
-                                                                {point.is_active ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => setConfirmDelete({ type: 'point', data: point })}
-                                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                                                            >
-                                                                <TrashIcon className="w-4 h-4" />
-                                                            </button>
+                                                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 pt-2 border-t border-slate-50">
+                                                            <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5"/> {point.cron_schedule}</span>
+                                                            {point.last_crawl_time && <span className="text-slate-400">上次运行: {new Date(point.last_crawl_time).toLocaleString()}</span>}
                                                         </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 pt-2 border-t border-slate-50">
-                                                        <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5"/> {point.cron_schedule}</span>
-                                                        {point.last_crawl_time && <span className="text-slate-400">上次运行: {new Date(point.last_crawl_time).toLocaleString()}</span>}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </section>
@@ -354,7 +311,7 @@ const ConfigPanel: React.FC = () => {
                             {/* Recent Tasks Section */}
                             <section>
                                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                    <ClockIcon className="w-4 h-4" /> 系统近期任务 (Global)
+                                    <ClockIcon className="w-4 h-4" /> 系统近期任务
                                 </h4>
                                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                                     <table className="w-full text-sm text-left text-slate-500">
@@ -362,7 +319,6 @@ const ConfigPanel: React.FC = () => {
                                             <tr>
                                                 <th className="px-6 py-3">任务类型</th>
                                                 <th className="px-6 py-3">来源/点位</th>
-                                                <th className="px-6 py-3">阶段</th>
                                                 <th className="px-6 py-3">状态</th>
                                                 <th className="px-6 py-3">开始时间</th>
                                             </tr>
@@ -375,16 +331,15 @@ const ConfigPanel: React.FC = () => {
                                                         <div className="text-xs">{t.source_name}</div>
                                                         <div className="text-slate-400 text-[10px]">{t.point_name}</div>
                                                     </td>
-                                                    <td className="px-6 py-3">{t.stage}</td>
                                                     <td className="px-6 py-3">
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === '已完成' ? 'bg-green-100 text-green-700' : t.status === '已失败' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                                                             {t.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-3 text-xs font-mono">{new Date(t.start_time).toLocaleString()}</td>
+                                                    <td className="px-6 py-3 text-xs font-mono">{t.start_time ? new Date(t.start_time).toLocaleString() : '-'}</td>
                                                 </tr>
                                             ))}
-                                            {tasks.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-slate-400">暂无近期任务</td></tr>}
+                                            {tasks.length === 0 && <tr><td colSpan={4} className="text-center py-8 text-slate-400">暂无近期任务</td></tr>}
                                         </tbody>
                                     </table>
                                 </div>
@@ -400,7 +355,7 @@ const ConfigPanel: React.FC = () => {
                     onClose={() => setIsPointModalOpen(false)} 
                     onSuccess={fetchPointsAndTasks} 
                     pointToEdit={null} // Create Mode
-                    sources={[selectedSource as any]} // Restrict to current source
+                    sources={[selectedSource]} 
                     preSelectedSourceId={selectedSource.name}
                 />
             )}
@@ -422,6 +377,17 @@ const ConfigPanel: React.FC = () => {
     );
 };
 
+// --- Overview Panel ---
+const OverviewPanel: React.FC = () => {
+    return (
+        <div className="p-8 h-full overflow-y-auto bg-slate-50/50">
+            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight mb-8">情报系统全景</h2>
+            <IntelligenceStats compact={false} />
+        </div>
+    );
+};
+
+// --- Main Layout ---
 export const IntelligenceDashboard: React.FC = () => {
     const [tab, setTab] = useState<'overview' | 'config' | 'pending' | 'data' | 'chunks' | 'llm' | 'settings'>('overview');
 

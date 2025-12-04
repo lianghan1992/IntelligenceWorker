@@ -70,18 +70,18 @@ export const GenericCrawlerManager: React.FC = () => {
             for (const src of sources) {
                 if (src.points) {
                     for (const p of src.points) {
-                        if (p.type === 'generic') {
+                        if (p.mode === 'generic' || p.type === 'generic') {
                              // Map IntelligencePointPublic to GenericPoint
                              allPoints.push({
                                  id: p.id,
                                  source_name: p.source_name,
-                                 point_name: p.point_name,
-                                 point_url: p.point_url,
+                                 point_name: p.point_name || p.name || 'Unnamed',
+                                 point_url: p.point_url || p.url || '',
                                  cron_schedule: p.cron_schedule,
                                  is_active: p.is_active,
-                                 created_at: p.created_at,
-                                 list_hint: p.list_hint,
-                                 list_filters: p.list_filters
+                                 created_at: p.created_at || '',
+                                 list_hint: p.list_hint || p.extra_hint,
+                                 list_filters: p.list_filters || p.url_filters
                              });
                         }
                     }
@@ -95,7 +95,18 @@ export const GenericCrawlerManager: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getGenericTasks({ page: taskPage, limit: 15 });
-            setTasks(res.items);
+            setTasks(res.items.map((t: any) => ({
+                id: t.id,
+                source_name: t.source_name,
+                point_name: t.point_name,
+                url: t.url,
+                task_type: t.task_type,
+                stage: t.stage || '',
+                detail_info: t.detail_info || '',
+                start_time: t.start_time,
+                end_time: t.end_time,
+                created_at: t.created_at
+            })));
             setTaskTotal(res.total);
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, [taskPage]);

@@ -24,7 +24,7 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
         articles: number; 
         vectors: number; 
         schedules_active: number;
-        pending: number; // Added pending
+        pending: number;
     } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

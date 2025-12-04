@@ -1,15 +1,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ChevronUpDownIcon, ServerIcon, RssIcon } from '../icons';
-import { createPoint } from '../../api'; 
-import { IntelligenceSourcePublic, IntelligencePointPublic } from '../../api/intelligence';
+import { createPoint, IntelligenceSourcePublic, IntelligencePointPublic } from '../../api/intelligence';
 
 interface IntelligencePointModalProps {
     onClose: () => void;
     onSuccess: () => void;
     pointToEdit: IntelligencePointPublic | null; // Null for create
     sources: IntelligenceSourcePublic[];
-    preSelectedSourceId?: string; // Optional: name of the source if opened from a specific source context
+    preSelectedSourceId?: string; // Optional: name of the source
 }
 
 const Spinner: React.FC = () => (
@@ -38,15 +37,12 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         extra_hint: '',
         enable_pagination: false,
         initial_pages: 0,
-        mode: 'markdown' // Default mode as per typical use case
+        mode: 'markdown' 
     });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [isCronDropdownOpen, setIsCronDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    
-    // Note: Since API suggests delete+create for update, we treat pointToEdit just for initial values if we were to support edit.
-    // But currently simplified to Create only or Re-create.
     
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { PendingArticlePublic } from '../../api/intelligence';
-import { getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api';
+import { PendingArticlePublic, getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api/intelligence';
 import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -53,15 +52,6 @@ const PendingArticleDetailModal: React.FC<{
 
                     {/* Sidebar Metadata */}
                     <div className="w-full md:w-80 flex-shrink-0 bg-slate-50/50 p-6 space-y-6 overflow-y-auto custom-scrollbar">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> 抓取元数据
-                            </h4>
-                            <div className="text-xs font-mono bg-slate-900 text-slate-300 p-3 rounded-lg border border-slate-800 overflow-auto max-h-80 custom-scrollbar">
-                                <pre>{JSON.stringify(article.crawl_metadata || {}, null, 2)}</pre>
-                            </div>
-                        </div>
-                        
                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                             <h4 className="font-bold text-xs text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> 基础信息
@@ -198,8 +188,8 @@ export const PendingArticlesManager: React.FC = () => {
                                     </a>
                                 </div>
                                 <div className="flex justify-between items-end">
-                                    <div className="bg-slate-50 p-2 rounded-lg text-[10px] font-mono text-slate-500 break-all border border-slate-100/50 max-w-md truncate">
-                                        {article.crawl_metadata ? JSON.stringify(article.crawl_metadata) : '{}'}
+                                    <div className="text-[10px] font-mono text-slate-400 max-w-md truncate">
+                                        {article.point_name}
                                     </div>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setViewingArticle(article); }}
