@@ -14,7 +14,8 @@ import {
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
     ExternalLinkIcon, ClockIcon, SearchIcon, ShieldCheckIcon,
     ShieldExclamationIcon, QuestionMarkCircleIcon, DownloadIcon,
-    ChartIcon, GearIcon, CloseIcon, EyeIcon, CheckIcon, DocumentTextIcon
+    ChartIcon, GearIcon, CloseIcon, EyeIcon, CheckIcon, DocumentTextIcon,
+    SparklesIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PendingArticlesManager } from './PendingArticlesManager';
