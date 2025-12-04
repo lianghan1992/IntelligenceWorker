@@ -8,7 +8,7 @@ import { PaginatedResponse } from '../types';
 // --- Types ---
 
 export interface IntelligenceSourcePublic {
-    id: string; // May be UUID or just name depending on backend, treating as string
+    id: string; 
     source_name: string;
     source_type: 'manual' | 'generic' | 'mixed';
     points_count?: number;
@@ -21,8 +21,8 @@ export interface IntelligencePointPublic {
     id: string;
     source_id?: string;
     source_name: string;
-    point_name: string; // mapped from 'name' in some responses
-    point_url: string;  // mapped from 'url'
+    point_name: string;
+    point_url: string;
     cron_schedule: string;
     is_active: boolean;
     type?: 'manual' | 'generic';
@@ -86,6 +86,14 @@ export interface IntelligenceStats {
 
 // --- Sources & Points Management ---
 
+// GET /api/crawler/sources
+export const getSources = (): Promise<any[]> => 
+    apiFetch<any[]>(`${INTELLIGENCE_SERVICE_PATH}/sources`);
+
+// GET /api/crawler/sources/names
+export const getSourceNames = (): Promise<string[]> =>
+    apiFetch<string[]>(`${INTELLIGENCE_SERVICE_PATH}/sources/names`);
+
 // GET /api/crawler/sources-and-points
 export const getSourcesAndPoints = (params?: { source_name?: string; point_id?: string }): Promise<IntelligenceSourcePublic[]> => 
     apiFetch<IntelligenceSourcePublic[]>(`${INTELLIGENCE_SERVICE_PATH}/sources-and-points${createApiQuery(params)}`);
@@ -129,6 +137,17 @@ export const updateGenericPoint = (pointId: string, data: Partial<IntelligencePo
         body: JSON.stringify(data),
     });
 };
+
+// GET /api/crawler/generic/points/{point_id}
+export const getGenericPoint = (pointId: string): Promise<IntelligencePointPublic> =>
+    apiFetch<IntelligencePointPublic>(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${pointId}`);
+
+// PUT /api/crawler/generic/sources/{source_name}
+export const updateGenericSource = (sourceName: string, data: { new_name?: string; cron_schedule?: string; is_active?: boolean }): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/sources/${encodeURIComponent(sourceName)}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+    });
 
 // POST /api/crawler/points/{point_id}/toggle
 export const togglePoint = (pointId: string, enable: boolean): Promise<{ success: boolean; message: string }> =>
@@ -184,6 +203,10 @@ export const getGenericTasks = (params: { page?: number; limit?: number; source_
 // GET /api/crawler/tasks/stats
 export const getIntelligenceStats = (): Promise<IntelligenceStats> =>
     apiFetch<IntelligenceStats>(`${INTELLIGENCE_SERVICE_PATH}/tasks/stats`);
+
+// GET /api/crawler/generic/overview
+export const getGenericOverview = (): Promise<any> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/overview`);
 
 // --- Pending Articles (Review) ---
 
@@ -255,15 +278,8 @@ export const exportChunks = (data: any): Promise<any> =>
     });
 
 // --- Legacy Aliases/Stubs for compatibility ---
-export const getSources = async (): Promise<any[]> => {
-    // Adapter to old format if needed, or just return source-and-points mapped
-    const res = await getSourcesAndPoints();
-    return res.map(s => ({ id: s.id, name: s.source_name, points_count: s.points?.length || 0 }));
-};
 export const getArticleById = getArticleDetail;
 export const deletePendingArticles = rejectPendingArticles;
-// For searchArticlesFiltered, map to getArticles with query logic if available, or keep using old endpoint if valid. 
-// The new doc has `/api/crawler/search/articles_filtered`.
 export const searchArticlesFiltered = (data: any): Promise<any> => 
     apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/articles_filtered`, {
         method: 'POST',
