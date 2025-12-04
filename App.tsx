@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Header } from './components/Header';
 import { AuthModal } from './components/HomePage/AuthModal';
 import { PricingModal } from './components/PricingModal';
 import { HomePage } from './components/HomePage/index';
-import { User, View, Subscription } from './types';
-import { getSubscriptions, getMe } from './api';
+import { User, View, SystemSource } from './types';
+import { getUserSubscribedSources, getMe } from './api';
 
 // Lazy load components with named export adaptation
 const Dashboard = React.lazy(() => import('./components/Dashboard/index').then(module => ({ default: module.Dashboard })));
@@ -36,7 +35,7 @@ const App: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
@@ -48,7 +47,7 @@ const App: React.FC = () => {
     if (!user) return;
     setIsLoading(true);
     try {
-        const subs = await getSubscriptions();
+        const subs = await getUserSubscribedSources();
         setSubscriptions(subs);
     } catch (error) {
       console.error("Failed to load initial data", error);

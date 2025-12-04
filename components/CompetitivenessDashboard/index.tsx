@@ -188,4 +188,183 @@ const DossierPanel: React.FC<{
                                     }`}
                                 >
                                     <div className="flex justify-between items-center mb-3">
-                                        <div className="flex
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${changeInfo.bg}`}>{changeInfo.text}</span>
+                                            <span className="text-xs text-slate-400 font-mono">{new Date(record.event_time).toLocaleDateString()}</span>
+                                        </div>
+                                        <div className={`flex items-center gap-1 text-xs font-bold ${rel.textCol}`}>
+                                            <rel.Icon className="w-3.5 h-3.5" />
+                                            {rel.text}
+                                        </div>
+                                    </div>
+                                    <p className={`text-sm leading-relaxed ${isSelected ? 'text-slate-800' : 'text-slate-600 group-hover:text-slate-700'}`}>
+                                        {record.description_snapshot}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                 </div>
+            </div>
+        </div>
+    );
+};
+
+export const CompetitivenessDashboard: React.FC = () => {
+    const [viewMode, setViewMode] = useState<'matrix' | 'dossier'>('matrix');
+    const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
+    const [selectedHistory, setSelectedHistory] = useState<TechItemHistory | null>(null);
+    const [articleDetail, setArticleDetail] = useState<InfoItem | null>(null);
+    
+    // Data States
+    const [items, setItems] = useState<TechItem[]>([]);
+    const [brands, setBrands] = useState<string[]>([]);
+    const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
+    const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Load Metadata
+    useEffect(() => {
+        Promise.all([getBrands(), getDimensions()]).then(([b, d]) => {
+            setBrands(b);
+            setDimensions(d);
+            // Default select top 3 brands if available
+            setSelectedBrands(b.slice(0, 4));
+        });
+    }, []);
+
+    // Load Matrix Data
+    useEffect(() => {
+        if (selectedBrands.length === 0) {
+            setItems([]);
+            return;
+        }
+        
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch all items for selected brands (pagination logic might be needed for large datasets)
+                // Here we fetch a reasonable limit for dashboard visualization
+                const data = await getTechItems({ limit: 500 });
+                // Filter locally for now or update API to accept multiple brands
+                setItems(data.filter(i => selectedBrands.includes(i.vehicle_brand) || selectedBrands.some(b => i.vehicle_brand.includes(b))));
+            } catch (error) {
+                console.error("Failed to load matrix data", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
+    }, [selectedBrands]);
+
+    const handleItemClick = async (item: TechItem) => {
+        try {
+            // Fetch full detail with history
+            const detailedItem = await getTechItemDetail(item.id);
+            setSelectedItem(detailedItem);
+            
+            // Default select latest history
+            if (detailedItem.history && detailedItem.history.length > 0) {
+                // Sort to find latest
+                const latest = [...detailedItem.history].sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime())[0];
+                handleHistorySelect(latest);
+            }
+            
+            setViewMode('dossier');
+        } catch (e) {
+            console.error("Failed to load details", e);
+        }
+    };
+
+    const handleHistorySelect = async (history: TechItemHistory) => {
+        setSelectedHistory(history);
+        if (history.article_id) {
+            try {
+                const article = await getArticleById(history.article_id);
+                setArticleDetail(article);
+            } catch (e) {
+                console.error("Failed to load evidence article", e);
+                setArticleDetail(null);
+            }
+        } else {
+            setArticleDetail(null);
+        }
+    };
+
+    const handleBackToMatrix = () => {
+        setViewMode('matrix');
+        setSelectedItem(null);
+        setSelectedHistory(null);
+        setArticleDetail(null);
+    };
+
+    return (
+        <div className="h-full flex flex-col bg-[#f8fafc] overflow-hidden">
+            {/* Top Navigation Bar */}
+            <div className="flex-shrink-0 h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-20 shadow-sm">
+                <div className="flex items-center gap-4">
+                    {viewMode === 'dossier' && (
+                        <button 
+                            onClick={handleBackToMatrix}
+                            className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <ArrowRightIcon className="w-5 h-5 rotate-180" />
+                        </button>
+                    )}
+                    <h1 className="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+                        <ChartIcon className="w-6 h-6 text-indigo-600" />
+                        {viewMode === 'matrix' ? '竞争力全景矩阵' : '技术情报档案'}
+                    </h1>
+                </div>
+
+                {viewMode === 'matrix' && (
+                    <div className="flex items-center gap-4">
+                        <BrandMultiSelect 
+                            allBrands={brands} 
+                            selectedBrands={selectedBrands} 
+                            onChange={setSelectedBrands} 
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 overflow-hidden relative">
+                {viewMode === 'matrix' ? (
+                    <CompetitivenessMatrix 
+                        items={items}
+                        brands={selectedBrands}
+                        dimensions={dimensions}
+                        onItemClick={handleItemClick}
+                        isLoading={isLoading}
+                    />
+                ) : (
+                    <div className="h-full flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                        {/* Left: Dossier & Timeline */}
+                        <div className="flex-1 min-w-0 md:w-1/2 lg:w-5/12 h-1/2 md:h-full overflow-hidden bg-white">
+                            {selectedItem && (
+                                <DossierPanel 
+                                    item={selectedItem} 
+                                    selectedHistoryId={selectedHistory?.id || null}
+                                    onSelectHistory={handleHistorySelect}
+                                />
+                            )}
+                        </div>
+
+                        {/* Right: Evidence Viewer */}
+                        <div className="flex-1 min-w-0 md:w-1/2 lg:w-7/12 h-1/2 md:h-full bg-slate-50 relative overflow-hidden">
+                            {articleDetail ? (
+                                <EvidenceTrail selectedArticle={articleDetail} />
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
+                                    <DocumentTextIcon className="w-16 h-16 mb-4 opacity-20" />
+                                    <p className="text-sm font-medium">请在左侧时间轴选择一条记录以查看佐证材料</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     getSources, createSource, 
     getPoints, createPoint, togglePoint, deletePoints,
@@ -10,8 +10,8 @@ import {
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
-    ExternalLinkIcon, ClockIcon, SearchIcon, ChevronRightIcon,
-    FunnelIcon, CloseIcon, CheckIcon, ShieldCheckIcon
+    ExternalLinkIcon, ClockIcon, SearchIcon,
+    FunnelIcon, CheckIcon, ShieldCheckIcon
 } from '../icons';
 
 // --- Common UI Components ---
@@ -129,9 +129,9 @@ const ConfigPanel: React.FC = () => {
     };
 
     return (
-        <div className="flex h-full gap-6 p-6">
+        <div className="flex flex-col md:flex-row h-full gap-6 p-6">
             {/* Sources List */}
-            <div className="w-1/3 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="w-full md:w-1/3 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
                         <ServerIcon className="w-5 h-5 text-indigo-500" /> 情报源
@@ -337,7 +337,7 @@ const ReviewPanel: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getPendingArticles({ limit: 50 });
-            setArticles(res.items);
+            setArticles(res);
             setSelectedIds(new Set());
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, []);
@@ -440,7 +440,7 @@ const AssetPanel: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getArticles({ limit: 50 });
-            setArticles(res.items);
+            setArticles(res);
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, []);
 

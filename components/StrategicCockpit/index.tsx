@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Subscription, InfoItem, ApiPoi } from '../../types';
+import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
 import { FocusPoints } from './FocusPoints';
@@ -11,7 +10,7 @@ import { getUserPois, searchArticlesFiltered } from '../../api';
 import { ChevronLeftIcon, MenuIcon, ViewGridIcon } from '../icons';
 
 // --- Main Component ---
-export const StrategicCockpit: React.FC<{ subscriptions: Subscription[] }> = ({ subscriptions }) => {
+export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ subscriptions }) => {
     // Left navigation state
     const [selectedLook, setSelectedLook] = useState('all');
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);

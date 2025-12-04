@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { Subscription, User, InfoItem, View, ApiPoi } from '../../types';
+import { User, InfoItem, View, ApiPoi, SystemSource } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { FireIcon, BookmarkIcon } from './icons';
 import { SubscriptionManager } from './SubscriptionManager';
@@ -148,7 +147,7 @@ const QuietFocusChip: React.FC<{ entityName: string }> = ({ entityName }) => (
     </div>
 );
 
-const FocusPointsSection: React.FC<{ onManageClick: () => void; subscriptions: Subscription[] }> = ({ onManageClick, subscriptions }) => {
+const FocusPointsSection: React.FC<{ onManageClick: () => void; subscriptions: SystemSource[] }> = ({ onManageClick, subscriptions }) => {
     const [focusPoints, setFocusPoints] = useState<ApiPoi[]>([]);
     const [focusPointFeeds, setFocusPointFeeds] = useState<Record<string, InfoItem[]>>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -256,7 +255,7 @@ const FocusPointsSection: React.FC<{ onManageClick: () => void; subscriptions: S
 // --- Main Dashboard Component ---
 interface DashboardProps {
     user: User;
-    subscriptions: Subscription[];
+    subscriptions: SystemSource[];
     onNavigate: (view: View) => void;
 }
 
