@@ -23,6 +23,7 @@ import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
+import { IntelligencePointModal } from './IntelligencePointModal'; // Import the modal
 
 // --- Shared Components ---
 
@@ -101,17 +102,7 @@ const ConfigPanel: React.FC = () => {
     
     // Modal & Action States
     const [isPointModalOpen, setIsPointModalOpen] = useState(false);
-    // Modal data for Create OR Edit
-    const [modalData, setModalData] = useState<{
-        id?: string; // If present, editing
-        source_name: string;
-        point_name: string;
-        point_url: string;
-        cron: string;
-        type: 'manual' | 'generic';
-        list_hint: string;
-        list_filters: string;
-    }>({ source_name: '', point_name: '', point_url: '', cron: '0 */6 * * *', type: 'manual', list_hint: '', list_filters: '' });
+    const [pointToEdit, setPointToEdit] = useState<any | null>(null);
     
     const [healthCheckStatus, setHealthCheckStatus] = useState<Record<string, { status: string, message: string }>>({});
     const [checkingHealthId, setCheckingHealthId] = useState<string | null>(null);
@@ -141,73 +132,13 @@ const ConfigPanel: React.FC = () => {
     };
 
     const handleOpenCreate = () => {
-        setModalData({ source_name: '', point_name: '', point_url: '', cron: '0 */6 * * *', type: 'manual', list_hint: '', list_filters: '' });
+        setPointToEdit(null);
         setIsPointModalOpen(true);
     };
 
     const handleOpenEdit = (point: DashboardPoint) => {
-        setModalData({
-            id: point.id,
-            source_name: point.source_name,
-            point_name: point.point_name,
-            point_url: point.point_url,
-            cron: point.cron_schedule,
-            type: point.type || 'manual', // Fallback to manual if undefined
-            list_hint: point.list_hint || '',
-            list_filters: point.list_filters ? point.list_filters.join(',') : ''
-        });
+        setPointToEdit(point);
         setIsPointModalOpen(true);
-    };
-
-    const handleSavePoint = async () => {
-        if (!modalData.source_name || !modalData.point_name || !modalData.point_url) {
-            alert("请填写必要字段");
-            return;
-        }
-        try {
-            if (modalData.id) {
-                // Editing
-                if (modalData.type === 'generic') {
-                    await updateGenericPoint(modalData.id, {
-                        source_name: modalData.source_name,
-                        point_name: modalData.point_name,
-                        point_url: modalData.point_url,
-                        cron_schedule: modalData.cron,
-                        list_hint: modalData.list_hint,
-                        list_filters: modalData.list_filters ? modalData.list_filters.split(',') : []
-                    });
-                } else {
-                    // Manual points don't have a direct UPDATE API in docs, usually Delete + Create logic or strictly immutable
-                    // For now, only generic supports update as per doc.
-                    alert("Manual points update not supported via API directly. Recreating...");
-                    await deletePoints([modalData.id]);
-                    await createPoint({ 
-                        source_name: modalData.source_name, 
-                        name: modalData.point_name, 
-                        url: modalData.point_url, 
-                        cron_schedule: modalData.cron 
-                    });
-                }
-            } else {
-                // Creating
-                if (modalData.type === 'manual') {
-                    await createPoint({ 
-                        source_name: modalData.source_name, 
-                        name: modalData.point_name, 
-                        url: modalData.point_url, 
-                        cron_schedule: modalData.cron 
-                    });
-                } else {
-                    await createGenericPoint({
-                        source_name: modalData.source_name, point_name: modalData.point_name,
-                        point_url: modalData.point_url, cron_schedule: modalData.cron,
-                        list_hint: modalData.list_hint, list_filters: modalData.list_filters ? modalData.list_filters.split(',') : []
-                    });
-                }
-            }
-            setIsPointModalOpen(false);
-            fetchData();
-        } catch (e: any) { alert('保存失败: ' + e.message); }
     };
 
     const handleToggleSource = async (name: string, current: boolean) => {
@@ -376,39 +307,12 @@ const ConfigPanel: React.FC = () => {
 
             {/* Create/Edit Modal */}
             {isPointModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                        <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800">{modalData.id ? '编辑采集点' : '新建采集点'}</h3>
-                            <button onClick={() => setIsPointModalOpen(false)}><CloseIcon className="w-5 h-5 text-slate-400" /></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            {!modalData.id && (
-                                <div className="flex gap-4 mb-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
-                                        <input type="radio" checked={modalData.type === 'manual'} onChange={() => setModalData({...modalData, type: 'manual'})} /> Manual
-                                    </label>
-                                    <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
-                                        <input type="radio" checked={modalData.type === 'generic'} onChange={() => setModalData({...modalData, type: 'generic'})} /> Generic
-                                    </label>
-                                </div>
-                            )}
-                            <input className="w-full border p-2 rounded-lg text-sm" placeholder="Source Name (e.g. 36Kr)" value={modalData.source_name} onChange={e => setModalData({...modalData, source_name: e.target.value})} />
-                            <input className="w-full border p-2 rounded-lg text-sm" placeholder="Point Name (e.g. News)" value={modalData.point_name} onChange={e => setModalData({...modalData, point_name: e.target.value})} />
-                            <input className="w-full border p-2 rounded-lg text-sm" placeholder="Target URL" value={modalData.point_url} onChange={e => setModalData({...modalData, point_url: e.target.value})} />
-                            <input className="w-full border p-2 rounded-lg text-sm font-mono" placeholder="CRON (0 */6 * * *)" value={modalData.cron} onChange={e => setModalData({...modalData, cron: e.target.value})} />
-                            {modalData.type === 'generic' && (
-                                <>
-                                    <input className="w-full border p-2 rounded-lg text-sm" placeholder="List Hint (e.g. news items)" value={modalData.list_hint} onChange={e => setModalData({...modalData, list_hint: e.target.value})} />
-                                    <input className="w-full border p-2 rounded-lg text-sm" placeholder="Filters (comma separated urls)" value={modalData.list_filters} onChange={e => setModalData({...modalData, list_filters: e.target.value})} />
-                                </>
-                            )}
-                            <button onClick={handleSavePoint} className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg hover:bg-indigo-700 transition-all mt-2">
-                                {modalData.id ? '保存修改' : '立即创建'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <IntelligencePointModal 
+                    onClose={() => setIsPointModalOpen(false)} 
+                    onSuccess={fetchData} 
+                    pointToEdit={pointToEdit} 
+                    sources={sources.map(s => ({ ...s, id: s.id, source_name: s.source_name }))}
+                />
             )}
         </div>
     );
