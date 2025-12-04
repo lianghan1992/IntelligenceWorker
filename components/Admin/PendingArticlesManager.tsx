@@ -17,7 +17,7 @@ const PendingArticleDetailModal: React.FC<{
     onAction: (id: string, action: 'confirm' | 'reject') => void;
 }> = ({ article, onClose, onAction }) => {
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white w-full max-w-5xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-start bg-slate-50">
@@ -106,7 +106,6 @@ export const PendingArticlesManager: React.FC = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [processing, setProcessing] = useState(false);
     
-    // View detail state
     const [viewingArticle, setViewingArticle] = useState<PendingArticlePublic | null>(null);
 
     const fetchArticles = useCallback(async () => {

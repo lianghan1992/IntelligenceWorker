@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription } from '../../types';
-import { getSources, getPoints, deletePoints, deleteSource, togglePoint, toggleSource, runCrawlerSource } from '../../api';
+import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runCrawlerSource, IntelligencePointPublic, IntelligenceSourcePublic } from '../../api';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CloseIcon, ServerIcon, PlayIcon, ChevronRightIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -106,7 +106,6 @@ export const IntelligencePointManager: React.FC = () => {
     const handleDeleteSource = async () => {
         if (!confirmDeleteSource) return;
         try {
-            // Assuming we delete all points to 'delete' the source effectivly
             await deleteSource(confirmDeleteSource.source_name);
             fetchData();
         } catch (e: any) {
@@ -142,11 +141,9 @@ export const IntelligencePointManager: React.FC = () => {
         e.stopPropagation();
         try {
             const newStatus = !currentStatus;
-            // Toggle all points under this source
             const points = pointsBySource[sourceName] || [];
             await Promise.all(points.map(p => togglePoint(p.id, newStatus)));
             
-            // Optimistic update
             setPointsBySource(prev => {
                 const newMap = { ...prev };
                 const list = newMap[sourceName];
@@ -193,17 +190,40 @@ export const IntelligencePointManager: React.FC = () => {
         return pts.length > 0 && pts.some(p => p.is_active);
     };
 
+    // Mapping helper for modal
+    const getPointForModal = (subscription: Subscription | null): IntelligencePointPublic | null => {
+        if (!subscription) return null;
+        return {
+            id: subscription.id,
+            source_id: subscription.source_id || '',
+            source_name: subscription.source_name,
+            name: subscription.point_name,
+            url: subscription.point_url,
+            cron_schedule: subscription.cron_schedule,
+            is_active: !!subscription.is_active,
+            url_filters: subscription.url_filters,
+            extra_hint: subscription.extra_hint,
+            created_at: '' // Not needed for edit/display in modal typically
+        };
+    };
+
+    const getSourcesForModal = (): IntelligenceSourcePublic[] => {
+        return sources.map(s => ({
+            id: s.id,
+            name: s.source_name,
+            points_count: s.points_count || 0,
+            articles_count: s.articles_count || 0,
+            created_at: ''
+        }));
+    };
+
     return (
         <div className="h-full flex flex-col space-y-6">
-            
-            {/* 1. Dashboard Section */}
             <section className="flex-shrink-0">
                 <IntelligenceStats compact={false} />
             </section>
 
-            {/* 2. Source & Points Config Section */}
             <section className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                {/* Header Toolbar */}
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div className="flex items-center gap-2">
                         <ServerIcon className="w-5 h-5 text-slate-500" />
@@ -226,9 +246,7 @@ export const IntelligencePointManager: React.FC = () => {
 
                 {error && <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-100 text-sm flex items-center gap-2"><CloseIcon className="w-4 h-4"/>{error}</div>}
 
-                {/* Table Container */}
                 <div className="flex-1 overflow-auto custom-scrollbar">
-                    {/* Desktop Table View */}
                     <table className="w-full text-sm text-left hidden md:table">
                         <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 z-10 shadow-sm">
                             <tr>
@@ -251,7 +269,6 @@ export const IntelligencePointManager: React.FC = () => {
                                 
                                 return (
                                     <React.Fragment key={source.id}>
-                                        {/* Source Group Header */}
                                         <tr className="bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
                                             <td colSpan={5} className="px-4 py-2">
                                                 <div className="flex items-center justify-between">
@@ -269,7 +286,6 @@ export const IntelligencePointManager: React.FC = () => {
                                                         </div>
                                                     </div>
                                                     
-                                                    {/* Source Actions Toolbar */}
                                                     <div className="flex items-center gap-4">
                                                         <button
                                                             onClick={(e) => handleRunCrawler(e, source)}
@@ -308,7 +324,6 @@ export const IntelligencePointManager: React.FC = () => {
                                             </td>
                                         </tr>
 
-                                        {/* Point Rows */}
                                         {isExpanded && points.map(point => (
                                             <tr key={point.id} className="group hover:bg-slate-50 transition-colors border-l-4 border-l-transparent hover:border-l-indigo-500">
                                                 <td className="px-6 py-3 pl-12">
@@ -354,7 +369,6 @@ export const IntelligencePointManager: React.FC = () => {
                         </tbody>
                     </table>
 
-                    {/* Mobile Card View */}
                     <div className="md:hidden space-y-4 p-4">
                         {isLoading && sources.length === 0 ? (
                             <div className="text-center text-slate-400 py-10">加载配置中...</div>
@@ -407,7 +421,7 @@ export const IntelligencePointManager: React.FC = () => {
                 </div>
             </section>
 
-            {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={fetchData} pointToEdit={pointToEdit} sources={sources} />}
+            {isModalOpen && <IntelligencePointModal onClose={() => setIsModalOpen(false)} onSuccess={fetchData} pointToEdit={getPointForModal(pointToEdit)} sources={getSourcesForModal()} />}
             
             {confirmDeleteSource && (
                 <ConfirmationModal

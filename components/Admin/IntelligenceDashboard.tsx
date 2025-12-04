@@ -1,21 +1,15 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-    getSourcesAndPoints, createPoint, createGenericPoint, updateGenericPoint, deleteSource, deletePoints, 
-    toggleSource, togglePoint, checkPointHealth, runCrawlerSource, runGenericPoint,
-    getIntelligenceStats, getGenericTasks,
-    getPendingArticles, getPendingArticleDetail, confirmPendingArticles, rejectPendingArticles,
-    getArticles, getArticleHtml, generateArticlePdf, downloadArticlePdf,
-    IntelligenceSourcePublic, IntelligencePointPublic, GenericCrawlerTaskPublic, 
-    PendingArticlePublic, ArticlePublic, DashboardSource, DashboardPoint
+    getSources, createSource, deleteSource,
+    getPoints, createPoint, deletePoints, togglePoint, runPoint,
+    getIntelligenceStats, getTasks, IntelligenceSourcePublic, IntelligencePointPublic, IntelligenceTaskPublic
 } from '../../api/intelligence';
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
-    ExternalLinkIcon, ClockIcon, SearchIcon, ShieldCheckIcon,
-    ShieldExclamationIcon, QuestionMarkCircleIcon, DownloadIcon,
-    ChartIcon, GearIcon, CloseIcon, EyeIcon, CheckIcon, DocumentTextIcon,
-    SparklesIcon
+    ClockIcon, SearchIcon, ChartIcon, GearIcon, CloseIcon, SparklesIcon,
+    ChevronRightIcon, MenuIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PendingArticlesManager } from './PendingArticlesManager';
@@ -23,16 +17,9 @@ import { IntelligenceDataManager } from './IntelligenceDataManager';
 import { IntelligenceChunkManager } from './IntelligenceChunkManager';
 import { LlmSortingManager } from './LlmSortingManager';
 import { GeminiSettingsManager } from './GeminiSettingsManager';
-import { IntelligencePointModal } from './IntelligencePointModal'; // Import the modal
+import { IntelligencePointModal } from './IntelligencePointModal';
 
 // --- Shared Components ---
-
-const Spinner: React.FC<{ size?: string, color?: string }> = ({ size = "h-5 w-5", color = "text-indigo-600" }) => (
-    <svg className={`animate-spin ${size} ${color}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-);
 
 const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ElementType; label: string }> = ({ active, onClick, icon: Icon, label }) => (
     <button
@@ -82,236 +69,353 @@ const OverviewPanel: React.FC = () => {
                 <button onClick={loadStats} className="p-2 bg-white border rounded-xl hover:text-indigo-600 shadow-sm transition-all"><RefreshIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} /></button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="接入情报源" value={stats?.sources} icon={ServerIcon} color="bg-indigo-600" subText="Active Sources" />
-                <StatCard title="活跃采集点" value={stats?.active_points} icon={RssIcon} color="bg-blue-500" subText={`Total Points: ${stats?.points || 0}`} />
+                <StatCard title="活跃采集点" value={stats?.points} icon={RssIcon} color="bg-blue-500" subText="Total Points" />
                 <StatCard title="情报资产" value={stats?.articles} icon={DatabaseIcon} color="bg-purple-600" subText="Collected Articles" />
-                <StatCard title="向量索引" value={stats?.vectors} icon={ViewListIcon} color="bg-orange-500" subText="Searchable Chunks" />
-                <StatCard title="运行中任务" value={stats?.schedules_active} icon={PlayIcon} color="bg-green-500" subText="Active Schedules" />
+                <StatCard title="待审文章" value={stats?.pending} icon={CheckCircleIcon} color="bg-orange-500" subText="Pending Review" />
             </div>
         </div>
     );
 };
 
-// --- 2. Configuration Panel (Unified Sources & Points) ---
+// --- 2. Configuration Panel (New Split View) ---
 
 const ConfigPanel: React.FC = () => {
-    const [sources, setSources] = useState<DashboardSource[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+    const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
+    const [selectedSource, setSelectedSource] = useState<IntelligenceSourcePublic | null>(null);
+    const [points, setPoints] = useState<IntelligencePointPublic[]>([]);
+    const [tasks, setTasks] = useState<IntelligenceTaskPublic[]>([]);
     
-    // Modal & Action States
+    // UI States
+    const [isLoadingSources, setIsLoadingSources] = useState(false);
+    const [isLoadingPoints, setIsLoadingPoints] = useState(false);
+    const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+    const [showCreateSource, setShowCreateSource] = useState(false);
+    const [newSourceForm, setNewSourceForm] = useState({ name: '', main_url: '' });
+    
+    // Point Modal
     const [isPointModalOpen, setIsPointModalOpen] = useState(false);
-    const [pointToEdit, setPointToEdit] = useState<any | null>(null);
+    const [pointToEdit, setPointToEdit] = useState<IntelligencePointPublic | null>(null); // Note: Edit logic needs delete+create in new API usually, or just use create modal for new
     
-    const [healthCheckStatus, setHealthCheckStatus] = useState<Record<string, { status: string, message: string }>>({});
-    const [checkingHealthId, setCheckingHealthId] = useState<string | null>(null);
-    const [runningId, setRunningId] = useState<string | null>(null);
+    // Delete Confirmation
+    const [confirmDelete, setConfirmDelete] = useState<{ type: 'source' | 'point', data: any } | null>(null);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
+    const fetchSources = useCallback(async () => {
+        setIsLoadingSources(true);
         try {
-            const data = await getSourcesAndPoints();
-            setSources(data);
-            // Auto expand if only few sources
-            if (data.length <= 3) {
-                setExpandedSources(new Set(data.map(s => s.source_name)));
+            const res = await getSources();
+            setSources(res);
+            // Auto-select first source if none selected
+            if (!selectedSource && res.length > 0) {
+                setSelectedSource(res[0]);
             }
-        } catch (e) { console.error(e); } 
-        finally { setIsLoading(false); }
-    }, []);
+        } catch (e) { console.error(e); }
+        finally { setIsLoadingSources(false); }
+    }, [selectedSource]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    useEffect(() => { fetchSources(); }, [fetchSources]);
 
-    const toggleExpand = (name: string) => {
-        setExpandedSources(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(name)) newSet.delete(name); else newSet.add(name);
-            return newSet;
-        });
-    };
-
-    const handleOpenCreate = () => {
-        setPointToEdit(null);
-        setIsPointModalOpen(true);
-    };
-
-    const handleOpenEdit = (point: DashboardPoint) => {
-        setPointToEdit(point);
-        setIsPointModalOpen(true);
-    };
-
-    const handleToggleSource = async (name: string, current: boolean) => {
-        try { await toggleSource(name, !current); fetchData(); } catch (e) { alert('操作失败'); }
-    };
-
-    const handleTogglePoint = async (id: string, current: boolean) => {
-        try { await togglePoint(id, !current); fetchData(); } catch (e) { alert('操作失败'); }
-    };
-
-    const handleDeletePoint = async (id: string) => {
-        if (!confirm('确定删除此节点吗？')) return;
-        try { await deletePoints([id]); fetchData(); } catch (e) { alert('删除失败'); }
-    };
-
-    const handleDeleteSource = async (name: string) => {
-        if (!confirm(`确定删除源 "${name}" 及其所有节点吗？`)) return;
-        try { await deleteSource(name); fetchData(); } catch (e) { alert('删除失败'); }
-    };
-
-    const handleHealthCheck = async (point: DashboardPoint) => {
-        setCheckingHealthId(point.id);
+    const fetchPointsAndTasks = useCallback(async () => {
+        if (!selectedSource) return;
+        setIsLoadingPoints(true);
+        setIsLoadingTasks(true);
         try {
-            const res = await checkPointHealth(point.id);
-            setHealthCheckStatus(prev => ({ ...prev, [point.id]: res }));
-        } catch (e: any) {
-            setHealthCheckStatus(prev => ({ ...prev, [point.id]: { status: 'error', message: e.message } }));
-        } finally {
-            setCheckingHealthId(null);
-        }
+            // Parallel fetch points and tasks (tasks are global but we can filter or just show top latest)
+            const [pts, tskRes] = await Promise.all([
+                getPoints({ source_name: selectedSource.name }),
+                getTasks({ page: 1, limit: 10 }) // Show global recent tasks or implement source filter if API supports
+            ]);
+            setPoints(pts);
+            setTasks(tskRes.items || []);
+        } catch (e) { console.error(e); }
+        finally { setIsLoadingPoints(false); setIsLoadingTasks(false); }
+    }, [selectedSource]);
+
+    useEffect(() => { fetchPointsAndTasks(); }, [fetchPointsAndTasks]);
+
+    const handleCreateSource = async () => {
+        if (!newSourceForm.name || !newSourceForm.main_url) return;
+        try {
+            const newSrc = await createSource(newSourceForm);
+            setSources(prev => [...prev, newSrc]);
+            setSelectedSource(newSrc);
+            setNewSourceForm({ name: '', main_url: '' });
+            setShowCreateSource(false);
+        } catch (e) { alert('创建失败'); }
     };
 
-    const handleRunNow = async (source: DashboardSource, point?: DashboardPoint) => {
-        const id = point ? point.id : source.source_name;
-        setRunningId(id);
+    const handleDeleteSource = async () => {
+        if (!confirmDelete || confirmDelete.type !== 'source') return;
         try {
-            if (point && point.type === 'generic') {
-                await runGenericPoint(point.id);
-            } else {
-                await runCrawlerSource(source.source_name);
-            }
-            alert('任务已触发，请查看任务监控面板。');
-        } catch (e: any) {
-            alert(`运行失败: ${e.message}`);
-        } finally {
-            setRunningId(null);
-        }
+            const res = await deleteSource(confirmDelete.data.name);
+            alert(`已删除源 "${res.deleted_source}"，包含 ${res.deleted_points} 个采集点和 ${res.deleted_tasks} 个任务。`);
+            setConfirmDelete(null);
+            setSelectedSource(null);
+            fetchSources();
+        } catch (e) { alert('删除失败'); }
+    };
+
+    const handleDeletePoint = async () => {
+        if (!confirmDelete || confirmDelete.type !== 'point') return;
+        try {
+            await deletePoints([confirmDelete.data.id]);
+            setConfirmDelete(null);
+            fetchPointsAndTasks();
+        } catch (e) { alert('删除失败'); }
+    };
+
+    const handleTogglePoint = async (point: IntelligencePointPublic) => {
+        try {
+            await togglePoint(point.id, !point.is_active);
+            setPoints(prev => prev.map(p => p.id === point.id ? { ...p, is_active: !p.is_active } : p));
+        } catch (e) { alert('操作失败'); }
+    };
+
+    const handleRunPoint = async (point: IntelligencePointPublic) => {
+        try {
+            await runPoint(point.id);
+            alert('采集任务已触发');
+            fetchPointsAndTasks(); // Refresh tasks list
+        } catch (e) { alert('启动失败'); }
     };
 
     return (
-        <div className="h-full flex flex-col bg-white">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                    <ServerIcon className="w-5 h-5 text-indigo-600" /> 源配置管理
-                </h3>
-                <div className="flex gap-2">
-                    <button onClick={fetchData} className="p-2 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
-                        <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+        <div className="h-full flex bg-slate-50/50 overflow-hidden">
+            {/* Left Sidebar: Sources */}
+            <div className="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide">
+                        <ServerIcon className="w-4 h-4 text-indigo-600" /> 情报源
+                    </h3>
+                    <button 
+                        onClick={() => setShowCreateSource(true)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" 
+                        title="添加源"
+                    >
+                        <PlusIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={handleOpenCreate} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md transition-all text-xs">
-                        <PlusIcon className="w-3.5 h-3.5" /> 新建情报点
-                    </button>
+                </div>
+
+                {showCreateSource && (
+                    <div className="p-3 bg-indigo-50 border-b border-indigo-100 animate-in slide-in-from-top-2">
+                        <input 
+                            className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
+                            placeholder="源名称 (如: 懂车帝)"
+                            value={newSourceForm.name}
+                            onChange={e => setNewSourceForm({...newSourceForm, name: e.target.value})}
+                        />
+                        <input 
+                            className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
+                            placeholder="主页 URL"
+                            value={newSourceForm.main_url}
+                            onChange={e => setNewSourceForm({...newSourceForm, main_url: e.target.value})}
+                        />
+                        <div className="flex gap-2">
+                            <button onClick={handleCreateSource} disabled={!newSourceForm.name} className="flex-1 bg-indigo-600 text-white text-xs py-1.5 rounded font-bold hover:bg-indigo-700 disabled:opacity-50">确认</button>
+                            <button onClick={() => setShowCreateSource(false)} className="flex-1 bg-white text-slate-600 text-xs py-1.5 rounded border border-slate-200 hover:bg-slate-50">取消</button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                    {isLoadingSources ? (
+                        <div className="text-center py-4 text-slate-400 text-xs">加载中...</div>
+                    ) : sources.length === 0 ? (
+                        <div className="text-center py-4 text-slate-400 text-xs">暂无情报源</div>
+                    ) : (
+                        sources.map(src => (
+                            <div 
+                                key={src.id}
+                                onClick={() => setSelectedSource(src)}
+                                className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all border ${
+                                    selectedSource?.id === src.id 
+                                    ? 'bg-indigo-50 border-indigo-100 shadow-sm' 
+                                    : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'
+                                }`}
+                            >
+                                <div className="min-w-0">
+                                    <div className={`text-sm font-bold truncate ${selectedSource?.id === src.id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                        {src.name}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 flex gap-2">
+                                        <span>{src.points_count} 采集点</span>
+                                        <span>{src.articles_count} 文章</span>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'source', data: src }); }}
+                                    className="p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-6 bg-slate-50/50 custom-scrollbar">
-                {sources.length === 0 && !isLoading && (
-                    <div className="text-center py-20 text-slate-400">暂无配置，请点击新建</div>
-                )}
-                
-                <div className="space-y-4">
-                    {sources.map(source => {
-                        const isExpanded = expandedSources.has(source.source_name);
-                        const points = source.points || [];
-                        const hasActive = points.some(p => p.is_active);
+            {/* Main Area: Points & Tasks */}
+            <div className="flex-1 flex flex-col min-w-0 bg-white">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-20">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
+                            <RssIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                {selectedSource ? selectedSource.name : '请选择情报源'}
+                                {selectedSource && <span className="text-xs font-normal text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{selectedSource.main_url}</span>}
+                            </h2>
+                        </div>
+                    </div>
+                    {selectedSource && (
+                        <div className="flex gap-2">
+                            <button onClick={fetchPointsAndTasks} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors">
+                                <RefreshIcon className={`w-5 h-5 ${isLoadingPoints ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button 
+                                onClick={() => { setPointToEdit(null); setIsPointModalOpen(true); }}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95"
+                            >
+                                <PlusIcon className="w-4 h-4" /> 新建采集点
+                            </button>
+                        </div>
+                    )}
+                </div>
 
-                        return (
-                            <div key={source.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
-                                {/* Source Header */}
-                                <div className="p-4 flex items-center justify-between bg-white cursor-pointer select-none" onClick={() => toggleExpand(source.source_name)}>
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-1.5 rounded-lg ${source.source_type === 'generic' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                                            <RssIcon className="w-4 h-4" />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800 text-sm">{source.source_name}</div>
-                                            <div className="text-[10px] text-slate-400 font-medium uppercase tracking-wide">{source.source_type} Source • {points.length} Points</div>
-                                        </div>
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
+                    {!selectedSource ? (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                            <ServerIcon className="w-12 h-12 mb-3 opacity-20" />
+                            <p>请从左侧选择一个情报源以管理采集配置</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-8">
+                            {/* Points Section */}
+                            <section>
+                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                    <ViewListIcon className="w-4 h-4" /> 采集点配置 ({points.length})
+                                </h4>
+                                {points.length === 0 && !isLoadingPoints ? (
+                                    <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm">
+                                        该源下暂无采集点，请点击右上角新建。
                                     </div>
-                                    <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
-                                        {source.source_type !== 'generic' && (
-                                            <button 
-                                                onClick={() => handleRunNow(source)} 
-                                                disabled={runningId === source.source_name}
-                                                className="p-1.5 text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg transition-colors" 
-                                                title="Run Crawler"
-                                            >
-                                                <PlayIcon className={`w-4 h-4 ${runningId === source.source_name ? 'animate-spin' : ''}`} />
-                                            </button>
-                                        )}
-                                        <button onClick={() => handleToggleSource(source.source_name, hasActive)} className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${hasActive ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>
-                                            {hasActive ? 'Running' : 'Paused'}
-                                        </button>
-                                        <button onClick={() => handleDeleteSource(source.source_name)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /></button>
-                                    </div>
-                                </div>
-
-                                {/* Points List */}
-                                {isExpanded && (
-                                    <div className="border-t border-slate-100 bg-slate-50/30">
+                                ) : (
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                         {points.map(point => (
-                                            <div key={point.id} className="flex items-center justify-between p-3 pl-12 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors group">
-                                                <div className="min-w-0 flex-1 pr-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`w-1.5 h-1.5 rounded-full ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></span>
-                                                        <span className="font-semibold text-sm text-slate-700">{point.point_name}</span>
-                                                        {point.type === 'generic' && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 rounded border border-purple-100">Generic</span>}
-                                                    </div>
-                                                    <a href={point.point_url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block mt-0.5 max-w-md">{point.point_url}</a>
-                                                </div>
-                                                
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 bg-white border px-2 py-1 rounded">
-                                                        <ClockIcon className="w-3 h-3" /> {point.cron_schedule}
-                                                    </div>
-                                                    
-                                                    {/* Health Check Status */}
-                                                    <div className="flex items-center gap-2 w-24 justify-end">
-                                                        {healthCheckStatus[point.id] ? (
-                                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${healthCheckStatus[point.id].status === 'healthy' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                                {healthCheckStatus[point.id].status === 'healthy' ? 'OK' : 'Error'}
-                                                            </span>
-                                                        ) : (
-                                                            <button onClick={() => handleHealthCheck(point)} disabled={checkingHealthId === point.id} className="text-slate-300 hover:text-indigo-500 p-1 rounded transition-colors">
-                                                                <ShieldCheckIcon className={`w-4 h-4 ${checkingHealthId === point.id ? 'animate-pulse text-indigo-400' : ''}`} />
+                                            <div key={point.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                                                <div className={`absolute top-0 left-0 bottom-0 w-1 ${point.is_active ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                                <div className="pl-3 flex flex-col h-full justify-between">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <h5 className="font-bold text-slate-800">{point.name}</h5>
+                                                                {point.extra_hint && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-medium">Generic</span>}
+                                                            </div>
+                                                            <a href={point.url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block max-w-[250px] font-mono mt-0.5">{point.url}</a>
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <button 
+                                                                onClick={() => handleRunPoint(point)}
+                                                                className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded transition-colors" 
+                                                                title="立即运行"
+                                                            >
+                                                                <PlayIcon className="w-4 h-4" />
                                                             </button>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => handleOpenEdit(point)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="编辑">
-                                                            <GearIcon className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        {point.type === 'generic' && (
-                                                            <button onClick={() => handleRunNow(source, point)} disabled={runningId === point.id} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="运行">
-                                                                <PlayIcon className={`w-3.5 h-3.5 ${runningId === point.id ? 'animate-spin' : ''}`} />
+                                                            <button 
+                                                                onClick={() => handleTogglePoint(point)}
+                                                                className={`p-1.5 rounded transition-colors ${point.is_active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-50'}`}
+                                                                title={point.is_active ? "暂停" : "启用"}
+                                                            >
+                                                                {point.is_active ? <StopIcon className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
                                                             </button>
-                                                        )}
-                                                        <button onClick={() => handleTogglePoint(point.id, point.is_active)} className={`p-1.5 rounded ${point.is_active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`}>
-                                                            {point.is_active ? <StopIcon className="w-3.5 h-3.5" /> : <PlayIcon className="w-3.5 h-3.5" />}
-                                                        </button>
-                                                        <button onClick={() => handleDeletePoint(point.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded">
-                                                            <TrashIcon className="w-3.5 h-3.5" />
-                                                        </button>
+                                                            <button 
+                                                                onClick={() => setConfirmDelete({ type: 'point', data: point })}
+                                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 pt-2 border-t border-slate-50">
+                                                        <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5"/> {point.cron_schedule}</span>
+                                                        {point.last_crawl_time && <span className="text-slate-400">上次运行: {new Date(point.last_crawl_time).toLocaleString()}</span>}
                                                     </div>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
-                        );
-                    })}
+                            </section>
+
+                            {/* Recent Tasks Section */}
+                            <section>
+                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
+                                    <ClockIcon className="w-4 h-4" /> 系统近期任务 (Global)
+                                </h4>
+                                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                    <table className="w-full text-sm text-left text-slate-500">
+                                        <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
+                                            <tr>
+                                                <th className="px-6 py-3">任务类型</th>
+                                                <th className="px-6 py-3">来源/点位</th>
+                                                <th className="px-6 py-3">阶段</th>
+                                                <th className="px-6 py-3">状态</th>
+                                                <th className="px-6 py-3">开始时间</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {tasks.map(t => (
+                                                <tr key={t.id} className="hover:bg-slate-50">
+                                                    <td className="px-6 py-3 font-medium text-slate-800">{t.task_type}</td>
+                                                    <td className="px-6 py-3">
+                                                        <div className="text-xs">{t.source_name}</div>
+                                                        <div className="text-slate-400 text-[10px]">{t.point_name}</div>
+                                                    </td>
+                                                    <td className="px-6 py-3">{t.stage}</td>
+                                                    <td className="px-6 py-3">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {t.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-3 text-xs font-mono">{new Date(t.start_time).toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                            {tasks.length === 0 && <tr><td colSpan={5} className="text-center py-8 text-slate-400">暂无近期任务</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Create/Edit Modal */}
-            {isPointModalOpen && (
+            {/* Modals */}
+            {isPointModalOpen && selectedSource && (
                 <IntelligencePointModal 
                     onClose={() => setIsPointModalOpen(false)} 
-                    onSuccess={fetchData} 
-                    pointToEdit={pointToEdit} 
-                    sources={sources.map(s => ({ ...s, id: s.id, source_name: s.source_name }))}
+                    onSuccess={fetchPointsAndTasks} 
+                    pointToEdit={null} // Create Mode
+                    sources={[selectedSource as any]} // Restrict to current source
+                    preSelectedSourceId={selectedSource.name}
+                />
+            )}
+
+            {confirmDelete && (
+                <ConfirmationModal 
+                    title={confirmDelete.type === 'source' ? '删除情报源' : '删除采集点'}
+                    message={confirmDelete.type === 'source' 
+                        ? `确定删除 "${confirmDelete.data.name}" 吗？该操作将同时删除其下所有采集点和历史任务。`
+                        : `确定删除采集点 "${confirmDelete.data.name}" 吗？`
+                    }
+                    onConfirm={confirmDelete.type === 'source' ? handleDeleteSource : handleDeletePoint}
+                    onCancel={() => setConfirmDelete(null)}
+                    confirmText="确认删除"
+                    variant="destructive"
                 />
             )}
         </div>
@@ -329,8 +433,8 @@ export const IntelligenceDashboard: React.FC = () => {
                 <div className="flex gap-8">
                     <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={ChartIcon} label="概览" />
                     <TabButton active={tab === 'config'} onClick={() => setTab('config')} icon={ServerIcon} label="采集配置" />
-                    <TabButton active={tab === 'pending'} onClick={() => setTab('pending')} icon={CheckCircleIcon} label="待审核" />
-                    <TabButton active={tab === 'data'} onClick={() => setTab('data')} icon={DatabaseIcon} label="情报库" />
+                    <TabButton active={tab === 'pending'} onClick={() => setTab('pending')} icon={CheckCircleIcon} label="待审文章" />
+                    <TabButton active={tab === 'data'} onClick={() => setTab('data')} icon={DatabaseIcon} label="情报资产" />
                     <TabButton active={tab === 'chunks'} onClick={() => setTab('chunks')} icon={ViewListIcon} label="向量索引" />
                     <TabButton active={tab === 'llm'} onClick={() => setTab('llm')} icon={SparklesIcon} label="LLM任务" />
                     <TabButton active={tab === 'settings'} onClick={() => setTab('settings')} icon={GearIcon} label="设置" />

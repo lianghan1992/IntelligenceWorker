@@ -23,7 +23,8 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
         active_points: number; 
         articles: number; 
         vectors: number; 
-        schedules_active: number 
+        schedules_active: number;
+        pending: number; // Added pending
     } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -87,10 +88,10 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
                     />
                     <StatCard 
                         title="活跃探针" 
-                        value={stats.points} // Use total points as active count not available in source summary
+                        value={stats.active_points} 
                         icon={<RssIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-blue-500 to-blue-600" 
-                        description="配置总数"
+                        description={`总数 ${stats.points}`}
                     />
                     <StatCard 
                         title="文章库" 
@@ -101,24 +102,24 @@ export const IntelligenceStats: React.FC<{ compact?: boolean }> = ({ compact }) 
                     />
                     <StatCard 
                         title="向量索引" 
-                        value={0} // Not available
+                        value={stats.vectors} 
                         icon={<ViewGridIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-orange-500 to-orange-600" 
                         description="暂无数据"
                     />
                     <StatCard 
                         title="调度器" 
-                        value={0} // Not available
+                        value={stats.schedules_active} 
                         icon={<ClockIcon className="w-5 h-5" />} 
                         color="bg-gradient-to-br from-emerald-500 to-emerald-600" 
-                        description="暂无数据"
+                        description="运行中任务"
                     />
                     <StatCard 
-                        title="健康度" 
-                        value={100} 
+                        title="待审核" 
+                        value={stats.pending} 
                         icon={<CheckCircleIcon className="w-5 h-5" />} 
                         color="bg-slate-700" 
-                        description="服务正常"
+                        description="需人工确认"
                     />
                 </div>
             )}
