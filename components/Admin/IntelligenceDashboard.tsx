@@ -8,7 +8,7 @@ import {
 import { 
     ServerIcon, RssIcon, ViewListIcon, CheckCircleIcon, DatabaseIcon, 
     PlusIcon, RefreshIcon, PlayIcon, StopIcon, TrashIcon, 
-    ClockIcon, ChartIcon, GearIcon, SparklesIcon
+    ClockIcon, ChartIcon, GearIcon, SparklesIcon, CloseIcon
 } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { PendingArticlesManager } from './PendingArticlesManager';
@@ -25,7 +25,7 @@ import { IntelligenceTasksPanel } from './IntelligenceTasksPanel';
 const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.ElementType; label: string }> = ({ active, onClick, icon: Icon, label }) => (
     <button
         onClick={onClick}
-        className={`relative flex items-center gap-2 px-6 py-4 text-sm font-bold transition-all duration-300 ${active ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+        className={`relative flex items-center gap-2 px-6 py-4 text-sm font-bold transition-all duration-300 whitespace-nowrap flex-shrink-0 ${active ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
     >
         <Icon className={`w-5 h-5 ${active ? 'text-indigo-600' : 'text-slate-400'}`} />
         {label}
@@ -33,9 +33,24 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.El
     </button>
 );
 
-// --- Configuration Panel (Source & Points) ---
+// --- Tasks Modal ---
+const TasksModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+        <div className="bg-white rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden relative">
+            <div className="absolute top-4 right-4 z-10">
+                <button onClick={onClose} className="p-2 bg-white/80 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors shadow-sm border border-slate-200">
+                    <CloseIcon className="w-5 h-5" />
+                </button>
+            </div>
+            <IntelligenceTasksPanel />
+        </div>
+    </div>
+);
 
-const ConfigPanel: React.FC = () => {
+// --- Overview Panel (Integrated Stats + Config + Task Trigger) ---
+
+const OverviewPanel: React.FC = () => {
+    // --- Config State ---
     const [sources, setSources] = useState<IntelligenceSourcePublic[]>([]);
     const [selectedSource, setSelectedSource] = useState<IntelligenceSourcePublic | null>(null);
     const [points, setPoints] = useState<IntelligencePointPublic[]>([]);
@@ -46,8 +61,9 @@ const ConfigPanel: React.FC = () => {
     const [showCreateSource, setShowCreateSource] = useState(false);
     const [newSourceForm, setNewSourceForm] = useState({ name: '', main_url: '' });
     
-    // Point Modal
+    // Modals
     const [isPointModalOpen, setIsPointModalOpen] = useState(false);
+    const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
     
     // Delete Confirmation
     const [confirmDelete, setConfirmDelete] = useState<{ type: 'source' | 'point', data: any } | null>(null);
@@ -127,124 +143,138 @@ const ConfigPanel: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex bg-slate-50/50 overflow-hidden">
-            {/* Left Sidebar: Sources */}
-            <div className="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide">
-                        <ServerIcon className="w-4 h-4 text-indigo-600" /> 情报源
-                    </h3>
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* 1. Top Area: Stats & Task Trigger */}
+            <div className="flex-shrink-0 p-6 pb-0 space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">系统全景与配置</h2>
                     <button 
-                        onClick={() => setShowCreateSource(true)}
-                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" 
-                        title="添加源"
+                        onClick={() => setIsTasksModalOpen(true)}
+                        className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl shadow-sm hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md transition-all group"
                     >
-                        <PlusIcon className="w-4 h-4" />
+                        <ClockIcon className="w-5 h-5 text-slate-400 group-hover:text-indigo-500" />
+                        <span>查看系统任务队列</span>
                     </button>
                 </div>
-
-                {showCreateSource && (
-                    <div className="p-3 bg-indigo-50 border-b border-indigo-100 animate-in slide-in-from-top-2">
-                        <input 
-                            className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
-                            placeholder="源名称 (如: 懂车帝)"
-                            value={newSourceForm.name}
-                            onChange={e => setNewSourceForm({...newSourceForm, name: e.target.value})}
-                        />
-                        <input 
-                            className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
-                            placeholder="主页 URL"
-                            value={newSourceForm.main_url}
-                            onChange={e => setNewSourceForm({...newSourceForm, main_url: e.target.value})}
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={handleCreateSource} disabled={!newSourceForm.name} className="flex-1 bg-indigo-600 text-white text-xs py-1.5 rounded font-bold hover:bg-indigo-700 disabled:opacity-50">确认</button>
-                            <button onClick={() => setShowCreateSource(false)} className="flex-1 bg-white text-slate-600 text-xs py-1.5 rounded border border-slate-200 hover:bg-slate-50">取消</button>
-                        </div>
-                    </div>
-                )}
-
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                    {isLoadingSources ? (
-                        <div className="text-center py-4 text-slate-400 text-xs">加载中...</div>
-                    ) : sources.length === 0 ? (
-                        <div className="text-center py-4 text-slate-400 text-xs">暂无情报源</div>
-                    ) : (
-                        sources.map(src => (
-                            <div 
-                                key={src.id}
-                                onClick={() => setSelectedSource(src)}
-                                className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all border ${
-                                    selectedSource?.id === src.id 
-                                    ? 'bg-indigo-50 border-indigo-100 shadow-sm' 
-                                    : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'
-                                }`}
-                            >
-                                <div className="min-w-0">
-                                    <div className={`text-sm font-bold truncate ${selectedSource?.id === src.id ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                        {src.name}
-                                    </div>
-                                    <div className="text-[10px] text-slate-400 flex gap-2">
-                                        <span>{src.points_count} 采集点</span>
-                                        <span>{src.articles_count} 文章</span>
-                                    </div>
-                                </div>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'source', data: src }); }}
-                                    className="p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <TrashIcon className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
+                
+                <IntelligenceStats compact={false} />
             </div>
 
-            {/* Main Area: Points */}
-            <div className="flex-1 flex flex-col min-w-0 bg-white">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-20">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                            <RssIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                {selectedSource ? selectedSource.name : '请选择情报源'}
-                                {selectedSource && <span className="text-xs font-normal text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{selectedSource.main_url}</span>}
-                            </h2>
-                        </div>
+            {/* 2. Main Area: Integrated Config Panel */}
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row p-6 gap-6 overflow-hidden">
+                
+                {/* Left: Sources List */}
+                <div className="w-full md:w-72 bg-white rounded-2xl border border-slate-200 flex flex-col flex-shrink-0 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wide">
+                            <ServerIcon className="w-4 h-4 text-indigo-600" /> 情报源
+                        </h3>
+                        <button 
+                            onClick={() => setShowCreateSource(true)}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" 
+                            title="添加源"
+                        >
+                            <PlusIcon className="w-4 h-4" />
+                        </button>
                     </div>
-                    {selectedSource && (
-                        <div className="flex gap-2">
-                            <button onClick={fetchPoints} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors">
-                                <RefreshIcon className={`w-5 h-5 ${isLoadingPoints ? 'animate-spin' : ''}`} />
-                            </button>
-                            <button 
-                                onClick={() => setIsPointModalOpen(true)}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95"
-                            >
-                                <PlusIcon className="w-4 h-4" /> 新建采集点
-                            </button>
+
+                    {showCreateSource && (
+                        <div className="p-3 bg-indigo-50 border-b border-indigo-100 animate-in slide-in-from-top-2">
+                            <input 
+                                className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
+                                placeholder="源名称 (如: 懂车帝)"
+                                value={newSourceForm.name}
+                                onChange={e => setNewSourceForm({...newSourceForm, name: e.target.value})}
+                            />
+                            <input 
+                                className="w-full text-xs p-2 rounded border border-indigo-200 mb-2 focus:outline-none focus:border-indigo-500"
+                                placeholder="主页 URL"
+                                value={newSourceForm.main_url}
+                                onChange={e => setNewSourceForm({...newSourceForm, main_url: e.target.value})}
+                            />
+                            <div className="flex gap-2">
+                                <button onClick={handleCreateSource} disabled={!newSourceForm.name} className="flex-1 bg-indigo-600 text-white text-xs py-1.5 rounded font-bold hover:bg-indigo-700 disabled:opacity-50">确认</button>
+                                <button onClick={() => setShowCreateSource(false)} className="flex-1 bg-white text-slate-600 text-xs py-1.5 rounded border border-slate-200 hover:bg-slate-50">取消</button>
+                            </div>
                         </div>
                     )}
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                        {isLoadingSources ? (
+                            <div className="text-center py-4 text-slate-400 text-xs">加载中...</div>
+                        ) : sources.length === 0 ? (
+                            <div className="text-center py-4 text-slate-400 text-xs">暂无情报源</div>
+                        ) : (
+                            sources.map(src => (
+                                <div 
+                                    key={src.id}
+                                    onClick={() => setSelectedSource(src)}
+                                    className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all border ${
+                                        selectedSource?.id === src.id 
+                                        ? 'bg-indigo-50 border-indigo-100 shadow-sm' 
+                                        : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-100'
+                                    }`}
+                                >
+                                    <div className="min-w-0">
+                                        <div className={`text-sm font-bold truncate ${selectedSource?.id === src.id ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                            {src.name}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 flex gap-2">
+                                            <span>{src.points_count} 采集点</span>
+                                            {/* <span>{src.articles_count} 文章</span> */}
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'source', data: src }); }}
+                                        className="p-1.5 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <TrashIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 custom-scrollbar">
-                    {!selectedSource ? (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                            <ServerIcon className="w-12 h-12 mb-3 opacity-20" />
-                            <p>请从左侧选择一个情报源以管理采集配置</p>
+                {/* Right: Points Area */}
+                <div className="flex-1 flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg flex-shrink-0">
+                                <RssIcon className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 truncate">
+                                    {selectedSource ? selectedSource.name : '请选择情报源'}
+                                </h2>
+                                {selectedSource && <p className="text-xs text-slate-400 truncate max-w-[200px] md:max-w-md">{selectedSource.main_url}</p>}
+                            </div>
                         </div>
-                    ) : (
-                        <div className="space-y-8">
-                            {/* Points Section */}
-                            <section>
-                                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                    <ViewListIcon className="w-4 h-4" /> 采集点配置 ({points.length})
-                                </h4>
+                        {selectedSource && (
+                            <div className="flex gap-2 flex-shrink-0">
+                                <button onClick={fetchPoints} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors">
+                                    <RefreshIcon className={`w-5 h-5 ${isLoadingPoints ? 'animate-spin' : ''}`} />
+                                </button>
+                                <button 
+                                    onClick={() => setIsPointModalOpen(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-indigo-700 transition-all active:scale-95 whitespace-nowrap"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> 
+                                    <span className="hidden sm:inline">新建采集点</span>
+                                    <span className="sm:hidden">新建</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/30 custom-scrollbar">
+                        {!selectedSource ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                                <ServerIcon className="w-12 h-12 mb-3 opacity-20" />
+                                <p>请从左侧选择一个情报源以管理采集配置</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
                                 {points.length === 0 && !isLoadingPoints ? (
                                     <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-400 text-sm">
                                         该源下暂无采集点，请点击右上角新建。
@@ -258,14 +288,14 @@ const ConfigPanel: React.FC = () => {
                                                     <div className={`absolute top-0 left-0 bottom-0 w-1 ${isActive ? 'bg-green-500' : 'bg-slate-300'}`}></div>
                                                     <div className="pl-3 flex flex-col h-full justify-between">
                                                         <div className="flex justify-between items-start mb-2">
-                                                            <div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <h5 className="font-bold text-slate-800">{point.name}</h5>
+                                                            <div className="min-w-0 pr-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <h5 className="font-bold text-slate-800 truncate">{point.name}</h5>
                                                                     {point.extra_hint && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 font-medium">Generic</span>}
                                                                 </div>
-                                                                <a href={point.url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block max-w-[250px] font-mono mt-0.5">{point.url}</a>
+                                                                <a href={point.url} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500 truncate block font-mono mt-0.5" title={point.url}>{point.url}</a>
                                                             </div>
-                                                            <div className="flex gap-1">
+                                                            <div className="flex gap-1 flex-shrink-0">
                                                                 <button 
                                                                     onClick={() => handleRunPoint(point)}
                                                                     className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded transition-colors" 
@@ -289,8 +319,8 @@ const ConfigPanel: React.FC = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 pt-2 border-t border-slate-50">
-                                                            <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5"/> {point.cron_schedule}</span>
-                                                            {point.last_crawl_time && <span className="text-slate-400">上次运行: {new Date(point.last_crawl_time).toLocaleString()}</span>}
+                                                            <span className="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded"><ClockIcon className="w-3 h-3"/> {point.cron_schedule}</span>
+                                                            {point.last_crawl_time && <span className="text-slate-400 ml-auto">上次: {new Date(point.last_crawl_time).toLocaleString()}</span>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -298,9 +328,9 @@ const ConfigPanel: React.FC = () => {
                                         })}
                                     </div>
                                 )}
-                            </section>
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -314,6 +344,8 @@ const ConfigPanel: React.FC = () => {
                     preSelectedSourceId={selectedSource.name}
                 />
             )}
+
+            {isTasksModalOpen && <TasksModal onClose={() => setIsTasksModalOpen(false)} />}
 
             {confirmDelete && (
                 <ConfirmationModal 
@@ -332,28 +364,16 @@ const ConfigPanel: React.FC = () => {
     );
 };
 
-// --- Overview Panel ---
-const OverviewPanel: React.FC = () => {
-    return (
-        <div className="p-8 h-full overflow-y-auto bg-slate-50/50">
-            <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight mb-8">情报系统全景</h2>
-            <IntelligenceStats compact={false} />
-        </div>
-    );
-};
-
 // --- Main Layout ---
 export const IntelligenceDashboard: React.FC = () => {
-    const [tab, setTab] = useState<'overview' | 'config' | 'tasks' | 'pending' | 'data' | 'chunks' | 'llm' | 'settings'>('overview');
+    const [tab, setTab] = useState<'overview' | 'pending' | 'data' | 'chunks' | 'llm' | 'settings'>('overview');
 
     return (
         <div className="h-full flex flex-col bg-slate-50/50">
             {/* Header Tabs */}
             <div className="bg-white border-b px-6 pt-6 pb-0 flex-shrink-0 shadow-sm z-20 overflow-x-auto">
-                <div className="flex gap-8">
-                    <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={ChartIcon} label="概览" />
-                    <TabButton active={tab === 'config'} onClick={() => setTab('config')} icon={ServerIcon} label="采集配置" />
-                    <TabButton active={tab === 'tasks'} onClick={() => setTab('tasks')} icon={ClockIcon} label="系统任务" />
+                <div className="flex gap-4 md:gap-8">
+                    <TabButton active={tab === 'overview'} onClick={() => setTab('overview')} icon={ChartIcon} label="概览与配置" />
                     <TabButton active={tab === 'pending'} onClick={() => setTab('pending')} icon={CheckCircleIcon} label="待审文章" />
                     <TabButton active={tab === 'data'} onClick={() => setTab('data')} icon={DatabaseIcon} label="情报资产" />
                     <TabButton active={tab === 'chunks'} onClick={() => setTab('chunks')} icon={ViewListIcon} label="向量索引" />
@@ -365,8 +385,6 @@ export const IntelligenceDashboard: React.FC = () => {
             {/* Content Body */}
             <div className="flex-1 overflow-hidden relative">
                 {tab === 'overview' && <OverviewPanel />}
-                {tab === 'config' && <ConfigPanel />}
-                {tab === 'tasks' && <IntelligenceTasksPanel />}
                 {tab === 'pending' && <PendingArticlesManager />}
                 {tab === 'data' && <IntelligenceDataManager />}
                 {tab === 'chunks' && <IntelligenceChunkManager />}
