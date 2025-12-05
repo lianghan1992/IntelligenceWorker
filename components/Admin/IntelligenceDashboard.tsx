@@ -146,8 +146,7 @@ const OverviewPanel: React.FC = () => {
         <div className="flex flex-col h-full overflow-hidden">
             {/* 1. Top Area: Stats & Task Trigger */}
             <div className="flex-shrink-0 p-6 pb-0 space-y-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">系统全景与配置</h2>
+                <div className="flex justify-end">
                     <button 
                         onClick={() => setIsTasksModalOpen(true)}
                         className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl shadow-sm hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md transition-all group"

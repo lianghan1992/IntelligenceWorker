@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CloseIcon, ChevronUpDownIcon, ServerIcon, RssIcon } from '../icons';
+import { CloseIcon, ServerIcon, RssIcon, ClockIcon } from '../icons';
 import { createPoint, IntelligenceSourcePublic, IntelligencePointPublic } from '../../api/intelligence';
 
 interface IntelligencePointModalProps {
@@ -18,15 +18,6 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-const cronOptions = [
-    { label: '每30分钟', value: '*/30 * * * *' },
-    { label: '每小时', value: '0 * * * *' },
-    { label: '每3小时', value: '0 */3 * * *' },
-    { label: '每6小时', value: '0 */6 * * *' },
-    { label: '每12小时', value: '0 */12 * * *' },
-    { label: '每天 0点', value: '0 0 * * *' },
-];
-
 export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ onClose, onSuccess, pointToEdit, sources, preSelectedSourceId }) => {
     const [formData, setFormData] = useState({
         source_name: preSelectedSourceId || '',
@@ -41,18 +32,32 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [isCronDropdownOpen, setIsCronDropdownOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
     
+    // Cron Builder State
+    const [scheduleType, setScheduleType] = useState<'interval' | 'daily' | 'days'>('interval');
+    const [intervalNum, setIntervalNum] = useState(6);
+    const [intervalUnit, setIntervalUnit] = useState<'hour' | 'minute'>('hour');
+    const [timeValue, setTimeValue] = useState('08:00'); // HH:mm
+    const [daysNum, setDaysNum] = useState(1);
+
+    // Sync Cron
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsCronDropdownOpen(false);
+        let cron = '';
+        const [hh, mm] = timeValue.split(':').map(v => parseInt(v, 10) || 0);
+        
+        if (scheduleType === 'interval') {
+            if (intervalUnit === 'minute') {
+                cron = `*/${Math.max(1, intervalNum)} * * * *`;
+            } else {
+                cron = `0 */${Math.max(1, intervalNum)} * * *`;
             }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        } else if (scheduleType === 'daily') {
+            cron = `${mm} ${hh} * * *`;
+        } else if (scheduleType === 'days') {
+            cron = `${mm} ${hh} */${Math.max(1, daysNum)} * *`;
+        }
+        setFormData(prev => ({ ...prev, cron_schedule: cron }));
+    }, [scheduleType, intervalNum, intervalUnit, timeValue, daysNum]);
 
     const isFormValid = () => {
         return formData.source_name.trim() && formData.name.trim() && formData.url.trim() && formData.cron_schedule.trim();
@@ -72,11 +77,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
     };
-
-    const handleCronSelect = (value: string) => {
-        setFormData(prev => ({ ...prev, cron_schedule: value }));
-        setIsCronDropdownOpen(false);
-    }
 
     const handleSubmit = async () => {
         if (!isFormValid()) return;
@@ -104,8 +104,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         }
     };
     
-    const currentCronLabel = cronOptions.find(opt => opt.value === formData.cron_schedule)?.label || formData.cron_schedule;
-
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
             <div className="bg-white rounded-2xl w-full max-w-xl relative shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95 flex flex-col max-h-[90vh]">
@@ -144,7 +142,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
                     {/* Point Details Section */}
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                        <label className="block text-sm font-bold text-gray-700 mb-4 flex items-center gap-2">
                             <RssIcon className="w-4 h-4 text-blue-600"/> 采集点配置
                         </label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -153,28 +151,68 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                 <input name="name" type="text" value={formData.name} onChange={handleChange} placeholder="例如：行业新闻" className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" disabled={isLoading} />
                             </div>
                             
-                            <div ref={dropdownRef} className="relative">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">采集频率 <span className="text-red-500">*</span></label>
-                                <button type="button" onClick={() => setIsCronDropdownOpen(!isCronDropdownOpen)} disabled={isLoading} className="relative w-full cursor-default rounded-lg bg-gray-50 border border-gray-300 py-2 pl-3 pr-10 text-left focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm">
-                                    <span className="block truncate">{currentCronLabel}</span>
-                                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                        <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                                    </span>
-                                </button>
-                                {isCronDropdownOpen && (
-                                    <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
-                                        {cronOptions.map((opt) => (
-                                            <li key={opt.value} onClick={() => handleCronSelect(opt.value)} className="text-gray-900 relative cursor-default select-none py-2 px-4 hover:bg-blue-50 hover:text-blue-700">
-                                                {opt.label}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">解析模式 (Mode)</label>
+                                <select name="mode" value={formData.mode} onChange={handleChange} className="w-full bg-white border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                                    <option value="markdown">Markdown (默认)</option>
+                                    <option value="html">HTML</option>
+                                    <option value="text">纯文本</option>
+                                </select>
                             </div>
 
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-medium text-gray-500 mb-1">列表页 URL <span className="text-red-500">*</span></label>
                                 <input name="url" type="url" value={formData.url} onChange={handleChange} placeholder="https://..." className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" disabled={isLoading} />
+                            </div>
+
+                            {/* Enhanced Cron Builder */}
+                            <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                <label className="block text-xs font-bold text-slate-500 mb-3 uppercase flex items-center gap-1.5">
+                                    <ClockIcon className="w-3.5 h-3.5" /> 采集频率配置
+                                </label>
+                                
+                                <div className="flex gap-2 mb-3">
+                                    <button type="button" onClick={() => setScheduleType('interval')} className={`flex-1 py-1.5 text-xs rounded-md border transition-colors ${scheduleType === 'interval' ? 'bg-white border-indigo-500 text-indigo-600 shadow-sm font-bold' : 'border-transparent text-slate-500 hover:bg-white'}`}>间隔循环</button>
+                                    <button type="button" onClick={() => setScheduleType('daily')} className={`flex-1 py-1.5 text-xs rounded-md border transition-colors ${scheduleType === 'daily' ? 'bg-white border-indigo-500 text-indigo-600 shadow-sm font-bold' : 'border-transparent text-slate-500 hover:bg-white'}`}>每天定时</button>
+                                    <button type="button" onClick={() => setScheduleType('days')} className={`flex-1 py-1.5 text-xs rounded-md border transition-colors ${scheduleType === 'days' ? 'bg-white border-indigo-500 text-indigo-600 shadow-sm font-bold' : 'border-transparent text-slate-500 hover:bg-white'}`}>间隔天数</button>
+                                </div>
+
+                                <div className="min-h-[40px] flex items-center">
+                                    {scheduleType === 'interval' && (
+                                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                                            <span className="text-sm text-slate-600">每</span>
+                                            <input type="number" min="1" value={intervalNum} onChange={e => setIntervalNum(Math.max(1, parseInt(e.target.value)||1))} className="w-16 p-1.5 border border-gray-300 rounded text-center text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            <select value={intervalUnit} onChange={e => setIntervalUnit(e.target.value as any)} className="p-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-1 focus:ring-indigo-500 outline-none">
+                                                <option value="minute">分钟</option>
+                                                <option value="hour">小时</option>
+                                            </select>
+                                            <span className="text-sm text-slate-600">执行一次</span>
+                                        </div>
+                                    )}
+
+                                    {scheduleType === 'daily' && (
+                                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                                            <span className="text-sm text-slate-600">每天</span>
+                                            <input type="time" value={timeValue} onChange={e => setTimeValue(e.target.value)} className="p-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer" />
+                                            <span className="text-sm text-slate-600">执行</span>
+                                        </div>
+                                    )}
+
+                                    {scheduleType === 'days' && (
+                                        <div className="flex items-center gap-2 flex-wrap animate-in fade-in slide-in-from-left-2 duration-300">
+                                            <span className="text-sm text-slate-600">每</span>
+                                            <input type="number" min="1" value={daysNum} onChange={e => setDaysNum(Math.max(1, parseInt(e.target.value)||1))} className="w-16 p-1.5 border border-gray-300 rounded text-center text-sm focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            <span className="text-sm text-slate-600">天，在</span>
+                                            <input type="time" value={timeValue} onChange={e => setTimeValue(e.target.value)} className="p-1.5 border border-gray-300 rounded text-sm bg-white focus:ring-1 focus:ring-indigo-500 outline-none cursor-pointer" />
+                                            <span className="text-sm text-slate-600">执行</span>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex justify-between">
+                                    <span>CRON Expression:</span>
+                                    <span className="font-bold text-slate-500">{formData.cron_schedule}</span>
+                                </div>
                             </div>
 
                             <div className="md:col-span-2">
