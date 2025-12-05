@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CloseIcon, ServerIcon, RssIcon, ClockIcon } from '../icons';
+import { CloseIcon, ServerIcon, RssIcon, ClockIcon, ArrowRightIcon } from '../icons';
 import { createPoint, IntelligenceSourcePublic, IntelligencePointPublic } from '../../api/intelligence';
 
 interface IntelligencePointModalProps {
@@ -28,6 +28,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         extra_hint: '',
         enable_pagination: false,
         initial_pages: 0,
+        pagination_type: 'none', // 'none' | 'scroll' | 'click'
+        pagination_selector: '',
         mode: 'markdown' 
     });
     const [isLoading, setIsLoading] = useState(false);
@@ -60,7 +62,9 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
     }, [scheduleType, intervalNum, intervalUnit, timeValue, daysNum]);
 
     const isFormValid = () => {
-        return formData.source_name.trim() && formData.name.trim() && formData.url.trim() && formData.cron_schedule.trim();
+        if (!formData.source_name.trim() || !formData.name.trim() || !formData.url.trim() || !formData.cron_schedule.trim()) return false;
+        if (formData.enable_pagination && formData.pagination_type === 'click' && !formData.pagination_selector.trim()) return false;
+        return true;
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -92,6 +96,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 extra_hint: formData.extra_hint || undefined,
                 enable_pagination: formData.enable_pagination,
                 initial_pages: formData.initial_pages,
+                pagination_type: formData.enable_pagination && formData.pagination_type !== 'none' ? formData.pagination_type as 'scroll' | 'click' : undefined,
+                pagination_selector: formData.enable_pagination && formData.pagination_type === 'click' ? formData.pagination_selector : undefined,
                 mode: formData.mode
             });
 
@@ -234,7 +240,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
                     {/* Pagination Config */}
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                             <input 
                                 id="enable_pagination"
                                 name="enable_pagination" 
@@ -248,19 +254,54 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                         </div>
                         
                         {formData.enable_pagination && (
-                            <div className="pl-6 animate-in fade-in slide-in-from-top-1">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">初始采集页数</label>
-                                <input 
-                                    name="initial_pages" 
-                                    type="number" 
-                                    min="0"
-                                    max="50"
-                                    value={formData.initial_pages} 
-                                    onChange={handleNumberChange} 
-                                    className="w-32 bg-gray-50 border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
-                                    disabled={isLoading} 
-                                />
-                                <p className="text-[10px] text-gray-400 mt-1">0 为自动或不限制。</p>
+                            <div className="pl-6 animate-in fade-in slide-in-from-top-1 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">初始采集页数</label>
+                                        <input 
+                                            name="initial_pages" 
+                                            type="number" 
+                                            min="0"
+                                            max="50"
+                                            value={formData.initial_pages} 
+                                            onChange={handleNumberChange} 
+                                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                                            disabled={isLoading} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">翻页策略</label>
+                                        <select 
+                                            name="pagination_type" 
+                                            value={formData.pagination_type} 
+                                            onChange={handleChange} 
+                                            className="w-full bg-white border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                            disabled={isLoading}
+                                        >
+                                            <option value="none">自动 / 无</option>
+                                            <option value="scroll">滚动加载 (Scroll)</option>
+                                            <option value="click">点击按钮 (Click)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {(formData.pagination_type === 'click' || formData.pagination_type === 'scroll') && (
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            翻页元素选择器 (CSS Selector)
+                                            {formData.pagination_type === 'click' && <span className="text-red-500 ml-1">*</span>}
+                                        </label>
+                                        <input 
+                                            name="pagination_selector" 
+                                            type="text" 
+                                            value={formData.pagination_selector} 
+                                            onChange={handleChange} 
+                                            placeholder={formData.pagination_type === 'click' ? ".next-page-btn" : ".loading-spinner (可选, Wait For Selector)"}
+                                            className="w-full bg-gray-50 border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" 
+                                            disabled={isLoading} 
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

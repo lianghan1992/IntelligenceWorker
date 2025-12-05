@@ -22,15 +22,15 @@ export interface IntelligencePointPublic {
     name: string;
     url: string;
     cron_schedule: string;
-    is_active: boolean; // Computed or derived if API doesn't return explicitly, but 'toggle' implies state. Assuming API returns enabled/is_active or we assume true. 
-    // API Doc says toggle returns {enabled: bool}. We assume the point object has 'enabled' or 'is_active'. 
-    // Let's assume 'enabled' based on typical patterns, mapped to is_active.
+    is_active: boolean; 
     enabled?: boolean; 
     mode?: string;
     url_filters?: string[];
     extra_hint?: string;
     enable_pagination?: boolean;
     initial_pages?: number;
+    pagination_type?: 'scroll' | 'click';
+    pagination_selector?: string;
     last_crawl_time?: string;
     created_at?: string;
     // Compatibility for GenericCrawlerManager
@@ -66,7 +66,6 @@ export interface PendingArticlePublic {
     content?: string;
     status?: string;
     created_at?: string;
-    // Removed crawl_metadata as it's not in the new API doc spec
 }
 
 export type ArticlePublic = InfoItem;
@@ -89,6 +88,11 @@ export const deleteSource = (sourceName: string): Promise<{ deleted_source: stri
     });
 };
 
+export const runSource = (sourceName: string): Promise<{ created_tasks: number }> =>
+    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/sources/${encodeURIComponent(sourceName)}/run-now`, {
+        method: 'POST',
+    });
+
 // --- 2. 情报点管理 (Points) ---
 
 export const getPoints = (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => 
@@ -104,6 +108,8 @@ export const createPoint = (data: {
     extra_hint?: string;
     enable_pagination?: boolean;
     initial_pages?: number;
+    pagination_type?: 'scroll' | 'click';
+    pagination_selector?: string;
 }): Promise<IntelligencePointPublic> => {
     return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'POST',
@@ -120,7 +126,7 @@ export const togglePoint = (pointId: string, enable: boolean): Promise<{ ok: boo
 export const deletePoints = (ids: string[]): Promise<{ deleted: number }> =>
     apiFetch(`${INTELLIGENCE_SERVICE_PATH}/points`, {
         method: 'DELETE',
-        body: JSON.stringify({ ids }), 
+        body: JSON.stringify(ids), 
     });
 
 export const runPoint = (pointId: string): Promise<{ created_tasks: number; point_id: string }> =>
@@ -162,8 +168,6 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ rejected: number
 
 // --- 4. 文章管理 (Articles) ---
 
-// Note: API doc only specifies delete. Assuming we still have a get list API or it's unchanged.
-// Keeping getArticles for functionality.
 export const getArticles = (params: { source_name?: string; point_name?: string; page?: number; limit?: number; publish_date_start?: string; publish_date_end?: string; query_text?: string; similarity_threshold?: number }): Promise<PaginatedResponse<ArticlePublic>> =>
     apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/articles${createApiQuery(params)}`)
         .then(res => {
@@ -235,9 +239,6 @@ export const toggleHtmlGeneration = (enable: boolean): Promise<any> =>
 // Helper for GenericCrawlerManager
 export const getSourcesAndPoints = async (): Promise<(IntelligenceSourcePublic & { points?: IntelligencePointPublic[] })[]> => {
     const sources = await getSources();
-    // Since getPoints supports filtering, we might need to fetch all or iterate. 
-    // New API suggests getPoints?source_name=...
-    // To implement "get all points" efficiently if backend supports no-arg:
     const points = await getPoints(); 
     
     return sources.map(s => ({
@@ -249,12 +250,10 @@ export const getSourcesAndPoints = async (): Promise<(IntelligenceSourcePublic &
 // Generic Crawler Wrappers
 export const createGenericPoint = (data: any) => createPoint({ ...data, mode: 'generic' });
 export const updateGenericPoint = (id: string, data: any) => {
-    // API doesn't explicitly show update point, only create/delete/toggle.
-    // Assuming toggle for is_active. For full update, usually delete+create is preferred in this simple API style.
     if (data.is_active !== undefined) {
         return togglePoint(id, data.is_active);
     }
-    return Promise.resolve(null); // Fallback
+    return Promise.resolve(null);
 };
 export const getGenericTasks = (params: any) => getTasks(params);
 
