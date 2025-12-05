@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PendingArticlePublic, getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api/intelligence';
-import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon } from '../icons';
+import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -30,11 +30,9 @@ const FilterButton: React.FC<{
         `}
     >
         {label}
-        {count !== undefined && (
-            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-slate-100' : 'bg-slate-200 text-slate-500'}`}>
-                {count}
-            </span>
-        )}
+        <span className={`px-1.5 py-0.5 rounded-full text-[10px] min-w-[20px] text-center ${isActive ? 'bg-slate-100' : 'bg-slate-200 text-slate-500'}`}>
+            {count !== undefined ? count : '-'}
+        </span>
     </button>
 );
 
@@ -122,26 +120,43 @@ export const PendingArticlesManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
     
-    // Default to empty string for "all" statuses, assuming API handles it or maps it.
-    // Based on requirement: "Default to all status"
     const [statusFilter, setStatusFilter] = useState(''); 
+    const [counts, setCounts] = useState({ all: 0, pending: 0, rejected: 0 });
     
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [processing, setProcessing] = useState(false);
     
     const [viewingArticle, setViewingArticle] = useState<PendingArticlePublic | null>(null);
 
+    // Fetch counts for all categories independently to show on buttons
+    const fetchCounts = useCallback(async () => {
+        try {
+            const [allRes, pendingRes, rejectedRes] = await Promise.all([
+                getPendingArticles({ limit: 1 }), // Get total for all
+                getPendingArticles({ limit: 1, status: 'pending' }),
+                getPendingArticles({ limit: 1, status: 'rejected' })
+            ]);
+            setCounts({
+                all: allRes.total || 0,
+                pending: pendingRes.total || 0,
+                rejected: rejectedRes.total || 0
+            });
+        } catch (e) {
+            console.error("Failed to fetch counts", e);
+        }
+    }, []);
+
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Note: API implementation might need 'pending' explicitly if empty string means nothing.
-            // Assuming empty string or 'all' fetches everything.
             const res = await getPendingArticles({ page, limit: 20, status: statusFilter || undefined });
             setArticles(res.items || []);
             setTotal(res.total || 0);
             setSelectedIds(new Set());
+            // Refresh counts as well whenever we fetch list, to keep numbers in sync
+            fetchCounts();
         } catch (e) { console.error(e); } finally { setIsLoading(false); }
-    }, [page, statusFilter]);
+    }, [page, statusFilter, fetchCounts]);
 
     useEffect(() => { fetchArticles(); }, [fetchArticles]);
 
@@ -152,7 +167,7 @@ export const PendingArticlesManager: React.FC = () => {
         try {
             if (action === 'confirm') await confirmPendingArticles(targetIds);
             else await rejectPendingArticles(targetIds);
-            fetchArticles();
+            fetchArticles(); // Reload list and counts
             if (viewingArticle && targetIds.includes(viewingArticle.id)) setViewingArticle(null);
         } catch (e) { alert('操作失败'); } finally { setProcessing(false); }
     };
@@ -168,13 +183,22 @@ export const PendingArticlesManager: React.FC = () => {
         else setSelectedIds(new Set(articles.map(a => a.id)));
     };
 
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'pending': return 'bg-orange-50 text-orange-600 border-orange-100';
+            case 'rejected': return 'bg-red-50 text-red-600 border-red-100';
+            case 'confirmed': return 'bg-green-50 text-green-600 border-green-100';
+            default: return 'bg-gray-50 text-gray-600 border-gray-100';
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-white">
             <div className="px-6 py-3 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white sticky top-0 z-10">
                 <div className="flex flex-col md:flex-row md:items-center gap-4 w-full md:w-auto">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2 whitespace-nowrap">
                         <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded text-xs font-mono border border-orange-200">AUDIT</span>
-                        待审核文章 <span className="text-slate-400 font-normal text-sm">({total})</span>
+                        待审核文章
                     </h3>
                     
                     {/* Pill Filters */}
@@ -183,6 +207,7 @@ export const PendingArticlesManager: React.FC = () => {
                             label="全部" 
                             value="" 
                             isActive={statusFilter === ''} 
+                            count={counts.all}
                             onClick={(val) => { setStatusFilter(val); setPage(1); }} 
                             colorClass="text-slate-700 ring-slate-200"
                         />
@@ -190,6 +215,7 @@ export const PendingArticlesManager: React.FC = () => {
                             label="待处理" 
                             value="pending" 
                             isActive={statusFilter === 'pending'} 
+                            count={counts.pending}
                             onClick={(val) => { setStatusFilter(val); setPage(1); }} 
                             colorClass="text-orange-700 ring-orange-200"
                         />
@@ -197,6 +223,7 @@ export const PendingArticlesManager: React.FC = () => {
                             label="已排除" 
                             value="rejected" 
                             isActive={statusFilter === 'rejected'} 
+                            count={counts.rejected}
                             onClick={(val) => { setStatusFilter(val); setPage(1); }} 
                             colorClass="text-red-700 ring-red-200"
                         />
@@ -220,63 +247,118 @@ export const PendingArticlesManager: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 bg-slate-50/50 custom-scrollbar">
-                <div className="space-y-4">
-                    {articles.length > 0 && (
-                        <div className="flex items-center gap-3 px-4 mb-2">
-                            <label className="flex items-center gap-2 cursor-pointer select-none group">
-                                <input type="checkbox" onChange={toggleAll} checked={articles.length > 0 && selectedIds.size === articles.length} className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4" />
-                                <span className="text-xs text-slate-500 font-bold group-hover:text-indigo-600 transition-colors">全选当前页</span>
-                            </label>
+            <div className="flex-1 overflow-auto bg-slate-50/30 p-4 md:p-6 custom-scrollbar">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left text-slate-500">
+                            <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                    <th className="p-4 w-10">
+                                        <div className="flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                onChange={toggleAll} 
+                                                checked={articles.length > 0 && selectedIds.size === articles.length} 
+                                                className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer" 
+                                            />
+                                        </div>
+                                    </th>
+                                    <th className="px-6 py-3">文章标题</th>
+                                    <th className="px-6 py-3 w-48">来源 / 采集点</th>
+                                    <th className="px-6 py-3 w-28">状态</th>
+                                    <th className="px-6 py-3 w-40">抓取时间</th>
+                                    <th className="px-6 py-3 w-24 text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {isLoading && articles.length === 0 ? (
+                                    <tr><td colSpan={6} className="text-center py-20 text-slate-400">加载中...</td></tr>
+                                ) : articles.length === 0 ? (
+                                    <tr><td colSpan={6} className="text-center py-20 text-slate-400">暂无数据</td></tr>
+                                ) : (
+                                    articles.map(article => (
+                                        <tr 
+                                            key={article.id} 
+                                            className={`hover:bg-indigo-50/30 transition-colors cursor-pointer ${selectedIds.has(article.id) ? 'bg-indigo-50/40' : 'bg-white'}`}
+                                            onClick={() => toggleSelect(article.id)}
+                                        >
+                                            <td className="p-4 w-10">
+                                                <div className="flex items-center">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={selectedIds.has(article.id)} 
+                                                        onChange={() => {}} // handled by row click
+                                                        className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 pointer-events-none" 
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div 
+                                                    className="font-bold text-slate-800 hover:text-indigo-600 transition-colors line-clamp-2 leading-snug cursor-pointer"
+                                                    onClick={(e) => { e.stopPropagation(); setViewingArticle(article); }}
+                                                >
+                                                    {article.title}
+                                                </div>
+                                                <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                                    <a href={article.original_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="hover:text-blue-500 hover:underline flex items-center gap-0.5">
+                                                        <ExternalLinkIcon className="w-3 h-3"/> 原文
+                                                    </a>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-slate-700 font-medium">{article.source_name}</div>
+                                                <div className="text-xs text-slate-400 font-mono mt-0.5 truncate max-w-[120px]" title={article.point_name}>
+                                                    {article.point_name}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${getStatusColor(article.status || 'pending')}`}>
+                                                    {article.status || 'PENDING'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                                                {article.created_at ? new Date(article.created_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '-'}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setViewingArticle(article); }}
+                                                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    title="查看详情"
+                                                >
+                                                    <EyeIcon className="w-4 h-4"/>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {/* Pagination */}
+                    {total > 0 && (
+                        <div className="flex justify-between items-center p-4 border-t border-slate-100 bg-white">
+                            <span className="text-xs text-slate-400">共 {total} 条记录</span>
+                            <div className="flex gap-2">
+                                <button 
+                                    disabled={page <= 1} 
+                                    onClick={() => setPage(p => p - 1)} 
+                                    className="p-1.5 border rounded-lg hover:bg-slate-50 disabled:opacity-50 text-slate-600"
+                                >
+                                    <ChevronLeftIcon className="w-4 h-4"/>
+                                </button>
+                                <span className="px-3 py-1.5 bg-slate-50 border rounded-lg text-xs font-bold text-slate-700">{page}</span>
+                                <button 
+                                    disabled={articles.length < 20} 
+                                    onClick={() => setPage(p => p + 1)} 
+                                    className="p-1.5 border rounded-lg hover:bg-slate-50 disabled:opacity-50 text-slate-600"
+                                >
+                                    <ChevronRightIcon className="w-4 h-4"/>
+                                </button>
+                            </div>
                         </div>
                     )}
-                    
-                    {isLoading && articles.length === 0 ? <div className="text-center py-20 text-slate-400">加载中...</div> :
-                     articles.length === 0 ? <div className="text-center py-20 text-slate-400">暂无数据</div> :
-                     articles.map(article => (
-                        <div key={article.id} onClick={() => toggleSelect(article.id)} className={`bg-white p-5 rounded-2xl border transition-all cursor-pointer flex gap-4 group hover:shadow-md ${selectedIds.has(article.id) ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/20' : 'border-slate-200 hover:border-indigo-300'}`}>
-                            <div className="flex items-start pt-1">
-                                <input type="checkbox" checked={selectedIds.has(article.id)} readOnly className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 pointer-events-none" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h4 className="font-bold text-slate-800 text-sm md:text-base leading-snug line-clamp-2 group-hover:text-indigo-700 transition-colors">{article.title}</h4>
-                                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200 whitespace-nowrap ml-3">{article.source_name}</span>
-                                </div>
-                                <div className="flex items-center gap-4 text-xs text-slate-400 mb-3 font-medium">
-                                    {article.publish_date && <span className="flex items-center gap-1.5"><ClockIcon className="w-3.5 h-3.5"/> {new Date(article.publish_date).toLocaleString()}</span>}
-                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                    <span className={`px-1.5 rounded-sm ${article.status === 'pending' ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-500'}`}>{article.status}</span>
-                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                                    <a href={article.original_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-blue-500 hover:text-blue-700 hover:underline flex items-center gap-1 transition-colors">
-                                        查看原文 <ExternalLinkIcon className="w-3 h-3"/>
-                                    </a>
-                                </div>
-                                <div className="flex justify-between items-end">
-                                    <div className="text-[10px] font-mono text-slate-400 max-w-md truncate">
-                                        {article.point_name}
-                                    </div>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setViewingArticle(article); }}
-                                        className="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors"
-                                    >
-                                        <EyeIcon className="w-3.5 h-3.5"/> 详情
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                     ))
-                    }
                 </div>
-                
-                {/* Pagination */}
-                {total > 0 && (
-                    <div className="mt-6 flex justify-center gap-3">
-                        <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">上一页</button>
-                        <span className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-indigo-600">{page}</span>
-                        <button disabled={articles.length < 20} onClick={() => setPage(p => p + 1)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors">下一页</button>
-                    </div>
-                )}
             </div>
 
             {/* Detail Modal */}
