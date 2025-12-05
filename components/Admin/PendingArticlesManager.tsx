@@ -131,10 +131,12 @@ export const PendingArticlesManager: React.FC = () => {
     // Fetch counts for all categories independently to show on buttons
     const fetchCounts = useCallback(async () => {
         try {
+            // Use larger limit (1000) to get approximate actual count from array length
+            // since backend does not provide total metadata.
             const [allRes, pendingRes, rejectedRes] = await Promise.all([
-                getPendingArticles({ limit: 1 }), // Get total for all
-                getPendingArticles({ limit: 1, status: 'pending' }),
-                getPendingArticles({ limit: 1, status: 'rejected' })
+                getPendingArticles({ limit: 1000 }), 
+                getPendingArticles({ limit: 1000, status: 'pending' }),
+                getPendingArticles({ limit: 1000, status: 'rejected' })
             ]);
             setCounts({
                 all: allRes.total || 0,

@@ -1,4 +1,3 @@
-
 // src/api/intelligence.ts
 
 import { INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -141,7 +140,7 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
         .then(res => {
              // API returns array directly according to doc, but we wrap it in PaginatedResponse for frontend consistency
              if (Array.isArray(res)) {
-                 return { items: res, total: 100, page: params.page || 1, limit: params.limit || 20, totalPages: 1 }; // Mock total if API doesn't return it
+                 return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
              }
              return res;
         });
@@ -150,7 +149,7 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
 export const getPendingArticles = (params: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<PendingArticlePublic>> =>
     apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/pending${createApiQuery(params)}`)
         .then(res => {
-            if (Array.isArray(res)) return { items: res, total: 100, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
+            if (Array.isArray(res)) return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
             return res;
         });
 
