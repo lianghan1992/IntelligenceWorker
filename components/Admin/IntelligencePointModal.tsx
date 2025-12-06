@@ -63,7 +63,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
     const isFormValid = () => {
         if (!formData.source_name.trim() || !formData.name.trim() || !formData.url.trim() || !formData.cron_schedule.trim()) return false;
-        if (formData.enable_pagination && formData.pagination_type === 'click' && !formData.pagination_selector.trim()) return false;
+        // Pagination selector is now optional for 'click' as well (auto-detection supported)
         return true;
     };
 
@@ -97,7 +97,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 enable_pagination: formData.enable_pagination,
                 initial_pages: formData.initial_pages,
                 pagination_type: formData.enable_pagination && formData.pagination_type !== 'none' ? formData.pagination_type as 'scroll' | 'click' : undefined,
-                pagination_selector: formData.enable_pagination && formData.pagination_type === 'click' ? formData.pagination_selector : undefined,
+                pagination_selector: formData.enable_pagination && formData.pagination_selector ? formData.pagination_selector : undefined,
                 mode: formData.mode
             });
 
@@ -289,17 +289,21 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                     <div>
                                         <label className="block text-xs font-medium text-gray-500 mb-1">
                                             翻页元素选择器 (CSS Selector)
-                                            {formData.pagination_type === 'click' && <span className="text-red-500 ml-1">*</span>}
                                         </label>
                                         <input 
                                             name="pagination_selector" 
                                             type="text" 
                                             value={formData.pagination_selector} 
                                             onChange={handleChange} 
-                                            placeholder={formData.pagination_type === 'click' ? ".next-page-btn" : ".loading-spinner (可选, Wait For Selector)"}
+                                            placeholder={formData.pagination_type === 'click' ? ".next-page-btn (可选，留空则尝试自动识别)" : ".loading-spinner (可选, Wait For Selector)"}
                                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" 
                                             disabled={isLoading} 
                                         />
+                                        {formData.pagination_type === 'click' && (
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                提示：留空时系统将尝试智能识别“下一页”按钮。为提高稳定性，建议手动填写。
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
