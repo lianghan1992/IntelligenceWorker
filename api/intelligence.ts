@@ -139,6 +139,7 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
     return apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/tasks${createApiQuery(params)}`)
         .then(res => {
              // API returns array directly according to doc, but we wrap it in PaginatedResponse for frontend consistency
+             // Calculate total based on array length if not provided
              if (Array.isArray(res)) {
                  return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
              }
