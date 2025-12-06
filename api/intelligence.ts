@@ -139,8 +139,8 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
     return apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/tasks${createApiQuery(params)}`)
         .then(res => {
              // API returns array directly according to doc, but we wrap it in PaginatedResponse for frontend consistency
-             // Calculate total based on array length if not provided
              if (Array.isArray(res)) {
+                 // Use actual length. If limited, we might not know true total, but usually for lists we accept partial info or use length
                  return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
              }
              return res;
@@ -150,7 +150,9 @@ export const getTasks = (params: { page?: number; limit?: number; status_filter?
 export const getPendingArticles = (params: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<PendingArticlePublic>> =>
     apiFetch<any>(`${INTELLIGENCE_SERVICE_PATH}/pending${createApiQuery(params)}`)
         .then(res => {
-            if (Array.isArray(res)) return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
+            if (Array.isArray(res)) {
+                return { items: res, total: res.length, page: params.page || 1, limit: params.limit || 20, totalPages: 1 };
+            }
             return res;
         });
 

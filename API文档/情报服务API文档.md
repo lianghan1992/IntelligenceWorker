@@ -64,7 +64,7 @@
   "enable_pagination": false,     // 可选，是否启用翻页
   "initial_pages": 0,             // 可选，初始翻页数
   "pagination_type": "scroll",    // 可选，翻页类型：'scroll' (滚动) 或 'click' (点击)
-  "pagination_selector": null     // 可选，当 type='click' 时必填，CSS 选择器
+  "pagination_selector": null     // 可选，点击模式不传则自动识别“下一页/更多/Next”
 }
 ```
 - 翻页配置说明：
@@ -72,21 +72,14 @@
     - `scroll`: 模拟滚动到底部以加载更多内容。
     - `click`: 模拟点击“下一页”或“加载更多”按钮。
   - `pagination_selector`:
-    - 当 `pagination_type` 为 `click` 时，**可选**。不传时系统将尝试自动识别“下一页/更多/Next”等按钮并点击。
+    - 当 `pagination_type` 为 `click` 时，**可选**。未提供时系统将智能识别“下一页/更多/Next”等按钮并点击。
     - 当 `pagination_type` 为 `scroll` 时，此字段可选，作为滚动后等待元素出现的条件（Wait For Selector）。
     - 示例：
       - 点击翻页（手动）：`"pagination_type": "click", "pagination_selector": ".next-page-btn"`
       - 点击翻页（自动）：`"pagination_type": "click"`（不传选择器）
       - 滚动加载：`"pagination_type": "scroll", "pagination_selector": ".loading-spinner"` (可选)
-    - **如何获取？**
-      - 详细教程请参考同目录下的 [Pagination_Guide.md](Pagination_Guide.md) 文档。该文档提供了使用 Chrome 浏览器开发者工具查找 CSS 选择器的图文步骤。
-  - **校验规则**：
-    - `pagination_type` 为 `click` 且未提供 `pagination_selector` 时，系统默认启用智能识别。若无法识别，仍会继续首次页抓取并记录错误日志，建议补充选择器。
-      - 点击翻页：`"pagination_type": "click", "pagination_selector": ".next-page-btn"`
-      - 滚动加载：`"pagination_type": "scroll", "pagination_selector": ".loading-spinner"` (可选)
-    - **如何获取？**
-      - 详细教程请参考同目录下的 [Pagination_Guide.md](Pagination_Guide.md) 文档。该文档提供了使用 Chrome 浏览器开发者工具查找 CSS 选择器的图文步骤。
-  - **校验规则**：若 `pagination_type` 为 `click` 且 `pagination_selector` 为空，API 将返回 `400 Bad Request` 错误，提示 `pagination_selector is required when pagination_type is click`。
+    - **校验规则**：
+      - `click` 模式未提供选择器时默认启用智能识别；若无法识别，仍会抓取首屏并记录日志，建议补充稳定的选择器以提升成功率。
 
 - 返回：`PointPublic`
 - 字段说明：`is_active` 为是否启用；`last_crawl_time` 为上次创建任务时间。
@@ -276,9 +269,4 @@
   "detail": "文章不存在"
 }
 ```
-- 参数校验错误（Pagination Selector）：
-```
-{
-  "detail": "pagination_selector is required when pagination_type is click"
-}
-```
+  
