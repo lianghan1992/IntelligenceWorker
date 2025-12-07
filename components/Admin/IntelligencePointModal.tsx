@@ -63,7 +63,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
     const isFormValid = () => {
         if (!formData.source_name.trim() || !formData.name.trim() || !formData.url.trim() || !formData.cron_schedule.trim()) return false;
-        // Pagination selector is now optional for 'click' as well (auto-detection supported)
+        // Pagination selector is optional for both 'click' (auto-detect) and 'scroll' (wait-for-selector)
+        // No strict check needed here for selector content
         return true;
     };
 
@@ -97,7 +98,8 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 enable_pagination: formData.enable_pagination,
                 initial_pages: formData.initial_pages,
                 pagination_type: formData.enable_pagination && formData.pagination_type !== 'none' ? formData.pagination_type as 'scroll' | 'click' : undefined,
-                pagination_selector: formData.enable_pagination && formData.pagination_selector ? formData.pagination_selector : undefined,
+                // Send undefined if empty to respect backend optionality
+                pagination_selector: formData.enable_pagination && formData.pagination_selector.trim() !== '' ? formData.pagination_selector : undefined,
                 mode: formData.mode
             });
 
@@ -257,7 +259,9 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                             <div className="pl-6 animate-in fade-in slide-in-from-top-1 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-500 mb-1">初始采集页数</label>
+                                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                                            首次采集页数 (增量默认为1)
+                                        </label>
                                         <input 
                                             name="initial_pages" 
                                             type="number" 
@@ -301,7 +305,12 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                         />
                                         {formData.pagination_type === 'click' && (
                                             <p className="text-[10px] text-slate-400 mt-1">
-                                                提示：留空时系统将尝试智能识别“下一页”按钮。为提高稳定性，建议手动填写。
+                                                提示：点击模式下，若留空，系统将尝试智能识别“下一页”按钮。为提高稳定性，建议手动填写。
+                                            </p>
+                                        )}
+                                        {formData.pagination_type === 'scroll' && (
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                提示：滚动模式下，此选择器用作“等待出现”的目标（Wait For Selector）。
                                             </p>
                                         )}
                                     </div>

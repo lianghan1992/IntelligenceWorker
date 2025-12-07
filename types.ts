@@ -1,4 +1,5 @@
 
+
 export interface TechItemHistory {
     id: string;
     tech_item_id: string;
@@ -358,6 +359,54 @@ export interface PaginatedDocumentsResponse {
     totalPages: number;
 }
 
+// --- IntelSpider Types ---
+
+export interface SpiderSource {
+    id: string;
+    source_name: string;
+}
+
+export interface SpiderPoint {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+}
+
+export interface SpiderTask {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    stage: string;
+    status: 'running' | 'completed' | 'failed';
+    detail: string;
+    start_time: string;
+    end_time?: string;
+}
+
+export interface PendingArticle {
+    id: string;
+    title: string;
+    original_url: string;
+    source_name: string;
+    point_name: string;
+    status: 'pending' | 'rejected' | 'approved';
+    content?: string;
+    publish_date?: string;
+    created_at?: string;
+}
+
+export interface ApprovedArticle {
+    id: string;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    point_name: string;
+    original_url: string;
+}
+
 export interface GenericPoint {
     id: string;
     source_name: string;
@@ -381,48 +430,5 @@ export interface GenericTask {
     start_time: string;
     end_time?: string;
     created_at: string;
-}
-
-export interface PendingArticle {
-    id: string;
-    source_name: string;
-    point_name: string;
-    point_url?: string;
-    original_url: string;
-    title: string;
-    publish_date?: string;
-    content?: string; 
-    status?: string;
-    created_at?: string;
-}
-
-// New Task Public Interface for Intelligence Collection
-export interface TaskPublic {
-    id: string;
-    source_name: string;
-    point_name: string;
-    task_type: string;
-    url: string;
     status: string;
-    start_time?: string;
-    end_time?: string;
-    retry_count: number;
-    created_at: string;
-}
-
-export interface CrawlerPoint {
-    id: string;
-    source_name: string;
-    point_name: string;
-    point_url: string;
-    cron_schedule: string;
-    is_active: boolean;
-    type: 'manual' | 'generic';
-    created_at?: string;
-}
-
-export interface SourceWithPoints {
-    source_name: string;
-    source_type: 'manual' | 'generic' | 'mixed';
-    points: CrawlerPoint[];
 }
