@@ -1,3 +1,4 @@
+
 // src/api/intelligence.ts
 
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
