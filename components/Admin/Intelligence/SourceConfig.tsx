@@ -25,11 +25,33 @@ export const SourceConfig: React.FC = () => {
         source_name: '', 
         point_name: '', 
         point_url: '', 
-        cron_schedule: '0 */4 * * *',
+        cron_schedule: '0 9 * * *',
         max_depth: 3,
         pagination_instruction: ''
     });
     const [isCreating, setIsCreating] = useState(false);
+
+    // Cron Builder State
+    const [scheduleType, setScheduleType] = useState<'daily' | 'interval' | 'monthly'>('daily');
+    const [scheduleTime, setScheduleTime] = useState('09:00');
+    const [scheduleInterval, setScheduleInterval] = useState(2);
+    const [scheduleDay, setScheduleDay] = useState(1);
+
+    // Sync Cron
+    useEffect(() => {
+        if (!showCreateModal) return;
+        const [hh, mm] = scheduleTime.split(':').map(v => parseInt(v, 10) || 0);
+        let cron = '';
+        
+        if (scheduleType === 'daily') {
+            cron = `${mm} ${hh} * * *`;
+        } else if (scheduleType === 'interval') {
+            cron = `${mm} ${hh} */${Math.max(1, scheduleInterval)} * *`;
+        } else if (scheduleType === 'monthly') {
+            cron = `${mm} ${hh} ${Math.max(1, Math.min(31, scheduleDay))} * *`;
+        }
+        setNewPointData(prev => ({ ...prev, cron_schedule: cron }));
+    }, [scheduleType, scheduleTime, scheduleInterval, scheduleDay, showCreateModal]);
 
     const fetchSources = useCallback(async () => {
         setIsLoadingSources(true);
@@ -74,14 +96,21 @@ export const SourceConfig: React.FC = () => {
                 max_depth: Number(newPointData.max_depth)
             });
             setShowCreateModal(false);
+            // Reset form
             setNewPointData({ 
                 source_name: '', 
                 point_name: '', 
                 point_url: '', 
-                cron_schedule: '0 */4 * * *',
+                cron_schedule: '0 9 * * *',
                 max_depth: 3,
                 pagination_instruction: ''
             });
+            // Reset Cron Builder
+            setScheduleType('daily');
+            setScheduleTime('09:00');
+            setScheduleInterval(2);
+            setScheduleDay(1);
+
             fetchSources(); // Refresh sources in case a new one was created
             if (selectedSource?.source_name === newPointData.source_name) {
                 fetchPoints();
@@ -177,7 +206,7 @@ export const SourceConfig: React.FC = () => {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
                         <div className="p-4 border-b bg-gray-50 font-bold text-gray-700">创建采集点</div>
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1">情报源名称 (自动创建或选择)</label>
                                 <input 
@@ -208,27 +237,60 @@ export const SourceConfig: React.FC = () => {
                                     placeholder="https://..."
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">Cron 调度</label>
-                                    <input 
-                                        type="text" 
-                                        value={newPointData.cron_schedule} 
-                                        onChange={e => setNewPointData({...newPointData, cron_schedule: e.target.value})}
-                                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
-                                    />
+                            
+                            {/* Cron Scheduler UI */}
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <label className="block text-xs font-bold text-gray-500 mb-2">采集调度 (Cron)</label>
+                                <div className="flex gap-2 mb-3">
+                                    <button onClick={() => setScheduleType('daily')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'daily' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>每天</button>
+                                    <button onClick={() => setScheduleType('interval')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'interval' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>间隔天数</button>
+                                    <button onClick={() => setScheduleType('monthly')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'monthly' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>每月</button>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1">最大翻页深度</label>
-                                    <input 
-                                        type="number" 
-                                        value={newPointData.max_depth} 
-                                        onChange={e => setNewPointData({...newPointData, max_depth: parseInt(e.target.value) || 1})}
-                                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        min="1"
-                                    />
+                                
+                                <div className="space-y-3">
+                                    {scheduleType === 'interval' && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-500">每隔</span>
+                                            <input type="number" min="1" value={scheduleInterval} onChange={e => setScheduleInterval(parseInt(e.target.value)||1)} className="w-16 p-1 text-center border rounded text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            <span className="text-xs text-slate-500">天</span>
+                                            <div className="flex gap-1 ml-auto">
+                                                {[2, 3, 7].map(d => (
+                                                    <button key={d} onClick={() => setScheduleInterval(d)} className={`px-2 py-0.5 text-[10px] rounded border ${scheduleInterval === d ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}>{d}天</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {scheduleType === 'monthly' && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-500">每月</span>
+                                            <input type="number" min="1" max="31" value={scheduleDay} onChange={e => setScheduleDay(parseInt(e.target.value)||1)} className="w-16 p-1 text-center border rounded text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                            <span className="text-xs text-slate-500">日</span>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-500">执行时间:</span>
+                                        <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex justify-between">
+                                    <span>Cron 表达式:</span>
+                                    <span className="font-bold text-slate-500">{newPointData.cron_schedule}</span>
                                 </div>
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">最大爬取页数</label>
+                                <input 
+                                    type="number" 
+                                    value={newPointData.max_depth} 
+                                    onChange={e => setNewPointData({...newPointData, max_depth: parseInt(e.target.value) || 1})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    min="1"
+                                />
+                            </div>
+                            
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1">AI 翻页指令 (可选)</label>
                                 <textarea 
