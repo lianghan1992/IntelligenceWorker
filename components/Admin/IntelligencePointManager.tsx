@@ -52,7 +52,7 @@ export const IntelligencePointManager: React.FC = () => {
             // Map IntelligenceSourcePublic to SystemSource
             const mappedSources: SystemSource[] = fetchedSources.map(s => ({
                 id: s.id,
-                source_name: s.name || s.source_name,
+                source_name: s.name || s.source_name || '',
                 points_count: s.points_count,
                 articles_count: s.articles_count
             }));
@@ -68,10 +68,10 @@ export const IntelligencePointManager: React.FC = () => {
                     id: p.id,
                     source_id: p.source_name, // source_name used as ID often
                     source_name: p.source_name,
-                    point_name: p.name || p.point_name,
-                    point_url: p.url || p.point_url,
+                    point_name: p.name || p.point_name || '',
+                    point_url: p.url || p.point_url || '',
                     cron_schedule: p.cron_schedule,
-                    is_active: p.is_active ?? p.enabled,
+                    is_active: p.is_active ?? p.enabled ?? false,
                     url_filters: p.url_filters,
                     extra_hint: p.extra_hint
                 }));
