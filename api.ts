@@ -8,7 +8,6 @@
 
 export * from './api/auth';
 export * from './api/user';
-// api/intelligence.ts no longer exports getUserPois, resolving conflict
 export * from './api/intelligence';
 export * from './api/livestream';
 export * from './api/competitiveness';

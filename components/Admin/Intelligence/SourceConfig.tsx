@@ -21,7 +21,14 @@ export const SourceConfig: React.FC = () => {
 
     // Create Modal State
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newPointData, setNewPointData] = useState({ source_name: '', point_name: '', point_url: '', cron_schedule: '0 */4 * * *' });
+    const [newPointData, setNewPointData] = useState({ 
+        source_name: '', 
+        point_name: '', 
+        point_url: '', 
+        cron_schedule: '0 */4 * * *',
+        max_depth: 3,
+        pagination_instruction: ''
+    });
     const [isCreating, setIsCreating] = useState(false);
 
     const fetchSources = useCallback(async () => {
@@ -52,7 +59,7 @@ export const SourceConfig: React.FC = () => {
     const handleRunPoint = async (pointId: string) => {
         setRunningPointId(pointId);
         try {
-            const res = await runSpiderPoint(pointId);
+            const res = await runSpiderPoint(pointId, 1);
             if (res.ok) alert(`采集任务已触发，处理了 ${res.processed} 页`);
         } catch (e) { alert('触发失败'); }
         finally { setRunningPointId(null); }
@@ -62,9 +69,19 @@ export const SourceConfig: React.FC = () => {
         if (!newPointData.source_name || !newPointData.point_name || !newPointData.point_url) return;
         setIsCreating(true);
         try {
-            await createSpiderPoint(newPointData);
+            await createSpiderPoint({
+                ...newPointData,
+                max_depth: Number(newPointData.max_depth)
+            });
             setShowCreateModal(false);
-            setNewPointData({ source_name: '', point_name: '', point_url: '', cron_schedule: '0 */4 * * *' });
+            setNewPointData({ 
+                source_name: '', 
+                point_name: '', 
+                point_url: '', 
+                cron_schedule: '0 */4 * * *',
+                max_depth: 3,
+                pagination_instruction: ''
+            });
             fetchSources(); // Refresh sources in case a new one was created
             if (selectedSource?.source_name === newPointData.source_name) {
                 fetchPoints();
@@ -158,7 +175,7 @@ export const SourceConfig: React.FC = () => {
             {/* Create Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
                         <div className="p-4 border-b bg-gray-50 font-bold text-gray-700">创建采集点</div>
                         <div className="p-6 space-y-4">
                             <div>
@@ -191,13 +208,34 @@ export const SourceConfig: React.FC = () => {
                                     placeholder="https://..."
                                 />
                             </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">Cron 调度</label>
+                                    <input 
+                                        type="text" 
+                                        value={newPointData.cron_schedule} 
+                                        onChange={e => setNewPointData({...newPointData, cron_schedule: e.target.value})}
+                                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1">最大翻页深度</label>
+                                    <input 
+                                        type="number" 
+                                        value={newPointData.max_depth} 
+                                        onChange={e => setNewPointData({...newPointData, max_depth: parseInt(e.target.value) || 1})}
+                                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        min="1"
+                                    />
+                                </div>
+                            </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">Cron 调度</label>
-                                <input 
-                                    type="text" 
-                                    value={newPointData.cron_schedule} 
-                                    onChange={e => setNewPointData({...newPointData, cron_schedule: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                <label className="block text-xs font-bold text-gray-500 mb-1">AI 翻页指令 (可选)</label>
+                                <textarea 
+                                    value={newPointData.pagination_instruction} 
+                                    onChange={e => setNewPointData({...newPointData, pagination_instruction: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
+                                    placeholder="例如：页面URL形如 ...?page=n ，请按当前页+1构造下一页"
                                 />
                             </div>
                         </div>

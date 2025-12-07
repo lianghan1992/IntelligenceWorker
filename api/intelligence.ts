@@ -21,13 +21,12 @@ const INTELSPIDER_PATH = `${API_BASE_URL}/intelspider`;
 export type IntelligenceSourcePublic = SpiderSource & {
     points_count?: number;
     articles_count?: number;
-    // Map 'source_name' to 'name' if needed by components, or components use source_name
     name?: string; 
 };
 export type IntelligencePointPublic = SpiderPoint & {
     is_active?: boolean;
     enabled?: boolean;
-    name?: string; // SpiderPoint uses point_name? No, interface has point_name. Components expect name.
+    name?: string;
     url?: string;
     url_filters?: string[];
     extra_hint?: string;
@@ -69,7 +68,7 @@ export const getPoints = async (params: { source_name?: string }): Promise<Intel
         ...p, 
         name: p.point_name, 
         url: p.point_url, 
-        is_active: true // Default to true if not returned? Or add backend field.
+        is_active: p.is_active !== undefined ? p.is_active : true 
     }));
 };
 
@@ -78,6 +77,8 @@ export const createSpiderPoint = (data: {
     point_name: string;
     point_url: string;
     cron_schedule: string;
+    max_depth?: number;
+    pagination_instruction?: string;
 }): Promise<{ ok: boolean; point_id: string }> => {
     return apiFetch(`${INTELSPIDER_PATH}/points`, {
         method: 'POST',
@@ -103,7 +104,6 @@ export const deleteSource = (name: string): Promise<void> =>
     apiFetch(`${INTELSPIDER_PATH}/sources/${encodeURIComponent(name)}`, { method: 'DELETE' });
 
 export const togglePoint = (id: string, active: boolean): Promise<void> =>
-    // Assuming backend endpoint
     apiFetch(`${INTELSPIDER_PATH}/points/${id}/toggle`, { method: 'POST', body: JSON.stringify({ active }) });
 
 export const runSpiderPoint = (point_id: string, pages: number = 1): Promise<{ ok: boolean; processed: number }> => {
@@ -124,7 +124,6 @@ export const getSpiderTasks = (): Promise<SpiderTask[]> =>
 // Alias
 export const getTasks = async (params: any): Promise<PaginatedResponse<IntelligenceTaskPublic>> => {
     const tasks = await getSpiderTasks();
-    // Mock pagination for list API
     return { items: tasks, total: tasks.length, page: 1, limit: 100, totalPages: 1 };
 };
 
@@ -141,10 +140,7 @@ export const getSpiderPendingArticles = (): Promise<PendingArticle[]> =>
 
 // Alias
 export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
-    // If backend supports filtering via query params, use them.
-    // For now getting all and filtering client side if needed or if backend supports it.
     const query = createApiQuery(params); 
-    // Assuming /intelspider/pending supports query params like ?status=pending
     const articles = await apiFetch<PendingArticle[]>(`${INTELSPIDER_PATH}/pending${query}`);
     return { items: articles, total: articles.length, page: 1, limit: 100, totalPages: 1 };
 };

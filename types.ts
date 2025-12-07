@@ -98,6 +98,7 @@ export interface SystemSource {
     created_at?: string;
     // UI helper
     points?: Subscription[];
+    source_type?: string;
 }
 
 export interface InfoItem {
@@ -288,7 +289,7 @@ export interface NewTechForecast {
     sourceUrl: string;
 }
 
-export interface TechDimensionCategory {
+export type TechDimensionCategory = {
     key: string;
     label: string;
     subDimensions: { key: string; label: string }[];
@@ -372,10 +373,14 @@ export interface SpiderPoint {
     point_name: string;
     point_url: string;
     cron_schedule: string;
+    max_depth?: number;
+    pagination_instruction?: string;
+    is_active?: boolean;
 }
 
 export interface SpiderTask {
     id: string;
+    run_id?: string;
     source_name: string;
     point_name: string;
     url: string;
