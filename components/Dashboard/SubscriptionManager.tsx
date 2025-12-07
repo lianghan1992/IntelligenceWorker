@@ -62,7 +62,7 @@ export const SubscriptionManager: React.FC = () => {
             // Map SourcePublic[] to SystemSource[]
             const mappedSources: SystemSource[] = allSources.map(s => ({
                 id: s.id,
-                source_name: s.name,
+                source_name: s.name || s.source_name,
                 source_type: 'manual', // or any default
                 points_count: s.points_count
             }));

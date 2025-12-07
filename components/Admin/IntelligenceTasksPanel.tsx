@@ -55,10 +55,10 @@ export const IntelligenceTasksPanel: React.FC = () => {
                         className="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2 outline-none"
                     >
                         <option value="">所有状态</option>
-                        <option value="等待中">等待中</option>
-                        <option value="执行中">执行中</option>
-                        <option value="已完成">已完成</option>
-                        <option value="已失败">已失败</option>
+                        <option value="pending">等待中</option>
+                        <option value="running">执行中</option>
+                        <option value="completed">已完成</option>
+                        <option value="failed">已失败</option>
                     </select>
                 </div>
                 <button onClick={fetchTasks} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm">
@@ -92,13 +92,13 @@ export const IntelligenceTasksPanel: React.FC = () => {
                                         <div className="text-slate-300 text-[10px] truncate max-w-[200px]" title={t.url}>{t.url}</div>
                                     </td>
                                     <td className="px-6 py-3">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === '已完成' ? 'bg-green-100 text-green-700' : t.status === '已失败' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                                             {t.status}
                                         </span>
                                     </td>
                                     <td className="px-6 py-3">
                                         <div className="text-xs text-slate-600">{t.stage || '-'}</div>
-                                        <div className="text-[10px] text-slate-400 truncate max-w-xs" title={t.detail_info}>{t.detail_info}</div>
+                                        <div className="text-[10px] text-slate-400 truncate max-w-xs" title={t.detail}>{t.detail}</div>
                                     </td>
                                     <td className="px-6 py-3 text-xs font-mono">{t.start_time ? new Date(t.start_time).toLocaleString() : '-'}</td>
                                 </tr>

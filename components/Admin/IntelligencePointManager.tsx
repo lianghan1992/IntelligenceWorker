@@ -52,7 +52,7 @@ export const IntelligencePointManager: React.FC = () => {
             // Map IntelligenceSourcePublic to SystemSource
             const mappedSources: SystemSource[] = fetchedSources.map(s => ({
                 id: s.id,
-                source_name: s.name,
+                source_name: s.name || s.source_name,
                 points_count: s.points_count,
                 articles_count: s.articles_count
             }));
@@ -68,8 +68,8 @@ export const IntelligencePointManager: React.FC = () => {
                     id: p.id,
                     source_id: p.source_name, // source_name used as ID often
                     source_name: p.source_name,
-                    point_name: p.name,
-                    point_url: p.url,
+                    point_name: p.name || p.point_name,
+                    point_url: p.url || p.point_url,
                     cron_schedule: p.cron_schedule,
                     is_active: p.is_active ?? p.enabled,
                     url_filters: p.url_filters,
@@ -203,6 +203,9 @@ export const IntelligencePointManager: React.FC = () => {
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,
+            // Explicitly set SpiderPoint required fields
+            point_name: subscription.point_name,
+            point_url: subscription.point_url,
             cron_schedule: subscription.cron_schedule,
             is_active: !!subscription.is_active,
             url_filters: subscription.url_filters,
@@ -215,6 +218,8 @@ export const IntelligencePointManager: React.FC = () => {
         return sources.map(s => ({
             id: s.id,
             name: s.source_name,
+            // Explicitly set SpiderSource required fields
+            source_name: s.source_name,
             main_url: '',
             points_count: s.points_count || 0,
             articles_count: s.articles_count || 0,
