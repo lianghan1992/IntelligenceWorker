@@ -1,10 +1,10 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
-import { getSpiderSources, createSpiderSource, getSpiderPoints, createSpiderPoint, runSpiderPoint, deleteSpiderSource, deleteSpiderPoint } from '../../../api/intelligence';
-import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, ViewListIcon, TrashIcon, ClockIcon } from '../../icons';
+import { getSpiderSources, createSpiderSource, getSpiderPoints, runSpiderPoint, deleteSpiderSource, deleteSpiderPoint } from '../../../api/intelligence';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, ViewListIcon, TrashIcon, PencilIcon } from '../../icons';
 import { TaskDrawer } from './TaskDrawer';
+import { PointModal } from './PointModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
@@ -13,6 +13,24 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+const getCronLabel = (cron: string) => {
+    // Simple heuristic labeler
+    if (cron.includes('*/')) {
+        if (cron.startsWith('*/')) return `每 ${cron.split(' ')[0].replace('*/', '')} 分钟`;
+        if (cron.startsWith('0 */')) return `每 ${cron.split(' ')[1].replace('*/', '')} 小时`;
+        // Check for daily N days: mm hh */N * *
+        const parts = cron.split(' ');
+        if (parts.length >= 3 && parts[2].startsWith('*/')) return `每 ${parts[2].replace('*/', '')} 天 ${parts[1]}:${parts[0]}`;
+    }
+    if (cron.endsWith('* * 0')) return `每周日 ${cron.split(' ')[1]}:${cron.split(' ')[0]}`; // Simple Weekly
+    // Default Daily check: 0 8 * * *
+    const parts = cron.split(' ');
+    if (parts.length >= 5 && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+        return `每天 ${parts[1]}:${parts[0]}`;
+    }
+    return cron;
+};
 
 export const SourceConfig: React.FC = () => {
     const [sources, setSources] = useState<SpiderSource[]>([]);
@@ -25,7 +43,7 @@ export const SourceConfig: React.FC = () => {
 
     // Modal States
     const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
-    const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
+    const [pointModalConfig, setPointModalConfig] = useState<{ isOpen: boolean; point: SpiderPoint | null }>({ isOpen: false, point: null });
     
     // Delete States
     const [sourceToDelete, setSourceToDelete] = useState<SpiderSource | null>(null);
@@ -33,14 +51,6 @@ export const SourceConfig: React.FC = () => {
 
     // Forms
     const [sourceForm, setSourceForm] = useState({ name: '', base_url: '' });
-    const [pointForm, setPointForm] = useState({ 
-        point_name: '', 
-        point_url: '', 
-        cron_schedule: '*/10 * * * *',
-        max_depth: 3,
-        pagination_instruction: 'page/{n}',
-        article_url_filters: '' // string input, split by newline/comma
-    });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchSources = useCallback(async () => {
@@ -98,36 +108,16 @@ export const SourceConfig: React.FC = () => {
         } catch (e) { alert('删除失败'); }
     };
 
-    const handleCreatePoint = async () => {
-        if (!selectedSource || !pointForm.point_name || !pointForm.point_url) return;
-        setIsSubmitting(true);
-        try {
-            // Process filters
-            const filters = pointForm.article_url_filters
-                ? pointForm.article_url_filters.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
-                : undefined;
+    const handleCreatePointClick = () => {
+        setPointModalConfig({ isOpen: true, point: null });
+    };
 
-            await createSpiderPoint({
-                source_id: selectedSource.id,
-                point_name: pointForm.point_name,
-                point_url: pointForm.point_url,
-                cron_schedule: pointForm.cron_schedule,
-                max_depth: pointForm.max_depth,
-                pagination_instruction: pointForm.pagination_instruction,
-                article_url_filters: filters
-            });
-            fetchPoints();
-            setPointForm({ 
-                point_name: '', 
-                point_url: '', 
-                cron_schedule: '*/10 * * * *',
-                max_depth: 3,
-                pagination_instruction: 'page/{n}',
-                article_url_filters: ''
-            });
-            setIsCreatePointModalOpen(false);
-        } catch (e) { alert('创建情报点失败'); }
-        finally { setIsSubmitting(false); }
+    const handleEditPointClick = (point: SpiderPoint) => {
+        setPointModalConfig({ isOpen: true, point });
+    };
+
+    const handlePointModalClose = () => {
+        setPointModalConfig({ isOpen: false, point: null });
     };
 
     const handleDeletePoint = async () => {
@@ -212,7 +202,7 @@ export const SourceConfig: React.FC = () => {
                             <div className="flex gap-3">
                                 <button onClick={fetchPoints} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 border border-transparent hover:border-gray-200"><RefreshIcon className={`w-4 h-4 ${isLoadingPoints?'animate-spin':''}`}/></button>
                                 <button 
-                                    onClick={() => setIsCreatePointModalOpen(true)}
+                                    onClick={handleCreatePointClick}
                                     className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all"
                                 >
                                     <PlusIcon className="w-4 h-4" /> 新建采集点
@@ -235,9 +225,9 @@ export const SourceConfig: React.FC = () => {
                                         </div>
                                         
                                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4 bg-gray-50 p-3 rounded-lg">
-                                            <div><span className="text-gray-400">Cron:</span> <span className="font-mono">{point.cron_schedule}</span></div>
+                                            <div className="col-span-2"><span className="text-gray-400">频率:</span> <span className="font-bold text-indigo-600">{getCronLabel(point.cron_schedule)}</span></div>
                                             <div><span className="text-gray-400">深度:</span> {point.max_depth} 页</div>
-                                            <div className="col-span-2 truncate" title={point.pagination_instruction}><span className="text-gray-400">翻页:</span> <span className="font-mono">{point.pagination_instruction || 'Auto'}</span></div>
+                                            <div className="truncate" title={point.pagination_instruction}><span className="text-gray-400">翻页:</span> <span className="font-mono">{point.pagination_instruction || 'Auto'}</span></div>
                                             {point.article_url_filters && point.article_url_filters.length > 0 && (
                                                 <div className="col-span-2 mt-1">
                                                     <span className="text-gray-400">URL 过滤:</span>
@@ -251,13 +241,22 @@ export const SourceConfig: React.FC = () => {
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
-                                            <button 
-                                                onClick={() => setPointToDelete(point)}
-                                                className="text-gray-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors"
-                                                title="删除采集点"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex gap-1">
+                                                <button 
+                                                    onClick={() => setPointToDelete(point)}
+                                                    className="text-gray-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                                    title="删除采集点"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleEditPointClick(point)}
+                                                    className="text-gray-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded transition-colors"
+                                                    title="编辑采集点"
+                                                >
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                             <div className="flex gap-2">
                                                 <button 
                                                     onClick={() => setViewTasksPoint(point)}
@@ -319,50 +318,14 @@ export const SourceConfig: React.FC = () => {
                 </div>
             )}
 
-            {/* Create Point Modal */}
-            {isCreatePointModalOpen && selectedSource && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
-                    <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">新建采集点 - {selectedSource.name}</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">采集点名称</label>
-                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 新闻列表" value={pointForm.point_name} onChange={e => setPointForm({...pointForm, point_name: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">列表页 URL</label>
-                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://..." value={pointForm.point_url} onChange={e => setPointForm({...pointForm, point_url: e.target.value})} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Cron 频率</label>
-                                    <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="*/10 * * * *" value={pointForm.cron_schedule} onChange={e => setPointForm({...pointForm, cron_schedule: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">最大深度</label>
-                                    <input type="number" min="1" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={pointForm.max_depth} onChange={e => setPointForm({...pointForm, max_depth: parseInt(e.target.value)||1})} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">翻页指令 (Pagination Instruction)</label>
-                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-16 resize-none" placeholder="e.g. page/{n}" value={pointForm.pagination_instruction} onChange={e => setPointForm({...pointForm, pagination_instruction: e.target.value})} />
-                                <p className="text-xs text-gray-400 mt-1">用于构造下一页URL的模式，使用 {'{n}'} 代表页码。</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">文章 URL 过滤 (可选)</label>
-                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-none font-mono" placeholder="https://site.com/news/&#10;https://site.com/trends/" value={pointForm.article_url_filters} onChange={e => setPointForm({...pointForm, article_url_filters: e.target.value})} />
-                                <p className="text-xs text-gray-400 mt-1">仅采集以此前缀开头的文章链接。每行一个或用逗号分隔。</p>
-                            </div>
-                        </div>
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button onClick={() => setIsCreatePointModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200">取消</button>
-                            <button onClick={handleCreatePoint} disabled={isSubmitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
-                                {isSubmitting && <Spinner />} 创建
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Create/Edit Point Modal */}
+            <PointModal 
+                isOpen={pointModalConfig.isOpen}
+                onClose={handlePointModalClose}
+                onSave={fetchPoints}
+                sourceId={selectedSource?.id}
+                pointToEdit={pointModalConfig.point}
+            />
 
             {/* Confirm Delete Modals */}
             {sourceToDelete && (

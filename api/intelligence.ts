@@ -118,6 +118,13 @@ export const createSpiderPoint = (data: {
     });
 };
 
+export const updateSpiderPoint = (point_id: string, data: Partial<SpiderPoint>): Promise<SpiderPoint> => {
+    return apiFetch<SpiderPoint>(`${INTELSPIDER_PATH}/points/${point_id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
 // Alias
 export const createPoint = (data: any): Promise<any> => {
     return createSpiderPoint({
@@ -149,10 +156,7 @@ export const deletePoints = async (ids: string[]): Promise<void> => {
 };
 
 export const togglePoint = (id: string, active: boolean): Promise<void> => {
-    // New API doesn't support explicit toggle endpoint in documentation.
-    // Assuming update via recreation or ignoring for now as it's not in the new spec.
-    console.warn("Toggle point not supported in new API spec");
-    return Promise.resolve();
+    return updateSpiderPoint(id, { is_active: active }).then(() => {});
 };
 
 
