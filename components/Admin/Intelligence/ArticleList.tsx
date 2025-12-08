@@ -7,6 +7,7 @@ import {
     ChevronLeftIcon, ChevronRightIcon, FunnelIcon, CalendarIcon, 
     ServerIcon, DatabaseIcon, SparklesIcon 
 } from '../../icons';
+import { ArticleDetailModal } from './ArticleDetailModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -54,6 +55,7 @@ export const ArticleList: React.FC = () => {
 
     // Action State
     const [processingId, setProcessingId] = useState<string | null>(null);
+    const [detailArticleId, setDetailArticleId] = useState<string | null>(null);
 
     // Initial Load
     useEffect(() => {
@@ -257,7 +259,7 @@ export const ArticleList: React.FC = () => {
                     <table className="w-full text-sm text-left">
                         <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b sticky top-0 backdrop-blur-sm z-10">
                             <tr>
-                                <th className="px-4 py-3 md:px-6 md:py-3 w-1/2">标题 / 内容摘要</th>
+                                <th className="px-4 py-3 md:px-6 md:py-3 w-1/2">标题</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 hidden md:table-cell w-40">来源信息</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 hidden md:table-cell w-40">发布时间</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 w-32 text-center">状态 / 操作</th>
@@ -268,12 +270,15 @@ export const ArticleList: React.FC = () => {
                                 <tr><td colSpan={4} className="text-center py-20 text-gray-400 italic">暂无相关数据</td></tr>
                             ) : (
                                 articles.map(article => (
-                                    <tr key={article.id} className="bg-white hover:bg-indigo-50/30 transition-colors group">
+                                    <tr 
+                                        key={article.id} 
+                                        className="bg-white hover:bg-indigo-50/30 transition-colors group cursor-pointer"
+                                        onClick={() => setDetailArticleId(article.id)}
+                                    >
                                         <td className="px-4 py-4 md:px-6 md:py-4 align-top">
-                                            <div className="font-bold text-gray-800 line-clamp-1 mb-1 text-base">{article.title}</div>
-                                            <div className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-2 opacity-80">{article.content?.slice(0, 150)}...</div>
+                                            <div className="font-bold text-gray-800 line-clamp-1 mb-1 text-base group-hover:text-indigo-700 transition-colors">{article.title}</div>
                                             <div className="flex items-center gap-3">
-                                                <a href={article.original_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-0.5">
+                                                <a href={article.original_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:underline flex items-center gap-0.5">
                                                     <ExternalLinkIcon className="w-3 h-3"/> 查看原文
                                                 </a>
                                                 <div className="md:hidden text-xs text-gray-400">{article.publish_time?.split(' ')[0]}</div>
@@ -347,6 +352,18 @@ export const ArticleList: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Detail Modal */}
+            {detailArticleId && (
+                <ArticleDetailModal 
+                    articleId={detailArticleId}
+                    onClose={() => setDetailArticleId(null)}
+                    onUpdate={() => {
+                        fetchStats();
+                        fetchArticles();
+                    }}
+                />
+            )}
         </div>
     );
 };

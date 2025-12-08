@@ -1,3 +1,4 @@
+
 // src/api/intelligence.ts
 
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -171,6 +172,17 @@ export const getSpiderArticles = (params: ArticleQuery): Promise<ArticleResponse
     return apiFetch<ArticleResponse>(`${INTELSPIDER_PATH}/articles${query}`);
 };
 
+export const getSpiderArticleDetail = (article_id: string): Promise<SpiderArticle> => {
+    return apiFetch<SpiderArticle>(`${INTELSPIDER_PATH}/articles/${article_id}`);
+};
+
+export const updateSpiderArticle = (article_id: string, data: { title?: string, publish_time?: string, content?: string }): Promise<{ ok: boolean, article_id: string }> => {
+    return apiFetch<{ ok: boolean, article_id: string }>(`${INTELSPIDER_PATH}/articles/${article_id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+    });
+};
+
 export const reviewSpiderArticle = (article_id: string, is_reviewed: boolean): Promise<void> => {
     return apiFetch(`${INTELSPIDER_PATH}/articles/${article_id}/review`, {
         method: 'POST',
@@ -259,7 +271,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
         items: res.items.map(a => ({
             id: a.id,
             title: a.title,
-            content: a.content,
+            content: a.content || '',
             source_name: 'Unknown', // New API doesn't return source name in list
             point_name: a.point_id,
             original_url: a.original_url,

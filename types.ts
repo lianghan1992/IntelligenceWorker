@@ -1,5 +1,157 @@
 
+export interface SpiderStatus {
+    jina_concurrency: number;
+    llm_model: string;
+    llm_concurrency: number;
+    global_max_concurrent: number;
+    zhipu_keys_count: number;
+}
 
+export interface SpiderSource {
+    id: string;
+    name: string;
+    base_url?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SpiderPoint {
+    id: string;
+    source_id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    max_depth: number;
+    pagination_instruction?: string;
+    article_url_filters?: string[];
+    status: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SpiderTaskCounts {
+    pending: number;
+    running: number;
+    done: number;
+    error: number;
+}
+
+export interface SpiderTaskTypeCounts {
+    JINA_FETCH: number;
+    LLM_ANALYZE_LIST: number;
+    LLM_ANALYZE_ARTICLE: number;
+    PERSIST: number;
+}
+
+export interface SpiderTaskPageCounts {
+    status: SpiderTaskCounts;
+    types: SpiderTaskTypeCounts;
+}
+
+export interface SpiderTask {
+    id: string;
+    task_type: 'JINA_FETCH' | 'LLM_ANALYZE_LIST' | 'LLM_ANALYZE_ARTICLE' | 'PERSIST';
+    status: 'pending' | 'running' | 'done' | 'error';
+    url: string;
+    page_number?: number;
+    error_message?: string | null;
+    created_at: string;
+    finished_at?: string | null;
+}
+
+export interface SpiderTaskResponse {
+    point: { id: string, source_id: string, source_name: string, point_name: string };
+    total: number;
+    page: number;
+    limit: number;
+    counts: SpiderTaskCounts;
+    type_counts?: SpiderTaskTypeCounts; 
+    page_counts?: SpiderTaskPageCounts;
+    items: SpiderTask[];
+}
+
+export interface SpiderArticle {
+    id: string;
+    point_id: string;
+    title: string;
+    publish_time?: string;
+    content?: string; // Optional in list view
+    original_url: string;
+    collected_at: string;
+    is_reviewed: boolean;
+    // Detail fields
+    source_id?: string;
+    source_name?: string;
+    point_name?: string;
+}
+
+export interface ArticleQuery {
+    source_id?: string;
+    point_id?: string;
+    start_time?: string;
+    end_time?: string;
+    is_reviewed?: boolean;
+    page?: number;
+    limit?: number;
+}
+
+export interface ArticleResponse {
+    total: number;
+    page: number;
+    limit: number;
+    items: SpiderArticle[];
+}
+
+// For legacy compatibility where needed
+export interface GenericPoint {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    is_active: boolean;
+    created_at: string;
+    list_hint?: string;
+    list_filters?: string[];
+}
+
+export interface GenericTask {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time?: string;
+    created_at: string;
+    status: string;
+}
+
+export interface PendingArticle {
+    id: string;
+    title: string;
+    original_url: string;
+    source_name: string;
+    point_name: string;
+    status: 'pending' | 'rejected' | 'approved';
+    content?: string;
+    publish_date?: string;
+    created_at?: string;
+}
+
+export interface ApprovedArticle {
+    id: string;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    point_name: string;
+    original_url: string;
+}
+// ... existing types ...
 export interface TechItemHistory {
     id: string;
     tech_item_id: string;
@@ -358,155 +510,4 @@ export interface PaginatedDocumentsResponse {
     items: DocumentTask[];
     total: number;
     totalPages: number;
-}
-
-// --- IntelSpider Types (Updated) ---
-
-export interface SpiderStatus {
-    jina_concurrency: number;
-    llm_model: string;
-    llm_concurrency: number;
-    global_max_concurrent: number;
-    zhipu_keys_count: number;
-}
-
-export interface SpiderSource {
-    id: string;
-    name: string;
-    base_url?: string;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface SpiderPoint {
-    id: string;
-    source_id: string;
-    source_name: string;
-    point_name: string;
-    point_url: string;
-    cron_schedule: string;
-    max_depth: number;
-    pagination_instruction?: string;
-    article_url_filters?: string[];
-    status: string;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface SpiderTaskCounts {
-    pending: number;
-    running: number;
-    done: number;
-    error: number;
-}
-
-export interface SpiderTaskTypeCounts {
-    JINA_FETCH: number;
-    LLM_ANALYZE_LIST: number;
-    LLM_ANALYZE_ARTICLE: number;
-    PERSIST: number;
-}
-
-export interface SpiderTaskPageCounts {
-    status: SpiderTaskCounts;
-    types: SpiderTaskTypeCounts;
-}
-
-export interface SpiderTask {
-    id: string;
-    task_type: 'JINA_FETCH' | 'LLM_ANALYZE_LIST' | 'LLM_ANALYZE_ARTICLE' | 'PERSIST';
-    status: 'pending' | 'running' | 'done' | 'error';
-    url: string;
-    page_number?: number;
-    error_message?: string | null;
-    created_at: string;
-    finished_at?: string | null;
-}
-
-export interface SpiderTaskResponse {
-    point: { id: string, source_id: string, source_name: string, point_name: string };
-    total: number;
-    page: number;
-    limit: number;
-    counts: SpiderTaskCounts;
-    type_counts?: SpiderTaskTypeCounts; 
-    page_counts?: SpiderTaskPageCounts;
-    items: SpiderTask[];
-}
-
-export interface SpiderArticle {
-    id: string;
-    point_id: string;
-    title: string;
-    publish_time?: string;
-    content: string;
-    original_url: string;
-    collected_at: string;
-    is_reviewed: boolean;
-}
-
-export interface ArticleQuery {
-    source_id?: string;
-    point_id?: string;
-    start_time?: string;
-    end_time?: string;
-    is_reviewed?: boolean;
-    page?: number;
-    limit?: number;
-}
-
-export interface ArticleResponse {
-    total: number;
-    page: number;
-    limit: number;
-    items: SpiderArticle[];
-}
-
-// For legacy compatibility where needed
-export interface GenericPoint {
-    id: string;
-    source_name: string;
-    point_name: string;
-    point_url: string;
-    cron_schedule: string;
-    is_active: boolean;
-    created_at: string;
-    list_hint?: string;
-    list_filters?: string[];
-}
-
-export interface GenericTask {
-    id: string;
-    source_name: string;
-    point_name: string;
-    url: string;
-    task_type: string;
-    stage: string;
-    detail_info: string;
-    start_time: string;
-    end_time?: string;
-    created_at: string;
-    status: string;
-}
-
-export interface PendingArticle {
-    id: string;
-    title: string;
-    original_url: string;
-    source_name: string;
-    point_name: string;
-    status: 'pending' | 'rejected' | 'approved';
-    content?: string;
-    publish_date?: string;
-    created_at?: string;
-}
-
-export interface ApprovedArticle {
-    id: string;
-    title: string;
-    publish_date: string;
-    source_name: string;
-    point_name: string;
-    original_url: string;
 }
