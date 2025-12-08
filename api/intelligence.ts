@@ -1,5 +1,3 @@
-
-
 // src/api/intelligence.ts
 
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -265,7 +263,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
             source_name: 'Unknown', // New API doesn't return source name in list
             point_name: a.point_id,
             original_url: a.original_url,
-            publish_date: a.publish_time,
+            publish_date: a.publish_time || a.collected_at, // Use fallback to ensure string
             created_at: a.collected_at
         })),
         total: res.total,
