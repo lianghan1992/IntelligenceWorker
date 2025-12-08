@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
-import { getSpiderSources, createSpiderSource, getSpiderPoints, createSpiderPoint, runSpiderPoint } from '../../../api/intelligence';
-import { ServerIcon, RssIcon, PlusIcon, RefreshIcon, ClockIcon, PlayIcon, ViewListIcon, CheckCircleIcon } from '../../icons';
+import { getSpiderSources, createSpiderSource, getSpiderPoints, createSpiderPoint, runSpiderPoint, deleteSpiderSource, deleteSpiderPoint } from '../../../api/intelligence';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, ViewListIcon, TrashIcon, ClockIcon } from '../../icons';
 import { TaskDrawer } from './TaskDrawer';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -25,6 +26,10 @@ export const SourceConfig: React.FC = () => {
     const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
     const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
     
+    // Delete States
+    const [sourceToDelete, setSourceToDelete] = useState<SpiderSource | null>(null);
+    const [pointToDelete, setPointToDelete] = useState<SpiderPoint | null>(null);
+
     // Forms
     const [sourceForm, setSourceForm] = useState({ name: '', base_url: '' });
     const [pointForm, setPointForm] = useState({ 
@@ -43,17 +48,21 @@ export const SourceConfig: React.FC = () => {
             setSources(res);
             if (res.length > 0 && !selectedSource) {
                 setSelectedSource(res[0]);
+            } else if (res.length === 0) {
+                setSelectedSource(null);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoadingSources(false); }
     }, [selectedSource]);
 
     const fetchPoints = useCallback(async () => {
-        if (!selectedSource) return;
+        if (!selectedSource) {
+            setPoints([]);
+            return;
+        }
         setIsLoadingPoints(true);
         try {
-            const res = await getSpiderPoints(selectedSource.id); // Assuming filter by ID is better if backend supports, otherwise filter in API util
-            // Note: API Util currently takes source_id as param
+            const res = await getSpiderPoints(selectedSource.id);
             setPoints(res);
         } catch (e) { console.error(e); }
         finally { setIsLoadingPoints(false); }
@@ -73,6 +82,18 @@ export const SourceConfig: React.FC = () => {
             setIsCreateSourceModalOpen(false);
         } catch (e) { alert('创建情报源失败'); }
         finally { setIsSubmitting(false); }
+    };
+
+    const handleDeleteSource = async () => {
+        if (!sourceToDelete) return;
+        try {
+            await deleteSpiderSource(sourceToDelete.id);
+            setSources(sources.filter(s => s.id !== sourceToDelete.id));
+            if (selectedSource?.id === sourceToDelete.id) {
+                setSelectedSource(sources.length > 1 ? sources.find(s => s.id !== sourceToDelete.id) || null : null);
+            }
+            setSourceToDelete(null);
+        } catch (e) { alert('删除失败'); }
     };
 
     const handleCreatePoint = async () => {
@@ -96,11 +117,20 @@ export const SourceConfig: React.FC = () => {
         finally { setIsSubmitting(false); }
     };
 
+    const handleDeletePoint = async () => {
+        if (!pointToDelete) return;
+        try {
+            await deleteSpiderPoint(pointToDelete.id);
+            setPoints(points.filter(p => p.id !== pointToDelete.id));
+            setPointToDelete(null);
+        } catch (e) { alert('删除失败'); }
+    };
+
     const handleRunPoint = async (pointId: string) => {
         setRunningPointId(pointId);
         try {
             await runSpiderPoint(pointId);
-            // Refresh logic if needed, e.g. check status
+            alert('采集任务已触发，请在日志中查看进度。');
         } catch (e) { alert('触发采集失败'); }
         finally { setRunningPointId(null); }
     };
@@ -117,17 +147,25 @@ export const SourceConfig: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sources.map(src => (
-                        <button
-                            key={src.id}
-                            onClick={() => setSelectedSource(src)}
-                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.id === src.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
-                        >
-                            <div className="flex justify-between items-center">
-                                <span className="truncate">{src.name}</span>
-                                {selectedSource?.id === src.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>}
-                            </div>
-                            {src.base_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.base_url}</div>}
-                        </button>
+                        <div key={src.id} className="group relative">
+                            <button
+                                onClick={() => setSelectedSource(src)}
+                                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.id === src.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
+                            >
+                                <div className="flex justify-between items-center">
+                                    <span className="truncate pr-4">{src.name}</span>
+                                    {selectedSource?.id === src.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
+                                </div>
+                                {src.base_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.base_url}</div>}
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setSourceToDelete(src); }}
+                                className="absolute right-2 top-3 p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="删除情报源"
+                            >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
                     ))}
                     {sources.length === 0 && !isLoadingSources && <div className="text-center text-xs text-gray-400 py-8">暂无情报源</div>}
                 </div>
@@ -179,7 +217,7 @@ export const SourceConfig: React.FC = () => {
                                                 <a href={point.point_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[200px] block mt-0.5">{point.point_url}</a>
                                             </div>
                                             <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${point.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-gray-100 text-gray-500'}`}>
-                                                {point.is_active ? 'Active' : 'Inactive'}
+                                                {point.status || 'Idle'}
                                             </div>
                                         </div>
                                         
@@ -189,21 +227,30 @@ export const SourceConfig: React.FC = () => {
                                             <div className="col-span-2 truncate" title={point.pagination_instruction}><span className="text-gray-400">翻页:</span> <span className="font-mono">{point.pagination_instruction || 'Auto'}</span></div>
                                         </div>
 
-                                        <div className="flex justify-end gap-2 border-t border-gray-50 pt-3">
+                                        <div className="flex justify-between items-center border-t border-gray-50 pt-3">
                                             <button 
-                                                onClick={() => setViewTasksPoint(point)}
-                                                className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-1.5"
+                                                onClick={() => setPointToDelete(point)}
+                                                className="text-gray-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition-colors"
+                                                title="删除采集点"
                                             >
-                                                <ViewListIcon className="w-3.5 h-3.5" /> 任务日志
+                                                <TrashIcon className="w-4 h-4" />
                                             </button>
-                                            <button 
-                                                onClick={() => handleRunPoint(point.id)}
-                                                disabled={runningPointId === point.id}
-                                                className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:bg-indigo-400"
-                                            >
-                                                {runningPointId === point.id ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
-                                                立即运行
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setViewTasksPoint(point)}
+                                                    className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-1.5"
+                                                >
+                                                    <ViewListIcon className="w-3.5 h-3.5" /> 任务日志
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleRunPoint(point.id)}
+                                                    disabled={runningPointId === point.id}
+                                                    className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:bg-indigo-400"
+                                                >
+                                                    {runningPointId === point.id ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
+                                                    立即运行
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -287,6 +334,28 @@ export const SourceConfig: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Confirm Delete Modals */}
+            {sourceToDelete && (
+                <ConfirmationModal 
+                    title="确认删除情报源"
+                    message={`确定要删除 "${sourceToDelete.name}" 吗？该操作将级联删除其下的所有采集点和任务数据，不可撤销。`}
+                    confirmText="确认删除"
+                    variant="destructive"
+                    onConfirm={handleDeleteSource}
+                    onCancel={() => setSourceToDelete(null)}
+                />
+            )}
+            {pointToDelete && (
+                <ConfirmationModal 
+                    title="确认删除采集点"
+                    message={`确定要删除 "${pointToDelete.point_name}" 吗？该操作将删除该点产生的所有任务和文章，不可撤销。`}
+                    confirmText="确认删除"
+                    variant="destructive"
+                    onConfirm={handleDeletePoint}
+                    onCancel={() => setPointToDelete(null)}
+                />
             )}
         </div>
     );

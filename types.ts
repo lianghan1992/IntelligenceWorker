@@ -376,8 +376,6 @@ export interface SpiderSource {
     base_url?: string;
     created_at: string;
     updated_at: string;
-    // For legacy compatibility
-    source_name?: string; 
 }
 
 export interface SpiderPoint {
@@ -395,10 +393,26 @@ export interface SpiderPoint {
     updated_at: string;
 }
 
+export interface SpiderTaskCounts {
+    pending: number;
+    running: number;
+    done: number;
+    error: number;
+}
+
+export interface SpiderTaskResponse {
+    point: { id: string, source_id: string, source_name: string, point_name: string };
+    total: number;
+    page: number;
+    limit: number;
+    counts: SpiderTaskCounts;
+    items: SpiderTask[];
+}
+
 export interface SpiderTask {
     id: string;
     task_type: string;
-    status: 'running' | 'completed' | 'failed';
+    status: 'pending' | 'running' | 'done' | 'error';
     url: string;
     page_number?: number;
     error_message?: string;
@@ -417,7 +431,7 @@ export interface SpiderArticle {
     is_reviewed: boolean;
 }
 
-// For legacy code compatibility
+// For legacy compatibility where needed
 export interface GenericPoint {
     id: string;
     source_name: string;

@@ -6,10 +6,12 @@
 - 查询服务状态：`GET /api/intelspider/status`
 - 创建情报源：`POST /api/intelspider/sources`
 - 查询情报源列表：`GET /api/intelspider/sources`
+- 删除情报源（级联删除点与任务/文章）：`DELETE /api/intelspider/sources/{source_id}`
 - 创建情报点：`POST /api/intelspider/points`
 - 查询情报点列表：`GET /api/intelspider/points`
+- 删除情报点（级联删除任务与文章）：`DELETE /api/intelspider/points/{point_id}`
 - 触发情报点采集（后台执行）：`POST /api/intelspider/points/{point_id}/run`
-- 查询情报点的原子任务：`GET /api/intelspider/points/{point_id}/tasks`
+- 查询情报点的原子任务（分页、懒加载、筛选与统计）：`GET /api/intelspider/points/{point_id}/tasks`
 - 查询文章列表：`GET /api/intelspider/articles`
 
 ---
@@ -100,11 +102,25 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 ---
 
 ## 查询情报点的原子任务
-- 接口介绍：返回指定情报点最近的原子任务（抓取、解析、持久化）列表。
+- 接口介绍：返回指定情报点的任务列表，支持分页、懒加载、按状态与任务类型筛选，并返回总数与各状态统计。
 - 接口方法：`GET /api/intelspider/points/{point_id}/tasks`
-- 返回示例（数组）：
+- 查询参数：
+  - `page`：整数，默认 `1`
+  - `limit`：整数，默认 `20`，最大 `200`
+  - `status`：字符串，可选，取值 `pending|running|done|error`
+  - `task_type`：字符串，可选，取值 `JINA_FETCH|LLM_ANALYZE_LIST|LLM_ANALYZE_ARTICLE|PERSIST`
+- 返回示例（对象）：
 ```
-[ { "id": "<task_id>", "task_type": "LLM_ANALYZE_LIST", "status": "running", "url": "https://...", "page_number": 1, "error_message": null, "created_at": "2025-12-08 10:08:00", "finished_at": null } ]
+{
+  "point": { "id": "<point_id>", "source_id": "<source_id>", "source_name": "汽车之家", "point_name": "新闻列表" },
+  "total": 132,
+  "page": 1,
+  "limit": 20,
+  "counts": { "pending": 10, "running": 2, "done": 118, "error": 2 },
+  "items": [
+    { "id": "<task_id>", "task_type": "LLM_ANALYZE_LIST", "status": "running", "url": "https://...", "page_number": 1, "error_message": null, "created_at": "2025-12-08 10:08:00", "finished_at": null }
+  ]
+}
 ```
 
 ---
@@ -118,6 +134,7 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 ```
 [ { "id": "<article_id>", "point_id": "<point_id>", "title": "示例标题", "publish_time": "2025-12-08 09:30", "content": "# 标题\n正文...", "original_url": "https://...", "collected_at": "2025-12-08 10:10:00", "is_reviewed": false } ]
 ```
+- 注意：`publish_time` 若原页无时分秒，则补齐为 `YYYY-MM-DD 00:00`，保持统一显示格式。
 
 ---
 

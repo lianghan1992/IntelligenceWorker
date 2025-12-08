@@ -57,8 +57,8 @@ export const IntelligenceTasksPanel: React.FC = () => {
                         <option value="">所有状态</option>
                         <option value="pending">等待中</option>
                         <option value="running">执行中</option>
-                        <option value="completed">已完成</option>
-                        <option value="failed">已失败</option>
+                        <option value="done">已完成</option>
+                        <option value="error">已失败</option>
                     </select>
                 </div>
                 <button onClick={fetchTasks} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm">
@@ -92,7 +92,7 @@ export const IntelligenceTasksPanel: React.FC = () => {
                                         <div className="text-slate-300 text-[10px] truncate max-w-[200px]" title={t.url}>{t.url}</div>
                                     </td>
                                     <td className="px-6 py-3">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === 'completed' ? 'bg-green-100 text-green-700' : t.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${t.status === 'done' ? 'bg-green-100 text-green-700' : t.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
                                             {t.status}
                                         </span>
                                     </td>
