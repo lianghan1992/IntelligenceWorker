@@ -66,7 +66,7 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/sources \
   - `point_url`：字符串，必填，列表页 URL（绝对路径）。
   - `cron_schedule`：字符串，采集频率（Cron 表达式）。
   - `max_depth`：整数，最大翻页深度（默认 5）。
-  - `pagination_instruction`：字符串，隐式翻页规则，例如 `page/{n}`。
+  - `pagination_instruction`：字符串，隐式翻页规则，例如 `page/{n}`、`index_{n}.shtml`。
 - curl 示例：
 ```
 curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
@@ -117,6 +117,11 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
   "page": 1,
   "limit": 20,
   "counts": { "pending": 10, "running": 2, "done": 118, "error": 2 },
+  "type_counts": { "JINA_FETCH": 50, "LLM_ANALYZE_LIST": 2, "LLM_ANALYZE_ARTICLE": 40, "PERSIST": 40 },
+  "page_counts": {
+    "status": { "pending": 4, "running": 1, "done": 15 },
+    "types": { "JINA_FETCH": 8, "LLM_ANALYZE_LIST": 1, "LLM_ANALYZE_ARTICLE": 6 }
+  },
   "items": [
     { "id": "<task_id>", "task_type": "LLM_ANALYZE_LIST", "status": "running", "url": "https://...", "page_number": 1, "error_message": null, "created_at": "2025-12-08 10:08:00", "finished_at": null }
   ]
@@ -141,9 +146,32 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 ## 设计与约束说明
 - 列表与翻页：Jina Reader 转 Markdown，LLM 只返回 JSON，隐式翻页通过 `pagination_instruction` 构造（如 `page/{n}`）。
 - 正文清洗：LLM 清理广告、导航与无关链接，保留 Markdown。
-- 并发与重试：全局限流与指数退避；Jina 429 自动退避重试。
+- 并发与重试：Jina 与 LLM 独立限流（`JINA_CONCURRENCY` / `LLM_CONCURRENCY`），指数退避；Jina 429 自动退避重试。
 - 认证：除 `/status` 外所有接口需 Bearer Token。
 - 代理：可在 `services/intelspider/.env` 设置 `HTTP_PROXY` 与 `SOCKS5_PROXY`。
+
+---
+
+## 新增字段：文章URL过滤
+
+- `article_url_filters`：数组，可选。用于过滤 LLM 识别出的文章详情页 URL，仅保留以这些前缀开头的链接，避免页眉/页脚等误识别产生的垃圾数据。
+- 位置：`POST /api/intelspider/points` 的请求体与响应体，`GET /api/intelspider/points` 列表返回。
+- 示例：
+  - 请求体：
+    ```json
+    {
+      "source_id": "<source_id>",
+      "point_name": "产业新闻",
+      "point_url": "https://auto.gasgoo.com/industry/",
+      "max_depth": 3,
+      "pagination_instruction": "index_{n}.shtml",
+      "article_url_filters": [
+        "https://auto.gasgoo.com/news/",
+        "https://auto.gasgoo.com/trends/"
+      ]
+    }
+    ```
+  - 行为：采集引擎将在列表页 LLM 返回的 `articles` 中，仅保留 `url` 以上述前缀开头的项，并将这些文章入队为待抓取任务。
 
 ---
 

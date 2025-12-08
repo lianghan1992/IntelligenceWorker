@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
 import { getSpiderSources, createSpiderSource, getSpiderPoints, createSpiderPoint, runSpiderPoint, deleteSpiderSource, deleteSpiderPoint } from '../../../api/intelligence';
@@ -37,7 +38,8 @@ export const SourceConfig: React.FC = () => {
         point_url: '', 
         cron_schedule: '*/10 * * * *',
         max_depth: 3,
-        pagination_instruction: 'page/{n}'
+        pagination_instruction: 'page/{n}',
+        article_url_filters: '' // string input, split by newline/comma
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -100,9 +102,19 @@ export const SourceConfig: React.FC = () => {
         if (!selectedSource || !pointForm.point_name || !pointForm.point_url) return;
         setIsSubmitting(true);
         try {
+            // Process filters
+            const filters = pointForm.article_url_filters
+                ? pointForm.article_url_filters.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+                : undefined;
+
             await createSpiderPoint({
                 source_id: selectedSource.id,
-                ...pointForm
+                point_name: pointForm.point_name,
+                point_url: pointForm.point_url,
+                cron_schedule: pointForm.cron_schedule,
+                max_depth: pointForm.max_depth,
+                pagination_instruction: pointForm.pagination_instruction,
+                article_url_filters: filters
             });
             fetchPoints();
             setPointForm({ 
@@ -110,7 +122,8 @@ export const SourceConfig: React.FC = () => {
                 point_url: '', 
                 cron_schedule: '*/10 * * * *',
                 max_depth: 3,
-                pagination_instruction: 'page/{n}'
+                pagination_instruction: 'page/{n}',
+                article_url_filters: ''
             });
             setIsCreatePointModalOpen(false);
         } catch (e) { alert('创建情报点失败'); }
@@ -225,6 +238,16 @@ export const SourceConfig: React.FC = () => {
                                             <div><span className="text-gray-400">Cron:</span> <span className="font-mono">{point.cron_schedule}</span></div>
                                             <div><span className="text-gray-400">深度:</span> {point.max_depth} 页</div>
                                             <div className="col-span-2 truncate" title={point.pagination_instruction}><span className="text-gray-400">翻页:</span> <span className="font-mono">{point.pagination_instruction || 'Auto'}</span></div>
+                                            {point.article_url_filters && point.article_url_filters.length > 0 && (
+                                                <div className="col-span-2 mt-1">
+                                                    <span className="text-gray-400">URL 过滤:</span>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {point.article_url_filters.map((f, i) => (
+                                                            <span key={i} className="bg-white border border-gray-200 px-1.5 rounded text-[9px] font-mono truncate max-w-full" title={f}>{f}</span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
@@ -322,8 +345,13 @@ export const SourceConfig: React.FC = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">翻页指令 (Pagination Instruction)</label>
-                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-none" placeholder="e.g. page/{n}" value={pointForm.pagination_instruction} onChange={e => setPointForm({...pointForm, pagination_instruction: e.target.value})} />
+                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-16 resize-none" placeholder="e.g. page/{n}" value={pointForm.pagination_instruction} onChange={e => setPointForm({...pointForm, pagination_instruction: e.target.value})} />
                                 <p className="text-xs text-gray-400 mt-1">用于构造下一页URL的模式，使用 {'{n}'} 代表页码。</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">文章 URL 过滤 (可选)</label>
+                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-none font-mono" placeholder="https://site.com/news/&#10;https://site.com/trends/" value={pointForm.article_url_filters} onChange={e => setPointForm({...pointForm, article_url_filters: e.target.value})} />
+                                <p className="text-xs text-gray-400 mt-1">仅采集以此前缀开头的文章链接。每行一个或用逗号分隔。</p>
                             </div>
                         </div>
                         <div className="mt-6 flex justify-end gap-3">

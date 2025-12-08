@@ -387,6 +387,7 @@ export interface SpiderPoint {
     cron_schedule: string;
     max_depth: number;
     pagination_instruction?: string;
+    article_url_filters?: string[];
     status: string;
     is_active: boolean;
     created_at: string;

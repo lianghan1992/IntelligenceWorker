@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -107,6 +108,7 @@ export const createSpiderPoint = (data: {
     cron_schedule: string;
     max_depth?: number;
     pagination_instruction?: string;
+    article_url_filters?: string[];
 }): Promise<SpiderPoint> => {
     return apiFetch<SpiderPoint>(`${INTELSPIDER_PATH}/points`, {
         method: 'POST',
@@ -122,7 +124,8 @@ export const createPoint = (data: any): Promise<any> => {
         point_url: data.url || data.point_url,
         cron_schedule: data.cron_schedule,
         max_depth: data.max_depth || 5,
-        pagination_instruction: data.pagination_instruction
+        pagination_instruction: data.pagination_instruction,
+        article_url_filters: data.list_filters
     });
 };
 
