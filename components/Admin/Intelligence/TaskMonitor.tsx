@@ -7,9 +7,9 @@ import { RefreshIcon, PlayIcon } from '../../icons';
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
     const style = 
-        s === 'completed' ? 'bg-green-100 text-green-700' :
+        s === 'completed' || s === 'done' ? 'bg-green-100 text-green-700' :
         s === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
-        s === 'failed' ? 'bg-red-100 text-red-700' : 
+        s === 'failed' || s === 'error' ? 'bg-red-100 text-red-700' : 
         'bg-gray-100 text-gray-600';
     
     return <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style}`}>{status}</span>;
@@ -63,7 +63,7 @@ export const TaskMonitor: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.task_type}</span></td>
                                     <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
-                                    <td className="px-6 py-4 max-w-xs truncate text-xs text-red-500" title={task.error_message}>{task.error_message || '-'}</td>
+                                    <td className="px-6 py-4 max-w-xs truncate text-xs text-red-500" title={task.error_message || undefined}>{task.error_message || '-'}</td>
                                     <td className="px-6 py-4 text-xs font-mono">{new Date(task.created_at).toLocaleString()}</td>
                                 </tr>
                             ))
