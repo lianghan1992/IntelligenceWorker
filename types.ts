@@ -430,8 +430,8 @@ export interface SpiderTaskResponse {
     page: number;
     limit: number;
     counts: SpiderTaskCounts;
-    type_counts: SpiderTaskTypeCounts;
-    page_counts: SpiderTaskPageCounts;
+    type_counts?: SpiderTaskTypeCounts; 
+    page_counts?: SpiderTaskPageCounts;
     items: SpiderTask[];
 }
 

@@ -60,8 +60,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                 setPagination(pointToEdit.pagination_instruction || 'page/{n}');
                 setFilters(pointToEdit.article_url_filters ? pointToEdit.article_url_filters.join('\n') : '');
                 setRawCron(pointToEdit.cron_schedule);
-                // Attempt to reverse parse cron for smart mode could be complex, default to raw for edit to be safe
-                // or just keep smart mode defaults. For better UX, let's default to raw on edit to preserve exactness.
+                // Default to raw for edit to allow any expression
                 setCronMode('raw');
             } else {
                 // Reset for create
@@ -147,7 +146,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
         <div className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
             <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
                 {/* Header */}
-                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                <div className="p-5 border-b bg-gray-50 flex justify-between items-center flex-shrink-0">
                     <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
                         <RssIcon className="w-5 h-5 text-indigo-600"/>
                         {isEdit ? '编辑采集点' : '新建采集点'}
@@ -155,26 +154,26 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><CloseIcon className="w-5 h-5"/></button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                     {/* Basic Info */}
                     <div className="space-y-4">
                         <h4 className="text-sm font-bold text-gray-900 border-b pb-2">基础信息</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1">采集点名称 <span className="text-red-500">*</span></label>
-                                <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 行业新闻" />
+                                <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 行业新闻" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1">最大翻页深度</label>
-                                <input type="number" min="1" value={maxDepth} onChange={e => setMaxDepth(parseInt(e.target.value)||1)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <input type="number" min="1" value={maxDepth} onChange={e => setMaxDepth(parseInt(e.target.value)||1)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-gray-500 mb-1">列表页 URL <span className="text-red-500">*</span></label>
-                                <input value={url} onChange={e => setUrl(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="https://example.com/news/" />
+                                <input value={url} onChange={e => setUrl(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="https://example.com/news/" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-gray-500 mb-1">翻页规则 (Pagination)</label>
-                                <input value={pagination} onChange={e => setPagination(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="page/{n}" />
+                                <input value={pagination} onChange={e => setPagination(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="page/{n}" />
                                 <p className="text-[10px] text-gray-400 mt-1">使用 {"{n}"} 代表页码。例如：<code>page/{"{n}"}</code> 或 <code>index_{"{n}"}.html</code></p>
                             </div>
                         </div>
@@ -217,7 +216,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-col md:flex-row md:items-center gap-4">
                                     {(freq === 'interval_min' || freq === 'interval_hour' || freq === 'days') && (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm text-gray-600 font-bold">每</span>
@@ -226,7 +225,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                                 min="1" 
                                                 value={intervalVal} 
                                                 onChange={e => setIntervalVal(Math.max(1, parseInt(e.target.value) || 1))}
-                                                className="w-16 p-2 rounded-lg border text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                className="w-20 p-2 rounded-lg border text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
                                             />
                                             <span className="text-sm text-gray-600 font-bold">
                                                 {freq === 'interval_min' ? '分钟' : freq === 'interval_hour' ? '小时' : '天'}
@@ -242,7 +241,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                                 min="1" max="31"
                                                 value={dayOfMonth} 
                                                 onChange={e => setDayOfMonth(Math.max(1, Math.min(31, parseInt(e.target.value) || 1)))}
-                                                className="w-16 p-2 rounded-lg border text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                className="w-20 p-2 rounded-lg border text-center text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
                                             />
                                             <span className="text-sm text-gray-600 font-bold">日</span>
                                         </div>
@@ -262,7 +261,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                     )}
 
                                     {(freq === 'daily' || freq === 'days' || freq === 'weekly' || freq === 'monthly') && (
-                                        <div className="flex items-center gap-2 ml-4">
+                                        <div className="flex items-center gap-2">
                                             <span className="text-sm text-gray-600 font-bold">时间</span>
                                             <input 
                                                 type="time" 
@@ -301,7 +300,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                 </div>
 
                 {/* Footer */}
-                <div className="p-5 border-t bg-gray-50 flex justify-end gap-3">
+                <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-100">取消</button>
                     <button 
                         onClick={handleSubmit} 

@@ -23,7 +23,7 @@ export const ServiceStatus: React.FC = () => {
     if (!status) return <div className="p-8 text-center text-red-500">无法获取服务状态</div>;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6 overflow-y-auto h-full pb-20 md:pb-0">
             <div className="flex justify-between items-center">
                 <h3 className="text-lg font-bold text-gray-800">IntelSpider 运行概况</h3>
                 <button onClick={fetchStatus} className="p-2 bg-white border rounded-lg text-gray-500 hover:text-indigo-600 shadow-sm"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/></button>
@@ -39,7 +39,7 @@ export const ServiceStatus: React.FC = () => {
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center text-center">
                     <div className="p-3 bg-purple-50 text-purple-600 rounded-full mb-3"><SparklesIcon className="w-6 h-6"/></div>
                     <div className="text-sm text-gray-500 font-medium">LLM 模型</div>
-                    <div className="text-lg font-bold text-gray-900 mt-1 truncate max-w-full px-2">{status.llm_model}</div>
+                    <div className="text-lg font-bold text-gray-900 mt-1 truncate max-w-full px-2" title={status.llm_model}>{status.llm_model}</div>
                 </div>
 
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center text-center">

@@ -3,21 +3,21 @@ import React, { useState } from 'react';
 import { SourceConfig } from './Intelligence/SourceConfig';
 import { ArticleList } from './Intelligence/ArticleList';
 import { ServiceStatus } from './Intelligence/ServiceStatus';
-import { ServerIcon, ViewListIcon, ChartIcon } from '../icons';
+import { ServerIcon, ViewListIcon, ChartIcon } from '../../icons';
 
 export const IntelligenceDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles'>('config');
 
     return (
-        <div className="h-full flex flex-col bg-slate-50/30 p-6">
-            <div className="flex-shrink-0 mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 mb-4">情报采集管理</h1>
-                <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
+        <div className="h-full flex flex-col bg-slate-50/30 p-4 md:p-6">
+            <div className="flex-shrink-0 mb-4 md:mb-6">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">情报采集管理</h1>
+                <div className="border-b border-gray-200 overflow-x-auto no-scrollbar">
+                    <nav className="-mb-px flex space-x-6 md:space-x-8 min-w-max">
                         <button
                             onClick={() => setActiveTab('status')}
                             className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                                whitespace-nowrap pb-3 md:pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
                                 ${activeTab === 'status' 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
@@ -29,7 +29,7 @@ export const IntelligenceDashboard: React.FC = () => {
                         <button
                             onClick={() => setActiveTab('config')}
                             className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                                whitespace-nowrap pb-3 md:pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
                                 ${activeTab === 'config' 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
@@ -41,7 +41,7 @@ export const IntelligenceDashboard: React.FC = () => {
                         <button
                             onClick={() => setActiveTab('articles')}
                             className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
+                                whitespace-nowrap pb-3 md:pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors
                                 ${activeTab === 'articles' 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}

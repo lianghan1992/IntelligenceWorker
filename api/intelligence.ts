@@ -89,7 +89,6 @@ export const getPoints = async (params: { source_name?: string }): Promise<Intel
     // Note: Old components passed source_name. New API uses ID. 
     // This compat function will just fetch all and filter by name on client side if source_id is not readily available, 
     // or rely on the UI updating to pass source_id.
-    // Ideally, UI components should now use `getSpiderPoints` directly.
     const points = await getSpiderPoints();
     const filtered = params.source_name 
         ? points.filter(p => p.source_name === params.source_name) 
@@ -182,14 +181,14 @@ export const reviewSpiderArticle = (article_id: string, is_reviewed: boolean): P
 };
 
 export const getSpiderPendingArticles = async (): Promise<PendingArticle[]> => {
-    const response = await getSpiderArticles({ limit: 100 }); 
+    const response = await getSpiderArticles({ limit: 100, is_reviewed: false }); 
     return response.items.map(a => ({
         id: a.id,
         title: a.title,
         original_url: a.original_url,
         source_name: 'Unknown', 
         point_name: a.point_id,
-        status: a.is_reviewed ? 'approved' : 'pending',
+        status: 'pending',
         content: a.content,
         publish_date: a.publish_time,
         created_at: a.collected_at
@@ -203,14 +202,14 @@ export const getSpiderTasks = async (params?: any): Promise<SpiderTask[]> => {
 
 // Legacy Aliases for Articles
 export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
-    const response = await getSpiderArticles({ limit: 100 });
+    const response = await getSpiderArticles({ limit: 100, is_reviewed: false });
     const mapped = response.items.map(a => ({
         id: a.id,
         title: a.title,
         original_url: a.original_url,
         source_name: 'Unknown', 
         point_name: a.point_id, 
-        status: a.is_reviewed ? 'approved' : 'pending',
+        status: 'pending',
         content: a.content,
         publish_date: a.publish_time,
         created_at: a.collected_at

@@ -43,12 +43,12 @@ export const TaskMonitor: React.FC = () => {
                 <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b sticky top-0">
                         <tr>
-                            <th className="px-6 py-3">任务 ID</th>
-                            <th className="px-6 py-3">URL</th>
-                            <th className="px-6 py-3">类型</th>
-                            <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">错误信息</th>
-                            <th className="px-6 py-3">创建时间</th>
+                            <th className="px-6 py-3 whitespace-nowrap">任务 ID</th>
+                            <th className="px-6 py-3 whitespace-nowrap">URL</th>
+                            <th className="px-6 py-3 whitespace-nowrap">类型</th>
+                            <th className="px-6 py-3 whitespace-nowrap">状态</th>
+                            <th className="px-6 py-3 whitespace-nowrap">错误信息</th>
+                            <th className="px-6 py-3 whitespace-nowrap">创建时间</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -57,14 +57,14 @@ export const TaskMonitor: React.FC = () => {
                         ) : (
                             tasks.map(task => (
                                 <tr key={task.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-mono text-xs">{task.id.slice(0, 8)}...</td>
+                                    <td className="px-6 py-4 font-mono text-xs whitespace-nowrap">{task.id.slice(0, 8)}...</td>
                                     <td className="px-6 py-4">
-                                        <div className="text-xs max-w-[250px] truncate font-mono text-gray-600" title={task.url}>{task.url}</div>
+                                        <div className="text-xs max-w-[200px] md:max-w-[250px] truncate font-mono text-gray-600" title={task.url}>{task.url}</div>
                                     </td>
-                                    <td className="px-6 py-4"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.task_type}</span></td>
-                                    <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.task_type}</span></td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={task.status} /></td>
                                     <td className="px-6 py-4 max-w-xs truncate text-xs text-red-500" title={task.error_message || undefined}>{task.error_message || '-'}</td>
-                                    <td className="px-6 py-4 text-xs font-mono">{new Date(task.created_at).toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-xs font-mono whitespace-nowrap">{new Date(task.created_at).toLocaleString()}</td>
                                 </tr>
                             ))
                         )}
