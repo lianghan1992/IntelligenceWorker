@@ -401,24 +401,38 @@ export interface SpiderTaskCounts {
     error: number;
 }
 
+export interface SpiderTaskTypeCounts {
+    JINA_FETCH: number;
+    LLM_ANALYZE_LIST: number;
+    LLM_ANALYZE_ARTICLE: number;
+    PERSIST: number;
+}
+
+export interface SpiderTaskPageCounts {
+    status: SpiderTaskCounts;
+    types: SpiderTaskTypeCounts;
+}
+
+export interface SpiderTask {
+    id: string;
+    task_type: 'JINA_FETCH' | 'LLM_ANALYZE_LIST' | 'LLM_ANALYZE_ARTICLE' | 'PERSIST';
+    status: 'pending' | 'running' | 'done' | 'error';
+    url: string;
+    page_number?: number;
+    error_message?: string | null;
+    created_at: string;
+    finished_at?: string | null;
+}
+
 export interface SpiderTaskResponse {
     point: { id: string, source_id: string, source_name: string, point_name: string };
     total: number;
     page: number;
     limit: number;
     counts: SpiderTaskCounts;
+    type_counts: SpiderTaskTypeCounts;
+    page_counts: SpiderTaskPageCounts;
     items: SpiderTask[];
-}
-
-export interface SpiderTask {
-    id: string;
-    task_type: string;
-    status: 'pending' | 'running' | 'done' | 'error';
-    url: string;
-    page_number?: number;
-    error_message?: string;
-    created_at: string;
-    finished_at?: string;
 }
 
 export interface SpiderArticle {
@@ -430,6 +444,23 @@ export interface SpiderArticle {
     original_url: string;
     collected_at: string;
     is_reviewed: boolean;
+}
+
+export interface ArticleQuery {
+    source_id?: string;
+    point_id?: string;
+    start_time?: string;
+    end_time?: string;
+    is_reviewed?: boolean;
+    page?: number;
+    limit?: number;
+}
+
+export interface ArticleResponse {
+    total: number;
+    page: number;
+    limit: number;
+    items: SpiderArticle[];
 }
 
 // For legacy compatibility where needed

@@ -24,6 +24,11 @@
 { "jina_concurrency": 10, "llm_model": "glm-4-flash-250414", "llm_concurrency": 15, "global_max_concurrent": 10, "zhipu_keys_count": 1 }
 ```
 
+- 说明：本服务支持本地向量模型配置，`services/intelspider/.env` 可设置：
+  - `EMBEDDING_PROVIDER=local`
+  - `EMBEDDING_MODEL_NAME=BAAI/bge-large-zh-v1.5`
+  - `HTTP_PROXY`、`SOCKS5_PROXY`（可选）
+
 ---
 
 ## 创建情报源
@@ -130,16 +135,30 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 
 ---
 
-## 查询文章列表
-- 接口介绍：返回采集到的文章列表，按采集时间倒序，默认最多 100 条。
+## 任务类型中文说明
+
+- `JINA_FETCH`：Jina 页面读取，将网页转为 Markdown
+- `LLM_ANALYZE_LIST`：LLM 解析列表页，提取文章链接与下一页
+- `LLM_ANALYZE_ARTICLE`：LLM 清洗文章正文并提取标题与发布时间
+- `PERSIST`：将识别出的文章与任务结果持久化入库
+
+---
+
+## 查询文章列表（支持筛选与分页）
 - 接口方法：`GET /api/intelspider/articles`
 - 查询参数：
-  - `point_id`：字符串，可选，按情报点过滤。
-- 返回示例（数组）：
+  - `source_id`：字符串，可选，按情报源过滤
+  - `point_id`：字符串，可选，按情报点过滤
+  - `start_time`：字符串，可选，发布时间起（`YYYY-MM-DD` 或 `YYYY-MM-DD HH:mm`）
+  - `end_time`：字符串，可选，发布时间止
+  - `is_reviewed`：布尔，可选，筛选审核状态
+  - `page`：整数，默认 `1`
+  - `limit`：整数，默认 `20`，最大 `200`
+- 返回示例（对象）：
 ```
-[ { "id": "<article_id>", "point_id": "<point_id>", "title": "示例标题", "publish_time": "2025-12-08 09:30", "content": "# 标题\n正文...", "original_url": "https://...", "collected_at": "2025-12-08 10:10:00", "is_reviewed": false } ]
+{ "total": 240, "page": 1, "limit": 20, "items": [ { "id": "<article_id>", "point_id": "<point_id>", "title": "示例标题", "publish_time": "2025-12-08 09:30", "content": "# 标题\n正文...", "original_url": "https://...", "collected_at": "2025-12-08 10:10:00", "is_reviewed": false } ] }
 ```
-- 注意：`publish_time` 若原页无时分秒，则补齐为 `YYYY-MM-DD 00:00`，保持统一显示格式。
+- 说明：支持懒加载与前端分页，前端每次按需拉取下一页。
 
 ---
 
@@ -149,6 +168,32 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 - 并发与重试：Jina 与 LLM 独立限流（`JINA_CONCURRENCY` / `LLM_CONCURRENCY`），指数退避；Jina 429 自动退避重试。
 - 认证：除 `/status` 外所有接口需 Bearer Token。
 - 代理：可在 `services/intelspider/.env` 设置 `HTTP_PROXY` 与 `SOCKS5_PROXY`。
+
+---
+
+## 任务类型说明（中文）
+
+- `JINA_FETCH`：使用 Jina Reader 抓取网页并转换为 Markdown
+- `LLM_ANALYZE_LIST`：用 LLM 分析列表页，提取文章链接与下一页
+- `LLM_ANALYZE_ARTICLE`：用 LLM清洗与整理文章正文结构化信息
+- `PERSIST`：持久化写入文章或任务数据到数据库
+
+---
+
+## 审核与向量化
+
+- 审核接口：`POST /api/intelspider/articles/{article_id}/review`
+  - 请求体：`{ "is_reviewed": true }`
+  - 行为：当 `is_reviewed=true` 时后台触发向量化，使用本地模型 `BAAI/bge-large-zh-v1.5`，分段策略约 500 字、100 字重叠，最多保留 200 段。
+  - 存储：将分段与向量写入新表 `intelspider_article_embeddings`。
+
+- 查询接口：`POST /api/intelspider/articles/vector-search`
+  - 请求体：
+    ```json
+    { "vectors": [[0.1,0.2,...]], "source_id": "<source_id>", "point_id": "<point_id>", "month_start": "2025-11-01", "month_end": "2025-11-30", "page": 1, "limit": 20 }
+    ```
+  - 返回：按余弦相似度排序的分页结果，包含 `score` 与原始文章元数据（标题、内容、发布时间、URL）。
+  - 说明：支持单向量或多向量同时匹配，取最大分数作为该文章的匹配分。
 
 ---
 
@@ -182,4 +227,3 @@ curl -sS -X POST http://127.0.0.1:7657/api/intelspider/points \
 4. 后台触发点采集：`POST /api/intelspider/points/{point_id}/run`
 5. 查看任务与文章：`GET /api/intelspider/points/{point_id}/tasks`、`GET /api/intelspider/articles?point_id=<point_id>`
 
-（在中国大陆网络环境建议配置本地代理以提升稳定性与速度。）

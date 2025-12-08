@@ -1,13 +1,25 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderTask, SpiderPoint, SpiderTaskCounts } from '../../../types';
+import { SpiderTask, SpiderPoint, SpiderTaskCounts, SpiderTaskTypeCounts } from '../../../types';
 import { getSpiderPointTasks } from '../../../api/intelligence';
-import { CloseIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
+import { CloseIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, CheckCircleIcon, PlayIcon, ShieldExclamationIcon, ClockIcon } from '../../icons';
 
 interface TaskDrawerProps {
     point: SpiderPoint;
     onClose: () => void;
 }
+
+// Visual Mapping for Task Types
+const getTypeInfo = (type: string) => {
+    switch (type) {
+        case 'JINA_FETCH': return { label: '网页抓取 (Jina)', color: 'text-blue-600 bg-blue-50 border-blue-100' };
+        case 'LLM_ANALYZE_LIST': return { label: '列表解析 (LLM)', color: 'text-purple-600 bg-purple-50 border-purple-100' };
+        case 'LLM_ANALYZE_ARTICLE': return { label: '正文清洗 (LLM)', color: 'text-indigo-600 bg-indigo-50 border-indigo-100' };
+        case 'PERSIST': return { label: '数据持久化', color: 'text-green-600 bg-green-50 border-green-100' };
+        default: return { label: type, color: 'text-gray-600 bg-gray-50 border-gray-100' };
+    }
+};
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
@@ -16,12 +28,31 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         s === 'running' ? 'bg-blue-100 text-blue-700 animate-pulse' :
         s === 'error' || s === 'failed' ? 'bg-red-100 text-red-700' : 
         'bg-yellow-100 text-yellow-700'; // pending
-    return <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${style}`}>{status}</span>;
+    
+    const icon = 
+        s === 'done' ? <CheckCircleIcon className="w-3 h-3" /> :
+        s === 'running' ? <PlayIcon className="w-3 h-3" /> :
+        s === 'error' ? <ShieldExclamationIcon className="w-3 h-3" /> :
+        <ClockIcon className="w-3 h-3" />;
+
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold uppercase ${style}`}>
+            {icon} {status}
+        </span>
+    );
 };
+
+const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
+    <div className="flex-1 bg-white p-3 rounded-lg border border-gray-100 shadow-sm text-center">
+        <div className="text-xs text-gray-400 uppercase font-bold tracking-wide mb-1">{label}</div>
+        <div className={`text-xl font-extrabold ${color}`}>{value}</div>
+    </div>
+);
 
 export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
     const [tasks, setTasks] = useState<SpiderTask[]>([]);
     const [counts, setCounts] = useState<SpiderTaskCounts | null>(null);
+    const [typeCounts, setTypeCounts] = useState<SpiderTaskTypeCounts | null>(null);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
@@ -33,6 +64,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
             const res = await getSpiderPointTasks(point.id, { page, limit });
             setTasks(res.items);
             setCounts(res.counts);
+            setTypeCounts(res.type_counts);
             setTotal(res.total);
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
@@ -40,90 +72,122 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
 
     useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
+    const totalPages = Math.ceil(total / limit) || 1;
+
     return (
         <div className="fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm flex justify-end animate-in fade-in duration-300">
-            <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+            <div className="w-full max-w-3xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 border-l border-gray-200">
+                
+                {/* Header */}
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50/50">
                     <div>
-                        <h3 className="font-bold text-lg text-gray-800">{point.point_name} - 任务日志</h3>
-                        <p className="text-xs text-gray-500 mt-1">{point.source_name} | {point.point_url}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-extrabold text-xl text-gray-800">{point.point_name}</h3>
+                            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded font-mono">{point.id.slice(0,8)}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 font-medium">{point.source_name} • {point.point_url}</p>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={fetchTasks} className="p-2 hover:bg-gray-200 rounded text-gray-500"><RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/></button>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded text-gray-500"><CloseIcon className="w-5 h-5"/></button>
+                        <button onClick={fetchTasks} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 border border-transparent hover:border-gray-200 transition-all"><RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/></button>
+                        <button onClick={onClose} className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg text-gray-500 transition-all"><CloseIcon className="w-5 h-5"/></button>
                     </div>
                 </div>
 
-                {/* Stats Header */}
-                {counts && (
-                    <div className="grid grid-cols-4 gap-px bg-gray-200 border-b border-gray-200">
-                        <div className="bg-white p-3 text-center">
-                            <div className="text-xs text-gray-500 uppercase">Pending</div>
-                            <div className="font-bold text-yellow-600">{counts.pending}</div>
-                        </div>
-                        <div className="bg-white p-3 text-center">
-                            <div className="text-xs text-gray-500 uppercase">Running</div>
-                            <div className="font-bold text-blue-600">{counts.running}</div>
-                        </div>
-                        <div className="bg-white p-3 text-center">
-                            <div className="text-xs text-gray-500 uppercase">Done</div>
-                            <div className="font-bold text-green-600">{counts.done}</div>
-                        </div>
-                        <div className="bg-white p-3 text-center">
-                            <div className="text-xs text-gray-500 uppercase">Error</div>
-                            <div className="font-bold text-red-600">{counts.error}</div>
-                        </div>
-                    </div>
-                )}
-                
-                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-white">
-                    {tasks.length === 0 && !isLoading ? (
-                        <div className="text-center py-20 text-gray-400">该采集点暂无任务记录</div>
-                    ) : (
-                        <div className="space-y-3">
-                            {tasks.map(task => (
-                                <div key={task.id} className="border border-gray-200 rounded-lg p-3 hover:border-indigo-200 hover:shadow-sm transition-all text-sm">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            <StatusBadge status={task.status} />
-                                            <span className="font-bold text-gray-700">{task.task_type}</span>
-                                            {task.page_number && <span className="text-xs text-gray-500 bg-gray-100 px-1.5 rounded">Page {task.page_number}</span>}
-                                        </div>
-                                        <span className="text-xs text-gray-400 font-mono">{new Date(task.created_at).toLocaleString()}</span>
-                                    </div>
-                                    <div className="text-xs text-gray-500 font-mono break-all bg-gray-50 p-2 rounded mb-2">
-                                        {task.url}
-                                    </div>
-                                    {task.error_message && (
-                                        <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">
-                                            Error: {task.error_message}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                {/* Dashboard Stats */}
+                <div className="p-5 bg-gray-50 border-b border-gray-200 space-y-4">
+                    {/* Status Stats */}
+                    {counts && (
+                        <div className="flex gap-4">
+                            <StatCard label="Pending" value={counts.pending} color="text-yellow-600" />
+                            <StatCard label="Running" value={counts.running} color="text-blue-600" />
+                            <StatCard label="Done" value={counts.done} color="text-green-600" />
+                            <StatCard label="Error" value={counts.error} color="text-red-600" />
                         </div>
                     )}
+                    {/* Type Stats */}
+                    {typeCounts && (
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+                            {Object.entries(typeCounts).map(([type, count]) => {
+                                const info = getTypeInfo(type);
+                                return (
+                                    <div key={type} className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${info.color}`}>
+                                        <span>{info.label}</span>
+                                        <span className="font-bold bg-white/50 px-1.5 rounded text-[10px]">{count}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+                
+                {/* Task List */}
+                <div className="flex-1 overflow-y-auto p-0 bg-white">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b sticky top-0 z-10">
+                            <tr>
+                                <th className="px-5 py-3 w-32">状态</th>
+                                <th className="px-5 py-3 w-40">任务类型</th>
+                                <th className="px-5 py-3">详情 / 错误</th>
+                                <th className="px-5 py-3 w-40 text-right">时间</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {tasks.length === 0 && !isLoading ? (
+                                <tr><td colSpan={4} className="text-center py-20 text-gray-400">暂无任务记录</td></tr>
+                            ) : (
+                                tasks.map(task => {
+                                    const typeInfo = getTypeInfo(task.task_type);
+                                    return (
+                                        <tr key={task.id} className="hover:bg-gray-50 group transition-colors">
+                                            <td className="px-5 py-3 align-top">
+                                                <StatusBadge status={task.status} />
+                                            </td>
+                                            <td className="px-5 py-3 align-top">
+                                                <span className={`text-xs font-bold px-2 py-0.5 rounded border ${typeInfo.color}`}>
+                                                    {typeInfo.label}
+                                                </span>
+                                                {task.page_number && <div className="text-[10px] text-gray-400 mt-1 font-mono">Page {task.page_number}</div>}
+                                            </td>
+                                            <td className="px-5 py-3 align-top">
+                                                <div className="text-xs text-gray-600 font-mono break-all line-clamp-2 hover:line-clamp-none transition-all cursor-help" title={task.url}>
+                                                    {task.url}
+                                                </div>
+                                                {task.error_message && (
+                                                    <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 font-mono break-all">
+                                                        {task.error_message}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-5 py-3 text-right text-xs text-gray-400 font-mono align-top">
+                                                {new Date(task.created_at).toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
 
                 {/* Pagination Footer */}
                 {total > 0 && (
-                    <div className="p-3 border-t bg-gray-50 flex justify-between items-center text-sm">
-                        <span className="text-gray-500">Total: {total}</span>
-                        <div className="flex gap-2">
+                    <div className="p-4 border-t bg-white flex justify-between items-center text-sm shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+                        <span className="text-gray-500 font-medium">共 {total} 条记录</span>
+                        <div className="flex items-center gap-3">
                             <button 
                                 disabled={page <= 1} 
                                 onClick={() => setPage(p => p - 1)}
-                                className="p-1.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
+                                className="p-2 border rounded-lg bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             >
-                                <ChevronLeftIcon className="w-4 h-4"/>
+                                <ChevronLeftIcon className="w-4 h-4 text-gray-600"/>
                             </button>
-                            <span className="px-2 py-1">{page}</span>
+                            <span className="font-bold text-gray-700 min-w-[3rem] text-center">{page} / {totalPages}</span>
                             <button 
-                                disabled={page * limit >= total} 
+                                disabled={page >= totalPages} 
                                 onClick={() => setPage(p => p + 1)}
-                                className="p-1.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
+                                className="p-2 border rounded-lg bg-white hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                             >
-                                <ChevronRightIcon className="w-4 h-4"/>
+                                <ChevronRightIcon className="w-4 h-4 text-gray-600"/>
                             </button>
                         </div>
                     </div>

@@ -14,7 +14,9 @@ import {
     SearchChunkResult,
     PendingArticle,
     ApprovedArticle,
-    SpiderTaskResponse
+    SpiderTaskResponse,
+    ArticleQuery,
+    ArticleResponse
 } from '../types';
 
 const INTELSPIDER_PATH = `${API_BASE_URL}/intelspider`;
@@ -163,14 +165,21 @@ export const getSpiderPointTasks = (point_id: string, params?: { page?: number, 
 
 // --- IntelSpider / Articles ---
 
-export const getSpiderArticles = (params: { point_id?: string }): Promise<SpiderArticle[]> => {
+export const getSpiderArticles = (params: ArticleQuery): Promise<ArticleResponse> => {
     const query = createApiQuery(params);
-    return apiFetch<SpiderArticle[]>(`${INTELSPIDER_PATH}/articles${query}`);
+    return apiFetch<ArticleResponse>(`${INTELSPIDER_PATH}/articles${query}`);
+};
+
+export const reviewSpiderArticle = (article_id: string, is_reviewed: boolean): Promise<void> => {
+    return apiFetch(`${INTELSPIDER_PATH}/articles/${article_id}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ is_reviewed })
+    });
 };
 
 export const getSpiderPendingArticles = async (): Promise<PendingArticle[]> => {
-    const articles = await getSpiderArticles({}); 
-    return articles.map(a => ({
+    const response = await getSpiderArticles({ limit: 100 }); 
+    return response.items.map(a => ({
         id: a.id,
         title: a.title,
         original_url: a.original_url,
@@ -190,8 +199,8 @@ export const getSpiderTasks = async (params?: any): Promise<SpiderTask[]> => {
 
 // Legacy Aliases for Articles
 export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
-    const articles = await getSpiderArticles({});
-    const mapped = articles.map(a => ({
+    const response = await getSpiderArticles({ limit: 100 });
+    const mapped = response.items.map(a => ({
         id: a.id,
         title: a.title,
         original_url: a.original_url,
@@ -203,12 +212,14 @@ export const getPendingArticles = async (params: any): Promise<PaginatedResponse
         created_at: a.collected_at
     })) as PendingArticlePublic[];
     
-    return { items: mapped, total: mapped.length, page: 1, limit: 100, totalPages: 1 };
+    return { items: mapped, total: response.total, page: 1, limit: 100, totalPages: 1 };
 };
 
 export const approveSpiderArticles = (article_ids: string[]): Promise<any> => {
-    // New API doesn't document approval endpoint yet.
-    return Promise.resolve({ ok: true, processed: article_ids.length });
+    // New API doesn't document batch approval endpoint yet.
+    // We will simulate iteration.
+    const promises = article_ids.map(id => reviewSpiderArticle(id, true));
+    return Promise.all(promises).then(() => ({ ok: true, processed: article_ids.length }));
 };
 export const confirmPendingArticles = approveSpiderArticles;
 export const rejectPendingArticles = (ids: string[]): Promise<any> => {
