@@ -39,7 +39,7 @@ export const TaskMonitor: React.FC = () => {
                 <button onClick={fetchTasks} className="p-1 hover:bg-gray-200 rounded text-gray-500"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/></button>
             </div>
             
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b sticky top-0">
                         <tr>

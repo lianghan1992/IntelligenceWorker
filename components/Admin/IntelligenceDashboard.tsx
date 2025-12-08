@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { SourceConfig } from './Intelligence/SourceConfig';
 import { ArticleList } from './Intelligence/ArticleList';
 import { ServiceStatus } from './Intelligence/ServiceStatus';
-import { ServerIcon, ViewListIcon, ChartIcon } from '../../icons';
+import { ServerIcon, ViewListIcon, ChartIcon } from '../icons';
 
 export const IntelligenceDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles'>('config');

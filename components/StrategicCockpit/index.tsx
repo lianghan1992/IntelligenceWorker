@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -76,6 +77,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
         try {
             const limit = 20;
+            // Use the updated searchArticlesFiltered which maps getSpiderArticles internally
+            // The query_text logic inside api/intelligence.ts handles basic listing for now as per requirement
             const params: any = {
                 query_text: query,
                 page,
@@ -83,9 +86,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                 similarity_threshold: 0.35,
             };
             
-            if (subscribedSourceNames.length > 0) {
-                params.source_names = subscribedSourceNames;
-            }
+            // Note: new API doesn't support source filtering by name string array directly in basic list,
+            // but the compatibility layer in searchArticlesFiltered ignores it or maps it if possible.
+            // For now, we rely on the backend returning latest articles.
             
             const response = await searchArticlesFiltered(params);
             
@@ -108,14 +111,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         } finally {
             setIsLoading(false);
         }
-    }, [subscribedSourceNames]); 
+    }, [selectedArticle]); 
 
 
     useEffect(() => {
         // Trigger fetch when activeQuery changes
-        if (activeQuery.value) {
-            fetchArticles(activeQuery.value, 1);
-        }
+        // query value is used but currently just triggers a fresh fetch of latest articles in the new API context
+        fetchArticles(activeQuery.value, 1);
     }, [activeQuery, fetchArticles]);
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
