@@ -44,11 +44,11 @@ export const TaskMonitor: React.FC = () => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b sticky top-0">
                         <tr>
                             <th className="px-6 py-3">任务 ID</th>
-                            <th className="px-6 py-3">来源 / 采集点</th>
-                            <th className="px-6 py-3">阶段</th>
+                            <th className="px-6 py-3">URL</th>
+                            <th className="px-6 py-3">类型</th>
                             <th className="px-6 py-3">状态</th>
-                            <th className="px-6 py-3">详情信息</th>
-                            <th className="px-6 py-3">开始时间</th>
+                            <th className="px-6 py-3">错误信息</th>
+                            <th className="px-6 py-3">创建时间</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -59,13 +59,12 @@ export const TaskMonitor: React.FC = () => {
                                 <tr key={task.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 font-mono text-xs">{task.id.slice(0, 8)}...</td>
                                     <td className="px-6 py-4">
-                                        <div className="font-bold text-gray-800">{task.source_name}</div>
-                                        <div className="text-xs">{task.point_name}</div>
+                                        <div className="text-xs max-w-[250px] truncate font-mono text-gray-600" title={task.url}>{task.url}</div>
                                     </td>
-                                    <td className="px-6 py-4"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.stage}</span></td>
+                                    <td className="px-6 py-4"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.task_type}</span></td>
                                     <td className="px-6 py-4"><StatusBadge status={task.status} /></td>
-                                    <td className="px-6 py-4 max-w-xs truncate text-xs" title={task.detail}>{task.detail}</td>
-                                    <td className="px-6 py-4 text-xs font-mono">{new Date(task.start_time).toLocaleString()}</td>
+                                    <td className="px-6 py-4 max-w-xs truncate text-xs text-red-500" title={task.error_message}>{task.error_message || '-'}</td>
+                                    <td className="px-6 py-4 text-xs font-mono">{new Date(task.created_at).toLocaleString()}</td>
                                 </tr>
                             ))
                         )}

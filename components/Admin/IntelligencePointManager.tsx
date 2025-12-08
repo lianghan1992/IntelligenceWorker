@@ -71,7 +71,8 @@ export const IntelligencePointManager: React.FC = () => {
                     point_name: p.name || p.point_name || '',
                     point_url: p.url || p.point_url || '',
                     cron_schedule: p.cron_schedule,
-                    is_active: p.is_active ?? p.enabled ?? false,
+                    // Use is_active, cast to any for legacy 'enabled' property access if it exists in backend response but not in type
+                    is_active: p.is_active ?? (p as any).enabled ?? false,
                     url_filters: p.url_filters,
                     extra_hint: p.extra_hint
                 }));
@@ -200,6 +201,7 @@ export const IntelligencePointManager: React.FC = () => {
         if (!subscription) return null;
         return {
             id: subscription.id,
+            source_id: subscription.source_id || '', // Default needed
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,
@@ -210,7 +212,10 @@ export const IntelligencePointManager: React.FC = () => {
             is_active: !!subscription.is_active,
             url_filters: subscription.url_filters,
             extra_hint: subscription.extra_hint,
-            created_at: ''
+            created_at: '',
+            max_depth: 3, // Default needed
+            status: subscription.is_active ? 'active' : 'inactive', // Map boolean to string
+            updated_at: ''
         };
     };
 
@@ -223,7 +228,8 @@ export const IntelligencePointManager: React.FC = () => {
             main_url: '',
             points_count: s.points_count || 0,
             articles_count: s.articles_count || 0,
-            created_at: ''
+            created_at: '',
+            updated_at: ''
         }));
     };
 

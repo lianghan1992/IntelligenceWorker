@@ -360,58 +360,64 @@ export interface PaginatedDocumentsResponse {
     totalPages: number;
 }
 
-// --- IntelSpider Types ---
+// --- IntelSpider Types (Updated) ---
+
+export interface SpiderStatus {
+    jina_concurrency: number;
+    llm_model: string;
+    llm_concurrency: number;
+    global_max_concurrent: number;
+    zhipu_keys_count: number;
+}
 
 export interface SpiderSource {
     id: string;
-    source_name: string;
+    name: string;
+    base_url?: string;
+    created_at: string;
+    updated_at: string;
+    // For legacy compatibility
+    source_name?: string; 
 }
 
 export interface SpiderPoint {
     id: string;
+    source_id: string;
     source_name: string;
     point_name: string;
     point_url: string;
     cron_schedule: string;
-    max_depth?: number;
+    max_depth: number;
     pagination_instruction?: string;
-    is_active?: boolean;
+    status: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface SpiderTask {
     id: string;
-    run_id?: string;
-    source_name: string;
-    point_name: string;
-    url: string;
-    stage: string;
+    task_type: string;
     status: 'running' | 'completed' | 'failed';
-    detail: string;
-    start_time: string;
-    end_time?: string;
+    url: string;
+    page_number?: number;
+    error_message?: string;
+    created_at: string;
+    finished_at?: string;
 }
 
-export interface PendingArticle {
+export interface SpiderArticle {
     id: string;
+    point_id: string;
     title: string;
+    publish_time?: string;
+    content: string;
     original_url: string;
-    source_name: string;
-    point_name: string;
-    status: 'pending' | 'rejected' | 'approved';
-    content?: string;
-    publish_date?: string;
-    created_at?: string;
+    collected_at: string;
+    is_reviewed: boolean;
 }
 
-export interface ApprovedArticle {
-    id: string;
-    title: string;
-    publish_date: string;
-    source_name: string;
-    point_name: string;
-    original_url: string;
-}
-
+// For legacy code compatibility
 export interface GenericPoint {
     id: string;
     source_name: string;
@@ -436,4 +442,25 @@ export interface GenericTask {
     end_time?: string;
     created_at: string;
     status: string;
+}
+
+export interface PendingArticle {
+    id: string;
+    title: string;
+    original_url: string;
+    source_name: string;
+    point_name: string;
+    status: 'pending' | 'rejected' | 'approved';
+    content?: string;
+    publish_date?: string;
+    created_at?: string;
+}
+
+export interface ApprovedArticle {
+    id: string;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    point_name: string;
+    original_url: string;
 }

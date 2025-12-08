@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
-import { getSpiderSources, getSpiderPoints, createSpiderPoint, runSpiderPoint } from '../../../api/intelligence';
-import { ServerIcon, RssIcon, PlusIcon, PlayIcon, RefreshIcon, ClockIcon } from '../../icons';
+import { getSpiderSources, createSpiderSource, getSpiderPoints, createSpiderPoint, runSpiderPoint } from '../../../api/intelligence';
+import { ServerIcon, RssIcon, PlusIcon, RefreshIcon, ClockIcon, PlayIcon, ViewListIcon, CheckCircleIcon } from '../../icons';
+import { TaskDrawer } from './TaskDrawer';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -18,40 +19,22 @@ export const SourceConfig: React.FC = () => {
     const [isLoadingSources, setIsLoadingSources] = useState(false);
     const [isLoadingPoints, setIsLoadingPoints] = useState(false);
     const [runningPointId, setRunningPointId] = useState<string | null>(null);
+    const [viewTasksPoint, setViewTasksPoint] = useState<SpiderPoint | null>(null);
 
-    // Create Modal State
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [newPointData, setNewPointData] = useState({ 
-        source_name: '', 
+    // Modal States
+    const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
+    const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
+    
+    // Forms
+    const [sourceForm, setSourceForm] = useState({ name: '', base_url: '' });
+    const [pointForm, setPointForm] = useState({ 
         point_name: '', 
         point_url: '', 
-        cron_schedule: '0 9 * * *',
+        cron_schedule: '*/10 * * * *',
         max_depth: 3,
-        pagination_instruction: ''
+        pagination_instruction: 'page/{n}'
     });
-    const [isCreating, setIsCreating] = useState(false);
-
-    // Cron Builder State
-    const [scheduleType, setScheduleType] = useState<'daily' | 'interval' | 'monthly'>('daily');
-    const [scheduleTime, setScheduleTime] = useState('09:00');
-    const [scheduleInterval, setScheduleInterval] = useState(2);
-    const [scheduleDay, setScheduleDay] = useState(1);
-
-    // Sync Cron
-    useEffect(() => {
-        if (!showCreateModal) return;
-        const [hh, mm] = scheduleTime.split(':').map(v => parseInt(v, 10) || 0);
-        let cron = '';
-        
-        if (scheduleType === 'daily') {
-            cron = `${mm} ${hh} * * *`;
-        } else if (scheduleType === 'interval') {
-            cron = `${mm} ${hh} */${Math.max(1, scheduleInterval)} * *`;
-        } else if (scheduleType === 'monthly') {
-            cron = `${mm} ${hh} ${Math.max(1, Math.min(31, scheduleDay))} * *`;
-        }
-        setNewPointData(prev => ({ ...prev, cron_schedule: cron }));
-    }, [scheduleType, scheduleTime, scheduleInterval, scheduleDay, showCreateModal]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchSources = useCallback(async () => {
         setIsLoadingSources(true);
@@ -69,7 +52,8 @@ export const SourceConfig: React.FC = () => {
         if (!selectedSource) return;
         setIsLoadingPoints(true);
         try {
-            const res = await getSpiderPoints(selectedSource.source_name);
+            const res = await getSpiderPoints(selectedSource.id); // Assuming filter by ID is better if backend supports, otherwise filter in API util
+            // Note: API Util currently takes source_id as param
             setPoints(res);
         } catch (e) { console.error(e); }
         finally { setIsLoadingPoints(false); }
@@ -78,233 +62,227 @@ export const SourceConfig: React.FC = () => {
     useEffect(() => { fetchSources(); }, [fetchSources]);
     useEffect(() => { fetchPoints(); }, [fetchPoints]);
 
+    const handleCreateSource = async () => {
+        if (!sourceForm.name) return;
+        setIsSubmitting(true);
+        try {
+            const newSource = await createSpiderSource(sourceForm);
+            setSources([newSource, ...sources]);
+            setSelectedSource(newSource);
+            setSourceForm({ name: '', base_url: '' });
+            setIsCreateSourceModalOpen(false);
+        } catch (e) { alert('创建情报源失败'); }
+        finally { setIsSubmitting(false); }
+    };
+
+    const handleCreatePoint = async () => {
+        if (!selectedSource || !pointForm.point_name || !pointForm.point_url) return;
+        setIsSubmitting(true);
+        try {
+            await createSpiderPoint({
+                source_id: selectedSource.id,
+                ...pointForm
+            });
+            fetchPoints();
+            setPointForm({ 
+                point_name: '', 
+                point_url: '', 
+                cron_schedule: '*/10 * * * *',
+                max_depth: 3,
+                pagination_instruction: 'page/{n}'
+            });
+            setIsCreatePointModalOpen(false);
+        } catch (e) { alert('创建情报点失败'); }
+        finally { setIsSubmitting(false); }
+    };
+
     const handleRunPoint = async (pointId: string) => {
         setRunningPointId(pointId);
         try {
-            const res = await runSpiderPoint(pointId, 1);
-            if (res.ok) alert(`采集任务已触发，处理了 ${res.processed} 页`);
-        } catch (e) { alert('触发失败'); }
+            await runSpiderPoint(pointId);
+            // Refresh logic if needed, e.g. check status
+        } catch (e) { alert('触发采集失败'); }
         finally { setRunningPointId(null); }
     };
 
-    const handleCreate = async () => {
-        if (!newPointData.source_name || !newPointData.point_name || !newPointData.point_url) return;
-        setIsCreating(true);
-        try {
-            await createSpiderPoint({
-                ...newPointData,
-                max_depth: Number(newPointData.max_depth)
-            });
-            setShowCreateModal(false);
-            // Reset form
-            setNewPointData({ 
-                source_name: '', 
-                point_name: '', 
-                point_url: '', 
-                cron_schedule: '0 9 * * *',
-                max_depth: 3,
-                pagination_instruction: ''
-            });
-            // Reset Cron Builder
-            setScheduleType('daily');
-            setScheduleTime('09:00');
-            setScheduleInterval(2);
-            setScheduleDay(1);
-
-            fetchSources(); // Refresh sources in case a new one was created
-            if (selectedSource?.source_name === newPointData.source_name) {
-                fetchPoints();
-            }
-        } catch (e) { alert('创建失败'); }
-        finally { setIsCreating(false); }
-    };
-
     return (
-        <div className="flex h-full gap-6">
+        <div className="flex h-full gap-6 relative">
             {/* Left: Sources List */}
-            <div className="w-64 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
+            <div className="w-72 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden shadow-sm">
                 <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                     <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                        <ServerIcon className="w-4 h-4 text-indigo-600"/> 情报源
+                        <ServerIcon className="w-4 h-4 text-indigo-600"/> 情报源 ({sources.length})
                     </h3>
-                    <button onClick={fetchSources} className="p-1 hover:bg-gray-200 rounded text-gray-500"><RefreshIcon className="w-4 h-4"/></button>
+                    <button onClick={fetchSources} className="p-1.5 hover:bg-gray-200 rounded text-gray-500"><RefreshIcon className="w-4 h-4"/></button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sources.map(src => (
                         <button
                             key={src.id}
                             onClick={() => setSelectedSource(src)}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedSource?.id === src.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.id === src.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
                         >
-                            {src.source_name}
+                            <div className="flex justify-between items-center">
+                                <span className="truncate">{src.name}</span>
+                                {selectedSource?.id === src.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>}
+                            </div>
+                            {src.base_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.base_url}</div>}
                         </button>
                     ))}
-                    {sources.length === 0 && !isLoadingSources && <div className="text-center text-xs text-gray-400 py-4">暂无数据</div>}
+                    {sources.length === 0 && !isLoadingSources && <div className="text-center text-xs text-gray-400 py-8">暂无情报源</div>}
                 </div>
-                <div className="p-3 border-t">
+                <div className="p-3 border-t bg-gray-50">
                     <button 
-                        onClick={() => { setNewPointData(prev => ({...prev, source_name: ''})); setShowCreateModal(true); }}
-                        className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors"
+                        onClick={() => setIsCreateSourceModalOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm"
                     >
-                        <PlusIcon className="w-4 h-4" /> 新建源/点
+                        <PlusIcon className="w-4 h-4" /> 新建情报源
                     </button>
                 </div>
             </div>
 
-            {/* Right: Points Table */}
-            <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
-                <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-700 flex items-center gap-2">
-                        <RssIcon className="w-4 h-4 text-blue-600"/> 
-                        {selectedSource ? `${selectedSource.source_name} - 采集点配置` : '采集点配置'}
-                    </h3>
-                    <button onClick={fetchPoints} className="p-1 hover:bg-gray-200 rounded text-gray-500"><RefreshIcon className="w-4 h-4"/></button>
-                </div>
-                
-                <div className="flex-1 overflow-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
-                            <tr>
-                                <th className="px-6 py-3">采集点名称</th>
-                                <th className="px-6 py-3">目标 URL</th>
-                                <th className="px-6 py-3">Cron 计划</th>
-                                <th className="px-6 py-3 text-right">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {!selectedSource ? (
-                                <tr><td colSpan={4} className="text-center py-10 text-gray-400">请选择一个情报源查看详情</td></tr>
-                            ) : points.length === 0 ? (
-                                <tr><td colSpan={4} className="text-center py-10 text-gray-400">该源下暂无采集点</td></tr>
-                            ) : (
-                                points.map(point => (
-                                    <tr key={point.id} className="border-b hover:bg-gray-50">
-                                        <td className="px-6 py-4 font-medium text-gray-900">{point.point_name}</td>
-                                        <td className="px-6 py-4 text-gray-500 truncate max-w-xs" title={point.point_url}>{point.point_url}</td>
-                                        <td className="px-6 py-4 text-gray-500 font-mono text-xs flex items-center gap-1">
-                                            <ClockIcon className="w-3 h-3" /> {point.cron_schedule}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
+            {/* Right: Points & Config */}
+            <div className="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                {!selectedSource ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+                        <ServerIcon className="w-12 h-12 opacity-20 mb-2"/>
+                        <p>请选择一个情报源以管理其采集点</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="p-5 border-b bg-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                    {selectedSource.name}
+                                    <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">ID: {selectedSource.id.slice(0,8)}</span>
+                                </h3>
+                                <p className="text-xs text-gray-500 mt-1">{selectedSource.base_url || '无主站链接'}</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={fetchPoints} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 border border-transparent hover:border-gray-200"><RefreshIcon className={`w-4 h-4 ${isLoadingPoints?'animate-spin':''}`}/></button>
+                                <button 
+                                    onClick={() => setIsCreatePointModalOpen(true)}
+                                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> 新建采集点
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                {points.map(point => (
+                                    <div key={point.id} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-all group">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <h4 className="font-bold text-gray-800">{point.point_name}</h4>
+                                                <a href={point.point_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[200px] block mt-0.5">{point.point_url}</a>
+                                            </div>
+                                            <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${point.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-gray-100 text-gray-500'}`}>
+                                                {point.is_active ? 'Active' : 'Inactive'}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4 bg-gray-50 p-3 rounded-lg">
+                                            <div><span className="text-gray-400">Cron:</span> <span className="font-mono">{point.cron_schedule}</span></div>
+                                            <div><span className="text-gray-400">深度:</span> {point.max_depth} 页</div>
+                                            <div className="col-span-2 truncate" title={point.pagination_instruction}><span className="text-gray-400">翻页:</span> <span className="font-mono">{point.pagination_instruction || 'Auto'}</span></div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 border-t border-gray-50 pt-3">
+                                            <button 
+                                                onClick={() => setViewTasksPoint(point)}
+                                                className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-1.5"
+                                            >
+                                                <ViewListIcon className="w-3.5 h-3.5" /> 任务日志
+                                            </button>
                                             <button 
                                                 onClick={() => handleRunPoint(point.id)}
                                                 disabled={runningPointId === point.id}
-                                                className="text-indigo-600 hover:text-indigo-800 font-medium text-xs border border-indigo-200 hover:bg-indigo-50 px-3 py-1 rounded transition-colors disabled:opacity-50"
+                                                className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:bg-indigo-400"
                                             >
-                                                {runningPointId === point.id ? '运行中...' : '立即运行'}
+                                                {runningPointId === point.id ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
+                                                立即运行
                                             </button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            {/* Create Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
-                        <div className="p-4 border-b bg-gray-50 font-bold text-gray-700">创建采集点</div>
-                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">情报源名称 (自动创建或选择)</label>
-                                <input 
-                                    type="text" 
-                                    value={newPointData.source_name} 
-                                    onChange={e => setNewPointData({...newPointData, source_name: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    placeholder="例如：盖世汽车"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">采集点名称</label>
-                                <input 
-                                    type="text" 
-                                    value={newPointData.point_name} 
-                                    onChange={e => setNewPointData({...newPointData, point_name: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    placeholder="例如：行业资讯"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">采集入口 URL</label>
-                                <input 
-                                    type="url" 
-                                    value={newPointData.point_url} 
-                                    onChange={e => setNewPointData({...newPointData, point_url: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    placeholder="https://..."
-                                />
-                            </div>
-                            
-                            {/* Cron Scheduler UI */}
-                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                <label className="block text-xs font-bold text-gray-500 mb-2">采集调度 (Cron)</label>
-                                <div className="flex gap-2 mb-3">
-                                    <button onClick={() => setScheduleType('daily')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'daily' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>每天</button>
-                                    <button onClick={() => setScheduleType('interval')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'interval' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>间隔天数</button>
-                                    <button onClick={() => setScheduleType('monthly')} className={`flex-1 py-1 text-xs rounded border transition-colors ${scheduleType === 'monthly' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-gray-50'}`}>每月</button>
-                                </div>
-                                
-                                <div className="space-y-3">
-                                    {scheduleType === 'interval' && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs text-slate-500">每隔</span>
-                                            <input type="number" min="1" value={scheduleInterval} onChange={e => setScheduleInterval(parseInt(e.target.value)||1)} className="w-16 p-1 text-center border rounded text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
-                                            <span className="text-xs text-slate-500">天</span>
-                                            <div className="flex gap-1 ml-auto">
-                                                {[2, 3, 7].map(d => (
-                                                    <button key={d} onClick={() => setScheduleInterval(d)} className={`px-2 py-0.5 text-[10px] rounded border ${scheduleInterval === d ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}>{d}天</button>
-                                                ))}
-                                            </div>
                                         </div>
-                                    )}
-                                    {scheduleType === 'monthly' && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs text-slate-500">每月</span>
-                                            <input type="number" min="1" max="31" value={scheduleDay} onChange={e => setScheduleDay(parseInt(e.target.value)||1)} className="w-16 p-1 text-center border rounded text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
-                                            <span className="text-xs text-slate-500">日</span>
-                                        </div>
-                                    )}
-                                    
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-slate-500">执行时间:</span>
-                                        <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} className="border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
                                     </div>
-                                </div>
-                                
-                                <div className="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-400 font-mono flex justify-between">
-                                    <span>Cron 表达式:</span>
-                                    <span className="font-bold text-slate-500">{newPointData.cron_schedule}</span>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">最大爬取页数</label>
-                                <input 
-                                    type="number" 
-                                    value={newPointData.max_depth} 
-                                    onChange={e => setNewPointData({...newPointData, max_depth: parseInt(e.target.value) || 1})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    min="1"
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">AI 翻页指令 (可选)</label>
-                                <textarea 
-                                    value={newPointData.pagination_instruction} 
-                                    onChange={e => setNewPointData({...newPointData, pagination_instruction: e.target.value})}
-                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
-                                    placeholder="例如：页面URL形如 ...?page=n ，请按当前页+1构造下一页"
-                                />
+                                ))}
+                                {points.length === 0 && !isLoadingPoints && (
+                                    <div className="col-span-full text-center py-20 text-gray-400 italic">暂无采集点</div>
+                                )}
                             </div>
                         </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
-                            <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg transition-colors">取消</button>
-                            <button onClick={handleCreate} disabled={isCreating} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2">
-                                {isCreating && <Spinner />} 创建
+                    </>
+                )}
+            </div>
+
+            {/* Tasks Drawer */}
+            {viewTasksPoint && (
+                <TaskDrawer 
+                    point={viewTasksPoint} 
+                    onClose={() => setViewTasksPoint(null)} 
+                />
+            )}
+
+            {/* Create Source Modal */}
+            {isCreateSourceModalOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">新建情报源</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">源名称</label>
+                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 汽车之家" value={sourceForm.name} onChange={e => setSourceForm({...sourceForm, name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">主站链接 (可选)</label>
+                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://..." value={sourceForm.base_url} onChange={e => setSourceForm({...sourceForm, base_url: e.target.value})} />
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button onClick={() => setIsCreateSourceModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200">取消</button>
+                            <button onClick={handleCreateSource} disabled={isSubmitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+                                {isSubmitting && <Spinner />} 创建
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Point Modal */}
+            {isCreatePointModalOpen && selectedSource && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-bold text-gray-800 mb-4">新建采集点 - {selectedSource.name}</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">采集点名称</label>
+                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 新闻列表" value={pointForm.point_name} onChange={e => setPointForm({...pointForm, point_name: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">列表页 URL</label>
+                                <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://..." value={pointForm.point_url} onChange={e => setPointForm({...pointForm, point_url: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Cron 频率</label>
+                                    <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="*/10 * * * *" value={pointForm.cron_schedule} onChange={e => setPointForm({...pointForm, cron_schedule: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">最大深度</label>
+                                    <input type="number" min="1" className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={pointForm.max_depth} onChange={e => setPointForm({...pointForm, max_depth: parseInt(e.target.value)||1})} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">翻页指令 (Pagination Instruction)</label>
+                                <textarea className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-none" placeholder="e.g. page/{n}" value={pointForm.pagination_instruction} onChange={e => setPointForm({...pointForm, pagination_instruction: e.target.value})} />
+                                <p className="text-xs text-gray-400 mt-1">用于构造下一页URL的模式，使用 {'{n}'} 代表页码。</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button onClick={() => setIsCreatePointModalOpen(false)} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold hover:bg-gray-200">取消</button>
+                            <button onClick={handleCreatePoint} disabled={isSubmitting} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+                                {isSubmitting && <Spinner />} 创建
                             </button>
                         </div>
                     </div>
