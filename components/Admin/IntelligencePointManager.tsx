@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { SystemSource, Subscription } from '../../types';
-import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runPoint, IntelligencePointPublic, IntelligenceSourcePublic } from '../../api/intelligence';
+import { SystemSource, Subscription, IntelligenceSourcePublic, IntelligencePointPublic } from '../../types';
+import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runPoint } from '../../api/intelligence';
 import { getUserSubscribedSources } from '../../api/user';
 import { PlusIcon, TrashIcon, RefreshIcon, RssIcon, ClockIcon, CloseIcon, ServerIcon, PlayIcon, ChevronRightIcon, StopIcon } from '../icons';
 import { IntelligencePointModal } from './IntelligencePointModal';
@@ -53,8 +53,8 @@ export const IntelligencePointManager: React.FC = () => {
             const mappedSources: SystemSource[] = fetchedSources.map(s => ({
                 id: s.id,
                 source_name: s.name || s.source_name || '',
-                points_count: s.points_count,
-                articles_count: s.articles_count
+                points_count: s.points_count || 0,
+                articles_count: s.articles_count || 0
             }));
             setSources(mappedSources);
 
@@ -62,16 +62,16 @@ export const IntelligencePointManager: React.FC = () => {
             const initialExpanded = new Set<string>();
             
             await Promise.all(mappedSources.map(async (source) => {
-                const points = await getPoints({ source_name: source.source_name });
+                const points = await getPoints({ source_name: source.id }); // Using ID for new backend logic if possible, or name
                 // Map IntelligencePointPublic to Subscription
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
-                    source_id: p.source_name, // source_name used as ID often in legacy
-                    source_name: p.source_name,
+                    source_id: p.source_uuid, 
+                    source_name: p.source_name || source.source_name,
                     point_name: p.name || p.point_name || '',
                     point_url: p.url || p.point_url || '',
                     cron_schedule: p.cron_schedule,
-                    is_active: p.is_active ?? (p as any).enabled ?? false,
+                    is_active: p.is_active,
                     url_filters: p.url_filters,
                     extra_hint: p.extra_hint
                 }));
@@ -198,7 +198,8 @@ export const IntelligencePointManager: React.FC = () => {
         if (!subscription) return null;
         return {
             id: subscription.id,
-            source_id: subscription.source_id || '',
+            uuid: subscription.id,
+            source_uuid: subscription.source_id || '',
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,
@@ -212,16 +213,20 @@ export const IntelligencePointManager: React.FC = () => {
             created_at: '',
             max_depth: 3, 
             status: subscription.is_active ? 'active' : 'inactive', 
-            updated_at: ''
+            updated_at: '',
+            initial_pages: 1
         };
     };
 
     const getSourcesForModal = (): IntelligenceSourcePublic[] => {
         return sources.map(s => ({
             id: s.id,
+            uuid: s.id,
             name: s.source_name,
             source_name: s.source_name,
             main_url: '',
+            total_points: s.points_count || 0,
+            total_articles: s.articles_count || 0,
             points_count: s.points_count || 0,
             articles_count: s.articles_count || 0,
             created_at: '',

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { InfoItem, SystemSource } from '../../types';
-import { getArticles, deleteArticles, getSources, IntelligenceSourcePublic, ArticlePublic } from '../../api';
+import { InfoItem, SystemSource, ArticlePublic, IntelligenceSourcePublic } from '../../types';
+import { getArticles, deleteArticles, getSources } from '../../api';
 import { SearchIcon, TrashIcon, RefreshIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckCircleIcon, DownloadIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
 

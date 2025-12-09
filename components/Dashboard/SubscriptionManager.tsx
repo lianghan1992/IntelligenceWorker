@@ -17,7 +17,7 @@ const CompactSourceCard: React.FC<{
                 <RssIcon className="w-5 h-5" />
             </div>
             <h3 className="text-sm font-bold text-gray-800 truncate w-full px-1" title={source.source_name}>{source.source_name}</h3>
-            <p className="text-[10px] text-gray-400 mt-0.5 mb-3">{source.points_count} 个情报点</p>
+            <p className="text-[10px] text-gray-400 mt-0.5 mb-3">{source.points_count || 0} 个情报点</p>
             
             <button
                 onClick={() => onToggleSubscription(source.id, isSubscribed)}
@@ -64,7 +64,7 @@ export const SubscriptionManager: React.FC = () => {
                 id: s.id,
                 source_name: s.name || s.source_name || '',
                 source_type: 'manual', // or any default
-                points_count: s.points_count
+                points_count: s.points_count || 0
             }));
             setSources(mappedSources);
             setSubscribedIds(new Set(subscribedSources.map(s => s.id)));

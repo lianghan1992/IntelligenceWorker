@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ServerIcon, RssIcon, ClockIcon, ArrowRightIcon } from '../icons';
-import { createPoint, IntelligenceSourcePublic, IntelligencePointPublic } from '../../api/intelligence';
+import { createPoint } from '../../api/intelligence';
+import { IntelligencePointPublic, IntelligenceSourcePublic } from '../../types';
 
 interface IntelligencePointModalProps {
     onClose: () => void;
@@ -20,7 +21,7 @@ const Spinner: React.FC = () => (
 
 export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ onClose, onSuccess, pointToEdit, sources, preSelectedSourceId }) => {
     const [formData, setFormData] = useState({
-        source_name: preSelectedSourceId || '',
+        source_name: preSelectedSourceId || '', // actually ID
         name: '',
         url: '',
         cron_schedule: '0 */6 * * *',
@@ -63,8 +64,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
 
     const isFormValid = () => {
         if (!formData.source_name.trim() || !formData.name.trim() || !formData.url.trim() || !formData.cron_schedule.trim()) return false;
-        // Pagination selector is optional for both 'click' (auto-detect) and 'scroll' (wait-for-selector)
-        // No strict check needed here for selector content
         return true;
     };
 
@@ -89,7 +88,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
         setError('');
         try {
             await createPoint({
-                source_name: formData.source_name,
+                source_name: formData.source_name, // This is source UUID
                 name: formData.name,
                 url: formData.url,
                 cron_schedule: formData.cron_schedule,
@@ -98,7 +97,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                 enable_pagination: formData.enable_pagination,
                 initial_pages: formData.initial_pages,
                 pagination_type: formData.enable_pagination && formData.pagination_type !== 'none' ? formData.pagination_type as 'scroll' | 'click' : undefined,
-                // Send undefined if empty to respect backend optionality
                 pagination_selector: formData.enable_pagination && formData.pagination_selector.trim() !== '' ? formData.pagination_selector : undefined,
                 mode: formData.mode
             });
@@ -142,7 +140,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                             disabled={isLoading || !!preSelectedSourceId}
                         >
                             <option value="">-- 请选择情报源 --</option>
-                            {sources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                            {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                     </div>
 
@@ -303,16 +301,6 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                                             className="w-full bg-gray-50 border border-gray-300 rounded-lg py-1.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" 
                                             disabled={isLoading} 
                                         />
-                                        {formData.pagination_type === 'click' && (
-                                            <p className="text-[10px] text-slate-400 mt-1">
-                                                提示：点击模式下，若留空，系统将尝试智能识别“下一页”按钮。为提高稳定性，建议手动填写。
-                                            </p>
-                                        )}
-                                        {formData.pagination_type === 'scroll' && (
-                                            <p className="text-[10px] text-slate-400 mt-1">
-                                                提示：滚动模式下，此选择器用作“等待出现”的目标（Wait For Selector）。
-                                            </p>
-                                        )}
                                     </div>
                                 )}
                             </div>

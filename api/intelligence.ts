@@ -6,327 +6,254 @@ import { apiFetch, createApiQuery } from './helper';
 import { 
     SpiderSource, 
     SpiderPoint, 
-    SpiderTask, 
     SpiderArticle,
-    SpiderStatus,
+    SpiderTaskTriggerResponse,
     PaginatedResponse,
     SearchChunkResult,
     PendingArticle,
     ApprovedArticle,
-    SpiderTaskResponse,
-    ArticleQuery,
-    ArticleResponse
+    IntelligencePointPublic,
+    IntelligenceSourcePublic,
+    ArticlePublic,
+    SpiderTask,
+    SpiderTaskCounts,
+    SpiderTaskTypeCounts,
+    PendingArticlePublic
 } from '../types';
 
-const INTELSPIDER_PATH = `${API_BASE_URL}/intelspider`;
+// The new service base path might be different or same. Assuming it's mounted under /api
+// As per doc: Basic URL is /. We'll assume /api prefix is handled by proxy.
+const INTELSPIDER_PATH = `${API_BASE_URL}`; 
 
-// --- Type Aliases for Compatibility ---
-export type IntelligenceSourcePublic = SpiderSource & {
-    points_count?: number; // Legacy prop, might be undefined in new API
-    articles_count?: number; // Legacy prop
-    source_name?: string; // Mapped alias
-};
-export type IntelligencePointPublic = SpiderPoint & {
-    name?: string; // Mapped alias
-    url?: string; // Mapped alias
-    extra_hint?: string; // Legacy
-    url_filters?: string[]; // Legacy
-    type?: string; // Legacy
-    mode?: string; // Legacy
-    list_hint?: string; // Legacy
-    list_filters?: string[]; // Legacy
-};
-export type ArticlePublic = ApprovedArticle & {
-    content: string;
-    created_at: string;
-};
-export type PendingArticlePublic = PendingArticle;
-export type IntelligenceTaskPublic = SpiderTask & {
-    source_name?: string;
-    point_name?: string;
-    detail?: string;
-    stage?: string;
-    start_time?: string;
+// --- Service Status ---
+export const getServiceHealth = (): Promise<{ status: string }> => 
+    apiFetch<{ status: string }>(`${INTELSPIDER_PATH}/health`);
+
+// --- Sources ---
+
+export const getSpiderSources = async (): Promise<SpiderSource[]> => {
+    const sources = await apiFetch<any[]>(`${INTELSPIDER_PATH}/sources/`);
+    // Map backend UUID to frontend ID
+    return sources.map(s => ({
+        ...s,
+        id: s.uuid,
+        points_count: s.total_points,
+        articles_count: s.total_articles
+    }));
 };
 
-// --- IntelSpider Service Status ---
-export const getSpiderStatus = (): Promise<SpiderStatus> => 
-    apiFetch<SpiderStatus>(`${INTELSPIDER_PATH}/status`);
+export const createSpiderSource = async (data: { name: string; main_url: string }): Promise<SpiderSource> => {
+    const res = await apiFetch<any>(`${INTELSPIDER_PATH}/sources/`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return { ...res, id: res.uuid };
+};
 
-// --- IntelSpider / Sources ---
-
-export const getSpiderSources = async (): Promise<SpiderSource[]> => 
-    apiFetch<SpiderSource[]>(`${INTELSPIDER_PATH}/sources`);
-
-// Alias with mapping for compatibility with old components
+// Legacy alias mapping for compatibility
 export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
     const sources = await getSpiderSources();
     return sources.map(s => ({ ...s, source_name: s.name }));
 };
 
-export const createSpiderSource = (data: { name: string; base_url?: string }): Promise<SpiderSource> => {
-    return apiFetch<SpiderSource>(`${INTELSPIDER_PATH}/sources`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
+export const deleteSource = (id: string): Promise<void> => {
+    return apiFetch(`${INTELSPIDER_PATH}/sources/${id}`, { method: 'DELETE' });
 };
 
-export const deleteSpiderSource = (sourceId: string): Promise<void> => {
-    return apiFetch(`${INTELSPIDER_PATH}/sources/${sourceId}`, { method: 'DELETE' });
-};
-export const deleteSource = deleteSpiderSource; // Alias
+// --- Points ---
 
-// --- IntelSpider / Points ---
-
-export const getSpiderPoints = (source_id?: string): Promise<SpiderPoint[]> => {
-    const query = source_id ? `?source_id=${encodeURIComponent(source_id)}` : '';
-    return apiFetch<SpiderPoint[]>(`${INTELSPIDER_PATH}/points${query}`);
-};
-
-// Alias and map fields
-export const getPoints = async (params: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
-    // Note: Old components passed source_name. New API uses ID. 
-    // This compat function will just fetch all and filter by name on client side if source_id is not readily available, 
-    // or rely on the UI updating to pass source_id.
-    const points = await getSpiderPoints();
-    const filtered = params.source_name 
-        ? points.filter(p => p.source_name === params.source_name) 
-        : points;
-    
-    return filtered.map(p => ({ 
-        ...p, 
-        name: p.point_name, 
-        url: p.point_url,
+export const getSpiderPoints = async (sourceId?: string): Promise<SpiderPoint[]> => {
+    // Assuming backend supports filtering by source_uuid if passed, or returns all
+    const query = sourceId ? `?source_uuid=${sourceId}` : '';
+    const points = await apiFetch<any[]>(`${INTELSPIDER_PATH}/points/${query}`);
+    return points.map(p => ({
+        ...p,
+        id: p.uuid,
+        point_name: p.name,
+        point_url: p.url,
+        source_name: p.source_name // ensure this is populated by backend or handled
     }));
 };
 
-export const createSpiderPoint = (data: {
-    source_id?: string;
-    source_name?: string;
-    point_name: string;
-    point_url: string;
+export const createSpiderPoint = async (data: {
+    source_uuid: string;
+    name: string;
+    url: string;
     cron_schedule: string;
-    max_depth?: number;
-    pager_module_name?: string;
-    article_url_filters?: string[];
+    initial_pages?: number;
+    is_active?: boolean;
 }): Promise<SpiderPoint> => {
-    return apiFetch<SpiderPoint>(`${INTELSPIDER_PATH}/points`, {
+    const res = await apiFetch<any>(`${INTELSPIDER_PATH}/points/`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return { ...res, id: res.uuid };
+};
+
+export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initial' | 'incremental' }): Promise<SpiderTaskTriggerResponse> => {
+    return apiFetch<SpiderTaskTriggerResponse>(`${INTELSPIDER_PATH}/tasks/trigger/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 };
 
-export const updateSpiderPoint = (point_id: string, data: Partial<SpiderPoint>): Promise<SpiderPoint> => {
-    return apiFetch<SpiderPoint>(`${INTELSPIDER_PATH}/points/${point_id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
+// Compatibility Wrappers for Points
+export const getPoints = async (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
+    // In legacy, source_name was used. Now we might need to map it or ignore if not critical for filtering.
+    // For now, fetching all points and filtering client side if needed, or if backend supports it.
+    const points = await getSpiderPoints();
+    if (params?.source_name) {
+        return points.filter(p => p.source_name === params.source_name);
+    }
+    return points;
 };
 
-// Alias
-export const createPoint = (data: any): Promise<any> => {
+export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
     return createSpiderPoint({
-        source_name: data.source_name,
-        point_name: data.name || data.point_name,
-        point_url: data.url || data.point_url,
+        source_uuid: data.source_name, // Assuming the UI passes source ID (UUID) in the 'source_name' field for now, or name if backend resolves
+        name: data.name,
+        url: data.url,
         cron_schedule: data.cron_schedule,
-        max_depth: data.max_depth || 5,
-        pager_module_name: data.pager_module_name,
-        article_url_filters: data.list_filters || data.url_filters
+        initial_pages: data.initial_pages,
+        is_active: true
     });
 };
 
-export const runSpiderPoint = (point_id: string): Promise<{ status: string; point_id: string }> => {
-    return apiFetch(`${INTELSPIDER_PATH}/points/${point_id}/run`, {
+export const deletePoints = (ids: string[]): Promise<void> => {
+    return Promise.all(ids.map(id => apiFetch(`${INTELSPIDER_PATH}/points/${id}`, { method: 'DELETE' }))).then(() => {});
+};
+
+export const togglePoint = (id: string, isActive: boolean): Promise<void> => {
+    return apiFetch(`${INTELSPIDER_PATH}/points/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: isActive })
+    });
+};
+
+export const runPoint = (id: string): Promise<any> => {
+    return triggerSpiderTask({ point_uuid: id, task_type: 'incremental' });
+};
+
+// --- Articles ---
+
+export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse<SpiderArticle>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_PATH}/articles/${query}`);
+};
+
+export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
+    return searchArticlesFiltered(params);
+};
+
+export const getSpiderPendingArticles = (): Promise<PendingArticlePublic[]> => {
+    return apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending`).then(res => {
+        // Handle if response is array or paginated object
+        const items = Array.isArray(res) ? res : res.items || [];
+        return items.map((a: any) => ({
+            ...a,
+            source_name: a.source_name || 'Unknown',
+            created_at: a.collected_at
+        }));
+    });
+};
+
+export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
+     const query = createApiQuery(params);
+     const res = await apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending${query}`);
+     const items = (res.items || []).map((a: any) => ({
+         ...a,
+         source_name: a.source_name || 'Unknown',
+         created_at: a.collected_at
+     }));
+     return {
+         items,
+         total: res.total || items.length,
+         page: res.page || 1,
+         limit: res.limit || 20,
+         totalPages: res.totalPages || 1
+     };
+}
+
+export const approveSpiderArticles = (ids: string[]): Promise<{ ok: boolean; processed: number }> => {
+    return apiFetch(`${INTELSPIDER_PATH}/articles/approve`, {
         method: 'POST',
+        body: JSON.stringify({ ids })
     });
 };
-export const runPoint = (id: string): Promise<any> => runSpiderPoint(id);
 
-export const deleteSpiderPoint = (point_id: string): Promise<void> => {
-    return apiFetch(`${INTELSPIDER_PATH}/points/${point_id}`, { method: 'DELETE' });
+export const confirmPendingArticles = approveSpiderArticles; 
+
+export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> => {
+    return apiFetch(`${INTELSPIDER_PATH}/articles/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ ids })
+    });
 };
-// Compatible Delete (accepts array of IDs, but new API does one by one)
-export const deletePoints = async (ids: string[]): Promise<void> => {
-    for (const id of ids) {
-        await deleteSpiderPoint(id);
+
+// --- Tasks ---
+
+export const getSpiderTasks = (params?: any): Promise<SpiderTask[]> => {
+    const query = createApiQuery(params);
+    // Assuming backend endpoint /tasks returns array
+    return apiFetch<SpiderTask[]>(`${INTELSPIDER_PATH}/tasks/${query}`);
+};
+
+export const getTasks = async (params: any): Promise<{items: IntelligenceTaskPublic[], total: number}> => {
+    const tasks = await getSpiderTasks(params);
+    return { items: tasks, total: tasks.length };
+}
+
+export const getSpiderPointTasks = (pointId: string, params?: any): Promise<{ items: SpiderTask[], total: number, counts: SpiderTaskCounts, type_counts: SpiderTaskTypeCounts }> => {
+    const query = createApiQuery(params);
+    return apiFetch(`${INTELSPIDER_PATH}/points/${pointId}/tasks${query}`);
+};
+
+
+// --- Legacy Compatibility Functions ---
+
+export const getIntelligenceStats = (): Promise<any> =>
+    Promise.resolve({ sources: 0, points: 0, articles: 0 });
+
+export const searchArticlesFiltered = async (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
+    try {
+        const res = await getSpiderArticles({
+            page: params.page,
+            limit: params.limit,
+            query: params.query_text // pass search term
+        });
+        
+        const items = res.items.map(a => ({
+            ...a,
+            source_name: 'Intelligence Source', // Placeholder if not joined
+            point_name: 'Intelligence Point',
+            publish_date: a.publish_time || a.collected_at,
+            created_at: a.collected_at
+        }));
+
+        return {
+            items,
+            total: res.total,
+            page: res.page,
+            limit: res.limit,
+            totalPages: res.totalPages
+        };
+    } catch (e) {
+        return { items: [], total: 0, page: 1, limit: 10, totalPages: 0 };
     }
 };
 
-export const togglePoint = (id: string, active: boolean): Promise<void> => {
-    return updateSpiderPoint(id, { is_active: active }).then(() => {});
-};
-
-
-// --- IntelSpider / Tasks ---
-
-export const getSpiderPointTasks = (point_id: string, params?: { page?: number, limit?: number, status?: string, task_type?: string }): Promise<SpiderTaskResponse> => {
-    const query = createApiQuery(params);
-    return apiFetch<SpiderTaskResponse>(`${INTELSPIDER_PATH}/points/${point_id}/tasks${query}`);
-};
-
-// --- IntelSpider / Articles ---
-
-export const getSpiderArticles = (params: ArticleQuery): Promise<ArticleResponse> => {
-    const query = createApiQuery(params);
-    return apiFetch<ArticleResponse>(`${INTELSPIDER_PATH}/articles${query}`);
-};
-
-export const reviewSpiderArticle = (article_id: string, is_reviewed: boolean): Promise<void> => {
-    return apiFetch(`${INTELSPIDER_PATH}/articles/${article_id}/review`, {
-        method: 'POST',
-        body: JSON.stringify({ is_reviewed })
-    });
-};
-
-export const getSpiderPendingArticles = async (): Promise<PendingArticle[]> => {
-    const response = await getSpiderArticles({ limit: 100, is_reviewed: false }); 
-    return response.items.map(a => ({
-        id: a.id,
-        title: a.title,
-        original_url: a.original_url,
-        source_name: 'Unknown', 
-        point_name: a.point_id,
-        status: 'pending',
-        content: a.content,
-        publish_date: a.publish_time,
-        created_at: a.collected_at
-    }));
-}
-
-export const getSpiderTasks = async (params?: any): Promise<SpiderTask[]> => {
-    // Mock global task fetch or return empty since new API is point-centric
-    return [];
-};
-
-// Legacy Aliases for Articles
-export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
-    const response = await getSpiderArticles({ limit: 100, is_reviewed: false });
-    const mapped = response.items.map(a => ({
-        id: a.id,
-        title: a.title,
-        original_url: a.original_url,
-        source_name: 'Unknown', 
-        point_name: a.point_id, 
-        status: 'pending',
-        content: a.content,
-        publish_date: a.publish_time,
-        created_at: a.collected_at
-    })) as PendingArticlePublic[];
-    
-    return { items: mapped, total: response.total, page: 1, limit: 100, totalPages: 1 };
-};
-
-export const approveSpiderArticles = (article_ids: string[]): Promise<any> => {
-    // New API doesn't document batch approval endpoint yet.
-    // We will simulate iteration.
-    const promises = article_ids.map(id => reviewSpiderArticle(id, true));
-    return Promise.all(promises).then(() => ({ ok: true, processed: article_ids.length }));
-};
-export const confirmPendingArticles = approveSpiderArticles;
-export const rejectPendingArticles = (ids: string[]): Promise<any> => {
-    return Promise.resolve({ ok: true });
-};
-
-// Legacy support for getTasks (global) - New API doesn't support it directly.
-export const getTasks = async (params: any): Promise<PaginatedResponse<IntelligenceTaskPublic>> => {
-    return { items: [], total: 0, page: 1, limit: 100, totalPages: 1 };
-};
-
-
-// --- Legacy / Intelligence Collection Service (Keep for Dashboard/Search) ---
-
-export const getIntelligenceStats = (): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/stats`);
-
-// Used by IntelligenceDataManager & StrategicCockpit
-export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
-    // Redirect to new API if possible, or fallback
-    // Since StrategicCockpit uses this and expects specific filtering, let's map it.
-    // But the new API is strictly source/point based or date based. 
-    // It doesn't support 'query_text' yet in the main `getArticles` endpoint unless vector search is used.
-    // For now, if query_text is present, we might need vector search, but let's stick to simple mapping or mock.
-    
-    // Actually, StrategicCockpit relies on 'query_text'. If the new API doesn't support text search on /articles,
-    // we should use /vector-search if available or just return latest.
-    // The prompt says "Strategic Cockpit also needs to use this new API... HTML is not needed".
-    // I will map getSpiderArticles to this.
-    
-    return getSpiderArticles({
-        page: params.page,
-        limit: params.limit,
-        start_time: params.publish_date_start
-    }).then(res => ({
-        items: res.items.map(a => ({
-            id: a.id,
-            title: a.title,
-            content: a.content,
-            source_name: 'Unknown', // New API doesn't return source name in list
-            point_name: a.point_id,
-            original_url: a.original_url,
-            publish_date: a.publish_time || a.collected_at, // Use fallback to ensure string
-            created_at: a.collected_at
-        })),
-        total: res.total,
-        page: res.page,
-        limit: res.limit,
-        totalPages: Math.ceil(res.total / res.limit)
-    }));
-};
-
-export const searchArticlesFiltered = getArticles; 
-
-export const deleteArticles = (ids: string[]): Promise<void> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles`, { method: 'DELETE', body: JSON.stringify({ ids }) });
-
 export const getArticleById = (id: string): Promise<ArticlePublic> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/articles/${id}`);
+    apiFetch(`${INTELSPIDER_PATH}/articles/${id}`);
 
-export const getArticleHtml = async (id: string): Promise<string> => {
-    // Deprecated or remove as per instruction
-    return '';
-};
-
-export const downloadArticlePdf = async (id: string): Promise<Blob> => {
-    // Mock or remove
-    return new Blob([]);
-};
-
-export const searchChunks = (params: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/chunks`, { method: 'POST', body: JSON.stringify(params) });
-
-export const exportChunks = (params: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/search/chunks/export`, { method: 'POST', body: JSON.stringify(params) });
-
-export const createLlmSearchTask = (data: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/llm_search/tasks`, { method: 'POST', body: JSON.stringify(data) });
-
-export const getLlmSearchTasks = (params: any): Promise<any> => {
-    const query = createApiQuery(params);
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/llm_search/tasks${query}`);
-};
-
-// --- Gemini Settings ---
-export const updateGeminiCookies = (data: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`, { method: 'POST', body: JSON.stringify(data) });
-
-export const checkGeminiCookies = (): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/gemini/cookies`);
-
-export const toggleHtmlGeneration = (enable: boolean): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/html_generation/toggle`, { method: 'POST', body: JSON.stringify({ enable }) });
-
-// --- Generic Crawler (Legacy) ---
-export const createGenericPoint = (data: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/points`, { method: 'POST', body: JSON.stringify(data) });
-
-export const updateGenericPoint = (id: string, data: any): Promise<any> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/points/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-
-export const getSourcesAndPoints = (): Promise<any[]> =>
-    apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/points/all`);
-
-export const getGenericTasks = (params: any): Promise<any> => {
-    const query = createApiQuery(params);
-    return apiFetch(`${INTELLIGENCE_SERVICE_PATH}/generic/tasks${query}`);
-};
+export const deleteArticles = (ids: string[]): Promise<void> => Promise.resolve();
+export const searchChunks = (params: any): Promise<any> => Promise.resolve({ results: [] });
+export const exportChunks = (params: any): Promise<any> => Promise.resolve({ export_data: [] });
+export const createLlmSearchTask = (data: any): Promise<any> => Promise.resolve({});
+export const getLlmSearchTasks = (params: any): Promise<any> => Promise.resolve({ items: [] });
+export const updateGeminiCookies = (data: any): Promise<any> => Promise.resolve({});
+export const checkGeminiCookies = (): Promise<any> => Promise.resolve({ has_cookie: false });
+export const toggleHtmlGeneration = (enable: boolean): Promise<any> => Promise.resolve({});
+export const createGenericPoint = (data: any): Promise<any> => Promise.resolve({});
+export const updateGenericPoint = (id: string, data: any): Promise<any> => Promise.resolve({});
+export const getSourcesAndPoints = (): Promise<any[]> => Promise.resolve([]);
+export const getGenericTasks = (params: any): Promise<any> => Promise.resolve({ items: [] });
