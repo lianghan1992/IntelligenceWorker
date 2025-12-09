@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
 import { getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask } from '../../../api/intelligence';
-import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon } from '../../icons';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon } from '../../icons';
 import { PointModal } from './PointModal';
+import { TaskDrawer } from './TaskDrawer';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -23,6 +24,7 @@ export const SourceConfig: React.FC = () => {
     // Modal States
     const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
     const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
+    const [drawerPoint, setDrawerPoint] = useState<SpiderPoint | null>(null);
     
     // Forms
     const [sourceForm, setSourceForm] = useState({ name: '', main_url: '' });
@@ -73,7 +75,9 @@ export const SourceConfig: React.FC = () => {
         setRunningPointId(pointId);
         try {
             await triggerSpiderTask({ point_uuid: pointId, task_type: type });
-            alert('任务已触发，请稍后在文章库查看结果。');
+            // Optionally open drawer to show the new task
+            const point = points.find(p => p.uuid === pointId);
+            if (point) setDrawerPoint(point);
         } catch (e) { alert('触发任务失败'); }
         finally { setRunningPointId(null); }
     };
@@ -163,15 +167,34 @@ export const SourceConfig: React.FC = () => {
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
-                                            <div className="text-xs text-gray-300 font-mono">ID: {point.uuid.slice(0,8)}</div>
                                             <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => setDrawerPoint(point)}
+                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                                                    title="查看任务日志"
+                                                >
+                                                    <ViewListIcon className="w-4 h-4" />
+                                                    <span className="hidden sm:inline">任务日志</span>
+                                                </button>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => handleTriggerTask(point.uuid, 'initial')}
+                                                    disabled={runningPointId === point.uuid}
+                                                    className="px-2 py-1 md:px-3 md:py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                                                    title="首次爬取 (Initial)"
+                                                >
+                                                    {runningPointId === point.uuid ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
+                                                    首次
+                                                </button>
                                                 <button 
                                                     onClick={() => handleTriggerTask(point.uuid, 'incremental')}
                                                     disabled={runningPointId === point.uuid}
                                                     className="px-2 py-1 md:px-3 md:py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:bg-indigo-400"
+                                                    title="增量爬取 (Incremental)"
                                                 >
                                                     {runningPointId === point.uuid ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
-                                                    立即采集
+                                                    增量
                                                 </button>
                                             </div>
                                         </div>
@@ -218,6 +241,14 @@ export const SourceConfig: React.FC = () => {
                 onSave={fetchPoints}
                 sourceId={selectedSource?.uuid}
             />
+
+            {/* Task Drawer */}
+            {drawerPoint && (
+                <TaskDrawer 
+                    point={drawerPoint} 
+                    onClose={() => setDrawerPoint(null)} 
+                />
+            )}
         </div>
     );
 };
