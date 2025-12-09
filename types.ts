@@ -373,6 +373,8 @@ export interface SpiderSource {
     articles_count?: number; // alias
     created_at?: string;
     updated_at?: string;
+    // Legacy support
+    source_name?: string;
 }
 
 export interface SpiderPoint {

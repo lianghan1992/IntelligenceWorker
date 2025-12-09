@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription, IntelligenceSourcePublic, IntelligencePointPublic } from '../../types';
 import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runPoint } from '../../api/intelligence';
@@ -67,7 +68,7 @@ export const IntelligencePointManager: React.FC = () => {
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
                     source_id: p.source_uuid, 
-                    source_name: p.source_name || source.source_name,
+                    source_name: p.source_name || source.source_name || '',
                     point_name: p.name || p.point_name || '',
                     point_url: p.url || p.point_url || '',
                     cron_schedule: p.cron_schedule,

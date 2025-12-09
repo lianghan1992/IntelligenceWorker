@@ -1,7 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { PendingArticlePublic, getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api/intelligence';
+import { getPendingArticles, confirmPendingArticles, rejectPendingArticles } from '../../api/intelligence';
 import { CheckCircleIcon, TrashIcon, RefreshIcon, ExternalLinkIcon, ClockIcon, EyeIcon, CloseIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
+import { PendingArticle } from '../../types';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -37,7 +39,7 @@ const FilterButton: React.FC<{
 );
 
 const PendingArticleDetailModal: React.FC<{ 
-    article: PendingArticlePublic; 
+    article: PendingArticle; 
     onClose: () => void; 
     onAction: (id: string, action: 'confirm' | 'reject') => void;
 }> = ({ article, onClose, onAction }) => {
@@ -115,7 +117,7 @@ const PendingArticleDetailModal: React.FC<{
 };
 
 export const PendingArticlesManager: React.FC = () => {
-    const [articles, setArticles] = useState<PendingArticlePublic[]>([]);
+    const [articles, setArticles] = useState<PendingArticle[]>([]);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
@@ -126,7 +128,7 @@ export const PendingArticlesManager: React.FC = () => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [processing, setProcessing] = useState(false);
     
-    const [viewingArticle, setViewingArticle] = useState<PendingArticlePublic | null>(null);
+    const [viewingArticle, setViewingArticle] = useState<PendingArticle | null>(null);
 
     // Fetch counts for all categories independently to show on buttons
     const fetchCounts = useCallback(async () => {
@@ -152,7 +154,14 @@ export const PendingArticlesManager: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getPendingArticles({ page, limit: 20, status: statusFilter || undefined });
-            setArticles(res.items || []);
+            // Map the PendingArticlePublic to PendingArticle to include 'point_name' etc which might be optional
+            const mappedArticles: PendingArticle[] = (res.items || []).map(a => ({
+                ...a,
+                point_name: a.point_name || 'Unknown', // Ensure point_name is string
+                status: (a.status as 'pending' | 'rejected' | 'approved') || 'pending'
+            }));
+            
+            setArticles(mappedArticles);
             setTotal(res.total || 0);
             setSelectedIds(new Set());
             // Refresh counts as well whenever we fetch list, to keep numbers in sync

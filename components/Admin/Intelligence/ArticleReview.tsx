@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { PendingArticle } from '../../../types';
 import { getSpiderPendingArticles, approveSpiderArticles } from '../../../api/intelligence';
@@ -21,8 +22,8 @@ export const ArticleReview: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getSpiderPendingArticles();
-            // Filter only pending status for review
-            setArticles(res.filter(a => a.status === 'pending'));
+            // Filter only pending status for review. Cast to PendingArticle because getSpiderPendingArticles returns generic type
+            setArticles(res.filter((a: any) => a.status === 'pending') as PendingArticle[]);
             setSelectedIds(new Set());
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }

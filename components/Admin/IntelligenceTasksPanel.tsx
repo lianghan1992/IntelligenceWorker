@@ -1,6 +1,8 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { IntelligenceTaskPublic, getTasks } from '../../api/intelligence';
+import { IntelligenceTaskPublic } from '../../types';
+import { getTasks } from '../../api/intelligence';
 import { RefreshIcon, ClockIcon, ChevronLeftIcon, ChevronRightIcon } from '../icons';
 
 const Spinner: React.FC = () => (
@@ -97,8 +99,8 @@ export const IntelligenceTasksPanel: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-3">
-                                        <div className="text-xs text-slate-600">{t.stage || '-'}</div>
-                                        <div className="text-[10px] text-slate-400 truncate max-w-xs" title={t.detail}>{t.detail}</div>
+                                        <div className="text-xs text-slate-600">{t.status || '-'}</div>
+                                        <div className="text-[10px] text-slate-400 truncate max-w-xs" title={t.error_message}>{t.error_message}</div>
                                     </td>
                                     <td className="px-6 py-3 text-xs font-mono">{t.start_time ? new Date(t.start_time).toLocaleString() : '-'}</td>
                                 </tr>

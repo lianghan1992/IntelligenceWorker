@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
@@ -18,7 +19,8 @@ import {
     SpiderTask,
     SpiderTaskCounts,
     SpiderTaskTypeCounts,
-    PendingArticlePublic
+    PendingArticlePublic,
+    IntelligenceTaskPublic
 } from '../types';
 
 // The new service base path might be different or same. Assuming it's mounted under /api
@@ -37,6 +39,7 @@ export const getSpiderSources = async (): Promise<SpiderSource[]> => {
     return sources.map(s => ({
         ...s,
         id: s.uuid,
+        source_name: s.name,
         points_count: s.total_points,
         articles_count: s.total_articles
     }));
@@ -47,7 +50,7 @@ export const createSpiderSource = async (data: { name: string; main_url: string 
         method: 'POST',
         body: JSON.stringify(data),
     });
-    return { ...res, id: res.uuid };
+    return { ...res, id: res.uuid, source_name: res.name, points_count: res.total_points, articles_count: res.total_articles };
 };
 
 // Legacy alias mapping for compatibility
@@ -87,7 +90,7 @@ export const createSpiderPoint = async (data: {
         method: 'POST',
         body: JSON.stringify(data),
     });
-    return { ...res, id: res.uuid };
+    return { ...res, id: res.uuid, point_name: res.name, point_url: res.url };
 };
 
 export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initial' | 'incremental' }): Promise<SpiderTaskTriggerResponse> => {
@@ -145,13 +148,14 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
     return searchArticlesFiltered(params);
 };
 
-export const getSpiderPendingArticles = (): Promise<PendingArticlePublic[]> => {
+export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
     return apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending`).then(res => {
         // Handle if response is array or paginated object
         const items = Array.isArray(res) ? res : res.items || [];
         return items.map((a: any) => ({
             ...a,
             source_name: a.source_name || 'Unknown',
+            point_name: a.point_name || 'Unknown',
             created_at: a.collected_at
         }));
     });
@@ -163,6 +167,7 @@ export const getPendingArticles = async (params: any): Promise<PaginatedResponse
      const items = (res.items || []).map((a: any) => ({
          ...a,
          source_name: a.source_name || 'Unknown',
+         point_name: a.point_name || 'Unknown',
          created_at: a.collected_at
      }));
      return {

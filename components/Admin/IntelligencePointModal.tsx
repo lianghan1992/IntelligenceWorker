@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ServerIcon, RssIcon, ClockIcon, ArrowRightIcon } from '../icons';
 import { createPoint } from '../../api/intelligence';
@@ -140,7 +141,7 @@ export const IntelligencePointModal: React.FC<IntelligencePointModalProps> = ({ 
                             disabled={isLoading || !!preSelectedSourceId}
                         >
                             <option value="">-- 请选择情报源 --</option>
-                            {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            {sources.map(s => <option key={s.id} value={s.id}>{s.name || s.source_name}</option>)}
                         </select>
                     </div>
 

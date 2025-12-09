@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SearchChunkResult } from '../../types';
-import { searchChunks, getSources, exportChunks, IntelligenceSourcePublic } from '../../api';
+import { SearchChunkResult, IntelligenceSourcePublic } from '../../types';
+import { searchChunks, getSources, exportChunks } from '../../api';
 import { SearchIcon, DownloadIcon } from '../icons';
 
 const Spinner: React.FC = () => (
