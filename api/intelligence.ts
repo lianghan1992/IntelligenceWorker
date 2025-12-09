@@ -1,8 +1,6 @@
-
-
 // src/api/intelligence.ts
 
-import { API_BASE_URL, INTELLIGENCE_SERVICE_PATH } from '../config';
+import { API_BASE_URL } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
     SpiderSource, 
@@ -10,9 +8,7 @@ import {
     SpiderArticle,
     SpiderTaskTriggerResponse,
     PaginatedResponse,
-    SearchChunkResult,
     PendingArticle,
-    ApprovedArticle,
     IntelligencePointPublic,
     IntelligenceSourcePublic,
     ArticlePublic,
@@ -23,9 +19,8 @@ import {
     IntelligenceTaskPublic
 } from '../types';
 
-// The new service base path might be different or same. Assuming it's mounted under /api
-// As per doc: Basic URL is /. We'll assume /api prefix is handled by proxy.
-const INTELSPIDER_PATH = `${API_BASE_URL}`; 
+// Updated service base path
+const INTELSPIDER_PATH = `${API_BASE_URL}/intelspider`; 
 
 // --- Service Status ---
 export const getServiceHealth = (): Promise<{ status: string }> => 
@@ -34,14 +29,15 @@ export const getServiceHealth = (): Promise<{ status: string }> =>
 // --- Sources ---
 
 export const getSpiderSources = async (): Promise<SpiderSource[]> => {
+    // List sources
     const sources = await apiFetch<any[]>(`${INTELSPIDER_PATH}/sources/`);
     // Map backend UUID to frontend ID
     return sources.map(s => ({
         ...s,
         id: s.uuid,
         source_name: s.name,
-        points_count: s.total_points,
-        articles_count: s.total_articles
+        points_count: s.total_points || 0,
+        articles_count: s.total_articles || 0
     }));
 };
 
@@ -65,16 +61,18 @@ export const deleteSource = (id: string): Promise<void> => {
 
 // --- Points ---
 
-export const getSpiderPoints = async (sourceId?: string): Promise<SpiderPoint[]> => {
-    // Assuming backend supports filtering by source_uuid if passed, or returns all
-    const query = sourceId ? `?source_uuid=${sourceId}` : '';
+export const getSpiderPoints = async (sourceUuid?: string): Promise<SpiderPoint[]> => {
+    // Backend likely supports filtering by source_uuid if passed
+    // Assuming RESTful listing at /points/ or /points/?source_uuid=...
+    const query = sourceUuid ? `?source_uuid=${sourceUuid}` : '';
     const points = await apiFetch<any[]>(`${INTELSPIDER_PATH}/points/${query}`);
     return points.map(p => ({
         ...p,
         id: p.uuid,
         point_name: p.name,
         point_url: p.url,
-        source_name: p.source_name // ensure this is populated by backend or handled
+        // Ensure source_name is available or handled in UI via source lookups
+        source_name: p.source_name 
     }));
 };
 
@@ -102,18 +100,20 @@ export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initi
 
 // Compatibility Wrappers for Points
 export const getPoints = async (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
-    // In legacy, source_name was used. Now we might need to map it or ignore if not critical for filtering.
-    // For now, fetching all points and filtering client side if needed, or if backend supports it.
+    // Note: params.source_name might be an ID or Name depending on legacy usage.
+    // Ideally we fetch all or filter by ID. 
+    // Since this is a shim, we fetch all and filter in memory if needed, or pass query.
     const points = await getSpiderPoints();
     if (params?.source_name) {
-        return points.filter(p => p.source_name === params.source_name);
+        // legacy might pass name or id. For strictness, let's assume UI uses IDs now as per previous refactor
+        return points.filter(p => p.source_uuid === params.source_name || p.source_name === params.source_name);
     }
     return points;
 };
 
 export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
     return createSpiderPoint({
-        source_uuid: data.source_name, // Assuming the UI passes source ID (UUID) in the 'source_name' field for now, or name if backend resolves
+        source_uuid: data.source_name, // The UI form passes the Source UUID in the 'source_name' field for compatibility
         name: data.name,
         url: data.url,
         cron_schedule: data.cron_schedule,
@@ -137,7 +137,7 @@ export const runPoint = (id: string): Promise<any> => {
     return triggerSpiderTask({ point_uuid: id, task_type: 'incremental' });
 };
 
-// --- Articles ---
+// --- Articles (Assuming standard REST endpoints exist for data consumption) ---
 
 export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse<SpiderArticle>> => {
     const query = createApiQuery(params);
@@ -150,7 +150,6 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
 
 export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
     return apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending`).then(res => {
-        // Handle if response is array or paginated object
         const items = Array.isArray(res) ? res : res.items || [];
         return items.map((a: any) => ({
             ...a,
@@ -195,11 +194,10 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
     });
 };
 
-// --- Tasks ---
+// --- Tasks (Monitoring) ---
 
 export const getSpiderTasks = (params?: any): Promise<SpiderTask[]> => {
     const query = createApiQuery(params);
-    // Assuming backend endpoint /tasks returns array
     return apiFetch<SpiderTask[]>(`${INTELSPIDER_PATH}/tasks/${query}`);
 };
 
@@ -229,7 +227,7 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         
         const items = res.items.map(a => ({
             ...a,
-            source_name: 'Intelligence Source', // Placeholder if not joined
+            source_name: 'Intelligence Source',
             point_name: 'Intelligence Point',
             publish_date: a.publish_time || a.collected_at,
             created_at: a.collected_at
