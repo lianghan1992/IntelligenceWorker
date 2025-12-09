@@ -59,7 +59,10 @@ export const SourceConfig: React.FC = () => {
     useEffect(() => { fetchPoints(); }, [fetchPoints]);
 
     const handleCreateSource = async () => {
-        if (!sourceForm.name) return;
+        if (!sourceForm.name || !sourceForm.main_url) {
+            alert('请填写名称和主站链接');
+            return;
+        }
         setIsSubmitting(true);
         try {
             const newSource = await createSpiderSource(sourceForm);
@@ -216,11 +219,11 @@ export const SourceConfig: React.FC = () => {
                         <h3 className="text-lg font-bold text-gray-800 mb-4">新建情报源</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">源名称</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">源名称 <span className="text-red-500">*</span></label>
                                 <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 盖世汽车" value={sourceForm.name} onChange={e => setSourceForm({...sourceForm, name: e.target.value})} />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">主站链接 (可选)</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">主站链接 <span className="text-red-500">*</span></label>
                                 <input className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="https://..." value={sourceForm.main_url} onChange={e => setSourceForm({...sourceForm, main_url: e.target.value})} />
                             </div>
                         </div>

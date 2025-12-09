@@ -1,6 +1,6 @@
 // src/api/intelligence.ts
 
-import { API_BASE_URL } from '../config';
+import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
     SpiderSource, 
@@ -19,18 +19,15 @@ import {
     IntelligenceTaskPublic
 } from '../types';
 
-// Updated service base path
-const INTELSPIDER_PATH = `${API_BASE_URL}/intelspider`; 
-
 // --- Service Status ---
 export const getServiceHealth = (): Promise<{ status: string }> => 
-    apiFetch<{ status: string }>(`${INTELSPIDER_PATH}/health`);
+    apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`);
 
 // --- Sources ---
 
 export const getSpiderSources = async (): Promise<SpiderSource[]> => {
     // List sources
-    const sources = await apiFetch<any[]>(`${INTELSPIDER_PATH}/sources/`);
+    const sources = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/sources/`);
     // Map backend UUID to frontend ID
     return sources.map(s => ({
         ...s,
@@ -42,7 +39,7 @@ export const getSpiderSources = async (): Promise<SpiderSource[]> => {
 };
 
 export const createSpiderSource = async (data: { name: string; main_url: string }): Promise<SpiderSource> => {
-    const res = await apiFetch<any>(`${INTELSPIDER_PATH}/sources/`, {
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/sources/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -56,7 +53,9 @@ export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
 };
 
 export const deleteSource = (id: string): Promise<void> => {
-    return apiFetch(`${INTELSPIDER_PATH}/sources/${id}`, { method: 'DELETE' });
+    // Note: The doc doesn't explicitly list DELETE /sources/{id} in the Overview, 
+    // but we retain it assuming standard REST support or legacy requirement.
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/sources/${id}`, { method: 'DELETE' });
 };
 
 // --- Points ---
@@ -65,7 +64,7 @@ export const getSpiderPoints = async (sourceUuid?: string): Promise<SpiderPoint[
     // Backend likely supports filtering by source_uuid if passed
     // Assuming RESTful listing at /points/ or /points/?source_uuid=...
     const query = sourceUuid ? `?source_uuid=${sourceUuid}` : '';
-    const points = await apiFetch<any[]>(`${INTELSPIDER_PATH}/points/${query}`);
+    const points = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/points/${query}`);
     return points.map(p => ({
         ...p,
         id: p.uuid,
@@ -84,7 +83,7 @@ export const createSpiderPoint = async (data: {
     initial_pages?: number;
     is_active?: boolean;
 }): Promise<SpiderPoint> => {
-    const res = await apiFetch<any>(`${INTELSPIDER_PATH}/points/`, {
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/points/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -92,7 +91,7 @@ export const createSpiderPoint = async (data: {
 };
 
 export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initial' | 'incremental' }): Promise<SpiderTaskTriggerResponse> => {
-    return apiFetch<SpiderTaskTriggerResponse>(`${INTELSPIDER_PATH}/tasks/trigger/`, {
+    return apiFetch<SpiderTaskTriggerResponse>(`${INTELSPIDER_SERVICE_PATH}/tasks/trigger/`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
@@ -123,11 +122,12 @@ export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
 };
 
 export const deletePoints = (ids: string[]): Promise<void> => {
-    return Promise.all(ids.map(id => apiFetch(`${INTELSPIDER_PATH}/points/${id}`, { method: 'DELETE' }))).then(() => {});
+    return Promise.all(ids.map(id => apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${id}`, { method: 'DELETE' }))).then(() => {});
 };
 
 export const togglePoint = (id: string, isActive: boolean): Promise<void> => {
-    return apiFetch(`${INTELSPIDER_PATH}/points/${id}`, {
+    // Note: This endpoint is not in the new doc Overview, assuming it exists or handled via update if supported
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: isActive })
     });
@@ -141,7 +141,7 @@ export const runPoint = (id: string): Promise<any> => {
 
 export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse<SpiderArticle>> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_PATH}/articles/${query}`);
+    return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`);
 };
 
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
@@ -149,7 +149,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
 };
 
 export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
-    return apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending`).then(res => {
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending`).then(res => {
         const items = Array.isArray(res) ? res : res.items || [];
         return items.map((a: any) => ({
             ...a,
@@ -162,7 +162,7 @@ export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
 
 export const getPendingArticles = async (params: any): Promise<PaginatedResponse<PendingArticlePublic>> => {
      const query = createApiQuery(params);
-     const res = await apiFetch<any>(`${INTELSPIDER_PATH}/articles/pending${query}`);
+     const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending${query}`);
      const items = (res.items || []).map((a: any) => ({
          ...a,
          source_name: a.source_name || 'Unknown',
@@ -179,7 +179,7 @@ export const getPendingArticles = async (params: any): Promise<PaginatedResponse
 }
 
 export const approveSpiderArticles = (ids: string[]): Promise<{ ok: boolean; processed: number }> => {
-    return apiFetch(`${INTELSPIDER_PATH}/articles/approve`, {
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/approve`, {
         method: 'POST',
         body: JSON.stringify({ ids })
     });
@@ -188,7 +188,7 @@ export const approveSpiderArticles = (ids: string[]): Promise<{ ok: boolean; pro
 export const confirmPendingArticles = approveSpiderArticles; 
 
 export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> => {
-    return apiFetch(`${INTELSPIDER_PATH}/articles/reject`, {
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/reject`, {
         method: 'POST',
         body: JSON.stringify({ ids })
     });
@@ -198,7 +198,7 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 
 export const getSpiderTasks = (params?: any): Promise<SpiderTask[]> => {
     const query = createApiQuery(params);
-    return apiFetch<SpiderTask[]>(`${INTELSPIDER_PATH}/tasks/${query}`);
+    return apiFetch<SpiderTask[]>(`${INTELSPIDER_SERVICE_PATH}/tasks/${query}`);
 };
 
 export const getTasks = async (params: any): Promise<{items: IntelligenceTaskPublic[], total: number}> => {
@@ -208,7 +208,7 @@ export const getTasks = async (params: any): Promise<{items: IntelligenceTaskPub
 
 export const getSpiderPointTasks = (pointId: string, params?: any): Promise<{ items: SpiderTask[], total: number, counts: SpiderTaskCounts, type_counts: SpiderTaskTypeCounts }> => {
     const query = createApiQuery(params);
-    return apiFetch(`${INTELSPIDER_PATH}/points/${pointId}/tasks${query}`);
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${pointId}/tasks${query}`);
 };
 
 
@@ -246,7 +246,7 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
 };
 
 export const getArticleById = (id: string): Promise<ArticlePublic> =>
-    apiFetch(`${INTELSPIDER_PATH}/articles/${id}`);
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/${id}`);
 
 export const deleteArticles = (ids: string[]): Promise<void> => Promise.resolve();
 export const searchChunks = (params: any): Promise<any> => Promise.resolve({ results: [] });
