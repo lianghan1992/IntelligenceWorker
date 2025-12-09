@@ -107,7 +107,7 @@ export const createSpiderPoint = (data: {
     point_url: string;
     cron_schedule: string;
     max_depth?: number;
-    pagination_instruction?: string;
+    pager_module_name?: string;
     article_url_filters?: string[];
 }): Promise<SpiderPoint> => {
     return apiFetch<SpiderPoint>(`${INTELSPIDER_PATH}/points`, {
@@ -131,7 +131,7 @@ export const createPoint = (data: any): Promise<any> => {
         point_url: data.url || data.point_url,
         cron_schedule: data.cron_schedule,
         max_depth: data.max_depth || 5,
-        pagination_instruction: data.pagination_instruction,
+        pager_module_name: data.pager_module_name,
         article_url_filters: data.list_filters || data.url_filters
     });
 };
@@ -170,17 +170,6 @@ export const getSpiderPointTasks = (point_id: string, params?: { page?: number, 
 export const getSpiderArticles = (params: ArticleQuery): Promise<ArticleResponse> => {
     const query = createApiQuery(params);
     return apiFetch<ArticleResponse>(`${INTELSPIDER_PATH}/articles${query}`);
-};
-
-export const getSpiderArticleDetail = (article_id: string): Promise<SpiderArticle> => {
-    return apiFetch<SpiderArticle>(`${INTELSPIDER_PATH}/articles/${article_id}`);
-};
-
-export const updateSpiderArticle = (article_id: string, data: { title?: string, publish_time?: string, content?: string }): Promise<{ ok: boolean, article_id: string }> => {
-    return apiFetch<{ ok: boolean, article_id: string }>(`${INTELSPIDER_PATH}/articles/${article_id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data)
-    });
 };
 
 export const reviewSpiderArticle = (article_id: string, is_reviewed: boolean): Promise<void> => {
@@ -271,7 +260,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
         items: res.items.map(a => ({
             id: a.id,
             title: a.title,
-            content: a.content || '',
+            content: a.content,
             source_name: 'Unknown', // New API doesn't return source name in list
             point_name: a.point_id,
             original_url: a.original_url,

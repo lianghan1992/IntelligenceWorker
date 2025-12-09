@@ -33,8 +33,8 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
     // Basic Form
     const [name, setName] = useState('');
     const [url, setUrl] = useState('');
-    const [maxDepth, setMaxDepth] = useState(3);
-    const [pagination, setPagination] = useState('page/{n}');
+    const [maxDepth, setMaxDepth] = useState(5);
+    const [pagerModule, setPagerModule] = useState('');
     const [filters, setFilters] = useState(''); // Newline separated
     
     // Scheduler State
@@ -42,10 +42,10 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
     const [rawCron, setRawCron] = useState('*/30 * * * *');
     
     // Smart Scheduler State
-    const [freq, setFreq] = useState('interval_min'); // interval_min, interval_hour, daily, days, weekly, monthly
+    const [freq, setFreq] = useState('interval_min'); 
     const [intervalVal, setIntervalVal] = useState(30);
     const [timeVal, setTimeVal] = useState('08:00');
-    const [weekdayVal, setWeekdayVal] = useState('1'); // 0-6 (Sun-Sat)
+    const [weekdayVal, setWeekdayVal] = useState('1'); 
     const [dayOfMonth, setDayOfMonth] = useState(1);
 
     const [isLoading, setIsLoading] = useState(false);
@@ -56,18 +56,17 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
             if (pointToEdit) {
                 setName(pointToEdit.point_name);
                 setUrl(pointToEdit.point_url);
-                setMaxDepth(pointToEdit.max_depth || 3);
-                setPagination(pointToEdit.pagination_instruction || 'page/{n}');
+                setMaxDepth(pointToEdit.max_depth || 5);
+                setPagerModule(pointToEdit.pager_module_name || '');
                 setFilters(pointToEdit.article_url_filters ? pointToEdit.article_url_filters.join('\n') : '');
                 setRawCron(pointToEdit.cron_schedule);
-                // Default to raw for edit to allow any expression
                 setCronMode('raw');
             } else {
                 // Reset for create
                 setName('');
                 setUrl('');
-                setMaxDepth(3);
-                setPagination('page/{n}');
+                setMaxDepth(5);
+                setPagerModule('');
                 setFilters('');
                 setRawCron('*/30 * * * *');
                 setCronMode('smart');
@@ -95,7 +94,6 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                     cron = `${mm} ${hh} * * *`;
                     break;
                 case 'days':
-                    // Every N days at HH:MM
                     cron = `${mm} ${hh} */${Math.max(1, intervalVal)} * *`;
                     break;
                 case 'weekly':
@@ -120,7 +118,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                 point_url: url,
                 cron_schedule: rawCron,
                 max_depth: maxDepth,
-                pagination_instruction: pagination,
+                pager_module_name: pagerModule || undefined,
                 article_url_filters: filters.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
             };
 
@@ -134,7 +132,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
             onClose();
         } catch (e) {
             console.error(e);
-            alert('保存失败');
+            alert('保存失败，请检查网络或参数');
         } finally {
             setIsLoading(false);
         }
@@ -164,17 +162,17 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                 <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 行业新闻" />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1">最大翻页深度</label>
-                                <input type="number" min="1" value={maxDepth} onChange={e => setMaxDepth(parseInt(e.target.value)||1)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                <label className="block text-xs font-bold text-gray-500 mb-1">首次采集深度 (Max Depth)</label>
+                                <input type="number" min="1" max="20" value={maxDepth} onChange={e => setMaxDepth(parseInt(e.target.value)||1)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-gray-500 mb-1">列表页 URL <span className="text-red-500">*</span></label>
-                                <input value={url} onChange={e => setUrl(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="https://example.com/news/" />
+                                <input value={url} onChange={e => setUrl(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-slate-600" placeholder="https://example.com/news/" />
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-bold text-gray-500 mb-1">翻页规则 (Pagination)</label>
-                                <input value={pagination} onChange={e => setPagination(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" placeholder="page/{n}" />
-                                <p className="text-[10px] text-gray-400 mt-1">使用 {"{n}"} 代表页码。例如：<code>page/{"{n}"}</code> 或 <code>index_{"{n}"}.html</code></p>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">翻页插件 (Pager Module)</label>
+                                <input value={pagerModule} onChange={e => setPagerModule(e.target.value)} className="w-full border rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-slate-600" placeholder="可选，例如 shared_gasgoo" />
+                                <p className="text-[10px] text-gray-400 mt-1">若指定，系统将使用该共享插件进行复杂的翻页操作；否则仅抓取第一页。</p>
                             </div>
                         </div>
                     </div>
@@ -288,14 +286,15 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
 
                     {/* Filters */}
                     <div>
-                        <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-3">过滤规则</h4>
+                        <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-3">详情页过滤</h4>
                         <label className="block text-xs font-bold text-gray-500 mb-1">文章 URL 前缀过滤 (每行一个)</label>
                         <textarea 
                             value={filters} 
                             onChange={e => setFilters(e.target.value)} 
-                            className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 font-mono"
+                            className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none h-24 font-mono text-slate-600"
                             placeholder="https://example.com/news/&#10;https://example.com/tech/" 
                         />
+                        <p className="text-[10px] text-gray-400 mt-1">仅处理匹配上述前缀的 URL。若留空，则采集所有识别到的文章链接。</p>
                     </div>
                 </div>
 

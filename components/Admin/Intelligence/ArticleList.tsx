@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
+import { SpiderArticle, SpiderSource, SpiderPoint, InfoItem } from '../../../types';
 import { getSpiderArticles, getSpiderPoints, getSpiderSources, reviewSpiderArticle } from '../../../api/intelligence';
 import { 
     RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, 
     ChevronLeftIcon, ChevronRightIcon, FunnelIcon, CalendarIcon, 
-    ServerIcon, DatabaseIcon, SparklesIcon 
+    ServerIcon, DatabaseIcon, SparklesIcon, EyeIcon
 } from '../../icons';
-import { ArticleDetailModal } from './ArticleDetailModal';
+import { IntelligenceArticleModal } from '../IntelligenceArticleModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -17,7 +17,7 @@ const Spinner: React.FC = () => (
 );
 
 const StatCard: React.FC<{ title: string; value: number; color: string; icon: React.ReactNode; isLoading: boolean }> = ({ title, value, color, icon, isLoading }) => (
-    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between min-w-[200px]">
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between min-w-[200px] flex-1 hover:border-indigo-300 transition-colors">
         <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{title}</p>
             <div className={`text-2xl font-extrabold ${color}`}>
@@ -55,9 +55,9 @@ export const ArticleList: React.FC = () => {
 
     // Action State
     const [processingId, setProcessingId] = useState<string | null>(null);
-    const [detailArticleId, setDetailArticleId] = useState<string | null>(null);
+    const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
 
-    // Initial Load
+    // Initial Load: Meta Data
     useEffect(() => {
         const loadMeta = async () => {
             try {
@@ -70,7 +70,7 @@ export const ArticleList: React.FC = () => {
         loadMeta();
     }, []);
 
-    // Filter Logic: Points depend on Source
+    // Filter Logic: Update available points when source changes
     useEffect(() => {
         if (filterSource) {
             setFilteredPoints(points.filter(p => p.source_id === filterSource || p.source_name === sources.find(s => s.id === filterSource)?.name));
@@ -79,7 +79,31 @@ export const ArticleList: React.FC = () => {
         }
     }, [filterSource, points, sources]);
 
-    // Fetch Stats (Aggregation based on current non-status filters)
+    // Core Fetch Function
+    const fetchArticles = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const params = {
+                source_id: filterSource || undefined,
+                point_id: filterPoint || undefined,
+                start_time: dateRange.start || undefined,
+                end_time: dateRange.end || undefined,
+                is_reviewed: filterStatus === 'all' ? undefined : (filterStatus === 'reviewed'),
+                page,
+                limit
+            };
+            
+            const res = await getSpiderArticles(params);
+            setArticles(res.items);
+            setTotalItems(res.total);
+        } catch (e) { 
+            console.error(e); 
+        } finally { 
+            setIsLoading(false); 
+        }
+    }, [filterSource, filterPoint, dateRange, filterStatus, page]);
+
+    // Stats Fetcher (Aggregates based on current filters)
     const fetchStats = useCallback(async () => {
         setIsStatsLoading(true);
         const params = {
@@ -87,15 +111,17 @@ export const ArticleList: React.FC = () => {
             point_id: filterPoint || undefined,
             start_time: dateRange.start || undefined,
             end_time: dateRange.end || undefined,
-            limit: 1
+            limit: 1 // Optimization: we only need the count metadata
         };
 
         try {
+            // Run parallel requests to get counts for different statuses
             const [all, reviewed, unreviewed] = await Promise.all([
                 getSpiderArticles({ ...params }),
                 getSpiderArticles({ ...params, is_reviewed: true }),
                 getSpiderArticles({ ...params, is_reviewed: false })
             ]);
+            
             setStats({
                 total: all.total,
                 reviewed: reviewed.total,
@@ -108,34 +134,11 @@ export const ArticleList: React.FC = () => {
         }
     }, [filterSource, filterPoint, dateRange]);
 
-    // Fetch Articles List
-    const fetchArticles = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await getSpiderArticles({ 
-                source_id: filterSource || undefined,
-                point_id: filterPoint || undefined,
-                start_time: dateRange.start || undefined,
-                end_time: dateRange.end || undefined,
-                is_reviewed: filterStatus === 'all' ? undefined : (filterStatus === 'reviewed'),
-                page,
-                limit
-            });
-            
-            setArticles(res.items);
-            setTotalItems(res.total);
-        } catch (e) { console.error(e); }
-        finally { setIsLoading(false); }
-    }, [filterSource, filterPoint, dateRange, filterStatus, page]);
-
-    // Trigger fetches on filter change
+    // Trigger fetches
     useEffect(() => {
         fetchStats();
-        // Reset page when filters change (except page itself)
-        setPage(1);
     }, [fetchStats]);
 
-    // Trigger fetch on page change or when dependent filters change (via useEffect dependencies)
     useEffect(() => {
         fetchArticles();
     }, [fetchArticles]);
@@ -152,10 +155,26 @@ export const ArticleList: React.FC = () => {
             // Update stats locally
             setStats(prev => ({ ...prev, reviewed: prev.reviewed + 1, unreviewed: prev.unreviewed - 1 }));
         } catch (e) {
-            alert('审核失败');
+            alert('审核失败，请重试');
         } finally {
             setProcessingId(null);
         }
+    };
+
+    const handleViewDetail = (article: SpiderArticle) => {
+        const point = points.find(p => p.id === article.point_id);
+        const source = sources.find(s => s.id === point?.source_id) || { id: '', name: 'Unknown' };
+        
+        setSelectedArticle({
+            id: article.id,
+            title: article.title,
+            content: article.content,
+            source_name: source.name || 'Unknown',
+            point_name: point?.point_name || article.point_id,
+            original_url: article.original_url,
+            publish_date: article.publish_time,
+            created_at: article.collected_at
+        } as InfoItem);
     };
 
     const handleReset = () => {
@@ -172,9 +191,9 @@ export const ArticleList: React.FC = () => {
         <div className="flex flex-col h-full space-y-6 overflow-hidden">
             
             {/* Stats Dashboard */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
+            <div className="flex flex-wrap gap-4 flex-shrink-0">
                 <StatCard 
-                    title="符合条件总数" 
+                    title="当前筛选总数" 
                     value={stats.total} 
                     color="text-indigo-600" 
                     icon={<DatabaseIcon className="w-5 h-5"/>} 
@@ -199,7 +218,7 @@ export const ArticleList: React.FC = () => {
             {/* Filter & List Container */}
             <div className="flex flex-col flex-1 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 {/* Filter Toolbar */}
-                <div className="p-4 border-b border-gray-100 bg-gray-50/50 space-y-4 md:space-y-0 md:flex md:items-center md:justify-between gap-4">
+                <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col xl:flex-row xl:items-center gap-4">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
                         <div className="flex items-center gap-2 text-slate-600 text-sm font-bold bg-white px-3 py-1.5 rounded-lg border shadow-sm">
                             <FunnelIcon className="w-4 h-4 text-slate-400" />
@@ -208,8 +227,8 @@ export const ArticleList: React.FC = () => {
                         
                         <select 
                             value={filterSource} 
-                            onChange={e => { setFilterSource(e.target.value); setFilterPoint(''); }}
-                            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-w-[120px]"
+                            onChange={e => { setFilterSource(e.target.value); setFilterPoint(''); setPage(1); }}
+                            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-w-[140px]"
                         >
                             <option value="">所有情报源</option>
                             {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -217,8 +236,8 @@ export const ArticleList: React.FC = () => {
 
                         <select 
                             value={filterPoint} 
-                            onChange={e => setFilterPoint(e.target.value)}
-                            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-w-[120px]"
+                            onChange={e => { setFilterPoint(e.target.value); setPage(1); }}
+                            className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none min-w-[140px]"
                         >
                             <option value="">所有采集点</option>
                             {filteredPoints.map(p => <option key={p.id} value={p.id}>{p.point_name}</option>)}
@@ -228,7 +247,7 @@ export const ArticleList: React.FC = () => {
 
                         <select
                             value={filterStatus}
-                            onChange={e => setFilterStatus(e.target.value as any)}
+                            onChange={e => { setFilterStatus(e.target.value as any); setPage(1); }}
                             className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                             <option value="all">全部状态</option>
@@ -238,17 +257,27 @@ export const ArticleList: React.FC = () => {
 
                         <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm">
                             <CalendarIcon className="w-4 h-4 text-gray-400" />
-                            <input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} className="outline-none text-gray-600 bg-transparent w-28 text-xs" />
+                            <input 
+                                type="date" 
+                                value={dateRange.start} 
+                                onChange={e => { setDateRange({...dateRange, start: e.target.value}); setPage(1); }} 
+                                className="outline-none text-gray-600 bg-transparent w-28 text-xs cursor-pointer" 
+                            />
                             <span className="text-gray-400">-</span>
-                            <input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} className="outline-none text-gray-600 bg-transparent w-28 text-xs" />
+                            <input 
+                                type="date" 
+                                value={dateRange.end} 
+                                onChange={e => { setDateRange({...dateRange, end: e.target.value}); setPage(1); }} 
+                                className="outline-none text-gray-600 bg-transparent w-28 text-xs cursor-pointer" 
+                            />
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-end xl:self-auto">
                         <button onClick={handleReset} className="px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-gray-100 rounded-lg transition-colors">
-                            重置
+                            重置条件
                         </button>
-                        <button onClick={() => fetchArticles()} className="p-2 bg-white border rounded-lg text-gray-500 hover:text-indigo-600 shadow-sm transition-all hover:shadow">
+                        <button onClick={() => { fetchArticles(); fetchStats(); }} className="p-2 bg-white border rounded-lg text-gray-500 hover:text-indigo-600 shadow-sm transition-all hover:shadow" title="刷新列表">
                             <RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/>
                         </button>
                     </div>
@@ -259,7 +288,7 @@ export const ArticleList: React.FC = () => {
                     <table className="w-full text-sm text-left">
                         <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b sticky top-0 backdrop-blur-sm z-10">
                             <tr>
-                                <th className="px-4 py-3 md:px-6 md:py-3 w-1/2">标题</th>
+                                <th className="px-4 py-3 md:px-6 md:py-3 w-1/2">标题 / 内容摘要</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 hidden md:table-cell w-40">来源信息</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 hidden md:table-cell w-40">发布时间</th>
                                 <th className="px-4 py-3 md:px-6 md:py-3 w-32 text-center">状态 / 操作</th>
@@ -270,33 +299,33 @@ export const ArticleList: React.FC = () => {
                                 <tr><td colSpan={4} className="text-center py-20 text-gray-400 italic">暂无相关数据</td></tr>
                             ) : (
                                 articles.map(article => (
-                                    <tr 
-                                        key={article.id} 
-                                        className="bg-white hover:bg-indigo-50/30 transition-colors group cursor-pointer"
-                                        onClick={() => setDetailArticleId(article.id)}
-                                    >
+                                    <tr key={article.id} className="bg-white hover:bg-indigo-50/30 transition-colors group">
                                         <td className="px-4 py-4 md:px-6 md:py-4 align-top">
-                                            <div className="font-bold text-gray-800 line-clamp-1 mb-1 text-base group-hover:text-indigo-700 transition-colors">{article.title}</div>
+                                            <div className="font-bold text-gray-800 line-clamp-1 mb-1 text-base cursor-pointer hover:text-indigo-600" onClick={() => handleViewDetail(article)}>{article.title}</div>
+                                            <div className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-2 opacity-80">{article.content?.slice(0, 150) || '无正文内容...'}</div>
                                             <div className="flex items-center gap-3">
-                                                <a href={article.original_url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:underline flex items-center gap-0.5">
-                                                    <ExternalLinkIcon className="w-3 h-3"/> 查看原文
+                                                <a href={article.original_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-0.5">
+                                                    <ExternalLinkIcon className="w-3 h-3"/> 原文
                                                 </a>
+                                                <button onClick={() => handleViewDetail(article)} className="text-xs text-indigo-600 hover:underline flex items-center gap-0.5">
+                                                    <EyeIcon className="w-3 h-3"/> 详情
+                                                </button>
                                                 <div className="md:hidden text-xs text-gray-400">{article.publish_time?.split(' ')[0]}</div>
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 md:px-6 md:py-4 hidden md:table-cell align-top">
                                             <div className="flex flex-col gap-1">
-                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-bold w-fit">
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-bold w-fit border border-slate-200">
                                                     <ServerIcon className="w-3 h-3" />
                                                     {sources.find(s => s.id === (points.find(p => p.id === article.point_id)?.source_id))?.name || 'Unknown'}
                                                 </span>
-                                                <span className="text-xs text-gray-400 pl-1">
+                                                <span className="text-xs text-gray-400 pl-1 truncate max-w-[140px]" title={points.find(p => p.id === article.point_id)?.point_name}>
                                                     {points.find(p => p.id === article.point_id)?.point_name || article.point_id.slice(0,8)}
                                                 </span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-4 md:px-6 md:py-4 hidden md:table-cell align-top">
-                                            <div className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded w-fit">
+                                            <div className="text-xs font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded w-fit border border-gray-100">
                                                 {article.publish_time || 'N/A'}
                                             </div>
                                             <div className="text-[10px] text-gray-300 mt-1">采集于 {new Date(article.collected_at).toLocaleDateString()}</div>
@@ -304,7 +333,7 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-4 py-4 md:px-6 md:py-4 text-center align-middle">
                                             {article.is_reviewed ? (
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
                                                         <CheckCircleIcon className="w-3.5 h-3.5"/> 已入库
                                                     </span>
                                                 </div>
@@ -338,7 +367,7 @@ export const ArticleList: React.FC = () => {
                             >
                                 <ChevronLeftIcon className="w-4 h-4" />
                             </button>
-                            <span className="px-3 py-1 bg-gray-50 rounded text-gray-700 font-medium">
+                            <span className="px-3 py-1 bg-gray-50 rounded text-gray-700 font-medium min-w-[3rem] text-center">
                                 {page} / {totalPages}
                             </span>
                             <button 
@@ -353,15 +382,10 @@ export const ArticleList: React.FC = () => {
                 )}
             </div>
 
-            {/* Detail Modal */}
-            {detailArticleId && (
-                <ArticleDetailModal 
-                    articleId={detailArticleId}
-                    onClose={() => setDetailArticleId(null)}
-                    onUpdate={() => {
-                        fetchStats();
-                        fetchArticles();
-                    }}
+            {selectedArticle && (
+                <IntelligenceArticleModal 
+                    article={selectedArticle} 
+                    onClose={() => setSelectedArticle(null)} 
                 />
             )}
         </div>
