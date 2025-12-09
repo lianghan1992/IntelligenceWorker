@@ -26,7 +26,7 @@ export const getServiceHealth = (): Promise<{ status: string }> =>
 // --- Sources ---
 
 export const getSpiderSources = async (): Promise<SpiderSource[]> => {
-    // List sources
+    // List sources: GET /intelspider/sources/
     const sources = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/sources/`);
     // Map backend UUID to frontend ID
     return sources.map(s => ({
@@ -39,6 +39,7 @@ export const getSpiderSources = async (): Promise<SpiderSource[]> => {
 };
 
 export const createSpiderSource = async (data: { name: string; main_url: string }): Promise<SpiderSource> => {
+    // Create source: POST /intelspider/sources/
     const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/sources/`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -53,16 +54,14 @@ export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
 };
 
 export const deleteSource = (id: string): Promise<void> => {
-    // Note: The doc doesn't explicitly list DELETE /sources/{id} in the Overview, 
-    // but we retain it assuming standard REST support or legacy requirement.
+    // Assuming DELETE /intelspider/sources/{id} exists for management even if not in main overview
     return apiFetch(`${INTELSPIDER_SERVICE_PATH}/sources/${id}`, { method: 'DELETE' });
 };
 
 // --- Points ---
 
 export const getSpiderPoints = async (sourceUuid?: string): Promise<SpiderPoint[]> => {
-    // Backend likely supports filtering by source_uuid if passed
-    // Assuming RESTful listing at /points/ or /points/?source_uuid=...
+    // List points: GET /intelspider/points/ (optional ?source_uuid=...)
     const query = sourceUuid ? `?source_uuid=${sourceUuid}` : '';
     const points = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/points/${query}`);
     return points.map(p => ({
@@ -70,8 +69,7 @@ export const getSpiderPoints = async (sourceUuid?: string): Promise<SpiderPoint[
         id: p.uuid,
         point_name: p.name,
         point_url: p.url,
-        // Ensure source_name is available or handled in UI via source lookups
-        source_name: p.source_name 
+        source_name: p.source_name || ''
     }));
 };
 
@@ -83,6 +81,7 @@ export const createSpiderPoint = async (data: {
     initial_pages?: number;
     is_active?: boolean;
 }): Promise<SpiderPoint> => {
+    // Create point: POST /intelspider/points/
     const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/points/`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -91,6 +90,7 @@ export const createSpiderPoint = async (data: {
 };
 
 export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initial' | 'incremental' }): Promise<SpiderTaskTriggerResponse> => {
+    // Trigger task: POST /intelspider/tasks/trigger/
     return apiFetch<SpiderTaskTriggerResponse>(`${INTELSPIDER_SERVICE_PATH}/tasks/trigger/`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -99,20 +99,13 @@ export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initi
 
 // Compatibility Wrappers for Points
 export const getPoints = async (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
-    // Note: params.source_name might be an ID or Name depending on legacy usage.
-    // Ideally we fetch all or filter by ID. 
-    // Since this is a shim, we fetch all and filter in memory if needed, or pass query.
-    const points = await getSpiderPoints();
-    if (params?.source_name) {
-        // legacy might pass name or id. For strictness, let's assume UI uses IDs now as per previous refactor
-        return points.filter(p => p.source_uuid === params.source_name || p.source_name === params.source_name);
-    }
+    const points = await getSpiderPoints(params?.source_name);
     return points;
 };
 
 export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
     return createSpiderPoint({
-        source_uuid: data.source_name, // The UI form passes the Source UUID in the 'source_name' field for compatibility
+        source_uuid: data.source_name, // Map source_name field to source_uuid for backend
         name: data.name,
         url: data.url,
         cron_schedule: data.cron_schedule,
@@ -122,11 +115,12 @@ export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
 };
 
 export const deletePoints = (ids: string[]): Promise<void> => {
+    // Assuming DELETE /intelspider/points/{id} exists
     return Promise.all(ids.map(id => apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${id}`, { method: 'DELETE' }))).then(() => {});
 };
 
 export const togglePoint = (id: string, isActive: boolean): Promise<void> => {
-    // Note: This endpoint is not in the new doc Overview, assuming it exists or handled via update if supported
+    // Assuming PATCH or similar exists to update status
     return apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${id}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_active: isActive })
@@ -137,12 +131,16 @@ export const runPoint = (id: string): Promise<any> => {
     return triggerSpiderTask({ point_uuid: id, task_type: 'incremental' });
 };
 
-// --- Articles (Assuming standard REST endpoints exist for data consumption) ---
+// --- Articles ---
 
 export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse<SpiderArticle>> => {
+    // List articles: GET /intelspider/articles/
     const query = createApiQuery(params);
     return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`);
 };
+
+export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}`);
 
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
     return searchArticlesFiltered(params);
@@ -198,6 +196,7 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 
 export const getSpiderTasks = (params?: any): Promise<SpiderTask[]> => {
     const query = createApiQuery(params);
+    // Assuming GET /intelspider/tasks/ for full monitoring list
     return apiFetch<SpiderTask[]>(`${INTELSPIDER_SERVICE_PATH}/tasks/${query}`);
 };
 
@@ -208,6 +207,7 @@ export const getTasks = async (params: any): Promise<{items: IntelligenceTaskPub
 
 export const getSpiderPointTasks = (pointId: string, params?: any): Promise<{ items: SpiderTask[], total: number, counts: SpiderTaskCounts, type_counts: SpiderTaskTypeCounts }> => {
     const query = createApiQuery(params);
+    // Assuming GET /intelspider/points/{pointId}/tasks
     return apiFetch(`${INTELSPIDER_SERVICE_PATH}/points/${pointId}/tasks${query}`);
 };
 
@@ -222,13 +222,13 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         const res = await getSpiderArticles({
             page: params.page,
             limit: params.limit,
-            query: params.query_text // pass search term
+            // Map legacy query_text to nothing for now, or point_uuid if supported
         });
         
         const items = res.items.map(a => ({
             ...a,
-            source_name: 'Intelligence Source',
-            point_name: 'Intelligence Point',
+            source_name: 'Intelligence Source', // Placeholder until hydrated
+            point_name: 'Intelligence Point', // Placeholder until hydrated
             publish_date: a.publish_time || a.collected_at,
             created_at: a.collected_at
         }));
@@ -244,9 +244,6 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
         return { items: [], total: 0, page: 1, limit: 10, totalPages: 0 };
     }
 };
-
-export const getArticleById = (id: string): Promise<ArticlePublic> =>
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/${id}`);
 
 export const deleteArticles = (ids: string[]): Promise<void> => Promise.resolve();
 export const searchChunks = (params: any): Promise<any> => Promise.resolve({ results: [] });
