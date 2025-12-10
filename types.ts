@@ -416,6 +416,7 @@ export interface SpiderArticle {
     created_at: string; // New API
     is_reviewed?: boolean;
     is_atomized?: boolean; // New API
+    source_name?: string; // Optional: Hydrated or joined data
 }
 
 export interface SpiderProxy {

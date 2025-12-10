@@ -78,9 +78,7 @@ export const SourceConfig: React.FC = () => {
         setRunningPointId(pointId);
         try {
             await triggerSpiderTask({ point_uuid: pointId, task_type: type });
-            // Optionally open drawer to show the new task
-            const point = points.find(p => p.uuid === pointId);
-            if (point) setDrawerPoint(point);
+            // Task triggered successfully, button state change provides feedback
         } catch (e) { alert('触发任务失败'); }
         finally { setRunningPointId(null); }
     };

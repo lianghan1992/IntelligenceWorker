@@ -165,6 +165,11 @@ export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticl
     };
 };
 
+export const deleteSpiderArticle = (uuid: string): Promise<void> => {
+    // Delete single article: DELETE /intelspider/articles/{article_uuid}
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}`, { method: 'DELETE' });
+};
+
 export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
     getSpiderArticleDetail(articleUuid).then(a => ({
         ...a,
