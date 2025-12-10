@@ -22,6 +22,14 @@ const getStatusBadge = (status: string) => {
     }
 };
 
+const getTaskTypeLabel = (type: string) => {
+    switch (type) {
+        case 'initial': return '初始全量';
+        case 'incremental': return '增量爬取';
+        default: return type;
+    }
+};
+
 const formatDuration = (start?: string, end?: string) => {
     if (!start || !end) return '-';
     const s = new Date(start).getTime();
@@ -91,7 +99,7 @@ export const TaskList: React.FC = () => {
                                             <div className="text-xs text-gray-500">{task.point_name || '-'}</div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-mono">{task.task_type}</span>
+                                            <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-mono">{getTaskTypeLabel(task.task_type)}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold uppercase ${statusInfo.className}`}>
@@ -99,7 +107,9 @@ export const TaskList: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 font-bold text-gray-700">{task.articles_collected ?? '-'}</td>
-                                        <td className="px-6 py-4 text-xs font-mono">{task.start_time ? new Date(task.start_time).toLocaleString('zh-CN') : '-'}</td>
+                                        <td className="px-6 py-4 text-xs font-mono">
+                                            {task.start_time ? new Date(task.start_time).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '-'}
+                                        </td>
                                         <td className="px-6 py-4 text-xs font-mono">{formatDuration(task.start_time, task.end_time)}</td>
                                         <td className="px-6 py-4">
                                             <div className="max-w-[200px] truncate text-xs text-red-500" title={task.error_message}>{task.error_message || '-'}</div>

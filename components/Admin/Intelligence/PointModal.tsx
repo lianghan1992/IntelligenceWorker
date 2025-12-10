@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createSpiderPoint } from '../../../api/intelligence';
-import { CloseIcon, RssIcon } from '../../icons';
+import { CloseIcon, RssIcon, ClockIcon } from '../../icons';
 
 interface PointModalProps {
     isOpen: boolean;
@@ -13,9 +13,47 @@ interface PointModalProps {
 export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave, sourceId }) => {
     const [name, setName] = useState('');
     const [url, setUrl] = useState('');
-    const [cron, setCron] = useState('30 13 */2 * *');
     const [pages, setPages] = useState(100);
     const [isLoading, setIsLoading] = useState(false);
+
+    // Cron Builder State
+    const [cron, setCron] = useState('0 8 */1 * *');
+    const [cronMode, setCronMode] = useState<'interval' | 'weekly' | 'monthly' | 'custom'>('interval');
+    const [time, setTime] = useState('08:00');
+    const [intervalDays, setIntervalDays] = useState(1);
+    const [weekDay, setWeekDay] = useState(1); // 1 = Monday
+    const [monthDay, setMonthDay] = useState(1);
+    const [customCron, setCustomCron] = useState('30 13 */2 * *');
+
+    // Auto-update cron expression when builder state changes
+    useEffect(() => {
+        if (!isOpen) return;
+        
+        if (cronMode === 'custom') {
+            setCron(customCron);
+            return;
+        }
+
+        const [hh, mm] = time.split(':').map(Number);
+        const validH = isNaN(hh) ? 0 : hh;
+        const validM = isNaN(mm) ? 0 : mm;
+        
+        let newCron = '';
+
+        if (cronMode === 'interval') {
+            // mm HH */N * *
+            newCron = `${validM} ${validH} */${Math.max(1, intervalDays)} * *`;
+        } else if (cronMode === 'weekly') {
+            // mm HH * * DoW (0-6, 0 is Sunday, or 1-7. Cron typically 0-6 or 1-7. Let's use 1=Mon...7=Sun or standard 0-6. 
+            // Standard: 0=Sun, 1=Mon...6=Sat. 
+            // Python croniter/Linux cron usually accepts 0-6 or MON-SUN.
+            newCron = `${validM} ${validH} * * ${weekDay}`;
+        } else if (cronMode === 'monthly') {
+            // mm HH DoM * *
+            newCron = `${validM} ${validH} ${Math.max(1, Math.min(31, monthDay))} * *`;
+        }
+        setCron(newCron);
+    }, [cronMode, time, intervalDays, weekDay, monthDay, customCron, isOpen]);
 
     const handleSubmit = async () => {
         if (!name || !url || !sourceId) return;
@@ -32,7 +70,8 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
             onSave();
             onClose();
             // Reset
-            setName(''); setUrl(''); setCron('30 13 */2 * *'); setPages(100);
+            setName(''); setUrl(''); setPages(100);
+            setCronMode('interval'); setTime('08:00'); setIntervalDays(1);
         } catch (e) {
             console.error(e);
             alert('创建采集点失败');
@@ -53,7 +92,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><CloseIcon className="w-5 h-5"/></button>
                 </div>
 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-5">
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">采集点名称 <span className="text-red-500">*</span></label>
                         <input value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 车企资讯" />
@@ -62,24 +101,139 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                         <label className="block text-sm font-bold text-gray-700 mb-1">列表页 URL <span className="text-red-500">*</span></label>
                         <input value={url} onChange={e => setUrl(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-slate-600" placeholder="https://..." />
                     </div>
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">Cron 调度表达式</label>
-                        <input value={cron} onChange={e => setCron(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono" />
-                        <p className="text-xs text-gray-400 mt-1">分 时 日 月 周 (e.g. 30 13 */2 * *)</p>
+                    
+                    {/* Friendly Cron Builder */}
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-500 mb-3 uppercase flex items-center gap-1.5">
+                            <ClockIcon className="w-3.5 h-3.5" /> 采集频率调度
+                        </label>
+                        
+                        <div className="flex gap-2 mb-4 overflow-x-auto">
+                            {[
+                                { id: 'interval', label: '按天循环' },
+                                { id: 'weekly', label: '每周定时' },
+                                { id: 'monthly', label: '每月定时' },
+                                { id: 'custom', label: '自定义' },
+                            ].map((mode) => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => setCronMode(mode.id as any)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                                        cronMode === mode.id 
+                                            ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-indigo-200' 
+                                            : 'text-slate-500 hover:bg-white hover:text-slate-700'
+                                    }`}
+                                >
+                                    {mode.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="space-y-3">
+                            {cronMode !== 'custom' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-600 font-medium w-16">执行时间:</span>
+                                    <input 
+                                        type="time" 
+                                        value={time} 
+                                        onChange={e => setTime(e.target.value)} 
+                                        className="border border-slate-300 rounded-md px-2 py-1 text-sm outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            )}
+
+                            {cronMode === 'interval' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-600 font-medium w-16">间隔天数:</span>
+                                    <span className="text-sm text-slate-500">每</span>
+                                    <input 
+                                        type="number" 
+                                        min="1" 
+                                        max="365"
+                                        value={intervalDays} 
+                                        onChange={e => setIntervalDays(parseInt(e.target.value))} 
+                                        className="w-16 border border-slate-300 rounded-md px-2 py-1 text-sm text-center outline-none focus:border-indigo-500"
+                                    />
+                                    <span className="text-sm text-slate-500">天</span>
+                                </div>
+                            )}
+
+                            {cronMode === 'weekly' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-600 font-medium w-16">重复周期:</span>
+                                    <select 
+                                        value={weekDay} 
+                                        onChange={e => setWeekDay(parseInt(e.target.value))}
+                                        className="flex-1 border border-slate-300 rounded-md px-2 py-1 text-sm outline-none focus:border-indigo-500"
+                                    >
+                                        <option value={1}>周一 (Monday)</option>
+                                        <option value={2}>周二 (Tuesday)</option>
+                                        <option value={3}>周三 (Wednesday)</option>
+                                        <option value={4}>周四 (Thursday)</option>
+                                        <option value={5}>周五 (Friday)</option>
+                                        <option value={6}>周六 (Saturday)</option>
+                                        <option value={0}>周日 (Sunday)</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            {cronMode === 'monthly' && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-slate-600 font-medium w-16">每月日期:</span>
+                                    <span className="text-sm text-slate-500">每月</span>
+                                    <input 
+                                        type="number" 
+                                        min="1" 
+                                        max="31"
+                                        value={monthDay} 
+                                        onChange={e => setMonthDay(parseInt(e.target.value))} 
+                                        className="w-16 border border-slate-300 rounded-md px-2 py-1 text-sm text-center outline-none focus:border-indigo-500"
+                                    />
+                                    <span className="text-sm text-slate-500">日</span>
+                                </div>
+                            )}
+
+                            {cronMode === 'custom' && (
+                                <div>
+                                    <input 
+                                        value={customCron} 
+                                        onChange={e => setCustomCron(e.target.value)} 
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                        placeholder="* * * * *"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">分 时 日 月 周</p>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
+                            <span className="text-xs text-slate-400">生成的表达式:</span>
+                            <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">{cron}</span>
+                        </div>
                     </div>
+
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-1">首次采集页数限制</label>
                         <input type="number" value={pages} onChange={e => setPages(parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
-                    <div className="p-4 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100">
+                    
+                    <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 leading-relaxed">
                         提示: 创建成功后，请在生成的 <code>crawlers/&#123;source_uuid&#125;/</code> 目录下编写 <code>crawler.py</code> 以实现具体爬取逻辑。
                     </div>
                 </div>
 
                 <div className="p-5 border-t bg-gray-50 flex justify-end gap-3">
                     <button onClick={onClose} className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-100">取消</button>
-                    <button onClick={handleSubmit} disabled={isLoading || !name || !url} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50">
-                        {isLoading ? '提交中...' : '创建'}
+                    <button onClick={handleSubmit} disabled={isLoading || !name || !url} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
+                        {isLoading ? (
+                            <>
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                提交中...
+                            </>
+                        ) : '创建'}
                     </button>
                 </div>
             </div>
