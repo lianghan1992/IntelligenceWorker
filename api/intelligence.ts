@@ -56,6 +56,28 @@ export const batchGenerateHtml = (data: { point_uuid?: string; force_regenerate?
 export const getArticleHtml = (articleUuid: string): Promise<{ uuid: string; html_content: string }> => 
     apiFetch<{ uuid: string; html_content: string }>(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/html`);
 
+export const downloadArticlePdf = async (articleUuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/pdf`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { 
+        method: 'POST',
+        headers 
+    });
+    
+    if (!response.ok) {
+        let errorMsg = '下载 PDF 失败';
+        try {
+            const errData = await response.json();
+            errorMsg = errData.message || errorMsg;
+        } catch(e) {}
+        throw new Error(errorMsg);
+    }
+    return response.blob();
+};
+
 // --- Sources ---
 
 export const getSpiderSources = async (): Promise<SpiderSource[]> => {

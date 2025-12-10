@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
-import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml } from '../../../api/intelligence';
+import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
 import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon, DocumentTextIcon, RssIcon, TagIcon, SparklesIcon, EyeIcon, CloseIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -89,6 +89,7 @@ export const ArticleList: React.FC = () => {
     // HTML Generation State
     const [generatingId, setGeneratingId] = useState<string | null>(null);
     const [viewingHtmlId, setViewingHtmlId] = useState<string | null>(null);
+    const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null);
 
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
@@ -163,6 +164,26 @@ export const ArticleList: React.FC = () => {
         }
     };
 
+    const handleDownloadPdf = async (article: SpiderArticle) => {
+        if (pdfDownloadingId === article.id) return;
+        setPdfDownloadingId(article.id);
+        try {
+            const blob = await downloadArticlePdf(article.id);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${article.title}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e: any) {
+            alert(e.message || 'PDF 下载失败');
+        } finally {
+            setPdfDownloadingId(null);
+        }
+    };
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -198,10 +219,10 @@ export const ArticleList: React.FC = () => {
                                 </th>
                                 <th className="px-6 py-4 font-bold">文章标题</th>
                                 <th className="px-6 py-4 w-48 font-bold">来源 / 频道</th>
-                                <th className="px-6 py-4 w-32 text-center font-bold">原子化</th>
+                                <th className="px-6 py-4 w-28 text-center font-bold">原子化</th>
                                 <th className="px-6 py-4 w-40 font-bold">发布时间</th>
                                 <th className="px-6 py-4 w-40 font-bold">采集时间</th>
-                                <th className="px-6 py-4 w-32 text-center font-bold">操作</th>
+                                <th className="px-6 py-4 w-40 text-center font-bold">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -236,24 +257,23 @@ export const ArticleList: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {article.is_atomized ? (
+                                            {generatingId === article.id ? (
+                                                <div className="flex justify-center"><Spinner /></div>
+                                            ) : article.is_atomized ? (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setViewingHtmlId(article.id); }}
-                                                    className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
-                                                    title="点击查看 HTML"
+                                                    className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                                    title="查看 HTML"
                                                 >
-                                                    <DocumentTextIcon className="w-3.5 h-3.5" />
-                                                    <span className="text-xs font-bold">查看</span>
+                                                    <EyeIcon className="w-5 h-5" />
                                                 </button>
                                             ) : (
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); handleGenerateHtml(article); }}
-                                                    disabled={generatingId === article.id}
-                                                    className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition-colors disabled:opacity-50"
-                                                    title="点击生成 HTML"
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                                    title="生成 HTML"
                                                 >
-                                                    {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
-                                                    <span className="text-xs font-bold">生成</span>
+                                                    <SparklesIcon className="w-5 h-5" />
                                                 </button>
                                             )}
                                         </td>
@@ -262,8 +282,16 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                                 <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
+                                                    disabled={pdfDownloadingId === article.id}
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors disabled:opacity-50"
+                                                    title="下载 PDF"
+                                                >
+                                                    {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                </button>
+                                                <button 
                                                     onClick={(e) => { e.stopPropagation(); setDeleteId(article.id); }}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors"
+                                                    className="text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded p-1.5 transition-colors"
                                                     title="删除文章"
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
@@ -307,28 +335,41 @@ export const ArticleList: React.FC = () => {
                                             <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{tag.trim()}</span>
                                         ))}
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         {article.is_atomized ? (
                                             <button 
                                                 onClick={() => setViewingHtmlId(article.id)}
-                                                className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg flex items-center gap-1 border border-green-100"
+                                                className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 border border-indigo-100"
+                                                title="查看 HTML"
                                             >
-                                                <DocumentTextIcon className="w-3.5 h-3.5" /> 查看
+                                                <EyeIcon className="w-4 h-4" />
                                             </button>
                                         ) : (
                                             <button 
                                                 onClick={() => handleGenerateHtml(article)}
                                                 disabled={generatingId === article.id}
-                                                className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-3 py-1.5 rounded-lg flex items-center gap-1 disabled:opacity-50"
+                                                className="p-1.5 rounded-lg text-slate-400 bg-slate-50 hover:text-purple-600 hover:bg-purple-50"
+                                                title="生成 HTML"
                                             >
-                                                {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-3.5 h-3.5" />} 原子化
+                                                {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
                                             </button>
                                         )}
+                                        
+                                        <button 
+                                            onClick={() => handleDownloadPdf(article)}
+                                            disabled={pdfDownloadingId === article.id}
+                                            className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 rounded-lg disabled:opacity-50"
+                                            title="下载 PDF"
+                                        >
+                                            {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                        </button>
+
                                         <button 
                                             onClick={() => setDeleteId(article.id)}
-                                            className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-lg"
+                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg"
+                                            title="删除"
                                         >
-                                            删除
+                                            <TrashIcon className="w-4 h-4" />
                                         </button>
                                     </div>
                                 </div>
