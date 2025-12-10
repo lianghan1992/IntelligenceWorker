@@ -23,7 +23,7 @@ export const TaskMonitor: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getSpiderTasks();
-            setTasks(res);
+            setTasks(res.items || []);
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
     };

@@ -78,7 +78,7 @@ export const SourceConfig: React.FC = () => {
         setRunningPointId(pointId);
         try {
             await triggerSpiderTask({ point_uuid: pointId, task_type: type });
-            // Task triggered successfully, button state change provides feedback
+            // Task triggered, button will just stop spinning. No modal.
         } catch (e) { alert('触发任务失败'); }
         finally { setRunningPointId(null); }
     };
@@ -243,7 +243,7 @@ export const SourceConfig: React.FC = () => {
                 sourceId={selectedSource?.uuid}
             />
 
-            {/* Task Drawer */}
+            {/* Task Drawer - Keep logic for "Task Log" button, but trigger buttons no longer open it automatically */}
             {drawerPoint && (
                 <TaskDrawer 
                     point={drawerPoint} 

@@ -406,7 +406,7 @@ export interface SpiderPoint {
 export interface SpiderArticle {
     id: string;
     uuid: string; // New API
-    source_uuid: string; // In new db structure this might be linked differently, assuming flattened for UI
+    source_uuid?: string; // In new db structure this might be linked differently, assuming flattened for UI
     title: string;
     content: string;
     original_url: string;
@@ -417,6 +417,8 @@ export interface SpiderArticle {
     is_reviewed?: boolean;
     is_atomized?: boolean; // New API
     source_name?: string; // Optional: Hydrated or joined data
+    point_name?: string;
+    tags?: string;
 }
 
 export interface SpiderProxy {
@@ -433,17 +435,22 @@ export interface SpiderTaskTriggerResponse {
 }
 
 export interface SpiderTask {
-    id: string;
-    source_name?: string;
-    point_name?: string;
-    url?: string;
-    task_type: string;
+    uuid: string;
+    id: string; // Alias to uuid
+    point_uuid: string;
     status: string;
-    error_message?: string;
-    page_number?: number;
-    created_at: string;
+    task_type: string;
     start_time?: string;
     end_time?: string;
+    articles_collected?: number;
+    error_message?: string;
+    created_at: string;
+    
+    // UI Helpers / Hydrated fields
+    source_name?: string;
+    point_name?: string;
+    url?: string; 
+    page_number?: number;
 }
 
 export interface SpiderTaskCounts {
@@ -463,7 +470,7 @@ export type IntelligenceSourcePublic = SpiderSource;
 export type IntelligenceTaskPublic = SpiderTask;
 
 export interface ArticlePublic extends SpiderArticle {
-    source_name: string;
+    source_name: string; // Optional in SpiderArticle but required here for UI
     point_name?: string;
     publish_date?: string;
     created_at: string; // Ensure created_at is present

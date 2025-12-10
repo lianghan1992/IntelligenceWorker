@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticleDetail } from '../../../api/intelligence';
 import { CloseIcon, ExternalLinkIcon, ClockIcon } from '../../icons';
@@ -44,27 +44,31 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
         fetchDetail();
     }, [articleUuid]);
 
+    const contentHtml = useMemo(() => {
+        if (!article?.content) return '';
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(article.content);
+        }
+        return `<pre class="whitespace-pre-wrap font-sans text-gray-700">${article.content}</pre>`;
+    }, [article]);
+
     const renderContent = () => {
         if (isLoading) return <div className="p-10 text-center text-gray-500">加载中...</div>;
         if (error) return <div className="p-10 text-center text-red-500">{error}</div>;
         if (!article) return <div className="p-10 text-center text-gray-500">未找到文章</div>;
 
-        const contentHtml = window.marked && article.content 
-            ? window.marked.parse(article.content)
-            : `<pre class="whitespace-pre-wrap font-sans text-gray-700">${article.content || '无正文内容'}</pre>`;
-
         return (
             <div className="flex flex-col h-full">
-                <div className="p-6 border-b bg-gray-50 flex justify-between items-start">
+                <div className="p-6 border-b bg-white flex justify-between items-start">
                     <div className="pr-8">
                         <h2 className="text-xl font-bold text-gray-900 leading-snug">{article.title}</h2>
                         <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
                             {article.publish_date && (
-                                <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
+                                <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                                     <ClockIcon className="w-3 h-3" /> 发布: {formatBeijingTime(article.publish_date)}
                                 </span>
                             )}
-                            <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-gray-200">
+                            <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                                 <ClockIcon className="w-3 h-3" /> 采集: {formatBeijingTime(article.created_at)}
                             </span>
                             <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
@@ -72,7 +76,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
                             </a>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors">
+                    <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                         <CloseIcon className="w-6 h-6" />
                     </button>
                 </div>
@@ -84,9 +88,10 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
         );
     };
 
+    // Removed bg-black/50 backdrop-blur-sm, kept positioning and centering.
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 animate-in fade-in zoom-in-95 pointer-events-none">
+            <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] shadow-2xl overflow-hidden flex flex-col pointer-events-auto border border-gray-200">
                 {renderContent()}
             </div>
         </div>

@@ -145,7 +145,9 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
         ...a,
         id: a.uuid, // Ensure ID alias
         publish_time: a.publish_date, // Map to old name for compatibility if needed
-        collected_at: a.created_at || a.collected_at
+        collected_at: a.created_at || a.collected_at,
+        source_name: a.source_name || 'Unknown',
+        point_name: a.point_name || 'Unknown'
     }));
 
     return {
@@ -173,8 +175,8 @@ export const deleteSpiderArticle = (uuid: string): Promise<void> => {
 export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
     getSpiderArticleDetail(articleUuid).then(a => ({
         ...a,
-        source_name: 'Unknown', // Detail API might not return source_name yet, update if needed
-        point_name: 'Unknown'
+        source_name: a.source_name || 'Unknown',
+        point_name: a.point_name || 'Unknown'
     }));
 
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
@@ -232,7 +234,7 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 export const getProxies = (): Promise<SpiderProxy[]> => 
     apiFetch<SpiderProxy[]>(`${INTELSPIDER_SERVICE_PATH}/proxies/`);
 
-export const addProxy = (data: SpiderProxy): Promise<SpiderProxy> => 
+export const addProxy = (data: { url: string; enabled: boolean; note?: string }): Promise<SpiderProxy> => 
     apiFetch<SpiderProxy>(`${INTELSPIDER_SERVICE_PATH}/proxies/`, {
         method: 'POST',
         body: JSON.stringify(data)
@@ -257,15 +259,26 @@ export const testProxy = (url: string): Promise<{ success: boolean; latency_ms?:
 
 // --- Tasks (Monitoring) ---
 
-export const getSpiderTasks = (params?: any): Promise<SpiderTask[]> => {
+export const getSpiderTasks = async (params?: any): Promise<PaginatedResponse<SpiderTask>> => {
     const query = createApiQuery(params);
-    // Assuming GET /intelspider/tasks/ for full monitoring list
-    return apiFetch<SpiderTask[]>(`${INTELSPIDER_SERVICE_PATH}/tasks/${query}`);
+    // GET /intelspider/tasks/ with pagination support
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/tasks/${query}`);
+    // Map UUID to ID if needed
+    const items = (res.items || []).map((t: any) => ({
+        ...t,
+        id: t.uuid,
+        start_time: t.start_time,
+        end_time: t.end_time
+    }));
+    return {
+        ...res,
+        items
+    };
 };
 
 export const getTasks = async (params: any): Promise<{items: IntelligenceTaskPublic[], total: number}> => {
-    const tasks = await getSpiderTasks(params);
-    return { items: tasks, total: tasks.length };
+    const res = await getSpiderTasks(params);
+    return { items: res.items, total: res.total };
 }
 
 export const getSpiderPointTasks = (pointId: string, params?: any): Promise<{ items: SpiderTask[], total: number, counts: SpiderTaskCounts, type_counts: SpiderTaskTypeCounts }> => {
@@ -288,21 +301,7 @@ export const searchArticlesFiltered = async (params: any): Promise<PaginatedResp
             // Map legacy query_text to nothing for now, or point_uuid if supported
         });
         
-        const items = res.items.map(a => ({
-            ...a,
-            source_name: 'Intelligence Source', // Placeholder until hydrated
-            point_name: 'Intelligence Point', // Placeholder until hydrated
-            publish_date: a.publish_time || a.collected_at,
-            created_at: a.collected_at
-        }));
-
-        return {
-            items,
-            total: res.total,
-            page: res.page,
-            limit: res.limit,
-            totalPages: res.totalPages
-        };
+        return res as PaginatedResponse<ArticlePublic>;
     } catch (e) {
         return { items: [], total: 0, page: 1, limit: 10, totalPages: 0 };
     }

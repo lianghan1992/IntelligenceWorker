@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles, deleteSpiderArticle } from '../../../api/intelligence';
-import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon } from '../../icons';
+import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon, DocumentTextIcon, RssIcon, TagIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -56,7 +56,9 @@ export const ArticleList: React.FC = () => {
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-700 text-lg">文章库 ({total})</h3>
+                <h3 className="font-bold text-gray-700 text-lg flex items-center gap-2">
+                    <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 文章库 ({total})
+                </h3>
                 <button onClick={fetchArticles} className="p-2 hover:bg-gray-200 rounded text-gray-500 border bg-white shadow-sm transition-all"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/></button>
             </div>
             
@@ -67,7 +69,7 @@ export const ArticleList: React.FC = () => {
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                             <tr>
                                 <th className="px-6 py-4 font-bold">文章标题</th>
-                                <th className="px-6 py-4 w-32 font-bold">来源</th>
+                                <th className="px-6 py-4 w-48 font-bold">来源 / 频道</th>
                                 <th className="px-6 py-4 w-24 text-center font-bold">原子化</th>
                                 <th className="px-6 py-4 w-40 font-bold">发布时间</th>
                                 <th className="px-6 py-4 w-40 font-bold">采集时间</th>
@@ -83,16 +85,24 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             <button 
                                                 onClick={() => setSelectedArticleUuid(article.id)}
-                                                className="text-left hover:text-indigo-600 hover:underline line-clamp-1 max-w-sm font-bold"
+                                                className="text-left hover:text-indigo-600 hover:underline line-clamp-1 max-w-md font-bold text-sm"
                                                 title={article.title}
                                             >
                                                 {article.title}
                                             </button>
+                                            {article.tags && (
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    {article.tags.split(',').map(tag => (
+                                                        <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{tag.trim()}</span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 truncate max-w-[120px]">
-                                                {article.source_name || 'Unknown'}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-gray-700">{article.source_name || 'Unknown'}</span>
+                                                <span className="text-[10px] text-gray-400">{article.point_name}</span>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {article.is_atomized ? (
@@ -109,12 +119,9 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 text-xs font-mono text-gray-600 whitespace-nowrap">{formatBeijingTime(article.created_at).split(' ')[0]}</td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                <a href={article.original_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700" title="查看原文">
-                                                    <ExternalLinkIcon className="w-4 h-4"/>
-                                                </a>
                                                 <button 
                                                     onClick={() => setDeleteId(article.id)}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors"
                                                     title="删除文章"
                                                 >
                                                     <TrashIcon className="w-4 h-4" />
@@ -134,45 +141,49 @@ export const ArticleList: React.FC = () => {
                         <div className="text-center py-12 text-gray-400">暂无文章数据</div>
                     ) : (
                         articles.map(article => (
-                            <div key={article.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
-                                <div>
-                                    <div className="flex justify-between items-start gap-2">
-                                        <h4 
-                                            className="font-bold text-gray-900 text-base leading-snug line-clamp-2"
-                                            onClick={() => setSelectedArticleUuid(article.id)}
-                                        >
+                            <div key={article.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-2">
+                                    {article.is_atomized ? (
+                                        <CheckCircleIcon className="w-5 h-5 text-green-500 opacity-20" />
+                                    ) : (
+                                        <QuestionMarkCircleIcon className="w-5 h-5 text-gray-300 opacity-20" />
+                                    )}
+                                </div>
+                                <div onClick={() => setSelectedArticleUuid(article.id)} className="cursor-pointer">
+                                    <div className="flex justify-between items-start gap-2 pr-6">
+                                        <h4 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
                                             {article.title}
                                         </h4>
-                                        <div className="flex-shrink-0 pt-1">
-                                            {article.is_atomized ? (
-                                                <CheckCircleIcon className="w-4 h-4 text-green-500" />
-                                            ) : (
-                                                <QuestionMarkCircleIcon className="w-4 h-4 text-gray-300" />
-                                            )}
-                                        </div>
                                     </div>
                                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">{article.source_name || 'Unknown'}</span>
-                                        <span className="text-gray-400">{formatBeijingTime(article.publish_date).split(' ')[0]}</span>
+                                        <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100 font-bold">{article.source_name || 'Unknown'}</span>
+                                        <span className="text-gray-400 bg-gray-50 px-2 py-0.5 rounded">{article.point_name}</span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-400 font-mono">
+                                        发布: {formatBeijingTime(article.publish_date).split(' ')[0]}
                                     </div>
                                 </div>
                                 
-                                <div className="pt-3 border-t border-gray-100 flex justify-end items-center gap-4">
-                                    <a href={article.original_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-bold text-blue-600">
-                                        <ExternalLinkIcon className="w-3 h-3"/> 原文
-                                    </a>
-                                    <button 
-                                        onClick={() => setSelectedArticleUuid(article.id)}
-                                        className="text-xs font-bold text-gray-600 hover:text-gray-900"
-                                    >
-                                        查看详情
-                                    </button>
-                                    <button 
-                                        onClick={() => setDeleteId(article.id)}
-                                        className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1"
-                                    >
-                                        <TrashIcon className="w-3 h-3"/> 删除
-                                    </button>
+                                <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                                    <div className="flex gap-2">
+                                        {article.tags && article.tags.split(',').slice(0,2).map(tag => (
+                                            <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{tag.trim()}</span>
+                                        ))}
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button 
+                                            onClick={() => setSelectedArticleUuid(article.id)}
+                                            className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-100 px-3 py-1.5 rounded-lg"
+                                        >
+                                            查看
+                                        </button>
+                                        <button 
+                                            onClick={() => setDeleteId(article.id)}
+                                            className="text-xs font-bold text-red-600 hover:text-red-700 bg-red-50 px-3 py-1.5 rounded-lg"
+                                        >
+                                            删除
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))
