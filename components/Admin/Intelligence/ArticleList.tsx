@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
-import { getSpiderArticles, deleteSpiderArticle } from '../../../api/intelligence';
-import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon, DocumentTextIcon, RssIcon, TagIcon } from '../../icons';
+import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml } from '../../../api/intelligence';
+import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon, DocumentTextIcon, RssIcon, TagIcon, SparklesIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -26,6 +26,9 @@ export const ArticleList: React.FC = () => {
     const [selectedArticleUuid, setSelectedArticleUuid] = useState<string | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // HTML Generation State
+    const [generatingId, setGeneratingId] = useState<string | null>(null);
 
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
@@ -53,6 +56,21 @@ export const ArticleList: React.FC = () => {
         }
     };
 
+    const handleGenerateHtml = async (article: SpiderArticle) => {
+        if (generatingId) return;
+        setGeneratingId(article.id);
+        try {
+            await generateArticleHtml(article.id);
+            // Optimistically update
+            setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
+            alert('HTML 生成任务已触发');
+        } catch (e) {
+            alert('HTML 生成触发失败');
+        } finally {
+            setGeneratingId(null);
+        }
+    };
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -73,7 +91,7 @@ export const ArticleList: React.FC = () => {
                                 <th className="px-6 py-4 w-24 text-center font-bold">原子化</th>
                                 <th className="px-6 py-4 w-40 font-bold">发布时间</th>
                                 <th className="px-6 py-4 w-40 font-bold">采集时间</th>
-                                <th className="px-6 py-4 w-28 text-center font-bold">操作</th>
+                                <th className="px-6 py-4 w-32 text-center font-bold">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -118,7 +136,15 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 text-xs font-mono text-gray-600 whitespace-nowrap">{formatBeijingTime(article.publish_date).split(' ')[0]}</td>
                                         <td className="px-6 py-4 text-xs font-mono text-gray-600 whitespace-nowrap">{formatBeijingTime(article.created_at).split(' ')[0]}</td>
                                         <td className="px-6 py-4 text-center">
-                                            <div className="flex items-center justify-center gap-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                <button 
+                                                    onClick={() => handleGenerateHtml(article)}
+                                                    disabled={generatingId === article.id}
+                                                    className="text-purple-500 hover:text-purple-700 hover:bg-purple-50 rounded p-1.5 transition-colors disabled:opacity-50"
+                                                    title="原子化 (生成 HTML)"
+                                                >
+                                                    {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
+                                                </button>
                                                 <button 
                                                     onClick={() => setDeleteId(article.id)}
                                                     className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors"
@@ -170,12 +196,13 @@ export const ArticleList: React.FC = () => {
                                             <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{tag.trim()}</span>
                                         ))}
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
                                         <button 
-                                            onClick={() => setSelectedArticleUuid(article.id)}
-                                            className="text-xs font-bold text-gray-600 hover:text-gray-900 bg-gray-100 px-3 py-1.5 rounded-lg"
+                                            onClick={() => handleGenerateHtml(article)}
+                                            disabled={generatingId === article.id}
+                                            className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 px-3 py-1.5 rounded-lg flex items-center gap-1 disabled:opacity-50"
                                         >
-                                            查看
+                                            {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-3.5 h-3.5" />} 原子化
                                         </button>
                                         <button 
                                             onClick={() => setDeleteId(article.id)}

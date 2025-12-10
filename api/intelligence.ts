@@ -25,6 +25,28 @@ import {
 export const getServiceHealth = (): Promise<{ status: string }> => 
     apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`);
 
+// --- Gemini Management (IntelSpider) ---
+export const checkIntelGeminiStatus = (): Promise<{ valid: boolean; message: string }> => 
+    apiFetch<{ valid: boolean; message: string }>(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies/check`);
+
+export const updateIntelGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string }): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies/update`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+
+// --- Article HTML Generation ---
+export const generateArticleHtml = (articleUuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/generate_html`, {
+        method: 'POST'
+    });
+
+export const batchGenerateHtml = (data: { point_uuid?: string; force_regenerate?: boolean; limit?: number }): Promise<void> =>
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/html/batch/generate`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+
 // --- Sources ---
 
 export const getSpiderSources = async (): Promise<SpiderSource[]> => {
@@ -312,6 +334,7 @@ export const searchChunks = (params: any): Promise<any> => Promise.resolve({ res
 export const exportChunks = (params: any): Promise<any> => Promise.resolve({ export_data: [] });
 export const createLlmSearchTask = (data: any): Promise<any> => Promise.resolve({});
 export const getLlmSearchTasks = (params: any): Promise<any> => Promise.resolve({ items: [] });
+// Use specific functions for Gemini cookie updates
 export const updateGeminiCookies = (data: any): Promise<any> => Promise.resolve({});
 export const checkGeminiCookies = (): Promise<any> => Promise.resolve({ has_cookie: false });
 export const toggleHtmlGeneration = (enable: boolean): Promise<any> => Promise.resolve({});

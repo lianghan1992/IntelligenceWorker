@@ -11,7 +11,6 @@ export const IntelligenceDashboard: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-slate-50/30 p-4 md:p-6">
             <div className="flex-shrink-0 mb-4 md:mb-6">
-                <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">情报采集服务 (IntelSpider)</h1>
                 <div className="border-b border-gray-200 overflow-x-auto no-scrollbar">
                     <nav className="-mb-px flex space-x-6 md:space-x-8 min-w-max">
                         <button

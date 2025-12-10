@@ -1,12 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy } from '../../../api/intelligence';
+import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon } from '../../icons';
+import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const WhiteSpinner: React.FC = () => (
+    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -24,6 +31,13 @@ export const ServiceStatus: React.FC = () => {
     const [newProxy, setNewProxy] = useState({ url: '', enabled: true });
     const [isSavingProxy, setIsSavingProxy] = useState(false);
     const [testingUrl, setTestingUrl] = useState<string | null>(null);
+
+    // Gemini State
+    const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean; message: string } | null>(null);
+    const [isCheckingGemini, setIsCheckingGemini] = useState(false);
+    const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
+    const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
+    const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
 
     const fetchStatus = async () => {
         setIsLoading(true);
@@ -49,9 +63,22 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
+    const fetchGeminiStatus = async () => {
+        setIsCheckingGemini(true);
+        try {
+            const res = await checkIntelGeminiStatus();
+            setGeminiStatus(res);
+        } catch (e) {
+            setGeminiStatus({ valid: false, message: 'Check failed' });
+        } finally {
+            setIsCheckingGemini(false);
+        }
+    };
+
     useEffect(() => { 
         fetchStatus(); 
         fetchProxies();
+        fetchGeminiStatus();
     }, []);
 
     const handleAddProxy = async () => {
@@ -96,30 +123,80 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
+    const handleUpdateCookie = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cookieForm.secure_1psid || !cookieForm.secure_1psidts) {
+            alert('请填写所有必填项');
+            return;
+        }
+        setIsUpdatingCookie(true);
+        try {
+            await updateIntelGeminiCookies(cookieForm);
+            setIsCookieModalOpen(false);
+            setCookieForm({ secure_1psid: '', secure_1psidts: '' });
+            fetchGeminiStatus();
+            alert('Cookie 更新成功');
+        } catch (e: any) {
+            alert('更新失败: ' + (e.message || '未知错误'));
+        } finally {
+            setIsUpdatingCookie(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
-            {/* System Status Card */}
-            <div className="p-6 bg-white rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-800">系统运行状态</h3>
-                    <button onClick={fetchStatus} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                        <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                    </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* System Status Card */}
+                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-base font-bold text-gray-800">系统运行状态</h3>
+                        <button onClick={fetchStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                            <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className={`p-3 rounded-full ${status === 'ok' ? 'bg-green-100' : 'bg-red-100'}`}>
+                            {status === 'ok' ? (
+                                <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                            ) : (
+                                <ShieldExclamationIcon className="w-6 h-6 text-red-600" />
+                            )}
+                        </div>
+                        <div>
+                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">IntelSpider Service</div>
+                            <div className={`text-lg font-bold ${status === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+                                {status === 'ok' ? '运行正常' : '服务异常'}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-full ${status === 'ok' ? 'bg-green-100' : 'bg-red-100'}`}>
-                        {status === 'ok' ? (
-                            <CheckCircleIcon className="w-8 h-8 text-green-600" />
-                        ) : (
-                            <ShieldExclamationIcon className="w-8 h-8 text-red-600" />
-                        )}
-                    </div>
-                    <div>
-                        <div className="text-sm text-gray-500 font-medium uppercase tracking-wider">IntelSpider Service</div>
-                        <div className={`text-2xl font-bold ${status === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
-                            {status === 'ok' ? '运行正常 (Healthy)' : '服务异常 (Error)'}
+                {/* Gemini Status Card */}
+                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-2">
+                            <SparklesIcon className="w-5 h-5 text-purple-600" />
+                            <h3 className="text-base font-bold text-gray-800">Gemini 引擎</h3>
                         </div>
+                        <button onClick={fetchGeminiStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                            <RefreshIcon className={`w-4 h-4 ${isCheckingGemini ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${geminiStatus?.valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                            <span className={`text-sm font-medium ${geminiStatus?.valid ? 'text-green-700' : 'text-red-600'}`}>
+                                {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效/过期'}
+                            </span>
+                        </div>
+                        <button 
+                            onClick={() => setIsCookieModalOpen(true)}
+                            className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
+                        >
+                            更新 Cookie
+                        </button>
                     </div>
                 </div>
             </div>
@@ -245,6 +322,53 @@ export const ServiceStatus: React.FC = () => {
             <div className="h-[600px]">
                 <TaskList />
             </div>
+
+            {/* Cookie Update Modal */}
+            {isCookieModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-purple-600" /> 更新 Gemini Cookie
+                            </h3>
+                            <button onClick={() => setIsCookieModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateCookie} className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSID</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psid}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psid: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSID 值..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSIDTS</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psidts}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psidts: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSIDTS 值..."
+                                />
+                            </div>
+                            <div className="flex justify-end pt-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={isUpdatingCookie}
+                                    className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isUpdatingCookie ? <WhiteSpinner /> : '保存更新'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
