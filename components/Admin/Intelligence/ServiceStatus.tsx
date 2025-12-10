@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies } from '../../../api/intelligence';
+import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon } from '../../icons';
+import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
@@ -38,6 +38,10 @@ export const ServiceStatus: React.FC = () => {
     const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
     const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
     const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
+
+    // HTML Gen State
+    const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
+    const [isTogglingHtml, setIsTogglingHtml] = useState(false);
 
     const fetchStatus = async () => {
         setIsLoading(true);
@@ -143,10 +147,23 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
+    const handleHtmlToggle = async (enabled: boolean) => {
+        setIsTogglingHtml(true);
+        try {
+            const res = await toggleIntelHtmlGeneration(enabled);
+            alert(`操作成功: ${res.message}`);
+            setIsHtmlSettingsOpen(false);
+        } catch (e: any) {
+            alert(`操作失败: ${e.message}`);
+        } finally {
+            setIsTogglingHtml(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* System Status Card */}
+                {/* System Status Card - Compact Width */}
                 <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
                     <div className="flex justify-between items-start mb-4">
                         <h3 className="text-base font-bold text-gray-800">系统运行状态</h3>
@@ -172,12 +189,12 @@ export const ServiceStatus: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Gemini Status Card */}
+                {/* Gemini Status Card - Compact Width */}
                 <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
                     <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-2">
                             <SparklesIcon className="w-5 h-5 text-purple-600" />
-                            <h3 className="text-base font-bold text-gray-800">Gemini 引擎</h3>
+                            <h3 className="text-base font-bold text-gray-800">Gemini 引擎状态</h3>
                         </div>
                         <button onClick={fetchGeminiStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
                             <RefreshIcon className={`w-4 h-4 ${isCheckingGemini ? 'animate-spin' : ''}`} />
@@ -191,12 +208,20 @@ export const ServiceStatus: React.FC = () => {
                                 {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效/过期'}
                             </span>
                         </div>
-                        <button 
-                            onClick={() => setIsCookieModalOpen(true)}
-                            className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
-                        >
-                            更新 Cookie
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setIsHtmlSettingsOpen(true)}
+                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200"
+                            >
+                                HTML 生成
+                            </button>
+                            <button 
+                                onClick={() => setIsCookieModalOpen(true)}
+                                className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
+                            >
+                                更新 Cookie
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -366,6 +391,45 @@ export const ServiceStatus: React.FC = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* HTML Generation Settings Modal */}
+            {isHtmlSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <DocumentTextIcon className="w-5 h-5 text-blue-600" /> HTML 生成管理
+                            </h3>
+                            <button onClick={() => setIsHtmlSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                开启后，系统将在爬取文章时自动调用 LLM 将 Markdown 内容转换为美化的 HTML 格式。这可能会增加 Token 消耗。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button 
+                                    onClick={() => handleHtmlToggle(true)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启生成
+                                </button>
+                                <button 
+                                    onClick={() => handleHtmlToggle(false)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止生成
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

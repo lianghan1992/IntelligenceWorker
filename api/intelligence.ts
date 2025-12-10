@@ -35,6 +35,12 @@ export const updateIntelGeminiCookies = (data: { secure_1psid: string; secure_1p
         body: JSON.stringify(data)
     });
 
+export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> => 
+    apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled })
+    });
+
 // --- Article HTML Generation ---
 export const generateArticleHtml = (articleUuid: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/generate_html`, {
@@ -46,6 +52,9 @@ export const batchGenerateHtml = (data: { point_uuid?: string; force_regenerate?
         method: 'POST',
         body: JSON.stringify(data)
     });
+
+export const getArticleHtml = (articleUuid: string): Promise<{ uuid: string; html_content: string }> => 
+    apiFetch<{ uuid: string; html_content: string }>(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/html`);
 
 // --- Sources ---
 
