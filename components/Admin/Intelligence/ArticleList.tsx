@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles } from '../../../api/intelligence';
-import { RefreshIcon, ExternalLinkIcon } from '../../icons';
+import { RefreshIcon, ExternalLinkIcon, ViewGridIcon, CheckCircleIcon, QuestionMarkCircleIcon } from '../../icons';
+import { ArticleDetailModal } from './ArticleDetailModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -11,11 +12,17 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
+const formatBeijingTime = (dateStr: string | undefined) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+};
+
 export const ArticleList: React.FC = () => {
     const [articles, setArticles] = useState<SpiderArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [selectedArticleUuid, setSelectedArticleUuid] = useState<string | null>(null);
 
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
@@ -41,25 +48,44 @@ export const ArticleList: React.FC = () => {
                     <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b sticky top-0">
                         <tr>
                             <th className="px-6 py-3">标题</th>
+                            <th className="px-6 py-3 w-24 text-center">原子化</th>
                             <th className="px-6 py-3">原始链接</th>
-                            <th className="px-6 py-3">发布时间</th>
-                            <th className="px-6 py-3">采集时间</th>
+                            <th className="px-6 py-3">发布时间 (北京)</th>
+                            <th className="px-6 py-3">采集时间 (北京)</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {articles.length === 0 && !isLoading ? (
-                            <tr><td colSpan={4} className="text-center py-10 text-gray-400">暂无文章数据</td></tr>
+                            <tr><td colSpan={5} className="text-center py-10 text-gray-400">暂无文章数据</td></tr>
                         ) : (
                             articles.map(article => (
                                 <tr key={article.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900 line-clamp-1 max-w-md">{article.title}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900">
+                                        <button 
+                                            onClick={() => setSelectedArticleUuid(article.id)}
+                                            className="text-left hover:text-indigo-600 hover:underline line-clamp-1 max-w-md"
+                                        >
+                                            {article.title}
+                                        </button>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        {article.is_atomized ? (
+                                            <span title="已原子化" className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600">
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                            </span>
+                                        ) : (
+                                            <span title="未原子化" className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-400">
+                                                <QuestionMarkCircleIcon className="w-4 h-4" />
+                                            </span>
+                                        )}
+                                    </td>
                                     <td className="px-6 py-4">
                                         <a href={article.original_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
                                             <ExternalLinkIcon className="w-3 h-3"/> 查看
                                         </a>
                                     </td>
-                                    <td className="px-6 py-4">{article.publish_time || '-'}</td>
-                                    <td className="px-6 py-4 text-xs font-mono">{new Date(article.collected_at).toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-xs font-mono">{formatBeijingTime(article.publish_date)}</td>
+                                    <td className="px-6 py-4 text-xs font-mono">{formatBeijingTime(article.created_at)}</td>
                                 </tr>
                             ))
                         )}
@@ -72,6 +98,13 @@ export const ArticleList: React.FC = () => {
                 <span className="text-sm text-gray-600">Page {page}</span>
                 <button disabled={articles.length < 20} onClick={()=>setPage(p=>p+1)} className="px-3 py-1 border rounded bg-white text-sm disabled:opacity-50">下一页</button>
             </div>
+
+            {selectedArticleUuid && (
+                <ArticleDetailModal 
+                    articleUuid={selectedArticleUuid} 
+                    onClose={() => setSelectedArticleUuid(null)} 
+                />
+            )}
         </div>
     );
 };

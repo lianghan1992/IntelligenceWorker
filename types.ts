@@ -405,13 +405,25 @@ export interface SpiderPoint {
 
 export interface SpiderArticle {
     id: string;
+    uuid: string; // New API
     source_uuid: string; // In new db structure this might be linked differently, assuming flattened for UI
     title: string;
     content: string;
     original_url: string;
-    publish_time?: string;
+    publish_time?: string; // Legacy alias
+    publish_date?: string; // New API
     collected_at: string;
+    created_at: string; // New API
     is_reviewed?: boolean;
+    is_atomized?: boolean; // New API
+}
+
+export interface SpiderProxy {
+    url: string;
+    enabled: boolean;
+    note?: string;
+    latency_ms?: number; // UI specific, from test
+    last_checked?: string;
 }
 
 export interface SpiderTaskTriggerResponse {

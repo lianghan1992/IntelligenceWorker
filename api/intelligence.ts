@@ -1,3 +1,4 @@
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -16,7 +17,8 @@ import {
     SpiderTaskCounts,
     SpiderTaskTypeCounts,
     PendingArticlePublic,
-    IntelligenceTaskPublic
+    IntelligenceTaskPublic,
+    SpiderProxy
 } from '../types';
 
 // --- Service Status ---
@@ -136,11 +138,39 @@ export const runPoint = (id: string): Promise<any> => {
 export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse<SpiderArticle>> => {
     // List articles: GET /intelspider/articles/
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`);
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`);
+    
+    // Map response to match SpiderArticle type
+    const items = (res.items || []).map((a: any) => ({
+        ...a,
+        id: a.uuid, // Ensure ID alias
+        publish_time: a.publish_date, // Map to old name for compatibility if needed
+        collected_at: a.created_at || a.collected_at
+    }));
+
+    return {
+        ...res,
+        items
+    };
+};
+
+export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticle> => {
+    // Get single article detail: GET /intelspider/articles/{article_uuid}
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}`);
+    return {
+        ...res,
+        id: res.uuid,
+        publish_time: res.publish_date,
+        collected_at: res.created_at || res.collected_at
+    };
 };
 
 export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}`);
+    getSpiderArticleDetail(articleUuid).then(a => ({
+        ...a,
+        source_name: 'Unknown', // Detail API might not return source_name yet, update if needed
+        point_name: 'Unknown'
+    }));
 
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
     return searchArticlesFiltered(params);
@@ -191,6 +221,34 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
         body: JSON.stringify({ ids })
     });
 };
+
+// --- Proxies ---
+
+export const getProxies = (): Promise<SpiderProxy[]> => 
+    apiFetch<SpiderProxy[]>(`${INTELSPIDER_SERVICE_PATH}/proxies/`);
+
+export const addProxy = (data: SpiderProxy): Promise<SpiderProxy> => 
+    apiFetch<SpiderProxy>(`${INTELSPIDER_SERVICE_PATH}/proxies/`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+
+export const updateProxy = (url: string, data: Partial<SpiderProxy>): Promise<SpiderProxy> => 
+    apiFetch<SpiderProxy>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+    });
+
+export const deleteProxy = (url: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, {
+        method: 'DELETE'
+    });
+
+export const testProxy = (url: string): Promise<{ success: boolean; latency_ms?: number; error?: string }> => 
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, {
+        method: 'POST',
+        body: JSON.stringify({ url })
+    });
 
 // --- Tasks (Monitoring) ---
 
