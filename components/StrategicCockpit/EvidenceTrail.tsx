@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
-import { getArticleHtml, generateArticleHtml, downloadArticlePdf } from '../../api/intelligence';
+import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -26,8 +26,10 @@ const Spinner: React.FC = () => (
 
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
+    const [fullContent, setFullContent] = useState<string>('');
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isReconstructing, setIsReconstructing] = useState(false);
 
     // Fetch HTML content or trigger generation on article select
     useEffect(() => {
@@ -35,30 +37,48 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         
         let active = true;
         setHtmlContent(null);
+        setFullContent(selectedArticle.content || ''); // Start with what we have
         setIsHtmlLoading(true);
+        setIsReconstructing(false);
 
-        const fetchContent = async () => {
+        const loadData = async () => {
             try {
-                // Try to get existing HTML
-                const res = await getArticleHtml(selectedArticle.id);
-                if (active && res && res.html_content) {
-                    setHtmlContent(res.html_content);
-                } else if (active) {
-                    // Not found or empty, trigger generation
-                    // Fire and forget, don't block UI
-                    generateArticleHtml(selectedArticle.id).catch(e => console.warn("Auto-generation trigger failed", e));
+                // 1. Try to fetch existing HTML
+                const htmlRes = await getArticleHtml(selectedArticle.id).catch(() => null);
+                
+                if (active) {
+                    if (htmlRes && htmlRes.html_content && htmlRes.html_content.trim().length > 0) {
+                        // Success: Show HTML
+                        setHtmlContent(htmlRes.html_content);
+                        setIsHtmlLoading(false);
+                    } else {
+                        // Fail: HTML not ready
+                        // a. Mark as reconstructing
+                        setIsReconstructing(true);
+                        
+                        // b. Trigger generation in background (fire and forget)
+                        generateArticleHtml(selectedArticle.id).catch(e => console.warn("Auto-generation trigger failed", e));
+                        
+                        // c. Fetch full original content details to ensure we have the complete text
+                        try {
+                            const detail = await getSpiderArticleDetail(selectedArticle.id);
+                            if (active && detail.content) {
+                                setFullContent(detail.content);
+                            }
+                        } catch (err) {
+                            console.warn("Failed to fetch full article detail", err);
+                        } finally {
+                            if (active) setIsHtmlLoading(false);
+                        }
+                    }
                 }
             } catch (error) {
-                // 404 or other error -> likely means not generated yet
-                if (active) {
-                     generateArticleHtml(selectedArticle.id).catch(e => console.warn("Auto-generation trigger failed", e));
-                }
-            } finally {
+                // Fallback
                 if (active) setIsHtmlLoading(false);
             }
         };
 
-        fetchContent();
+        loadData();
 
         return () => { active = false; };
     }, [selectedArticle]);
@@ -77,32 +97,30 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (e: any) {
-            alert('下载失败: ' + (e.message || '未知错误'));
+            alert('下载失败: ' + (e.message || '系统繁忙，请稍后再试'));
         } finally {
             setIsDownloading(false);
         }
     };
     
     const fallbackArticleHtml = useMemo(() => {
-        if (!selectedArticle || !selectedArticle.content) {
-            return '';
-        }
+        if (!fullContent) return '';
 
         if (window.marked && typeof window.marked.parse === 'function') {
-            const markdownWithStyledImages = selectedArticle.content.replace(
+            const markdownWithStyledImages = fullContent.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
                 '<figure class="my-6"><img src="$2" alt="$1" class="rounded-lg w-full object-cover shadow-sm"><figcaption class="text-center text-xs text-gray-500 mt-2">$1</figcaption></figure>'
             );
             return window.marked.parse(markdownWithStyledImages);
         }
 
-        const escapedContent = selectedArticle.content
+        const escapedContent = fullContent
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
         return escapedContent.split('\n').map(p => `<p>${p}</p>`).join('');
 
-    }, [selectedArticle]);
+    }, [fullContent]);
 
     if (!selectedArticle) {
         return (
@@ -137,8 +155,8 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             {selectedArticle.title}
                         </h3>
 
-                        {/* AI Status Badge */}
-                        {!htmlContent && !isHtmlLoading && (
+                        {/* AI Status Badge - Show only when fallback to original content */}
+                        {isReconstructing && (
                             <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-100 animate-pulse flex-shrink-0">
                                 <SparklesIcon className="w-3 h-3 text-purple-600" />
                                 <span className="text-[10px] font-bold text-purple-600">AI 重构中</span>
@@ -151,8 +169,8 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         <button 
                             onClick={handleDownloadPdf}
                             disabled={isDownloading}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
-                            title="生成并下载 PDF"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                            title="下载 PDF 报告"
                         >
                             {isDownloading ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
                             PDF
@@ -177,7 +195,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
                                 {selectedArticle.source_name}
                             </span>
-                            {!htmlContent && !isHtmlLoading && (
+                            {isReconstructing && (
                                 <span className="text-[10px] font-bold text-purple-600 animate-pulse flex items-center gap-1">
                                     <SparklesIcon className="w-3 h-3" /> 重构中
                                 </span>
@@ -187,7 +205,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             <button 
                                 onClick={handleDownloadPdf}
                                 disabled={isDownloading}
-                                className="p-1.5 text-slate-600 bg-slate-100 rounded-lg disabled:opacity-50"
+                                className="p-1.5 text-red-500 bg-red-50 rounded-lg disabled:opacity-50"
                             >
                                 {isDownloading ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
                             </button>
