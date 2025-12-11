@@ -290,11 +290,14 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
     // FIX: 根据 curl 示例，query_text 是 URL Query 参数，不是 Body 参数。
     // curl -sS -X POST "http://.../semantic?query_text=自动驾驶&page=1&page_size=10"
-    const queryStr = createApiQuery({ 
-        page: params.page, 
-        page_size: params.page_size,
-        query_text: params.query_text // Move query_text to URL params to fix 422 error
-    });
+    
+    // Manually construct search params to ensure query_text is included even if empty
+    const searchParams = new URLSearchParams();
+    searchParams.append('query_text', params.query_text || '');
+    if (params.page) searchParams.append('page', String(params.page));
+    if (params.page_size) searchParams.append('page_size', String(params.page_size));
+    
+    const queryStr = `?${searchParams.toString()}`;
     
     // Body 中保留可选的筛选字段
     const body = {
