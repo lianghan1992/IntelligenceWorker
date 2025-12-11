@@ -110,6 +110,8 @@ export interface InfoItem {
     original_url: string;
     publish_date?: string;
     created_at: string;
+    is_atomized?: boolean;
+    similarity?: number; // Added for semantic search results
 }
 
 export interface UserListItem {
@@ -415,7 +417,7 @@ export interface SpiderArticle {
     collected_at: string;
     created_at: string; // New API
     is_reviewed?: boolean;
-    is_atomized?: boolean; // New API - HTML generated status
+    is_atomized?: boolean; // New API
     source_name?: string; // Optional: Hydrated or joined data
     point_name?: string;
     tags?: string;
@@ -524,4 +526,51 @@ export interface ApprovedArticle {
     source_name: string;
     point_name: string;
     original_url: string;
+}
+
+export interface SemanticSearchRequest {
+    query_text: string;
+    source_uuid?: string;
+    point_uuid?: string;
+    start_date?: string;
+    end_date?: string;
+    max_segments?: number;
+    similarity_threshold?: number;
+    page?: number;
+    page_size?: number;
+}
+
+export interface SemanticSegment {
+    article_id: string;
+    similarity: number;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    content: string;
+}
+
+export interface SemanticSearchResponse {
+    total_segments: number;
+    items: SemanticSegment[];
+}
+
+// --- LLM Intelligence Task Types ---
+
+export interface CreateIntelLlmTaskRequest {
+    user_uuid: string;
+    description: string;
+    time_range?: string;
+    source_uuids?: string[];
+    need_summary?: boolean;
+}
+
+export interface IntelLlmTask {
+    uuid: string;
+    user_uuid: string;
+    description: string;
+    status: 'pending' | 'analyzing' | 'completed' | 'failed';
+    progress: number;
+    created_at: string;
+    completed_at?: string;
+    csv_path?: string;
 }

@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -18,7 +19,12 @@ import {
     SpiderTaskTypeCounts,
     PendingArticlePublic,
     IntelligenceTaskPublic,
-    SpiderProxy
+    SpiderProxy,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
+    InfoItem,
+    CreateIntelLlmTaskRequest,
+    IntelLlmTask
 } from '../types';
 
 // --- Service Status ---
@@ -280,6 +286,92 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
         method: 'POST',
         body: JSON.stringify({ ids })
     });
+};
+
+// --- Semantic Search ---
+
+export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
+    // FIX: Backend strictly requires query_text, page, page_size, similarity_threshold in URL query params.
+    const searchParams = new URLSearchParams();
+    searchParams.append('query_text', params.query_text);
+    if (params.page) searchParams.append('page', String(params.page));
+    if (params.page_size) searchParams.append('page_size', String(params.page_size));
+    
+    // Add these to URL params as per successful curl example from backend team
+    if (params.similarity_threshold !== undefined) searchParams.append('similarity_threshold', String(params.similarity_threshold));
+    if (params.max_segments !== undefined) searchParams.append('max_segments', String(params.max_segments));
+    
+    const queryStr = `?${searchParams.toString()}`;
+    
+    // Optional filters in body
+    const body = {
+        source_uuid: params.source_uuid,
+        point_uuid: params.point_uuid,
+        start_date: params.start_date,
+        end_date: params.end_date,
+        // similarity_threshold and max_segments moved to query params
+    };
+
+    const res = await apiFetch<SemanticSearchResponse>(`${INTELSPIDER_SERVICE_PATH}/search/semantic${queryStr}`, {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+
+    const items: InfoItem[] = res.items.map(item => ({
+        id: item.article_id,
+        title: item.title,
+        content: item.content,
+        source_name: item.source_name,
+        original_url: '', // Semantic segment doesn't always return URL directly, fetch detail if needed
+        publish_date: item.publish_date,
+        created_at: item.publish_date, // Fallback
+        similarity: item.similarity
+    }));
+
+    return {
+        items,
+        total: res.total_segments,
+        page: params.page || 1,
+        limit: params.page_size || 20,
+        totalPages: Math.ceil(res.total_segments / (params.page_size || 20)) || 1
+    };
+};
+
+// --- LLM Intelligence Tasks ---
+
+export const createIntelLlmTask = async (data: CreateIntelLlmTaskRequest): Promise<IntelLlmTask> => {
+    return apiFetch<IntelLlmTask>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const getIntelLlmTask = async (taskUuid: string): Promise<IntelLlmTask> => {
+    return apiFetch<IntelLlmTask>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks/${taskUuid}`);
+};
+
+// Assuming a list endpoint exists based on standard patterns, similar to other modules
+export const getIntelLlmTasks = async (params: any = {}): Promise<PaginatedResponse<IntelLlmTask>> => {
+    const query = createApiQuery(params);
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`);
+    return {
+        items: res.items || res, // Handle if it returns array directly or paginated object
+        total: res.total || (Array.isArray(res) ? res.length : 0),
+        page: params.page || 1,
+        limit: params.page_size || 20,
+        totalPages: res.totalPages || 1
+    };
+};
+
+export const downloadIntelLlmTaskReport = async (taskUuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/llm/tasks/${taskUuid}/download`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('下载报告失败');
+    return response.blob();
 };
 
 // --- Proxies ---
