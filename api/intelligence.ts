@@ -288,11 +288,15 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 // --- Semantic Search ---
 
 export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
-    // FIX: Backend strictly requires query_text in URL query params.
+    // FIX: Backend strictly requires query_text, page, page_size, similarity_threshold in URL query params.
     const searchParams = new URLSearchParams();
     searchParams.append('query_text', params.query_text);
     if (params.page) searchParams.append('page', String(params.page));
     if (params.page_size) searchParams.append('page_size', String(params.page_size));
+    
+    // Add these to URL params as per successful curl example from backend team
+    if (params.similarity_threshold !== undefined) searchParams.append('similarity_threshold', String(params.similarity_threshold));
+    if (params.max_segments !== undefined) searchParams.append('max_segments', String(params.max_segments));
     
     const queryStr = `?${searchParams.toString()}`;
     
@@ -302,8 +306,7 @@ export const searchSemanticSegments = async (params: SemanticSearchRequest): Pro
         point_uuid: params.point_uuid,
         start_date: params.start_date,
         end_date: params.end_date,
-        max_segments: params.max_segments || 50,
-        similarity_threshold: params.similarity_threshold || 0.5 // Updated default to 0.5
+        // similarity_threshold and max_segments moved to query params
     };
 
     const res = await apiFetch<SemanticSearchResponse>(`${INTELSPIDER_SERVICE_PATH}/search/semantic${queryStr}`, {

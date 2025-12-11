@@ -22,7 +22,8 @@ export const SegmentManager: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [maxSegments, setMaxSegments] = useState<number>(50);
-    const [similarityThreshold, setSimilarityThreshold] = useState<number>(0.5);
+    // Updated default similarity threshold to 0.1 as per successful backend test case
+    const [similarityThreshold, setSimilarityThreshold] = useState<number>(0.1);
     
     // Pagination
     const [page, setPage] = useState(1);
