@@ -11,46 +11,42 @@ const ArticleCard: React.FC<{
     <div
         onClick={onClick}
         className={`
-            group p-4 sm:p-5 rounded-[16px] transition-all duration-300 cursor-pointer mb-3 border relative overflow-hidden
+            group p-3 rounded-[12px] transition-all duration-200 cursor-pointer mb-2 border relative overflow-hidden
             ${isActive 
-                ? 'bg-white border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500/20 z-10' 
-                : 'bg-white border-slate-100 shadow-sm hover:shadow-md hover:border-slate-300/50 hover:-translate-y-0.5'
+                ? 'bg-white border-indigo-500/30 shadow-md shadow-indigo-500/5 ring-1 ring-indigo-500/20 z-10' 
+                : 'bg-white border-slate-100 shadow-sm hover:shadow hover:border-slate-300/50 hover:-translate-y-0.5'
             }
         `}
     >
         {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>}
         
-        <div className="flex justify-between items-center gap-2 mb-2.5">
+        <h4 className={`font-bold text-[13px] sm:text-[14px] leading-snug line-clamp-2 mb-2 transition-colors ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
+            {article.title}
+        </h4>
+
+        <div className="flex justify-between items-center gap-2">
             <span className={`
-                inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-md uppercase
-                ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-50 text-slate-500 group-hover:bg-slate-100'}
+                inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full uppercase
+                ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors'}
             `}>
                 {article.source_name}
             </span>
             <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                 <ClockIcon className="w-3 h-3" />
-                {new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+                {new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </span>
         </div>
-        
-        <h4 className={`font-bold text-[14px] sm:text-[15px] leading-snug line-clamp-2 mb-2 transition-colors ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-            {article.title}
-        </h4>
-        
-        <p className={`text-xs line-clamp-2 leading-relaxed ${isActive ? 'text-slate-600' : 'text-slate-400'}`}>
-            {article.content}
-        </p>
     </div>
 );
 
 const SkeletonCard: React.FC = () => (
-    <div className="bg-white p-5 rounded-[16px] border border-slate-100 mb-3 shadow-sm">
-        <div className="flex justify-between mb-3">
-            <div className="h-5 w-20 bg-slate-100 rounded-full animate-pulse"></div>
+    <div className="bg-white p-3 rounded-[12px] border border-slate-100 mb-2 shadow-sm">
+        <div className="h-4 w-full bg-slate-100 rounded-lg animate-pulse mb-2"></div>
+        <div className="h-4 w-2/3 bg-slate-100 rounded-lg animate-pulse mb-3"></div>
+        <div className="flex justify-between">
             <div className="h-4 w-16 bg-slate-100 rounded-full animate-pulse"></div>
+            <div className="h-4 w-20 bg-slate-100 rounded-full animate-pulse"></div>
         </div>
-        <div className="h-5 w-full bg-slate-100 rounded-lg mt-1 animate-pulse"></div>
-        <div className="h-5 w-3/4 bg-slate-100 rounded-lg mt-2 animate-pulse"></div>
     </div>
 );
 
@@ -67,8 +63,8 @@ interface IntelligenceCenterProps {
     onPageChange: (newPage: number) => void;
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
-    onSearch?: (query: string) => void; // New prop for search
-    onBackToNav?: () => void; // New prop for mobile back navigation
+    onSearch?: (query: string) => void; 
+    onBackToNav?: () => void; 
 }
 
 export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
@@ -101,8 +97,6 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
         e.preventDefault();
         if (searchValue.trim() && onSearch) {
             onSearch(searchValue.trim());
-            // On mobile, close search bar after search to show title (optional)
-            // setIsSearchOpen(false); 
         }
     };
 
@@ -111,7 +105,6 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
         if (isSearchOpen) {
             setIsSearchOpen(false);
         }
-        // Optionally trigger a reset search here if desired
     };
 
     return (
@@ -144,8 +137,8 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                         <div className="flex flex-col min-w-0">
                             <h3 className="font-extrabold text-slate-900 text-base lg:text-lg tracking-tight truncate" title={title}>{title}</h3>
                             {!isLoading && (
-                                <p className="text-[10px] text-slate-400 font-medium truncate hidden sm:block">
-                                    {totalItems} 条情报
+                                <p className="text-[10px] text-slate-400 font-medium truncate">
+                                    <span className="font-bold text-indigo-600 mr-1">{totalItems}</span>条情报
                                 </p>
                             )}
                         </div>
@@ -221,7 +214,7 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
             </div>
 
             {/* Footer / Pagination */}
-            {totalItems > 0 && !isLoading && (
+            {totalItems > 0 && (
                 <div className="flex-shrink-0 px-4 py-3 border-t border-slate-100 bg-white flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">P {currentPage}/{totalPages}</span>
                     <div className="flex items-center gap-1.5">

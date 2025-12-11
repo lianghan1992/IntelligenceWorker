@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon } from '../icons';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon } from '../icons';
 import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
@@ -29,53 +28,50 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
+    const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [isReconstructing, setIsReconstructing] = useState(false);
 
-    // Fetch HTML content or trigger generation on article select
+    // Fetch Content logic
     useEffect(() => {
         if (!selectedArticle) return;
         
         let active = true;
         setHtmlContent(null);
-        setFullContent(selectedArticle.content || ''); // Start with what we have
-        setIsHtmlLoading(true);
+        setFullContent('');
         setIsReconstructing(false);
 
         const loadData = async () => {
-            try {
-                // 1. Try to fetch existing HTML
-                const htmlRes = await getArticleHtml(selectedArticle.id).catch(() => null);
-                
-                if (active) {
-                    if (htmlRes && htmlRes.html_content && htmlRes.html_content.trim().length > 0) {
-                        // Success: Show HTML
+            if (selectedArticle.is_atomized) {
+                // If atomized, fetch HTML
+                setIsHtmlLoading(true);
+                try {
+                    const htmlRes = await getArticleHtml(selectedArticle.id);
+                    if (active && htmlRes && htmlRes.html_content) {
                         setHtmlContent(htmlRes.html_content);
-                        setIsHtmlLoading(false);
-                    } else {
-                        // Fail: HTML not ready
-                        // a. Mark as reconstructing
-                        setIsReconstructing(true);
-                        
-                        // b. Trigger generation in background (fire and forget)
-                        generateArticleHtml(selectedArticle.id).catch(e => console.warn("Auto-generation trigger failed", e));
-                        
-                        // c. Fetch full original content details to ensure we have the complete text
-                        try {
-                            const detail = await getSpiderArticleDetail(selectedArticle.id);
-                            if (active && detail.content) {
-                                setFullContent(detail.content);
-                            }
-                        } catch (err) {
-                            console.warn("Failed to fetch full article detail", err);
-                        } finally {
-                            if (active) setIsHtmlLoading(false);
-                        }
                     }
+                } catch (error) {
+                    console.error("Failed to load HTML", error);
+                } finally {
+                    if (active) setIsHtmlLoading(false);
                 }
-            } catch (error) {
-                // Fallback
-                if (active) setIsHtmlLoading(false);
+            } else {
+                // If not atomized, fetch full text details
+                setIsContentLoading(true);
+                try {
+                    const detail = await getSpiderArticleDetail(selectedArticle.id);
+                    if (active && detail.content) {
+                        setFullContent(detail.content);
+                    } else if (active) {
+                        // If detail content is empty, use summary/content from list item if available
+                        setFullContent(selectedArticle.content || '暂无正文内容');
+                    }
+                } catch (err) {
+                    console.warn("Failed to fetch full article detail", err);
+                    if (active) setFullContent(selectedArticle.content || '加载失败');
+                } finally {
+                    if (active) setIsContentLoading(false);
+                }
             }
         };
 
@@ -148,7 +144,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             {selectedArticle.source_name}
                         </span>
                         <span className="flex-shrink-0 text-slate-400 text-xs border-r border-slate-200 pr-3 mr-1">
-                            {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric'})}
+                            {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
                         </span>
                         
                         {/* Title (Truncated) */}
@@ -156,11 +152,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             {selectedArticle.title}
                         </h3>
 
-                        {/* AI Status Badge - Show only when fallback to original content */}
-                        {isReconstructing && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-100 animate-pulse flex-shrink-0">
+                        {/* AI Status Badge */}
+                        {selectedArticle.is_atomized && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-100 flex-shrink-0">
                                 <SparklesIcon className="w-3 h-3 text-purple-600" />
-                                <span className="text-[10px] font-bold text-purple-600">AI 重构中</span>
+                                <span className="text-[10px] font-bold text-purple-600">已原子化</span>
                             </div>
                         )}
                     </div>
@@ -183,10 +179,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             href={selectedArticle.original_url} 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors text-xs font-bold"
                             title="阅读原文"
                         >
-                            <ArrowRightIcon className="w-4 h-4" />
+                            <ExternalLinkIcon className="w-3.5 h-3.5" />
+                            阅读原文
                         </a>
                     </div>
                 </div>
@@ -198,9 +195,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
                                 {selectedArticle.source_name}
                             </span>
-                            {isReconstructing && (
-                                <span className="text-[10px] font-bold text-purple-600 animate-pulse flex items-center gap-1">
-                                    <SparklesIcon className="w-3 h-3" /> 重构中
+                            {selectedArticle.is_atomized && (
+                                <span className="text-[10px] font-bold text-purple-600 flex items-center gap-1">
+                                    <SparklesIcon className="w-3 h-3" /> 原子化
                                 </span>
                             )}
                         </div>
@@ -218,7 +215,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                 href={selectedArticle.original_url} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
-                                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
+                                className="p-1.5 text-slate-600 bg-slate-100 rounded-lg"
                             >
                                 <ArrowRightIcon className="w-4 h-4" />
                             </a>
@@ -232,7 +229,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
 
             {/* Content Area */}
             <div className="flex-1 bg-white overflow-hidden relative">
-                {isHtmlLoading ? (
+                {(isHtmlLoading || isContentLoading) ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                         <p className="text-sm font-medium">正在加载内容...</p>

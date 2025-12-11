@@ -110,6 +110,7 @@ export interface InfoItem {
     original_url: string;
     publish_date?: string;
     created_at: string;
+    is_atomized?: boolean;
 }
 
 export interface UserListItem {
