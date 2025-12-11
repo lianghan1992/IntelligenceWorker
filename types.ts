@@ -111,6 +111,7 @@ export interface InfoItem {
     publish_date?: string;
     created_at: string;
     is_atomized?: boolean;
+    similarity?: number; // Added for semantic search results
 }
 
 export interface UserListItem {
@@ -525,4 +526,30 @@ export interface ApprovedArticle {
     source_name: string;
     point_name: string;
     original_url: string;
+}
+
+export interface SemanticSearchRequest {
+    query_text: string;
+    source_uuid?: string;
+    point_uuid?: string;
+    start_date?: string;
+    end_date?: string;
+    max_segments?: number;
+    similarity_threshold?: number;
+    page?: number;
+    page_size?: number;
+}
+
+export interface SemanticSegment {
+    article_id: string;
+    similarity: number;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    content: string;
+}
+
+export interface SemanticSearchResponse {
+    total_segments: number;
+    items: SemanticSegment[];
 }

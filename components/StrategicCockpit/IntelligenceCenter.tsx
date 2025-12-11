@@ -1,7 +1,8 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { InfoItem } from '../../types';
-import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MenuIcon, ViewGridIcon, SearchIcon, CloseIcon } from '../icons';
+import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MenuIcon, ViewGridIcon, SearchIcon, CloseIcon, SparklesIcon } from '../icons';
 
 const ArticleCard: React.FC<{
     article: InfoItem;
@@ -25,12 +26,20 @@ const ArticleCard: React.FC<{
         </h4>
 
         <div className="flex justify-between items-center gap-2">
-            <span className={`
-                inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full uppercase
-                ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors'}
-            `}>
-                {article.source_name}
-            </span>
+            <div className="flex items-center gap-2">
+                <span className={`
+                    inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full uppercase
+                    ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors'}
+                `}>
+                    {article.source_name}
+                </span>
+                {article.similarity !== undefined && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-purple-50 text-[10px] font-bold text-purple-700 border border-purple-100">
+                        <SparklesIcon className="w-2.5 h-2.5" />
+                        {(article.similarity * 100).toFixed(0)}%
+                    </span>
+                )}
+            </div>
             <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
                 <ClockIcon className="w-3 h-3" />
                 {new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

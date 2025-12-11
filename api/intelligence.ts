@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -19,6 +20,8 @@ import {
     PendingArticlePublic,
     IntelligenceTaskPublic,
     SpiderProxy,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
     InfoItem
 } from '../types';
 
@@ -38,12 +41,6 @@ export const updateIntelGeminiCookies = (data: { secure_1psid: string; secure_1p
 
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> => 
     apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, {
-        method: 'POST',
-        body: JSON.stringify({ enabled })
-    });
-
-export const enableHtmlRetrospective = (enabled: boolean): Promise<{ enabled: boolean }> =>
-    apiFetch<{ enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, {
         method: 'POST',
         body: JSON.stringify({ enabled })
     });
@@ -83,44 +80,6 @@ export const downloadArticlePdf = async (articleUuid: string): Promise<Blob> => 
         throw new Error(errorMsg);
     }
     return response.blob();
-};
-
-// --- Semantic Search ---
-export const searchSemanticSegments = async (params: {
-    query_text: string;
-    source_uuid?: string;
-    point_uuid?: string;
-    start_date?: string;
-    end_date?: string;
-    max_segments?: number;
-    similarity_threshold?: number;
-    page?: number;
-    page_size?: number;
-}): Promise<PaginatedResponse<InfoItem>> => {
-    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, {
-        method: 'POST',
-        body: JSON.stringify(params)
-    });
-
-    const items: InfoItem[] = (res.items || []).map((item: any) => ({
-        id: item.article_id,
-        title: item.title,
-        content: item.content, // This is the segment content
-        source_name: item.source_name || 'Unknown',
-        point_name: item.point_name, 
-        publish_date: item.publish_date,
-        created_at: item.publish_date, 
-        original_url: item.url || '', // API should return this, defaulted if missing
-        is_atomized: item.is_atomized // API should return this
-    }));
-
-    return {
-        items,
-        total: res.total_segments || 0,
-        page: params.page || 1,
-        limit: params.page_size || 20,
-        totalPages: Math.ceil((res.total_segments || 0) / (params.page_size || 20)) || 1
-    };
 };
 
 // --- Sources ---
@@ -245,8 +204,7 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
         publish_time: a.publish_date, // Map to old name for compatibility if needed
         collected_at: a.created_at || a.collected_at,
         source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown',
-        original_url: a.url || a.original_url // Ensure original_url is present
+        point_name: a.point_name || 'Unknown'
     }));
 
     return {
@@ -262,8 +220,7 @@ export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticl
         ...res,
         id: res.uuid,
         publish_time: res.publish_date,
-        collected_at: res.created_at || res.collected_at,
-        original_url: res.url || res.original_url // Ensure original_url is present
+        collected_at: res.created_at || res.collected_at
     };
 };
 
@@ -290,8 +247,7 @@ export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
             ...a,
             source_name: a.source_name || 'Unknown',
             point_name: a.point_name || 'Unknown',
-            created_at: a.collected_at,
-            original_url: a.url || a.original_url
+            created_at: a.collected_at
         }));
     });
 };
@@ -303,8 +259,7 @@ export const getPendingArticles = async (params: any): Promise<PaginatedResponse
          ...a,
          source_name: a.source_name || 'Unknown',
          point_name: a.point_name || 'Unknown',
-         created_at: a.collected_at,
-         original_url: a.url || a.original_url
+         created_at: a.collected_at
      }));
      return {
          items,
@@ -329,6 +284,46 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
         method: 'POST',
         body: JSON.stringify({ ids })
     });
+};
+
+// --- Semantic Search ---
+
+export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
+    // Construct query string for page & page_size, use body for complex filter
+    const queryStr = createApiQuery({ page: params.page, page_size: params.page_size });
+    const body = {
+        query_text: params.query_text,
+        source_uuid: params.source_uuid,
+        point_uuid: params.point_uuid,
+        start_date: params.start_date,
+        end_date: params.end_date,
+        max_segments: params.max_segments || 50,
+        similarity_threshold: params.similarity_threshold || 0.7
+    };
+
+    const res = await apiFetch<SemanticSearchResponse>(`${INTELSPIDER_SERVICE_PATH}/search/semantic${queryStr}`, {
+        method: 'POST',
+        body: JSON.stringify(body)
+    });
+
+    const items: InfoItem[] = res.items.map(item => ({
+        id: item.article_id,
+        title: item.title,
+        content: item.content,
+        source_name: item.source_name,
+        original_url: '', // Semantic segment doesn't always return URL directly, fetch detail if needed
+        publish_date: item.publish_date,
+        created_at: item.publish_date, // Fallback
+        similarity: item.similarity
+    }));
+
+    return {
+        items,
+        total: res.total_segments,
+        page: params.page || 1,
+        limit: params.page_size || 20,
+        totalPages: Math.ceil(res.total_segments / (params.page_size || 20)) || 1
+    };
 };
 
 // --- Proxies ---

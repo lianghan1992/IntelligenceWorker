@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -85,24 +86,22 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             const limit = 20;
             let response;
 
-            // Strategy Switch: 
-            // If viewing "All" (query='*'), use standard list API (getSpiderArticles).
-            // If viewing specific sub-categories, search, or POIs, use Semantic Search API.
-            if (query !== '*') {
-                response = await searchSemanticSegments({
-                    query_text: query,
-                    page,
-                    page_size: limit,
-                    similarity_threshold: 0.35 // Adjustable
-                });
-            } else {
-                // Basic listing
+            // Determine whether to use standard article list or semantic segment search
+            // If query is '*' (All Intelligence), use standard list
+            if (query === '*') {
                 const params: any = {
-                    query_text: query === '*' ? undefined : query,
                     page,
                     limit: limit,
                 };
                 response = await searchArticlesFiltered(params);
+            } else {
+                // Use semantic search for specific categories, POIs, or manual search
+                response = await searchSemanticSegments({
+                    query_text: query,
+                    page,
+                    page_size: limit,
+                    similarity_threshold: 0.6 // Adjust threshold as needed
+                });
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
