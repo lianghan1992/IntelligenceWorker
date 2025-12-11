@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
@@ -177,8 +178,9 @@ export const ArticleList: React.FC = () => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e: any) {
-            alert(e.message || 'PDF 下载失败');
+        } catch (e) {
+            const message = e instanceof Error ? e.message : 'PDF 下载失败';
+            alert(message);
         } finally {
             setPdfDownloadingId(null);
         }
@@ -281,14 +283,16 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 text-xs font-mono text-gray-600 whitespace-nowrap">{formatBeijingTime(article.created_at).split(' ')[0]}</td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
-                                                    disabled={pdfDownloadingId === article.id}
-                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors disabled:opacity-50"
-                                                    title="下载 PDF"
-                                                >
-                                                    {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
-                                                </button>
+                                                {article.is_atomized && (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
+                                                        disabled={pdfDownloadingId === article.id}
+                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors disabled:opacity-50"
+                                                        title="下载 PDF"
+                                                    >
+                                                        {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                    </button>
+                                                )}
                                                 <button 
                                                     onClick={(e) => { e.stopPropagation(); setDeleteId(article.id); }}
                                                     className="text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded p-1.5 transition-colors"
@@ -355,14 +359,16 @@ export const ArticleList: React.FC = () => {
                                             </button>
                                         )}
                                         
-                                        <button 
-                                            onClick={() => handleDownloadPdf(article)}
-                                            disabled={pdfDownloadingId === article.id}
-                                            className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 rounded-lg disabled:opacity-50"
-                                            title="下载 PDF"
-                                        >
-                                            {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
-                                        </button>
+                                        {article.is_atomized && (
+                                            <button 
+                                                onClick={() => handleDownloadPdf(article)}
+                                                disabled={pdfDownloadingId === article.id}
+                                                className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 rounded-lg disabled:opacity-50"
+                                                title="下载 PDF"
+                                            >
+                                                {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                            </button>
+                                        )}
 
                                         <button 
                                             onClick={() => setDeleteId(article.id)}

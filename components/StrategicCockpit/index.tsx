@@ -17,8 +17,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
     // Active query state for API calls
-    // type can be 'sublook', 'poi', or 'search'
-    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
+    const [activeQuery, setActiveQuery] = useState<{ 
+        type: 'sublook' | 'poi' | 'search', 
+        value: string, 
+        label: string,
+        // Optional filters
+        dateStart?: string,
+        dateEnd?: string
+    }>({ 
         type: 'sublook', 
         value: '*', 
         label: '所有情报' 
@@ -52,23 +58,19 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     // Responsive Logic: Auto-collapse sidebar on smaller screens when an article is selected
     useEffect(() => {
         const handleResize = () => {
-            // If screen is extra large (> 1536px), keep sidebar open by default
             if (window.innerWidth >= 1536) {
                 setIsSidebarOpen(true);
             } else if (selectedArticle && window.innerWidth < 1280) {
-                // On smaller laptops, if reading an article, collapse sidebar to focus
                 setIsSidebarOpen(false);
             }
         };
-
-        // Initial check
         handleResize();
-
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedArticle]);
 
-    const fetchArticles = useCallback(async (query: string, page: number = 1) => {
+    // FETCH ARTICLES: Removed selectedArticle dependency to prevent reset on click
+    const fetchArticles = useCallback(async (queryObj: typeof activeQuery, page: number = 1) => {
         setIsLoading(true);
         if (page === 1) {
             setArticles([]); 
@@ -77,18 +79,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
         try {
             const limit = 20;
-            // Use the updated searchArticlesFiltered which maps getSpiderArticles internally
-            // The query_text logic inside api/intelligence.ts handles basic listing for now as per requirement
             const params: any = {
-                query_text: query,
+                query_text: queryObj.value,
                 page,
                 limit: limit,
                 similarity_threshold: 0.35,
+                publish_date_start: queryObj.dateStart,
+                publish_date_end: queryObj.dateEnd
             };
-            
-            // Note: new API doesn't support source filtering by name string array directly in basic list,
-            // but the compatibility layer in searchArticlesFiltered ignores it or maps it if possible.
-            // For now, we rely on the backend returning latest articles.
             
             const response = await searchArticlesFiltered(params);
             
@@ -96,36 +94,33 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
             setArticles(response.items || []);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
-            
-            // On desktop: Auto-select first article only on initial load if none selected
-            if (window.innerWidth >= 768) {
-                if (page === 1 && response.items && response.items.length > 0 && !selectedArticle) {
-                    setSelectedArticle(response.items[0]);
-                } else if (page === 1 && (!response.items || response.items.length === 0)) {
-                    setSelectedArticle(null);
-                }
-            }
 
         } catch (err: any) {
             setError(err.message || '获取情报失败');
         } finally {
             setIsLoading(false);
         }
-    }, [selectedArticle]); 
+    }, []); 
 
-
+    // Trigger fetch when activeQuery changes (page reset handled by caller usually, but enforced here if query changes)
     useEffect(() => {
-        // Trigger fetch when activeQuery changes
-        // query value is used but currently just triggers a fresh fetch of latest articles in the new API context
-        fetchArticles(activeQuery.value, 1);
+        fetchArticles(activeQuery, 1);
     }, [activeQuery, fetchArticles]);
+
+    // Separate Effect for Auto-Selection to avoid circular dependency in fetchArticles
+    useEffect(() => {
+        // Only auto-select if on page 1, we have articles, nothing is selected, and we are on desktop
+        if (!isLoading && pagination.page === 1 && articles.length > 0 && !selectedArticle && window.innerWidth >= 768) {
+            setSelectedArticle(articles[0]);
+        }
+    }, [articles, isLoading, pagination.page, selectedArticle]);
+
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
         setSelectedArticle(null); 
-        setMobileView('list'); // Navigate to list on mobile
+        setMobileView('list'); 
         
-        // On laptops/tablets, keep sidebar open when selecting category to allow browsing
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
              setIsSidebarOpen(true);
         }
@@ -142,11 +137,25 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         setMobileView('list');
     };
 
+    // New handler for advanced search from EvidenceTrail
+    const handleAdvancedSearch = (keywords: string, startDate?: string, endDate?: string) => {
+        setActiveQuery({
+            type: 'search',
+            value: keywords,
+            label: `检索: ${keywords || '全部'}`,
+            dateStart: startDate,
+            dateEnd: endDate
+        });
+        setSelectedArticle(null);
+        setMobileView('list');
+        if (window.innerWidth >= 768 && window.innerWidth < 1536) {
+             setIsSidebarOpen(true);
+        }
+    };
+
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
-        setMobileView('detail'); // Navigate to detail on mobile
-        
-        // Auto-collapse sidebar on laptops for better reading experience
+        setMobileView('detail');
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
             setIsSidebarOpen(false);
         }
@@ -154,7 +163,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
-            fetchArticles(activeQuery.value, newPage);
+            // Pass the current activeQuery, but update the page
+            fetchArticles(activeQuery, newPage);
         }
     };
     
@@ -179,7 +189,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         fetchPois(); 
     };
 
-    // Mobile Navigation Handlers
     const backToNav = () => setMobileView('nav');
     const backToList = () => {
         setMobileView('list');
@@ -189,14 +198,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         <div className="h-full flex flex-col bg-[#f8fafc] md:p-4 overflow-hidden relative font-sans">
             <div className="flex-1 flex gap-0 md:gap-4 min-h-0 overflow-hidden relative md:static">
                 
-                {/* Left Sidebar - Navigation Drawer (Responsive) */}
+                {/* Left Sidebar */}
                 <aside className={`
                     flex-shrink-0 flex flex-col bg-slate-50/90 backdrop-blur-xl md:bg-white md:rounded-[20px] md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] md:border border-slate-200/60
                     absolute inset-0 z-20 md:static md:z-auto transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)]
                     ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
                     ${isSidebarOpen ? 'md:w-[260px] lg:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0 md:border-0'}
                 `}>
-                    {/* Mobile Header for Nav */}
                     <div className="md:hidden px-6 pt-6 pb-2 flex items-center justify-between">
                          <h2 className="text-xl font-extrabold text-slate-800">AI情报洞察</h2>
                     </div>
@@ -204,7 +212,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                     <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-4 md:px-4">
                         <div className="flex items-center justify-between px-4 mb-4">
                             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">情报罗盘</h2>
-                            {/* Close button for mobile is handled by navigation logic, strictly decoration here or desktop toggle */}
                         </div>
                         
                         <StrategicCompass
@@ -236,11 +243,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                         absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
-                        {/* Mobile Header for List */}
-                        <div className="md:hidden flex-shrink-0 z-10">
-                             {/* The mobile header is now integrated into IntelligenceCenter to handle search state */}
-                        </div>
-
                         <IntelligenceCenter
                             title={activeQuery.label}
                             articles={articles}
@@ -252,11 +254,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                             totalPages={pagination.totalPages}
                             totalItems={pagination.total}
                             onPageChange={handlePageChange}
-                            // Toggle props for sidebar control
                             isSidebarOpen={isSidebarOpen}
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                             onSearch={handleSearch}
-                            onBackToNav={backToNav} // Pass back handler for mobile
+                            onBackToNav={backToNav}
                         />
                     </div>
                     
@@ -266,13 +267,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                         absolute inset-0 z-30 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'detail' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
-                         {/* Mobile Header for Detail */}
                          <div className="md:hidden px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-white flex-shrink-0 shadow-sm z-10">
                             <button onClick={backToList} className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors"><ChevronLeftIcon className="w-5 h-5 text-slate-600"/></button>
                             <h3 className="font-bold text-slate-800">情报详情</h3>
                         </div>
                          <EvidenceTrail
                             selectedArticle={selectedArticle}
+                            onSearch={handleAdvancedSearch}
                         />
                     </div>
                 </main>
