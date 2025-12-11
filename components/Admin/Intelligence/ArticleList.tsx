@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
@@ -178,8 +177,8 @@ export const ArticleList: React.FC = () => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e) {
-            const message = e instanceof Error ? e.message : 'PDF 下载失败';
+        } catch (e: any) {
+            const message = e.message || 'PDF 下载失败';
             alert(message);
         } finally {
             setPdfDownloadingId(null);

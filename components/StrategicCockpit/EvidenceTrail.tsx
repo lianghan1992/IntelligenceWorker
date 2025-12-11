@@ -25,18 +25,21 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-// --- AI Search Modal Placeholder ---
+// --- AI Search Modal ---
 const AiSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
-            <div className="w-full max-w-3xl h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-4xl h-[650px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
                 {/* Header */}
-                <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 flex justify-between items-center flex-shrink-0">
+                <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 flex justify-between items-center flex-shrink-0 shadow-md">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
+                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md shadow-inner">
                             <SparklesIcon className="w-5 h-5 text-white" />
                         </div>
-                        <h3 className="text-lg font-bold text-white tracking-wide">AI 智能情报检索</h3>
+                        <div>
+                            <h3 className="text-lg font-bold text-white tracking-wide">AI 智能情报检索</h3>
+                            <p className="text-xs text-indigo-100 opacity-90">基于大语言模型的情报关联与深度挖掘</p>
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full text-white/80 hover:text-white transition-colors">
                         <CloseIcon className="w-5 h-5" />
@@ -44,12 +47,22 @@ const AiSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 </div>
                 
                 {/* Body Placeholder */}
-                <div className="flex-1 bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-                    <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-6 shadow-inner animate-pulse">
-                        <BrainIcon className="w-12 h-12 text-indigo-400" />
+                <div className="flex-1 bg-slate-50 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-100/30 via-transparent to-transparent opacity-70"></div>
+                    
+                    <div className="relative z-10 bg-white p-8 rounded-3xl border border-indigo-50 shadow-xl max-w-md">
+                        <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-200 mx-auto transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                            <BrainIcon className="w-10 h-10 text-white" />
+                        </div>
+                        <h4 className="text-xl font-bold text-slate-800 mb-3">AI 对话接口即将上线</h4>
+                        <p className="text-slate-500 text-sm leading-relaxed mb-6">
+                            正在接入行业垂直大模型 API。上线后，您可以通过自然语言对话，深度挖掘情报库中的隐性关联、生成专题简报及预测行业趋势。
+                        </p>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg text-slate-500 text-xs font-medium">
+                            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                            开发进度: 85%
+                        </div>
                     </div>
-                    <h4 className="text-xl font-bold text-slate-800 mb-2">AI 对话接口即将上线</h4>
-                    <p className="text-slate-500 max-w-sm">正在接入大模型 API，届时您可以通过自然语言对话，深度挖掘情报库中的隐性关联与趋势。</p>
                 </div>
             </div>
         </div>
@@ -66,39 +79,47 @@ const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => voi
         if (onSearch) onSearch(keywords, startDate, endDate);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') handleSearch();
+    };
+
     return (
-        <div className="p-4 bg-white border-b border-slate-100 flex flex-col gap-4 shadow-sm z-20">
+        <div className="p-5 bg-white border-b border-slate-100 flex flex-col gap-4 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.03)] z-20 sticky top-0">
             <div className="flex flex-col xl:flex-row gap-3">
-                <div className="relative flex-1">
-                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <div className="relative flex-1 group">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                     <input 
                         type="text" 
                         value={keywords}
                         onChange={e => setKeywords(e.target.value)}
-                        placeholder="输入关键词，多个词组以顿号 (、) 隔开"
-                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all outline-none"
+                        onKeyDown={handleKeyDown}
+                        placeholder="输入关键词，支持多个词组 (例如: 自动驾驶、芯片)"
+                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:bg-white focus:border-indigo-500 transition-all outline-none"
                     />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-100 shadow-sm pointer-events-none hidden sm:block">
+                        顿号分隔
+                    </div>
                 </div>
                 <div className="flex gap-2">
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 hover:bg-white hover:border-slate-300 transition-colors">
                         <CalendarIcon className="w-4 h-4 text-slate-400" />
                         <input 
                             type="date" 
                             value={startDate}
                             onChange={e => setStartDate(e.target.value)}
-                            className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer" 
+                            className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer font-medium" 
                         />
                         <span className="text-slate-300">-</span>
                         <input 
                             type="date" 
                             value={endDate}
                             onChange={e => setEndDate(e.target.value)}
-                            className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer" 
+                            className="bg-transparent text-sm text-slate-600 outline-none w-28 cursor-pointer font-medium" 
                         />
                     </div>
                     <button 
                         onClick={handleSearch}
-                        className="px-5 py-2 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+                        className="px-6 py-2 bg-slate-900 text-white font-bold text-sm rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/10 transition-all active:scale-95"
                     >
                         检索
                     </button>
@@ -107,9 +128,10 @@ const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => voi
             
             <button 
                 onClick={onOpenAi}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 text-white font-bold text-sm shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 group"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold text-sm shadow-md hover:shadow-lg hover:shadow-indigo-500/20 hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 group relative overflow-hidden"
             >
-                <SparklesIcon className="w-4 h-4 text-yellow-300 group-hover:animate-spin-slow" />
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out"></div>
+                <SparklesIcon className="w-4 h-4 text-yellow-200 group-hover:animate-pulse" />
                 <span className="tracking-wide">AI 深度洞察检索</span>
             </button>
         </div>

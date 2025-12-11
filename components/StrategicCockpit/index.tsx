@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
@@ -50,6 +50,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     const [pois, setPois] = useState<ApiPoi[]>([]);
     const [isLoadingPois, setIsLoadingPois] = useState(true);
 
+    // Track previous query to prevent unnecessary re-fetches on re-renders
+    const prevQueryRef = useRef<string | null>(null);
+
     const subscribedSourceNames = useMemo(() => {
         if (!subscriptions) return [];
         return Array.from(new Set(subscriptions.map(sub => sub.source_name)));
@@ -69,7 +72,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedArticle]);
 
-    // FETCH ARTICLES: Removed selectedArticle dependency to prevent reset on click
+    // FETCH ARTICLES
     const fetchArticles = useCallback(async (queryObj: typeof activeQuery, page: number = 1) => {
         setIsLoading(true);
         if (page === 1) {
@@ -102,16 +105,23 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         }
     }, []); 
 
-    // Trigger fetch when activeQuery changes (page reset handled by caller usually, but enforced here if query changes)
+    // Trigger fetch ONLY when activeQuery content changes
     useEffect(() => {
-        fetchArticles(activeQuery, 1);
+        const currentQueryStr = JSON.stringify(activeQuery);
+        // Compare stringified query to avoid reference equality issues causing resets
+        if (prevQueryRef.current !== currentQueryStr) {
+            prevQueryRef.current = currentQueryStr;
+            fetchArticles(activeQuery, 1);
+        }
     }, [activeQuery, fetchArticles]);
 
     // Separate Effect for Auto-Selection to avoid circular dependency in fetchArticles
     useEffect(() => {
         // Only auto-select if on page 1, we have articles, nothing is selected, and we are on desktop
+        // AND we are not currently loading (to avoid selecting stale data)
         if (!isLoading && pagination.page === 1 && articles.length > 0 && !selectedArticle && window.innerWidth >= 768) {
-            setSelectedArticle(articles[0]);
+            // Optional: Enable auto-select first item
+            // setSelectedArticle(articles[0]);
         }
     }, [articles, isLoading, pagination.page, selectedArticle]);
 
@@ -146,6 +156,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             dateStart: startDate,
             dateEnd: endDate
         });
+        // Do NOT auto clear selected article if we want to keep context, but usually search implies new list
         setSelectedArticle(null);
         setMobileView('list');
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
