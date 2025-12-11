@@ -159,8 +159,8 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : '部分任务可能未启动';
+        } catch (e: any) {
+            const msg = e.message || '部分任务可能未启动';
             alert(`批量触发失败: ${msg}`);
         } finally {
             setIsBatchGenerating(false);
@@ -180,8 +180,8 @@ export const ArticleList: React.FC = () => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : 'PDF 下载失败';
+        } catch (e: any) {
+            const message = e.message || 'PDF 下载失败';
             alert(message);
         } finally {
             setPdfDownloadingId(null);
