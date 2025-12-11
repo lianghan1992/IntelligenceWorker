@@ -7,7 +7,7 @@ import { FocusPoints } from './FocusPoints';
 import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
-import { getUserPois, searchArticlesFiltered } from '../../api';
+import { getUserPois, searchArticlesFiltered, searchSemanticSegments } from '../../api';
 import { ChevronLeftIcon, MenuIcon, ViewGridIcon } from '../icons';
 
 // --- Main Component ---
@@ -83,20 +83,27 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
         try {
             const limit = 20;
-            // Use the updated searchArticlesFiltered which maps getSpiderArticles internally
-            // The query_text logic inside api/intelligence.ts handles basic listing for now as per requirement
-            const params: any = {
-                query_text: query,
-                page,
-                limit: limit,
-                similarity_threshold: 0.35,
-            };
-            
-            // Note: new API doesn't support source filtering by name string array directly in basic list,
-            // but the compatibility layer in searchArticlesFiltered ignores it or maps it if possible.
-            // For now, we rely on the backend returning latest articles.
-            
-            const response = await searchArticlesFiltered(params);
+            let response;
+
+            // Strategy Switch: 
+            // If viewing "All" (query='*'), use standard list API (getSpiderArticles).
+            // If viewing specific sub-categories, search, or POIs, use Semantic Search API.
+            if (query !== '*') {
+                response = await searchSemanticSegments({
+                    query_text: query,
+                    page,
+                    page_size: limit,
+                    similarity_threshold: 0.35 // Adjustable
+                });
+            } else {
+                // Basic listing
+                const params: any = {
+                    query_text: query === '*' ? undefined : query,
+                    page,
+                    limit: limit,
+                };
+                response = await searchArticlesFiltered(params);
+            }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
 

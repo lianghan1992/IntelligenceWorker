@@ -18,7 +18,8 @@ import {
     SpiderTaskTypeCounts,
     PendingArticlePublic,
     IntelligenceTaskPublic,
-    SpiderProxy
+    SpiderProxy,
+    InfoItem
 } from '../types';
 
 // --- Service Status ---
@@ -37,6 +38,12 @@ export const updateIntelGeminiCookies = (data: { secure_1psid: string; secure_1p
 
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> => 
     apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled })
+    });
+
+export const enableHtmlRetrospective = (enabled: boolean): Promise<{ enabled: boolean }> =>
+    apiFetch<{ enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, {
         method: 'POST',
         body: JSON.stringify({ enabled })
     });
@@ -76,6 +83,44 @@ export const downloadArticlePdf = async (articleUuid: string): Promise<Blob> => 
         throw new Error(errorMsg);
     }
     return response.blob();
+};
+
+// --- Semantic Search ---
+export const searchSemanticSegments = async (params: {
+    query_text: string;
+    source_uuid?: string;
+    point_uuid?: string;
+    start_date?: string;
+    end_date?: string;
+    max_segments?: number;
+    similarity_threshold?: number;
+    page?: number;
+    page_size?: number;
+}): Promise<PaginatedResponse<InfoItem>> => {
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, {
+        method: 'POST',
+        body: JSON.stringify(params)
+    });
+
+    const items: InfoItem[] = (res.items || []).map((item: any) => ({
+        id: item.article_id,
+        title: item.title,
+        content: item.content, // This is the segment content
+        source_name: item.source_name || 'Unknown',
+        point_name: item.point_name, 
+        publish_date: item.publish_date,
+        created_at: item.publish_date, 
+        original_url: item.url || '', // API should return this, defaulted if missing
+        is_atomized: item.is_atomized // API should return this
+    }));
+
+    return {
+        items,
+        total: res.total_segments || 0,
+        page: params.page || 1,
+        limit: params.page_size || 20,
+        totalPages: Math.ceil((res.total_segments || 0) / (params.page_size || 20)) || 1
+    };
 };
 
 // --- Sources ---
