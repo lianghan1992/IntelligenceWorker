@@ -122,8 +122,8 @@ export const ArticleList: React.FC = () => {
             await deleteSpiderArticle(deleteId);
             setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : '未知错误';
+        } catch (e: any) {
+            const msg = e.message || '未知错误';
             alert(`删除失败: ${msg}`);
         } finally {
             setIsDeleting(false);
@@ -138,8 +138,8 @@ export const ArticleList: React.FC = () => {
             // Optimistically update
             setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : '未知错误';
+        } catch (e: any) {
+            const msg = e.message || '未知错误';
             alert(`HTML 生成触发失败: ${msg}`);
         } finally {
             setGeneratingId(null);
