@@ -53,9 +53,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     const [pois, setPois] = useState<ApiPoi[]>([]);
     const [isLoadingPois, setIsLoadingPois] = useState(true);
 
-    // Track previous query to prevent unnecessary re-fetches on re-renders
-    // const prevQueryRef = useRef<string | null>(null); // Removed: Using Effect dependencies correctly now
-
     // Responsive Logic: Auto-collapse sidebar on smaller screens when an article is selected
     useEffect(() => {
         const handleResize = () => {
@@ -71,10 +68,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     }, [selectedArticle]);
 
     // FETCH ARTICLES
+    // Bug Fix: Decompose activeQuery dependencies to prevent unnecessary re-fetches when object reference changes but content is same.
+    // Also ensures clicking an article (which updates selectedArticle) does not trigger this effect.
     useEffect(() => {
         let isMounted = true;
         const fetchArticles = async () => {
             setIsLoading(true);
+            // Only clear articles if we are explicitly on page 1 (new search)
             if (page === 1) {
                 setArticles([]); 
             }
@@ -109,12 +109,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         fetchArticles();
 
         return () => { isMounted = false; };
-    }, [activeQuery, page]);
+    }, [activeQuery.value, activeQuery.type, activeQuery.dateStart, activeQuery.dateEnd, page]);
 
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
+        // Reset page to 1 only on navigation change
+        setPage(1); 
         setActiveQuery({ type, value, label });
-        setPage(1); // Reset page on nav change
         setSelectedArticle(null); 
         setMobileView('list'); 
         
@@ -125,6 +126,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     const handleSearch = (keyword: string) => {
         if (!keyword.trim()) return;
+        setPage(1);
         setActiveQuery(prev => ({
             type: 'search',
             value: keyword,
@@ -133,13 +135,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             dateStart: undefined,
             dateEnd: undefined
         }));
-        setPage(1);
         setSelectedArticle(null);
         setMobileView('list');
     };
 
     // New handler for advanced search from EvidenceTrail
     const handleAdvancedSearch = (keywords: string, startDate?: string, endDate?: string) => {
+        setPage(1);
         setActiveQuery({
             type: 'search',
             value: keywords,
@@ -147,7 +149,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             dateStart: startDate,
             dateEnd: endDate
         });
-        setPage(1);
         // Note: We don't necessarily need to clear selectedArticle here if we want to keep viewing it,
         // but typically a new search implies a new context.
         setSelectedArticle(null);
