@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
@@ -100,7 +99,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                     query_text: query,
                     page,
                     page_size: limit,
-                    similarity_threshold: 0.6 // Adjust threshold as needed
+                    similarity_threshold: 0.45 // Adjusted threshold for broader recall
                 });
             }
             
