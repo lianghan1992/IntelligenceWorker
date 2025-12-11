@@ -123,8 +123,7 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
         } catch (e: any) {
-            const msg = e.message || '未知错误';
-            alert(`删除失败: ${msg}`);
+            alert(`删除失败: ${e.message || '未知错误'}`);
         } finally {
             setIsDeleting(false);
         }
@@ -139,8 +138,7 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
         } catch (e: any) {
-            const msg = e.message || '未知错误';
-            alert(`HTML 生成触发失败: ${msg}`);
+            alert(`HTML 生成触发失败: ${e.message || '未知错误'}`);
         } finally {
             setGeneratingId(null);
         }
@@ -160,8 +158,7 @@ export const ArticleList: React.FC = () => {
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
         } catch (e: any) {
-            const msg = e.message || '部分任务可能未启动';
-            alert(`批量触发失败: ${msg}`);
+            alert(`批量触发失败: ${e.message || '部分任务可能未启动'}`);
         } finally {
             setIsBatchGenerating(false);
         }
@@ -182,7 +179,7 @@ export const ArticleList: React.FC = () => {
             window.URL.revokeObjectURL(url);
         } catch (e: any) {
             const message = e.message || 'PDF 下载失败';
-            alert(message);
+            alert(String(message));
         } finally {
             setPdfDownloadingId(null);
         }
