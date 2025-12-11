@@ -303,7 +303,7 @@ export const searchSemanticSegments = async (params: SemanticSearchRequest): Pro
         start_date: params.start_date,
         end_date: params.end_date,
         max_segments: params.max_segments || 50,
-        similarity_threshold: params.similarity_threshold || 0.7
+        similarity_threshold: params.similarity_threshold || 0.5 // Updated default to 0.5
     };
 
     const res = await apiFetch<SemanticSearchResponse>(`${INTELSPIDER_SERVICE_PATH}/search/semantic${queryStr}`, {
