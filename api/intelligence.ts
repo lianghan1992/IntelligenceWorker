@@ -1,5 +1,4 @@
 
-
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -289,10 +288,16 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 // --- Semantic Search ---
 
 export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
-    // Construct query string for page & page_size, use body for complex filter
-    const queryStr = createApiQuery({ page: params.page, page_size: params.page_size });
+    // FIX: 根据 curl 示例，query_text 是 URL Query 参数，不是 Body 参数。
+    // curl -sS -X POST "http://.../semantic?query_text=自动驾驶&page=1&page_size=10"
+    const queryStr = createApiQuery({ 
+        page: params.page, 
+        page_size: params.page_size,
+        query_text: params.query_text // Move query_text to URL params to fix 422 error
+    });
+    
+    // Body 中保留可选的筛选字段
     const body = {
-        query_text: params.query_text,
         source_uuid: params.source_uuid,
         point_uuid: params.point_uuid,
         start_date: params.start_date,
