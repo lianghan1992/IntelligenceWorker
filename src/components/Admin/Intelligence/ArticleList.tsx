@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
-import { RefreshIcon, ExternalLinkIcon, CheckCircleIcon, QuestionMarkCircleIcon, TrashIcon, DocumentTextIcon, RssIcon, TagIcon, SparklesIcon, EyeIcon, CloseIcon } from '../../icons';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -122,7 +122,7 @@ export const ArticleList: React.FC = () => {
             await deleteSpiderArticle(deleteId);
             setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
-        } catch (e: any) {
+        } catch (e) {
             alert('删除失败');
         } finally {
             setIsDeleting(false);
