@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, ApiPoi } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
@@ -38,11 +38,17 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     // Detail view state
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
+    // Use ref to track selectedArticle inside callbacks without triggering re-creation
+    const selectedArticleRef = useRef<InfoItem | null>(null);
     
     // Focus points state
     const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
     const [pois, setPois] = useState<ApiPoi[]>([]);
     const [isLoadingPois, setIsLoadingPois] = useState(true);
+
+    useEffect(() => {
+        selectedArticleRef.current = selectedArticle;
+    }, [selectedArticle]);
 
     const subscribedSourceNames = useMemo(() => {
         if (!subscriptions) return [];
@@ -98,8 +104,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
             // On desktop: Auto-select first article only on initial load if none selected
+            // Use Ref to check current selection to avoid dependency cycle
             if (window.innerWidth >= 768) {
-                if (page === 1 && response.items && response.items.length > 0 && !selectedArticle) {
+                if (page === 1 && response.items && response.items.length > 0 && !selectedArticleRef.current) {
                     setSelectedArticle(response.items[0]);
                 } else if (page === 1 && (!response.items || response.items.length === 0)) {
                     setSelectedArticle(null);
@@ -111,7 +118,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         } finally {
             setIsLoading(false);
         }
-    }, [selectedArticle]); 
+    }, []); 
 
 
     useEffect(() => {

@@ -200,7 +200,8 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
         publish_time: a.publish_date, // Map to old name for compatibility if needed
         collected_at: a.created_at || a.collected_at,
         source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown'
+        point_name: a.point_name || 'Unknown',
+        original_url: a.url || a.original_url // Ensure original_url is present
     }));
 
     return {
@@ -216,7 +217,8 @@ export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticl
         ...res,
         id: res.uuid,
         publish_time: res.publish_date,
-        collected_at: res.created_at || res.collected_at
+        collected_at: res.created_at || res.collected_at,
+        original_url: res.url || res.original_url // Ensure original_url is present
     };
 };
 
@@ -243,7 +245,8 @@ export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
             ...a,
             source_name: a.source_name || 'Unknown',
             point_name: a.point_name || 'Unknown',
-            created_at: a.collected_at
+            created_at: a.collected_at,
+            original_url: a.url || a.original_url
         }));
     });
 };
@@ -255,7 +258,8 @@ export const getPendingArticles = async (params: any): Promise<PaginatedResponse
          ...a,
          source_name: a.source_name || 'Unknown',
          point_name: a.point_name || 'Unknown',
-         created_at: a.collected_at
+         created_at: a.collected_at,
+         original_url: a.url || a.original_url
      }));
      return {
          items,
