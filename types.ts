@@ -553,3 +553,24 @@ export interface SemanticSearchResponse {
     total_segments: number;
     items: SemanticSegment[];
 }
+
+// --- LLM Intelligence Task Types ---
+
+export interface CreateIntelLlmTaskRequest {
+    user_uuid: string;
+    description: string;
+    time_range?: string;
+    source_uuids?: string[];
+    need_summary?: boolean;
+}
+
+export interface IntelLlmTask {
+    uuid: string;
+    user_uuid: string;
+    description: string;
+    status: 'pending' | 'analyzing' | 'completed' | 'failed';
+    progress: number;
+    created_at: string;
+    completed_at?: string;
+    csv_path?: string;
+}

@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -21,7 +22,9 @@ import {
     SpiderProxy,
     SemanticSearchRequest,
     SemanticSearchResponse,
-    InfoItem
+    InfoItem,
+    CreateIntelLlmTaskRequest,
+    IntelLlmTask
 } from '../types';
 
 // --- Service Status ---
@@ -332,6 +335,43 @@ export const searchSemanticSegments = async (params: SemanticSearchRequest): Pro
         limit: params.page_size || 20,
         totalPages: Math.ceil(res.total_segments / (params.page_size || 20)) || 1
     };
+};
+
+// --- LLM Intelligence Tasks ---
+
+export const createIntelLlmTask = async (data: CreateIntelLlmTaskRequest): Promise<IntelLlmTask> => {
+    return apiFetch<IntelLlmTask>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const getIntelLlmTask = async (taskUuid: string): Promise<IntelLlmTask> => {
+    return apiFetch<IntelLlmTask>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks/${taskUuid}`);
+};
+
+// Assuming a list endpoint exists based on standard patterns, similar to other modules
+export const getIntelLlmTasks = async (params: any = {}): Promise<PaginatedResponse<IntelLlmTask>> => {
+    const query = createApiQuery(params);
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`);
+    return {
+        items: res.items || res, // Handle if it returns array directly or paginated object
+        total: res.total || (Array.isArray(res) ? res.length : 0),
+        page: params.page || 1,
+        limit: params.page_size || 20,
+        totalPages: res.totalPages || 1
+    };
+};
+
+export const downloadIntelLlmTaskReport = async (taskUuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/llm/tasks/${taskUuid}/download`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('下载报告失败');
+    return response.blob();
 };
 
 // --- Proxies ---
