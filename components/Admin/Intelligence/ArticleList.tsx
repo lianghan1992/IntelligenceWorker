@@ -177,8 +177,8 @@ export const ArticleList: React.FC = () => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e: any) {
-            const message = e.message || 'PDF 下载失败';
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'PDF 下载失败';
             alert(message);
         } finally {
             setPdfDownloadingId(null);
