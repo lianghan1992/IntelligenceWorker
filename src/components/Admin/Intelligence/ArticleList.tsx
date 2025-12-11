@@ -139,7 +139,7 @@ export const ArticleList: React.FC = () => {
             alert('HTML 生成任务已触发');
         } catch (e: any) {
             const msg = e?.message || 'HTML 生成触发失败';
-            alert(msg);
+            alert(String(msg));
         } finally {
             setGeneratingId(null);
         }
