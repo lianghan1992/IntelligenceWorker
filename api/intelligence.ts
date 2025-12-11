@@ -84,7 +84,7 @@ export const getSpiderSources = async (): Promise<SpiderSource[]> => {
     // List sources: GET /intelspider/sources/
     const sources = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/sources/`);
     // Map backend UUID to frontend ID
-    return sources.map(s => ({
+    return sources.map((s: any) => ({
         ...s,
         id: s.uuid,
         source_name: s.name,
@@ -119,7 +119,7 @@ export const getSpiderPoints = async (sourceUuid?: string): Promise<SpiderPoint[
     // List points: GET /intelspider/points/ (optional ?source_uuid=...)
     const query = sourceUuid ? `?source_uuid=${sourceUuid}` : '';
     const points = await apiFetch<any[]>(`${INTELSPIDER_SERVICE_PATH}/points/${query}`);
-    return points.map(p => ({
+    return points.map((p: any) => ({
         ...p,
         id: p.uuid,
         point_name: p.name,
@@ -237,7 +237,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
 };
 
 export const getSpiderPendingArticles = (): Promise<PendingArticle[]> => {
-    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending`).then(res => {
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending`).then((res: any) => {
         const items = Array.isArray(res) ? res : res.items || [];
         return items.map((a: any) => ({
             ...a,

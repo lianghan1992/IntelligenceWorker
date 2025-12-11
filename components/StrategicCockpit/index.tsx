@@ -30,6 +30,10 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         label: '所有情报' 
     });
 
+    // Pagination State (Moved out of pagination object to control effect triggers)
+    const [page, setPage] = useState(1);
+    const [paginationMeta, setPaginationMeta] = useState({ totalPages: 1, total: 0 });
+
     // Mobile View State: 'nav' (Compass) -> 'list' (IntelligenceCenter) -> 'detail' (EvidenceTrail)
     const [mobileView, setMobileView] = useState<'nav' | 'list' | 'detail'>('nav');
 
@@ -38,7 +42,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     // Data fetching and display state
     const [articles, setArticles] = useState<InfoItem[]>([]);
-    const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -51,13 +54,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     const [isLoadingPois, setIsLoadingPois] = useState(true);
 
     // Track previous query to prevent unnecessary re-fetches on re-renders
-    const prevQueryRef = useRef<string | null>(null);
+    // const prevQueryRef = useRef<string | null>(null); // Removed: Using Effect dependencies correctly now
 
-    const subscribedSourceNames = useMemo(() => {
-        if (!subscriptions) return [];
-        return Array.from(new Set(subscriptions.map(sub => sub.source_name)));
-    }, [subscriptions]);
-    
     // Responsive Logic: Auto-collapse sidebar on smaller screens when an article is selected
     useEffect(() => {
         const handleResize = () => {
@@ -73,61 +71,50 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     }, [selectedArticle]);
 
     // FETCH ARTICLES
-    const fetchArticles = useCallback(async (queryObj: typeof activeQuery, page: number = 1) => {
-        setIsLoading(true);
-        if (page === 1) {
-            setArticles([]); 
-        }
-        setError(null);
-
-        try {
-            const limit = 20;
-            const params: any = {
-                query_text: queryObj.value,
-                page,
-                limit: limit,
-                similarity_threshold: 0.35,
-                publish_date_start: queryObj.dateStart,
-                publish_date_end: queryObj.dateEnd
-            };
-            
-            const response = await searchArticlesFiltered(params);
-            
-            const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
-
-            setArticles(response.items || []);
-            setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
-
-        } catch (err: any) {
-            setError(err.message || '获取情报失败');
-        } finally {
-            setIsLoading(false);
-        }
-    }, []); 
-
-    // Trigger fetch ONLY when activeQuery content changes
     useEffect(() => {
-        const currentQueryStr = JSON.stringify(activeQuery);
-        // Compare stringified query to avoid reference equality issues causing resets
-        if (prevQueryRef.current !== currentQueryStr) {
-            prevQueryRef.current = currentQueryStr;
-            fetchArticles(activeQuery, 1);
-        }
-    }, [activeQuery, fetchArticles]);
+        let isMounted = true;
+        const fetchArticles = async () => {
+            setIsLoading(true);
+            if (page === 1) {
+                setArticles([]); 
+            }
+            setError(null);
 
-    // Separate Effect for Auto-Selection to avoid circular dependency in fetchArticles
-    useEffect(() => {
-        // Only auto-select if on page 1, we have articles, nothing is selected, and we are on desktop
-        // AND we are not currently loading (to avoid selecting stale data)
-        if (!isLoading && pagination.page === 1 && articles.length > 0 && !selectedArticle && window.innerWidth >= 768) {
-            // Optional: Enable auto-select first item
-            // setSelectedArticle(articles[0]);
-        }
-    }, [articles, isLoading, pagination.page, selectedArticle]);
+            try {
+                const limit = 20;
+                const params: any = {
+                    query_text: activeQuery.value,
+                    page: page,
+                    limit: limit,
+                    similarity_threshold: 0.35,
+                    publish_date_start: activeQuery.dateStart,
+                    publish_date_end: activeQuery.dateEnd
+                };
+                
+                const response = await searchArticlesFiltered(params);
+                
+                if (isMounted) {
+                    const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
+                    setArticles(response.items || []);
+                    setPaginationMeta({ totalPages: calculatedTotalPages, total: response.total });
+                }
+
+            } catch (err: any) {
+                if (isMounted) setError(err.message || '获取情报失败');
+            } finally {
+                if (isMounted) setIsLoading(false);
+            }
+        };
+
+        fetchArticles();
+
+        return () => { isMounted = false; };
+    }, [activeQuery, page]);
 
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
+        setPage(1); // Reset page on nav change
         setSelectedArticle(null); 
         setMobileView('list'); 
         
@@ -138,11 +125,15 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     const handleSearch = (keyword: string) => {
         if (!keyword.trim()) return;
-        setActiveQuery({
+        setActiveQuery(prev => ({
             type: 'search',
             value: keyword,
-            label: `搜索: ${keyword}`
-        });
+            label: `搜索: ${keyword}`,
+            // Clear date filters on quick search
+            dateStart: undefined,
+            dateEnd: undefined
+        }));
+        setPage(1);
         setSelectedArticle(null);
         setMobileView('list');
     };
@@ -156,7 +147,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             dateStart: startDate,
             dateEnd: endDate
         });
-        // Do NOT auto clear selected article if we want to keep context, but usually search implies new list
+        setPage(1);
+        // Note: We don't necessarily need to clear selectedArticle here if we want to keep viewing it,
+        // but typically a new search implies a new context.
         setSelectedArticle(null);
         setMobileView('list');
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
@@ -173,9 +166,8 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
     };
 
     const handlePageChange = (newPage: number) => {
-        if (newPage > 0 && newPage <= pagination.totalPages) {
-            // Pass the current activeQuery, but update the page
-            fetchArticles(activeQuery, newPage);
+        if (newPage > 0 && newPage <= paginationMeta.totalPages) {
+            setPage(newPage);
         }
     };
     
@@ -261,9 +253,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                             error={error}
                             selectedArticleId={selectedArticle?.id || null}
                             onSelectArticle={handleArticleSelect}
-                            currentPage={pagination.page}
-                            totalPages={pagination.totalPages}
-                            totalItems={pagination.total}
+                            currentPage={page}
+                            totalPages={paginationMeta.totalPages}
+                            totalItems={paginationMeta.total}
                             onPageChange={handlePageChange}
                             isSidebarOpen={isSidebarOpen}
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}

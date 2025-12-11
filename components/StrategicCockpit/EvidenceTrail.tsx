@@ -69,8 +69,8 @@ const AiSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
 };
 
-// --- Top Control Bar Component ---
-const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => void, onOpenAi: () => void }> = ({ onSearch, onOpenAi }) => {
+// --- Advanced Control Bar ---
+const AdvancedControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => void, onOpenAi: () => void }> = ({ onSearch, onOpenAi }) => {
     const [keywords, setKeywords] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -93,12 +93,9 @@ const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => voi
                         value={keywords}
                         onChange={e => setKeywords(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="输入关键词，支持多个词组 (例如: 自动驾驶、芯片)"
-                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:bg-white focus:border-indigo-500 transition-all outline-none"
+                        placeholder="输入多个词组，以顿号隔开"
+                        className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:bg-white focus:border-indigo-500 transition-all outline-none placeholder:text-slate-400"
                     />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 bg-white px-1.5 py-0.5 rounded border border-slate-100 shadow-sm pointer-events-none hidden sm:block">
-                        顿号分隔
-                    </div>
                 </div>
                 <div className="flex gap-2">
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 hover:bg-white hover:border-slate-300 transition-colors">
@@ -119,7 +116,7 @@ const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => voi
                     </div>
                     <button 
                         onClick={handleSearch}
-                        className="px-6 py-2 bg-slate-900 text-white font-bold text-sm rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/10 transition-all active:scale-95"
+                        className="px-6 py-2 bg-slate-900 text-white font-bold text-sm rounded-xl hover:bg-slate-800 shadow-lg shadow-slate-900/10 transition-all active:scale-95 whitespace-nowrap"
                     >
                         检索
                     </button>
@@ -132,7 +129,7 @@ const ControlBar: React.FC<{ onSearch?: (k: string, s: string, e: string) => voi
             >
                 <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out"></div>
                 <SparklesIcon className="w-4 h-4 text-yellow-200 group-hover:animate-pulse" />
-                <span className="tracking-wide">AI 深度洞察检索</span>
+                <span className="tracking-wide">AI 检索</span>
             </button>
         </div>
     );
@@ -240,7 +237,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle, o
     return (
         <aside className="h-full flex flex-col bg-white overflow-hidden relative">
             {/* Top Control Bar (Search & AI) */}
-            <ControlBar onSearch={onSearch} onOpenAi={() => setIsAiModalOpen(true)} />
+            <AdvancedControlBar onSearch={onSearch} onOpenAi={() => setIsAiModalOpen(true)} />
 
             {/* AI Modal */}
             {isAiModalOpen && <AiSearchModal onClose={() => setIsAiModalOpen(false)} />}
