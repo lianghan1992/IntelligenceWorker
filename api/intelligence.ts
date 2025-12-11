@@ -288,18 +288,16 @@ export const rejectPendingArticles = (ids: string[]): Promise<{ ok: boolean }> =
 // --- Semantic Search ---
 
 export const searchSemanticSegments = async (params: SemanticSearchRequest): Promise<PaginatedResponse<InfoItem>> => {
-    // FIX: Move query_text to Body to avoid 500 errors with long query strings
-    // and ensure it's present to avoid 422.
-    
+    // FIX: Backend strictly requires query_text in URL query params.
     const searchParams = new URLSearchParams();
+    searchParams.append('query_text', params.query_text);
     if (params.page) searchParams.append('page', String(params.page));
     if (params.page_size) searchParams.append('page_size', String(params.page_size));
     
     const queryStr = `?${searchParams.toString()}`;
     
-    // Put ALL parameters in body for safety and consistency
+    // Optional filters in body
     const body = {
-        query_text: params.query_text, // Mandatory field in body
         source_uuid: params.source_uuid,
         point_uuid: params.point_uuid,
         start_date: params.start_date,
