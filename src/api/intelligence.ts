@@ -1,5 +1,3 @@
-
-
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -83,6 +81,17 @@ export const downloadArticlePdf = async (articleUuid: string): Promise<Blob> => 
     }
     return response.blob();
 };
+
+// --- Tag Management ---
+export const reanalyzeTags = (): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/tags/reanalyze`, {
+        method: 'POST'
+    });
+
+export const backfillTags = (): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/tags/backfill`, {
+        method: 'POST'
+    });
 
 // --- Sources ---
 
