@@ -105,7 +105,7 @@ export const createSpiderSource = async (data: { name: string; main_url: string 
 // Legacy alias mapping for compatibility
 export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
     const sources = await getSpiderSources();
-    return sources.map((s: any) => ({ ...s, source_name: s.name }));
+    return sources.map(s => ({ ...s, source_name: s.name }));
 };
 
 export const deleteSource = (id: string): Promise<void> => {
@@ -226,7 +226,7 @@ export const deleteSpiderArticle = (uuid: string): Promise<void> => {
 };
 
 export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
-    getSpiderArticleDetail(articleUuid).then((a: any) => ({
+    getSpiderArticleDetail(articleUuid).then(a => ({
         ...a,
         source_name: a.source_name || 'Unknown',
         point_name: a.point_name || 'Unknown'
