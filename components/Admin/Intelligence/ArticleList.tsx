@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
@@ -122,8 +123,8 @@ export const ArticleList: React.FC = () => {
             await deleteSpiderArticle(deleteId);
             setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
-        } catch (e: any) {
-            alert(`删除失败: ${e.message || '未知错误'}`);
+        } catch (e) {
+            alert('删除失败');
         } finally {
             setIsDeleting(false);
         }
@@ -137,8 +138,8 @@ export const ArticleList: React.FC = () => {
             // Optimistically update
             setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
-        } catch (e: any) {
-            alert(`HTML 生成触发失败: ${e.message || '未知错误'}`);
+        } catch (e) {
+            alert('HTML 生成触发失败');
         } finally {
             setGeneratingId(null);
         }
@@ -157,8 +158,8 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
-        } catch (e: any) {
-            alert(`批量触发失败: ${e.message || '部分任务可能未启动'}`);
+        } catch (e) {
+            alert('批量触发失败，部分任务可能未启动');
         } finally {
             setIsBatchGenerating(false);
         }
@@ -178,8 +179,7 @@ export const ArticleList: React.FC = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (e: any) {
-            const message = e.message || 'PDF 下载失败';
-            alert(String(message));
+            alert(e.message || 'PDF 下载失败');
         } finally {
             setPdfDownloadingId(null);
         }
