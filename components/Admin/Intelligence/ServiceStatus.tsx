@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration } from '../../../api/intelligence';
+import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration, toggleRetrospectiveHtmlGeneration } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, QuestionMarkCircleIcon, ShieldCheckIcon } from '../../icons';
+import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, QuestionMarkCircleIcon, ShieldCheckIcon, ClockIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
@@ -42,6 +42,10 @@ export const ServiceStatus: React.FC = () => {
     // HTML Gen State
     const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
     const [isTogglingHtml, setIsTogglingHtml] = useState(false);
+    
+    // Retrospective Gen State
+    const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
+    const [isTogglingRetro, setIsTogglingRetro] = useState(false);
 
     const fetchStatus = async () => {
         setIsLoading(true);
@@ -160,6 +164,19 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
+    const handleRetroToggle = async (enabled: boolean) => {
+        setIsTogglingRetro(true);
+        try {
+            const res = await toggleRetrospectiveHtmlGeneration(enabled);
+            alert(`操作成功: ${res.message}`);
+            setIsRetroSettingsOpen(false);
+        } catch (e: any) {
+            alert(`操作失败: ${e.message}`);
+        } finally {
+            setIsTogglingRetro(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -211,9 +228,15 @@ export const ServiceStatus: React.FC = () => {
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setIsHtmlSettingsOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200"
+                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200 flex items-center gap-1"
                             >
-                                HTML 生成
+                                <DocumentTextIcon className="w-3 h-3" /> HTML 生成
+                            </button>
+                            <button 
+                                onClick={() => setIsRetroSettingsOpen(true)}
+                                className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200 flex items-center gap-1"
+                            >
+                                <ClockIcon className="w-3 h-3" /> HTML 追溯
                             </button>
                             <button 
                                 onClick={() => setIsCookieModalOpen(true)}
@@ -426,6 +449,44 @@ export const ServiceStatus: React.FC = () => {
                                 >
                                     {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
                                     停止生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isRetroSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <ClockIcon className="w-5 h-5 text-orange-600" /> HTML 历史追溯
+                            </h3>
+                            <button onClick={() => setIsRetroSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                开启后，系统将在后台对历史已采集但未生成HTML的文章进行追溯生成。这会消耗额外的 Token 额度。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={() => handleRetroToggle(true)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启追溯
+                                </button>
+                                <button
+                                    onClick={() => handleRetroToggle(false)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止追溯
                                 </button>
                             </div>
                         </div>
