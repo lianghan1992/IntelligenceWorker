@@ -1,4 +1,5 @@
 
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -46,6 +47,12 @@ export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: 
         body: JSON.stringify({ enabled })
     });
 
+export const toggleRetrospectiveHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> =>
+    apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled })
+    });
+
 // --- Article HTML Generation ---
 export const generateArticleHtml = (articleUuid: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${articleUuid}/generate_html`, {
@@ -82,17 +89,6 @@ export const downloadArticlePdf = async (articleUuid: string): Promise<Blob> => 
     }
     return response.blob();
 };
-
-// --- Tag Management ---
-export const reanalyzeTags = (): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/tags/reanalyze`, {
-        method: 'POST'
-    });
-
-export const backfillTags = (): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/tags/backfill`, {
-        method: 'POST'
-    });
 
 // --- Sources ---
 
@@ -222,36 +218,6 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
     return {
         ...res,
         items
-    };
-};
-
-export const getArticlesByTags = async (tags: string[], page: number = 1, limit: number = 20): Promise<PaginatedResponse<ArticlePublic>> => {
-    const searchParams = new URLSearchParams();
-    tags.forEach(tag => searchParams.append('tags', tag));
-    searchParams.append('page', String(page));
-    searchParams.append('page_size', String(limit));
-    
-    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags?${searchParams.toString()}`);
-    
-    const items = (res.items || []).map((a: any) => ({
-        ...a,
-        id: a.uuid,
-        title: a.title,
-        content: a.content,
-        original_url: a.original_url || a.url,
-        publish_date: a.publish_date,
-        created_at: a.created_at || a.collected_at,
-        is_atomized: a.is_atomized,
-        source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown'
-    }));
-
-    return {
-        items,
-        total: res.total,
-        page: res.page,
-        limit: res.page_size,
-        totalPages: Math.ceil(res.total / limit) || 1
     };
 };
 

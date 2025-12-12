@@ -1,9 +1,9 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration, reanalyzeTags, backfillTags } from '../../../api/intelligence';
+import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration, toggleRetrospectiveHtmlGeneration } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, TagIcon } from '../../icons';
+import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, ClockIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
@@ -44,9 +44,9 @@ export const ServiceStatus: React.FC = () => {
     const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
     const [isTogglingHtml, setIsTogglingHtml] = useState(false);
 
-    // Tag Analysis State
-    const [isReanalyzing, setIsReanalyzing] = useState(false);
-    const [isBackfilling, setIsBackfilling] = useState(false);
+    // Retro HTML Gen State
+    const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
+    const [isTogglingRetro, setIsTogglingRetro] = useState(false);
 
     const fetchStatus = async () => {
         setIsLoading(true);
@@ -165,34 +165,22 @@ export const ServiceStatus: React.FC = () => {
         }
     };
 
-    const handleReanalyzeTags = async () => {
-        if (!confirm('确定要重新分析所有文章的标签吗？这可能会消耗大量 Token 并耗费较长时间。')) return;
-        setIsReanalyzing(true);
+    const handleRetroToggle = async (enabled: boolean) => {
+        setIsTogglingRetro(true);
         try {
-            const res = await reanalyzeTags();
-            alert(`任务已触发: ${res.message}`);
+            const res = await toggleRetrospectiveHtmlGeneration(enabled);
+            alert(`操作成功: ${res.message}`);
+            setIsRetroSettingsOpen(false);
         } catch (e: any) {
-            alert(`触发失败: ${e.message}`);
+            alert(`操作失败: ${e.message}`);
         } finally {
-            setIsReanalyzing(false);
-        }
-    };
-
-    const handleBackfillTags = async () => {
-        setIsBackfilling(true);
-        try {
-            const res = await backfillTags();
-            alert(`任务已触发: ${res.message}`);
-        } catch (e: any) {
-            alert(`触发失败: ${e.message}`);
-        } finally {
-            setIsBackfilling(false);
+            setIsTogglingRetro(false);
         }
     };
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* System Status Card - Compact Width */}
                 <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
                     <div className="flex justify-between items-start mb-4">
@@ -238,12 +226,18 @@ export const ServiceStatus: React.FC = () => {
                                 {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效/过期'}
                             </span>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap justify-end">
                             <button 
                                 onClick={() => setIsHtmlSettingsOpen(true)}
                                 className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200"
                             >
                                 HTML 生成
+                            </button>
+                            <button 
+                                onClick={() => setIsRetroSettingsOpen(true)}
+                                className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200"
+                            >
+                                HTML 追溯
                             </button>
                             <button 
                                 onClick={() => setIsCookieModalOpen(true)}
@@ -252,34 +246,6 @@ export const ServiceStatus: React.FC = () => {
                                 更新 Cookie
                             </button>
                         </div>
-                    </div>
-                </div>
-
-                {/* Tag Management Card */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2">
-                            <TagIcon className="w-5 h-5 text-indigo-600" />
-                            <h3 className="text-base font-bold text-gray-800">标签智能管理</h3>
-                        </div>
-                    </div>
-                    <div className="space-y-3">
-                         <button
-                            onClick={handleReanalyzeTags}
-                            disabled={isReanalyzing}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
-                        >
-                            {isReanalyzing ? <Spinner /> : <RefreshIcon className="w-4 h-4"/>}
-                            重新分析所有标签
-                        </button>
-                        <button
-                            onClick={handleBackfillTags}
-                            disabled={isBackfilling}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 shadow-sm"
-                        >
-                            {isBackfilling ? <Spinner /> : <PlayIcon className="w-4 h-4"/>}
-                            追溯缺失标签
-                        </button>
                     </div>
                 </div>
             </div>
@@ -485,6 +451,45 @@ export const ServiceStatus: React.FC = () => {
                                 >
                                     {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
                                     停止生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Retro HTML Generation Settings Modal */}
+            {isRetroSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <ClockIcon className="w-5 h-5 text-orange-600" /> HTML 历史追溯
+                            </h3>
+                            <button onClick={() => setIsRetroSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                开启后，系统将在后台对历史已采集但未生成HTML的文章进行追溯生成。这会消耗额外的 Token 额度。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={() => handleRetroToggle(true)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启追溯
+                                </button>
+                                <button
+                                    onClick={() => handleRetroToggle(false)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止追溯
                                 </button>
                             </div>
                         </div>
