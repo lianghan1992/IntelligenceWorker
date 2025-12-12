@@ -28,8 +28,10 @@ const StatusBadge: React.FC<{ status: string; progress: number }> = ({ status, p
 export const LlmTaskManager: React.FC = () => {
     // Form State
     const [description, setDescription] = useState('');
+    // Changed from single timeRange string to start/end months
     const [startMonth, setStartMonth] = useState('');
     const [endMonth, setEndMonth] = useState('');
+    
     const [selectedSources, setSelectedSources] = useState<string[]>([]);
     const [needSummary, setNeedSummary] = useState(false);
     
@@ -155,7 +157,7 @@ export const LlmTaskManager: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* Time Range */}
+                        {/* Time Range - Replaced single input with Start/End Month Pickers */}
                         <div className="flex gap-2 items-end">
                             <div className="flex-1">
                                 <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">起始月份</label>
@@ -180,6 +182,7 @@ export const LlmTaskManager: React.FC = () => {
 
                         {/* Summary Toggle */}
                         <div className="flex items-center">
+                            {/* Added mt-6 to align with the inputs (label height + gap) */}
                             <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded-lg w-full border border-transparent hover:border-gray-200 transition-all h-[38px] mt-6">
                                 <input 
                                     type="checkbox" 
