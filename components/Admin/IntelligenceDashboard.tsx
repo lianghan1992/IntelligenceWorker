@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { SourceConfig } from './Intelligence/SourceConfig';
 import { ArticleList } from './Intelligence/ArticleList';
@@ -9,7 +8,7 @@ import { LlmTaskManager } from './Intelligence/LlmTaskManager';
 import { ServerIcon, ViewListIcon, ChartIcon, PuzzleIcon, BrainIcon } from '../icons';
 
 export const IntelligenceDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles' | 'segments' | 'llm'>('config');
+    const [activeTab, setActiveTab] = useState<'status' | 'config' | 'articles' | 'segments' | 'llm'>('status');
 
     return (
         <div className="h-full flex flex-col bg-slate-50/30 p-4 md:p-6">

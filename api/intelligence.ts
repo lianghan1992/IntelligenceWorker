@@ -1,3 +1,4 @@
+
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -119,7 +120,6 @@ export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
 };
 
 export const deleteSource = (id: string): Promise<void> => {
-    // Assuming DELETE /intelspider/sources/{id} exists for management even if not in main overview
     return apiFetch(`${INTELSPIDER_SERVICE_PATH}/sources/${id}`, { method: 'DELETE' });
 };
 
@@ -161,6 +161,15 @@ export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initi
         body: JSON.stringify(data),
     });
 };
+
+export const disableSpiderPoint = (uuid: string): Promise<void> =>
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}/disable`, { method: 'POST' });
+
+export const enableSpiderPoint = (uuid: string): Promise<void> =>
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}/enable`, { method: 'POST' });
+
+export const deleteSpiderPoint = (uuid: string): Promise<void> =>
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, { method: 'DELETE' });
 
 // Compatibility Wrappers for Points
 export const getPoints = async (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {

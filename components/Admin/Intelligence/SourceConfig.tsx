@@ -1,10 +1,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
-import { getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask } from '../../../api/intelligence';
-import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon } from '../../icons';
+import { 
+    getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask,
+    deleteSource, deleteSpiderPoint, disableSpiderPoint, enableSpiderPoint
+} from '../../../api/intelligence';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon, StopIcon, CheckCircleIcon } from '../../icons';
 import { PointModal } from './PointModal';
 import { TaskDrawer } from './TaskDrawer';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -25,6 +29,11 @@ export const SourceConfig: React.FC = () => {
     const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
     const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
     const [drawerPoint, setDrawerPoint] = useState<SpiderPoint | null>(null);
+    
+    // Action States
+    const [deletingSource, setDeletingSource] = useState<SpiderSource | null>(null);
+    const [deletingPoint, setDeletingPoint] = useState<SpiderPoint | null>(null);
+    const [togglingPointId, setTogglingPointId] = useState<string | null>(null);
     
     // Forms
     const [sourceForm, setSourceForm] = useState({ name: '', main_url: '' });
@@ -83,6 +92,46 @@ export const SourceConfig: React.FC = () => {
         finally { setRunningPointId(null); }
     };
 
+    const handleDeleteSourceConfirm = async () => {
+        if (!deletingSource) return;
+        try {
+            await deleteSource(deletingSource.uuid);
+            // Clear selection if deleted
+            if (selectedSource?.uuid === deletingSource.uuid) {
+                setSelectedSource(null);
+                setPoints([]);
+            }
+            await fetchSources();
+            setDeletingSource(null);
+        } catch (e) { alert('删除失败'); }
+    };
+
+    const handleDeletePointConfirm = async () => {
+        if (!deletingPoint) return;
+        try {
+            await deleteSpiderPoint(deletingPoint.uuid);
+            await fetchPoints();
+            setDeletingPoint(null);
+        } catch (e) { alert('删除失败'); }
+    };
+
+    const handleTogglePointStatus = async (point: SpiderPoint) => {
+        setTogglingPointId(point.uuid);
+        try {
+            if (point.is_active) {
+                await disableSpiderPoint(point.uuid);
+            } else {
+                await enableSpiderPoint(point.uuid);
+            }
+            // Optimistic update for better UX
+            setPoints(prev => prev.map(p => p.uuid === point.uuid ? { ...p, is_active: !p.is_active } : p));
+        } catch (e) {
+            alert('操作失败');
+        } finally {
+            setTogglingPointId(null);
+        }
+    };
+
     return (
         <div className="flex flex-col md:flex-row h-full gap-4 md:gap-6 relative overflow-hidden">
             {/* Left: Sources List */}
@@ -95,17 +144,25 @@ export const SourceConfig: React.FC = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sources.map(src => (
-                        <button
-                            key={src.uuid}
-                            onClick={() => setSelectedSource(src)}
-                            className={`w-full text-left px-3 py-2 md:px-4 md:py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.uuid === src.uuid ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
+                        <div 
+                            key={src.uuid} 
+                            className={`group flex items-center justify-between w-full px-3 py-2 md:px-4 md:py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.uuid === src.uuid ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
                         >
-                            <div className="flex justify-between items-center">
-                                <span className="truncate pr-2">{src.name}</span>
-                                {selectedSource?.uuid === src.uuid && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
+                            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedSource(src)}>
+                                <div className="flex justify-between items-center">
+                                    <span className="truncate pr-2">{src.name}</span>
+                                    {selectedSource?.uuid === src.uuid && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
+                                </div>
+                                {src.main_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.main_url}</div>}
                             </div>
-                            {src.main_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.main_url}</div>}
-                        </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setDeletingSource(src); }}
+                                className="ml-2 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-opacity opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                title="删除情报源"
+                            >
+                                <TrashIcon className="w-4 h-4" />
+                            </button>
+                        </div>
                     ))}
                     {sources.length === 0 && !isLoadingSources && <div className="text-center text-xs text-gray-400 py-8">暂无情报源</div>}
                 </div>
@@ -156,8 +213,13 @@ export const SourceConfig: React.FC = () => {
                                                 <h4 className="font-bold text-gray-800 truncate">{point.name}</h4>
                                                 <a href={point.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate block mt-0.5" title={point.url}>{point.url}</a>
                                             </div>
-                                            <div className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${point.is_active ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-gray-100 text-gray-500'}`}>
-                                                {point.is_active ? 'Active' : 'Inactive'}
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${point.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
+                                                    {point.is_active ? 'Active' : 'Disabled'}
+                                                </span>
+                                                <button onClick={() => setDeletingPoint(point)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                                    <TrashIcon className="w-4 h-4"/>
+                                                </button>
                                             </div>
                                         </div>
                                         
@@ -175,7 +237,16 @@ export const SourceConfig: React.FC = () => {
                                                     title="查看任务日志"
                                                 >
                                                     <ViewListIcon className="w-4 h-4" />
-                                                    <span className="hidden sm:inline">任务日志</span>
+                                                    <span className="hidden sm:inline">日志</span>
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleTogglePointStatus(point)}
+                                                    disabled={togglingPointId === point.uuid}
+                                                    className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs ${point.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-green-600 hover:bg-green-50'}`}
+                                                    title={point.is_active ? "禁用" : "启用"}
+                                                >
+                                                    {togglingPointId === point.uuid ? <Spinner /> : (point.is_active ? <StopIcon className="w-4 h-4"/> : <CheckCircleIcon className="w-4 h-4"/>)}
+                                                    <span className="hidden sm:inline">{point.is_active ? '禁用' : '启用'}</span>
                                                 </button>
                                             </div>
                                             <div className="flex gap-2">
@@ -243,11 +314,34 @@ export const SourceConfig: React.FC = () => {
                 sourceId={selectedSource?.uuid}
             />
 
-            {/* Task Drawer - Keep logic for "Task Log" button, but trigger buttons no longer open it automatically */}
+            {/* Task Drawer */}
             {drawerPoint && (
                 <TaskDrawer 
                     point={drawerPoint} 
                     onClose={() => setDrawerPoint(null)} 
+                />
+            )}
+
+            {/* Confirmation Modals */}
+            {deletingSource && (
+                <ConfirmationModal
+                    title="删除情报源"
+                    message={`确定要删除 "${deletingSource.name}" 及其所有关联的采集点吗？此操作将停止所有相关任务。`}
+                    onConfirm={handleDeleteSourceConfirm}
+                    onCancel={() => setDeletingSource(null)}
+                    confirmText="确认删除"
+                    variant="destructive"
+                />
+            )}
+
+            {deletingPoint && (
+                <ConfirmationModal
+                    title="删除采集点"
+                    message={`确定要删除 "${deletingPoint.name}" 吗？此操作将停止该采集点的所有任务。`}
+                    onConfirm={handleDeletePointConfirm}
+                    onCancel={() => setDeletingPoint(null)}
+                    confirmText="确认删除"
+                    variant="destructive"
                 />
             )}
         </div>
