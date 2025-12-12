@@ -3,12 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { User, InfoItem, View, ApiPoi, SystemSource } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
 import { FireIcon, BookmarkIcon } from './icons';
-import { SubscriptionManager } from './SubscriptionManager';
 import { FocusPointManagerModal } from './FocusPointManagerModal';
 import { TodaysEvents } from './TodaysEvents';
 import { RecentDeepDives } from './RecentDeepDives';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments } from '../../api';
-import { LazyLoadModule, FocusPointsSkeleton, SubscriptionManagerSkeleton } from './LazyLoadModule';
+import { LazyLoadModule } from './LazyLoadModule';
 import { GearIcon, SearchIcon, PlusIcon, SparklesIcon } from '../icons';
 
 // --- 1. AI Daily Briefing (Enhanced) ---
@@ -113,154 +112,6 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, onManageFocusPoints
     );
 };
 
-// --- 2. Focus Points Section (Masonry Layout) ---
-const CompactFocusCard: React.FC<{ entityName: string; items: InfoItem[]; }> = ({ entityName, items }) => {
-    return (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden hover:shadow-md transition-all duration-300 hover:border-indigo-200 break-inside-avoid mb-4">
-            <div className="px-4 py-3 border-b border-slate-50 flex justify-between items-center bg-gradient-to-r from-white to-slate-50/50">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 truncate">
-                    <FireIcon className="w-4 h-4 text-orange-500" />
-                    {entityName}
-                </h3>
-                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-                    +{items.length}
-                </span>
-            </div>
-            <div className="px-2 py-1">
-                {items.map((item) => (
-                    <a 
-                        key={item.id} 
-                        href={item.original_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="block p-2 hover:bg-slate-50 rounded-lg group transition-colors"
-                    >
-                        <div className="text-xs font-medium text-slate-700 leading-snug group-hover:text-indigo-600 line-clamp-1 mb-1">
-                            {item.title}
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-slate-400 bg-white border border-slate-100 px-1.5 rounded">{item.source_name}</span>
-                            <span className="text-[10px] text-slate-300">{new Date(item.publish_date || item.created_at).toLocaleDateString()}</span>
-                        </div>
-                    </a>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const QuietFocusChip: React.FC<{ entityName: string }> = ({ entityName }) => (
-    <div className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700 transition-all cursor-default select-none shadow-sm">
-        {entityName}
-    </div>
-);
-
-const FocusPointsSection: React.FC<{ onManageClick: () => void; subscriptions: SystemSource[] }> = ({ onManageClick, subscriptions }) => {
-    const [focusPoints, setFocusPoints] = useState<ApiPoi[]>([]);
-    const [focusPointFeeds, setFocusPointFeeds] = useState<Record<string, InfoItem[]>>({});
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchFocusData = async () => {
-            setIsLoading(true);
-            try {
-                const pois = await getUserPois();
-                setFocusPoints(pois);
-
-                if (pois.length > 0) {
-                    const feedPromises = pois.map(poi => 
-                        // Use semantic search to get relevant items, limiting to 3 for performance
-                        searchSemanticSegments({
-                            page_size: 3, 
-                            similarity_threshold: 0.35,
-                            page: 1,
-                            query_text: poi.content
-                        }).then(result => ({ poiId: poi.id, items: result.items }))
-                    );
-                    const results = await Promise.all(feedPromises);
-                    const feeds = results.reduce((acc, current) => {
-                        acc[current.poiId] = current.items;
-                        return acc;
-                    }, {} as Record<string, InfoItem[]>);
-                    setFocusPointFeeds(feeds);
-                }
-            } catch (error) {
-                console.error("Failed to fetch focus points data:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchFocusData();
-    }, []);
-
-    const { activePoints, quietPoints } = useMemo(() => {
-        const active: ApiPoi[] = [];
-        const quiet: ApiPoi[] = [];
-        focusPoints.forEach(poi => {
-            const items = focusPointFeeds[poi.id] || [];
-            if (items.length > 0) active.push(poi);
-            else quiet.push(poi);
-        });
-        return { activePoints: active, quietPoints: quiet };
-    }, [focusPoints, focusPointFeeds]);
-
-    return (
-        <div className="space-y-4">
-             <div className="flex justify-between items-center px-1">
-                <div className="flex items-baseline gap-3">
-                    <h2 className="text-xl font-bold text-slate-800">我的关注点</h2>
-                    {!isLoading && (
-                        <span className="text-xs font-medium text-slate-500 hidden sm:inline-block">
-                            <span className="text-indigo-600 font-bold">{activePoints.length}</span> 个有动态，
-                            <span className="text-slate-400"> {quietPoints.length} 个暂无</span>
-                        </span>
-                    )}
-                </div>
-                <button onClick={onManageClick} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 text-xs text-slate-700 font-semibold rounded-lg shadow-sm hover:bg-slate-50 transition">
-                    <GearIcon className="w-3.5 h-3.5" />
-                    管理
-                </button>
-             </div>
-
-             {isLoading ? (
-                <FocusPointsSkeleton />
-             ) : focusPoints.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-300">
-                    <p className="text-slate-500 mb-3">您还未设置任何关注点。</p>
-                    <button onClick={onManageClick} className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition">
-                        立即添加
-                    </button>
-                </div>
-             ) : (
-                <div className="space-y-6">
-                    {activePoints.length > 0 && (
-                        <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-4">
-                            {activePoints.map(point => (
-                                <CompactFocusCard 
-                                    key={point.id} 
-                                    entityName={point.content} 
-                                    items={focusPointFeeds[point.id] || []} 
-                                />
-                            ))}
-                        </div>
-                    )}
-
-                    {quietPoints.length > 0 && (
-                        <div className="bg-white/50 border border-slate-200 rounded-xl p-4">
-                            <p className="text-[10px] font-bold text-slate-400 mb-3 uppercase tracking-wider">今日暂无动态</p>
-                            <div className="flex flex-wrap gap-2">
-                                {quietPoints.map(point => (
-                                    <QuietFocusChip key={point.id} entityName={point.content} />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-             )}
-        </div>
-    );
-};
-
 // --- Main Dashboard Component ---
 interface DashboardProps {
     user: User;
@@ -270,11 +121,9 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNavigate }) => {
     const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
-    const [focusPointsKey, setFocusPointsKey] = useState(0);
 
     const handleFocusPointModalClose = () => {
         setIsFocusPointModalOpen(false);
-        setFocusPointsKey(prev => prev + 1);
     };
 
     return (
@@ -331,22 +180,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
                         <RecentDeepDives onNavigate={onNavigate} />
                     </LazyLoadModule>
                 </div>
-
-                {/* 3. Focus Points Stream */}
-                <div className="border-t border-slate-200 pt-8">
-                    <LazyLoadModule placeholder={<FocusPointsSkeleton />}>
-                        <FocusPointsSection 
-                            key={focusPointsKey}
-                            onManageClick={() => setIsFocusPointModalOpen(true)}
-                            subscriptions={subscriptions}
-                        />
-                    </LazyLoadModule>
-                </div>
-
-                {/* 4. Subscriptions Footer */}
-                <LazyLoadModule placeholder={<SubscriptionManagerSkeleton />}>
-                    <SubscriptionManager />
-                </LazyLoadModule>
 
             </div>
 
