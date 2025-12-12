@@ -1,5 +1,6 @@
 
 
+
 export interface TechItemHistory {
     id: string;
     tech_item_id: string;
@@ -568,6 +569,7 @@ export interface IntelLlmTask {
     uuid: string;
     user_uuid: string;
     description: string;
+    time_range?: string;
     status: 'pending' | 'analyzing' | 'completed' | 'failed';
     progress: number;
     created_at: string;

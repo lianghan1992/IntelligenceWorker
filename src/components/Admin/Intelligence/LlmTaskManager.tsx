@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { getSpiderSources, createIntelLlmTask, getIntelLlmTasks, downloadIntelLlmTaskReport } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
@@ -29,7 +28,8 @@ const StatusBadge: React.FC<{ status: string; progress: number }> = ({ status, p
 export const LlmTaskManager: React.FC = () => {
     // Form State
     const [description, setDescription] = useState('');
-    const [timeRange, setTimeRange] = useState('');
+    const [startMonth, setStartMonth] = useState('');
+    const [endMonth, setEndMonth] = useState('');
     const [selectedSources, setSelectedSources] = useState<string[]>([]);
     const [needSummary, setNeedSummary] = useState(false);
     
@@ -80,17 +80,22 @@ export const LlmTaskManager: React.FC = () => {
         if (!description.trim() || !userUuid) return;
         setIsCreating(true);
         try {
+            // Construct time range string (e.g., "2024-01" or "2024-01,2024-03")
+            const timeRangeParts = [startMonth, endMonth].filter(Boolean);
+            const timeRange = timeRangeParts.length > 0 ? timeRangeParts.join(',') : undefined;
+
             await createIntelLlmTask({
                 user_uuid: userUuid,
                 description,
-                time_range: timeRange || undefined,
+                time_range: timeRange,
                 source_uuids: selectedSources.length > 0 ? selectedSources : undefined,
                 need_summary: needSummary
             });
             
             // Reset Form
             setDescription('');
-            setTimeRange('');
+            setStartMonth('');
+            setEndMonth('');
             setNeedSummary(false);
             setSelectedSources([]);
             
@@ -151,20 +156,31 @@ export const LlmTaskManager: React.FC = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {/* Time Range */}
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">时间范围 (可选)</label>
-                            <input 
-                                type="text" 
-                                className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none"
-                                placeholder="e.g. 2024-01 或 2024-01,2024-03"
-                                value={timeRange}
-                                onChange={e => setTimeRange(e.target.value)}
-                            />
+                        <div className="flex gap-2 items-end">
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">起始月份</label>
+                                <input 
+                                    type="month" 
+                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors"
+                                    value={startMonth}
+                                    onChange={e => setStartMonth(e.target.value)}
+                                />
+                            </div>
+                            <div className="text-gray-400 pb-2">-</div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">结束月份</label>
+                                <input 
+                                    type="month" 
+                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors"
+                                    value={endMonth}
+                                    onChange={e => setEndMonth(e.target.value)}
+                                />
+                            </div>
                         </div>
 
                         {/* Summary Toggle */}
                         <div className="flex items-center">
-                            <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded-lg w-full border border-transparent hover:border-gray-200 transition-all">
+                            <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded-lg w-full border border-transparent hover:border-gray-200 transition-all h-[38px] mt-6">
                                 <input 
                                     type="checkbox" 
                                     className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
@@ -223,6 +239,7 @@ export const LlmTaskManager: React.FC = () => {
                         <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
                             <tr>
                                 <th className="px-6 py-3">任务描述</th>
+                                <th className="px-6 py-3">时间范围</th>
                                 <th className="px-6 py-3">状态</th>
                                 <th className="px-6 py-3">创建时间</th>
                                 <th className="px-6 py-3 text-right">操作</th>
@@ -230,12 +247,16 @@ export const LlmTaskManager: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {tasks.length === 0 ? (
-                                <tr><td colSpan={4} className="py-8 text-center text-gray-400">暂无任务</td></tr>
+                                <tr><td colSpan={5} className="py-8 text-center text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
                                     <tr key={task.uuid} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-gray-900 max-w-md truncate" title={task.description}>
                                             {task.description}
+                                        </td>
+                                        <td className="px-6 py-4 text-xs font-mono text-gray-500">
+                                            {/* @ts-ignore: Assuming time_range exists on IntelLlmTask based on create payload, though not in strict type def in original snippet but useful to show if available */}
+                                            {task.time_range || '-'}
                                         </td>
                                         <td className="px-6 py-4">
                                             <StatusBadge status={task.status} progress={task.progress} />
