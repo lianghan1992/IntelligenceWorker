@@ -23,10 +23,33 @@ const formatDate = (dateString: string) => {
     });
 };
 
+// 生成基于字符串的确定性哈希，用于分配颜色
+const getHash = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+};
+
+// 定义丰富的主题色板
+const THEMES = [
+    { name: 'Nebula', bg: 'bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900', accent: 'from-purple-400 to-pink-400', border: 'border-purple-500/30' },
+    { name: 'Oceanic', bg: 'bg-gradient-to-br from-slate-900 via-cyan-900 to-blue-900', accent: 'from-cyan-400 to-blue-400', border: 'border-cyan-500/30' },
+    { name: 'Aurora',  bg: 'bg-gradient-to-br from-emerald-900 via-teal-900 to-slate-900', accent: 'from-emerald-400 to-teal-400', border: 'border-emerald-500/30' },
+    { name: 'Sunset',  bg: 'bg-gradient-to-br from-slate-900 via-rose-900 to-orange-900', accent: 'from-rose-400 to-orange-400', border: 'border-rose-500/30' },
+    { name: 'Midnight', bg: 'bg-gradient-to-br from-gray-900 via-slate-800 to-zinc-900', accent: 'from-slate-400 to-white', border: 'border-slate-500/30' },
+    { name: 'Royal',    bg: 'bg-gradient-to-br from-blue-950 via-indigo-900 to-violet-950', accent: 'from-indigo-400 to-violet-400', border: 'border-indigo-500/30' },
+];
+
 // --- Components ---
 
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
+    
+    // 基于ID选择主题，保证同一卡片颜色固定，但不同卡片颜色多样
+    const themeIndex = getHash(task.id) % THEMES.length;
+    const theme = THEMES[themeIndex];
 
     useEffect(() => {
         let active = true;
@@ -55,68 +78,81 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
     return (
         <div 
             onClick={onClick}
-            className="group relative w-full aspect-[16/10] rounded-xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-500 hover:-translate-y-1 bg-slate-900 ring-1 ring-slate-900/5"
+            className={`group relative w-full aspect-[16/10] rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1.5 ring-1 ring-white/10 ${theme.bg}`}
         >
-            {/* 1. 底层封面图 */}
-            <div className="absolute inset-0 bg-slate-800 overflow-hidden">
+            {/* 1. 底层：动态光斑 (Animated Blobs) */}
+            {/* 在深色背景上增加流动的光效，制造高级感 */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className={`absolute -top-[50%] -left-[50%] w-[200%] h-[200%] bg-[radial-gradient(circle,rgba(255,255,255,0.1)_0%,transparent_50%)] opacity-30 group-hover:rotate-180 transition-transform duration-[10s] ease-linear`}></div>
+            </div>
+
+            {/* 2. 图片纹理层 (The Texture) */}
+            {/* 关键：Opacity 极低，Mix-blend-overlay，只保留纹理，不保留“丑”的配色 */}
+            <div className="absolute inset-0 mix-blend-overlay opacity-20 group-hover:opacity-30 transition-opacity duration-500 grayscale">
                 {coverUrl ? (
                     <img 
                         src={coverUrl} 
-                        alt={task.file_name} 
-                        className="w-full h-full object-cover transition-transform duration-700 ease-out scale-[1.02] group-hover:scale-110 filter blur-[3px]"
+                        alt="" 
+                        className="w-full h-full object-cover filter contrast-125"
                     />
                 ) : (
-                    // 缺省图：使用品牌色渐变
-                    <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-                        <DocumentTextIcon className="w-16 h-16 text-slate-700 opacity-50" />
-                    </div>
+                    // 缺省纹理
+                    <div className="w-full h-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-50"></div>
                 )}
             </div>
 
-            {/* 2. 品牌色遮罩 (Brand Tint) */}
-            {/* 增加透明度至 50% (indigo-900/50)，配合高斯模糊让背景更深沉，突出文字 */}
-            <div className="absolute inset-0 bg-indigo-900/50 transition-colors duration-300 group-hover:bg-indigo-900/40 pointer-events-none"></div>
-            
-            {/* 3. 底部强力渐变 (Text Protection Gradient) */}
-            {/* 使用深色渐变 (slate-950) 确保底部白字清晰可读 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-indigo-950/40 to-transparent opacity-90 pointer-events-none"></div>
+            {/* 3. 噪点遮罩 (Noise Overlay) */}
+            {/* 增加纸质/胶片质感，消除数字廉价感 */}
+            <div className="absolute inset-0 opacity-[0.07] pointer-events-none z-0 mix-blend-overlay"
+                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
+            </div>
 
-            {/* 4. 内容层 */}
-            <div className="relative h-full flex flex-col justify-between p-5 z-10">
-                {/* Top: Badges */}
+            {/* 4. 渐变遮罩 (Gradient Overlay) */}
+            {/* 底部加深，确保文字清晰 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent z-10"></div>
+
+            {/* 5. 装饰线条 (Accent Line) */}
+            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${theme.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20`}></div>
+
+            {/* 6. 内容层 */}
+            <div className="absolute inset-0 p-5 z-20 flex flex-col justify-between">
+                {/* Top Row */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-black/20 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
-                        {categoryName || 'REPORT'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {/* 磨砂玻璃标签 */}
+                        <span className="px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-bold text-white tracking-wide shadow-sm flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${theme.accent}`}></span>
+                            {categoryName || 'REPORT'}
+                        </span>
+                    </div>
                     
                     {task.status === 'processing' && (
-                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-600/90 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-                            解析中
-                        </span>
+                        <div className="w-6 h-6 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center animate-spin-slow">
+                            <RefreshIcon className="w-3.5 h-3.5 text-white/80" />
+                        </div>
                     )}
                 </div>
 
-                {/* Bottom: Info */}
-                <div>
-                    <h3 className="text-base md:text-lg font-bold text-white leading-snug line-clamp-2 mb-3 drop-shadow-md group-hover:text-indigo-200 transition-colors">
+                {/* Bottom Row */}
+                <div className="transform transition-transform duration-300 group-hover:-translate-y-1">
+                    <h3 className="text-lg font-bold text-white leading-snug line-clamp-2 mb-3 drop-shadow-md tracking-tight group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-slate-300 transition-all">
                         {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                     </h3>
                     
-                    <div className="flex items-center justify-between text-xs text-slate-200 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1.5 opacity-90">
-                                <ClockIcon className="w-3.5 h-3.5" />
+                    <div className="flex items-center justify-between pt-3 border-t border-white/10 group-hover:border-white/20 transition-colors">
+                        <div className="flex items-center gap-4 text-xs font-medium text-slate-300/90">
+                            <span className="flex items-center gap-1.5">
+                                <ClockIcon className="w-3.5 h-3.5 opacity-70" />
                                 {formatDate(task.updated_at)}
                             </span>
-                            <span className="flex items-center gap-1.5 opacity-90">
-                                <ChipIcon className="w-3.5 h-3.5" />
-                                {task.total_pages || '-'}P
+                            <span className="flex items-center gap-1.5">
+                                <ChipIcon className="w-3.5 h-3.5 opacity-70" />
+                                {task.total_pages || '-'} P
                             </span>
                         </div>
                         
-                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 group-hover:text-white transition-all transform group-hover:translate-x-1">
-                            <ArrowRightIcon className="w-3 h-3" />
+                        <div className={`w-8 h-8 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white group-hover:bg-gradient-to-r ${theme.accent} group-hover:border-transparent transition-all duration-300 shadow-lg group-hover:shadow-${theme.name === 'Nebula' ? 'purple' : 'blue'}-500/50`}>
+                            <ArrowRightIcon className="w-3.5 h-3.5 transform group-hover:translate-x-0.5 transition-transform" />
                         </div>
                     </div>
                 </div>
