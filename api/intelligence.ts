@@ -219,6 +219,27 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
     };
 };
 
+export const getArticlesByTags = async (params: { tags: string[], page?: number, page_size?: number }): Promise<PaginatedResponse<SpiderArticle>> => {
+    // List articles by tags: GET /intelspider/articles/by_tags?tags=...
+    const query = createApiQuery(params);
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags${query}`);
+    
+    // Map response
+    const items = (res.items || []).map((a: any) => ({
+        ...a,
+        id: a.uuid,
+        publish_time: a.publish_date,
+        collected_at: a.created_at || a.collected_at,
+        source_name: a.source_name || 'Unknown',
+        point_name: a.point_name || 'Unknown'
+    }));
+
+    return {
+        ...res,
+        items
+    };
+};
+
 export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticle> => {
     // Get single article detail: GET /intelspider/articles/{article_uuid}
     const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}`);

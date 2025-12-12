@@ -7,7 +7,7 @@ import { FocusPoints } from './FocusPoints';
 import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
-import { getUserPois, searchArticlesFiltered, searchSemanticSegments } from '../../api';
+import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
 import { ChevronLeftIcon, MenuIcon, ViewGridIcon } from '../icons';
 
 // --- Main Component ---
@@ -74,7 +74,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedArticle]);
 
-    const fetchArticles = useCallback(async (query: string, page: number = 1) => {
+    const fetchArticles = useCallback(async (
+        queryValue: string, 
+        lookType: string, 
+        queryType: string, 
+        queryLabel: string, 
+        page: number = 1
+    ) => {
         setIsLoading(true);
         if (page === 1) {
             setArticles([]); 
@@ -85,18 +91,36 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             const limit = 20;
             let response;
 
-            // Determine whether to use standard article list or semantic segment search
+            // Determine whether to use standard article list, tag based list, or semantic segment search
+            // If it's a sublook under Industry or Customer, use the new Tag API
+            if (queryType === 'sublook' && (lookType === 'industry' || lookType === 'customer')) {
+                // Use the new getArticlesByTags API
+                // queryLabel is the sub-category label (e.g., "新技术"), which corresponds to the tag
+                const tagResponse = await getArticlesByTags({
+                    tags: [queryLabel],
+                    page,
+                    page_size: limit
+                });
+                
+                // Map response to InfoItem interface (SpiderArticle compatible)
+                response = {
+                    items: tagResponse.items as unknown as InfoItem[],
+                    total: tagResponse.total,
+                    page: tagResponse.page,
+                    totalPages: tagResponse.totalPages
+                };
+            }
             // If query is '*' (All Intelligence), use standard list
-            if (query === '*') {
+            else if (queryValue === '*') {
                 const params: any = {
                     page,
                     limit: limit,
                 };
                 response = await searchArticlesFiltered(params);
             } else {
-                // Use semantic search for specific categories, POIs, or manual search
+                // Use semantic search for POIs, or manual search, or other categories
                 response = await searchSemanticSegments({
-                    query_text: query,
+                    query_text: queryValue,
                     page,
                     page_size: limit,
                     similarity_threshold: 0.45 // Adjusted threshold for broader recall
@@ -127,10 +151,9 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
 
     useEffect(() => {
-        // Trigger fetch when activeQuery changes
-        // query value is used but currently just triggers a fresh fetch of latest articles in the new API context
-        fetchArticles(activeQuery.value, 1);
-    }, [activeQuery, fetchArticles]);
+        // Trigger fetch when activeQuery or selectedLook changes
+        fetchArticles(activeQuery.value, selectedLook, activeQuery.type, activeQuery.label, 1);
+    }, [activeQuery, selectedLook, fetchArticles]);
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
@@ -166,7 +189,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
-            fetchArticles(activeQuery.value, newPage);
+            fetchArticles(activeQuery.value, selectedLook, activeQuery.type, activeQuery.label, newPage);
         }
     };
     
