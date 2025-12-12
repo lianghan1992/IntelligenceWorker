@@ -69,23 +69,23 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 )}
             </div>
 
-            {/* 2. 品牌色遮罩 (Brand Color Overlay) */}
-            {/* 使用 Indigo-900 (深靛蓝) 混合 Slate-900，保持品牌调性同时保证文字对比度 */}
-            <div className="absolute inset-0 bg-indigo-900/80 mix-blend-multiply transition-opacity duration-300 group-hover:bg-indigo-900/70"></div>
+            {/* 2. 品牌色遮罩 (Brand Color Overlay) - 修复为更纯净的深靛蓝 */}
+            {/* mix-blend-multiply 让背景图与颜色融合，保持深邃感 */}
+            <div className="absolute inset-0 bg-indigo-950/80 mix-blend-multiply transition-opacity duration-300 group-hover:bg-indigo-900/70"></div>
             
-            {/* 3. 底部渐变遮罩 (增强文字可读性) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent"></div>
+            {/* 3. 底部渐变遮罩 (增强底部文字可读性) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-80"></div>
 
             {/* 4. 内容层 */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
                 {/* Top: Badges */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2 py-1 rounded bg-white/20 backdrop-blur-sm border border-white/10 text-[10px] font-medium text-white tracking-wide">
-                        {categoryName || '报告'}
+                    <span className="inline-flex items-center px-2 py-1 rounded bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-medium text-white tracking-wide shadow-sm">
+                        {categoryName || '未分类'}
                     </span>
                     
                     {task.status === 'processing' && (
-                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-500/50 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-500/80 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
                             <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             解析中
                         </span>
@@ -100,17 +100,18 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                     
                     <div className="flex items-center justify-between text-xs text-indigo-100/70 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
                         <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1.5">
                                 <ClockIcon className="w-3.5 h-3.5 opacity-80" />
                                 {formatDate(task.updated_at)}
                             </span>
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1.5">
                                 <DocumentTextIcon className="w-3.5 h-3.5 opacity-80" />
                                 {task.total_pages || '-'}P
                             </span>
                         </div>
                         
-                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                        {/* 交互提示箭头 */}
+                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 group-hover:text-white transition-all transform group-hover:translate-x-1">
                             <ArrowRightIcon className="w-3 h-3" />
                         </div>
                     </div>
@@ -202,7 +203,7 @@ export const DeepDives: React.FC = () => {
         <div className="h-full flex flex-col bg-slate-50 overflow-hidden font-sans">
             
             {/* Header Section */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
+            <header className="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0 shadow-sm">
                 <div className="max-w-[1920px] mx-auto px-4 md:px-8 py-3 md:py-4">
                     
                     {/* Top Row */}

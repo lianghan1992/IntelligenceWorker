@@ -42,6 +42,9 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         const loadContent = async () => {
             setIsLoadingContent(true);
             try {
+                // Determine whether to show Bundle or Original
+                // Usually we want to show original for preview if possible, 
+                // but bundle if processed. Let's stick to original for preview consistency.
                 const blob = await downloadDeepInsightOriginalPdf(task.id);
                 const url = URL.createObjectURL(blob);
                 setPdfBlobUrl(url);
@@ -96,9 +99,10 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         <span className="text-white font-bold text-sm truncate">{task.file_name}</span>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
+                        {/* Desktop Download Button in Header */}
                         <button 
                             onClick={handleDownload}
-                            className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-white text-indigo-900 rounded-full text-xs font-bold hover:bg-indigo-50 transition-colors"
+                            className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-white text-indigo-900 rounded-full text-xs font-bold hover:bg-indigo-50 transition-colors shadow-sm"
                         >
                             {isDownloading ? <span className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span> : <DownloadIcon className="w-4 h-4" />}
                             下载
@@ -113,14 +117,16 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
             {/* Content Area */}
             <div className="flex-1 relative z-40 flex items-center justify-center p-4 pt-24 pb-8 h-full">
                 
-                {/* 1. Mobile View (No Iframe) */}
+                {/* 1. Mobile View (No Iframe, Card Only) */}
                 <div className="md:hidden w-full max-w-sm bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
                     <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
                         <DocumentTextIcon className="w-10 h-10 text-indigo-600" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-900 mb-2 line-clamp-2">{task.file_name}</h3>
-                    <p className="text-sm text-slate-500 mb-8">
-                        移动端暂不支持在线预览 PDF。<br/>请下载后使用系统阅读器查看。
+                    <div className="text-xs text-slate-400 mb-6 bg-slate-50 px-3 py-1 rounded-full">PDF 文档</div>
+                    
+                    <p className="text-sm text-slate-500 mb-8 leading-relaxed">
+                        移动端暂不支持在线预览此 PDF。<br/>请点击下方按钮下载后查看。
                     </p>
                     
                     <button 
