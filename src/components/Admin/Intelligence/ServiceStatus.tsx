@@ -180,73 +180,81 @@ export const ServiceStatus: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* System Status Card - Compact Width */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-base font-bold text-gray-800">系统运行状态</h3>
-                        <button onClick={fetchStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                            <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        </button>
+            
+            {/* System Status Card - Full Width */}
+            <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-full ${status === 'ok' ? 'bg-green-100' : 'bg-red-100'}`}>
+                        {status === 'ok' ? (
+                            <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                        ) : (
+                            <ShieldExclamationIcon className="w-6 h-6 text-red-600" />
+                        )}
                     </div>
-
-                    <div className="flex items-center gap-3">
-                        <div className={`p-3 rounded-full ${status === 'ok' ? 'bg-green-100' : 'bg-red-100'}`}>
-                            {status === 'ok' ? (
-                                <CheckCircleIcon className="w-6 h-6 text-green-600" />
-                            ) : (
-                                <ShieldExclamationIcon className="w-6 h-6 text-red-600" />
-                            )}
-                        </div>
-                        <div>
-                            <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">IntelSpider Service</div>
-                            <div className={`text-lg font-bold ${status === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
-                                {status === 'ok' ? '运行正常' : '服务异常'}
-                            </div>
+                    <div>
+                        <h3 className="text-base font-bold text-gray-800">系统运行状态</h3>
+                        <div className={`text-sm font-medium ${status === 'ok' ? 'text-green-700' : 'text-red-700'}`}>
+                            {status === 'ok' ? 'IntelSpider Service 运行正常' : '服务异常'}
                         </div>
                     </div>
                 </div>
+                <button onClick={fetchStatus} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors border border-transparent hover:border-gray-200">
+                    <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
+            </div>
 
-                {/* Gemini Status Card - Compact Width */}
-                <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2">
-                            <SparklesIcon className="w-5 h-5 text-purple-600" />
-                            <h3 className="text-base font-bold text-gray-800">Gemini 引擎状态</h3>
+            {/* Gemini Engine Manager - Full Width Panel */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-purple-50 rounded-xl border border-purple-100">
+                            <SparklesIcon className="w-6 h-6 text-purple-600" />
                         </div>
-                        <button onClick={fetchGeminiStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                            <RefreshIcon className={`w-4 h-4 ${isCheckingGemini ? 'animate-spin' : ''}`} />
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <h3 className="text-lg font-bold text-gray-800">Gemini 引擎控制台</h3>
+                                <button onClick={fetchGeminiStatus} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors">
+                                    <RefreshIcon className={`w-3.5 h-3.5 ${isCheckingGemini ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className={`inline-block w-2 h-2 rounded-full ${geminiStatus?.valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                <span className={`text-sm font-medium ${geminiStatus?.valid ? 'text-green-700' : 'text-red-600'}`}>
+                                    {geminiStatus?.valid ? 'Cookie 状态有效' : 'Cookie 无效或已过期'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button 
+                            onClick={() => setIsHtmlSettingsOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-100 text-sm"
+                        >
+                            <DocumentTextIcon className="w-4 h-4" />
+                            HTML 生成配置
+                        </button>
+                        <button 
+                            onClick={() => setIsRetroSettingsOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-100 text-sm"
+                        >
+                            <ClockIcon className="w-4 h-4" />
+                            HTML 历史追溯
+                        </button>
+                        <div className="w-px h-8 bg-gray-200 mx-1 hidden md:block"></div>
+                        <button 
+                            onClick={() => setIsCookieModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all font-bold shadow-md hover:shadow-lg text-sm"
+                        >
+                            <SparklesIcon className="w-4 h-4" />
+                            更新 Cookie
                         </button>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${geminiStatus?.valid ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            <span className={`text-sm font-medium ${geminiStatus?.valid ? 'text-green-700' : 'text-red-600'}`}>
-                                {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效/过期'}
-                            </span>
-                        </div>
-                        <div className="flex gap-2 flex-wrap justify-end">
-                            <button 
-                                onClick={() => setIsHtmlSettingsOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold shadow-sm border border-blue-200"
-                            >
-                                HTML 生成
-                            </button>
-                            <button 
-                                onClick={() => setIsRetroSettingsOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors font-bold shadow-sm border border-orange-200"
-                            >
-                                HTML 追溯
-                            </button>
-                            <button 
-                                onClick={() => setIsCookieModalOpen(true)}
-                                className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold shadow-sm"
-                            >
-                                更新 Cookie
-                            </button>
-                        </div>
-                    </div>
+                </div>
+                
+                <div className="px-6 py-4 bg-gray-50/50 text-xs text-gray-500 flex items-center gap-2">
+                    <span className="font-bold text-gray-600">提示:</span> 
+                    Gemini 引擎用于驱动文章的智能摘要、HTML 结构化重组以及语义分析功能。请确保 Cookie 处于有效状态。
                 </div>
             </div>
 

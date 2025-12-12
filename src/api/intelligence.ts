@@ -1,5 +1,4 @@
 
-
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
