@@ -1,10 +1,12 @@
+
 import React, { useState } from 'react';
 import { TaskManager } from './TaskManager';
 import { CategoryManager } from './CategoryManager';
 import { GeminiSettings } from './GeminiSettings';
-import { DocumentTextIcon, ViewGridIcon, GearIcon } from '../../icons';
+import { FileManager } from './FileManager';
+import { DocumentTextIcon, ViewGridIcon, GearIcon, CloudIcon } from '../../icons';
 
-type SubView = 'tasks' | 'categories' | 'settings';
+type SubView = 'tasks' | 'files' | 'categories' | 'settings';
 
 export const DeepInsightManager: React.FC = () => {
     const [subView, setSubView] = useState<SubView>('tasks');
@@ -14,7 +16,7 @@ export const DeepInsightManager: React.FC = () => {
             <div className="flex-shrink-0 mb-6">
                 <h1 className="text-2xl font-bold text-gray-800 mb-4">深度洞察管理</h1>
                 <div className="border-b border-gray-200">
-                    <nav className="-mb-px flex space-x-8">
+                    <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
                         <button
                             onClick={() => setSubView('tasks')}
                             className={`
@@ -26,6 +28,18 @@ export const DeepInsightManager: React.FC = () => {
                         >
                             <DocumentTextIcon className="w-5 h-5" />
                             文档任务
+                        </button>
+                        <button
+                            onClick={() => setSubView('files')}
+                            className={`
+                                whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                                ${subView === 'files' 
+                                    ? 'border-blue-500 text-blue-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                            `}
+                        >
+                            <CloudIcon className="w-5 h-5" />
+                            文件管理
                         </button>
                         <button
                             onClick={() => setSubView('categories')}
@@ -57,6 +71,7 @@ export const DeepInsightManager: React.FC = () => {
 
             <div className="flex-1 overflow-hidden">
                 {subView === 'tasks' && <TaskManager />}
+                {subView === 'files' && <FileManager />}
                 {subView === 'categories' && <CategoryManager />}
                 {subView === 'settings' && <GeminiSettings />}
             </div>

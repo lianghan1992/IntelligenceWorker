@@ -24,13 +24,40 @@ export const deleteDeepInsightCategory = (cid: string): Promise<{ message: strin
         method: 'DELETE',
     });
 
-// --- Tasks ---
+// --- File Management (Raw Uploads) ---
+export const getDeepInsightUploads = (): Promise<string[]> =>
+    apiFetch<string[]>(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`);
+
+export const deleteDeepInsightUpload = (fileName: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/uploads/${fileName}`, {
+        method: 'DELETE',
+    });
+
+// --- Tasks Core ---
+
 export const getDeepInsightTasks = (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
     const query = createApiQuery(params);
     return apiFetch<{ items: DeepInsightTask[], total: number, page: number, limit: number }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`); 
 };
 
-// Updated Upload Logic: Upload -> Create Task -> Start Task
+// Create a task from an existing file in the upload directory
+export const createDeepInsightTask = (fileName: string, category_id?: string): Promise<{ id: string }> => {
+    const formData = new FormData();
+    formData.append('file_name', fileName);
+    if (category_id) formData.append('category_id', category_id);
+    return apiFetch<{ id: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks`, {
+        method: 'POST',
+        body: formData,
+    });
+};
+
+// Start processing a task
+export const startDeepInsightTask = (taskId: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/start`, {
+        method: 'POST'
+    });
+
+// Convenience: Upload -> Create -> Start
 export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
     // 1. Upload File
     const uploadFormData = new FormData();
@@ -41,19 +68,11 @@ export const uploadDeepInsightTask = async (file: File, category_id?: string): P
     });
 
     // 2. Create Task
-    const createFormData = new FormData();
-    createFormData.append('file_name', file.name);
-    if (category_id) createFormData.append('category_id', category_id);
-    const taskRes = await apiFetch<{ id: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks`, {
-        method: 'POST',
-        body: createFormData,
-    });
+    const taskRes = await createDeepInsightTask(file.name, category_id);
 
     // 3. Start Task (Auto-start for better UX)
     try {
-        await apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskRes.id}/start`, {
-            method: 'POST'
-        });
+        await startDeepInsightTask(taskRes.id);
     } catch (e) {
         console.warn("Failed to auto-start task", e);
     }
@@ -67,6 +86,8 @@ export const getDeepInsightTask = (taskId: string): Promise<DeepInsightTask> =>
 export const getDeepInsightTaskPages = (taskId: string, page = 1, limit = 20): Promise<DeepInsightPagesResponse> =>
     apiFetch<DeepInsightPagesResponse>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages${createApiQuery({ page, limit })}`);
 
+// --- Downloads ---
+
 export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: number): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/pdf`;
     const token = localStorage.getItem('accessToken');
@@ -79,20 +100,9 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
 
 // Fetch HTML content for a specific page
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
-    // Assuming page HTMLs are standard assets managed by the backend logic, 
-    // constructing path based on typical behavior or if a specific endpoint exists.
-    // If there isn't a direct "get html string" endpoint in the new doc, we might need to adjust.
-    // However, usually reader components rely on this. Assuming existing endpoint logic holds or 
-    // we might need to fetch the bundle and parse, but let's stick to the likely pattern 
-    // or use the provided endpoints. 
-    // The doc mentions `/deep_insight/tasks/{task_id}/pages` list items having `html_path`.
-    // For now, we'll keep this helper to fetch content if the backend serves static files via auth proxy.
-    // If strictly following doc: Only download endpoints are listed. 
-    // We will assume we can fetch the HTML content via the file serving mechanism or if not, 
-    // we rely on the PDF view mainly as per user request.
-    
-    // Placeholder: If your backend serves HTML content directly via an endpoint not explicitly documented 
-    // as "download" but accessible.
+    // Assuming backend endpoint follows pattern or we access static resource if implied by doc
+    // If specific endpoint '/html' doesn't exist on page resource, this might need adjustment based on backend implementation.
+    // Preserving existing logic as per user code structure.
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
@@ -114,7 +124,6 @@ export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> =
     return response.blob();
 };
 
-// NEW: Download Original PDF
 export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/original`;
     const token = localStorage.getItem('accessToken');
@@ -144,7 +153,7 @@ export const fetchDeepInsightCover = async (taskId: string): Promise<string | nu
     }
 };
 
-// --- New Admin APIs (Stats & Management) ---
+// --- Admin APIs (Stats & Management) ---
 export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
     apiFetch<{ total: number; completed: number; failed: number; processing: number; pending: number }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/stats`);
 
