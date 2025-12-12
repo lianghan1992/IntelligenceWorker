@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
-import { getDeepInsightTasks, getDeepInsightCategories, fetchDeepInsightCover } from '../../api/deepInsight';
-import { SearchIcon, DocumentTextIcon, RefreshIcon, ClockIcon, FilterIcon, CloudIcon, ArrowRightIcon } from '../icons';
+import { getDeepInsightTasks, getDeepInsightCategories } from '../../api/deepInsight';
+import { SearchIcon, DocumentTextIcon, RefreshIcon, CloudIcon, ArrowRightIcon, SparklesIcon, ClockIcon } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
 // --- Helpers ---
@@ -24,155 +24,94 @@ const formatDate = (dateString: string) => {
     });
 };
 
-// Generates a deterministic gradient based on string hash
-const generateGradient = (id: string) => {
+// Generates a deterministic sophisticated gradient based on string hash
+const getCardStyle = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
     
-    const colors = [
-        ['from-blue-400 to-indigo-600', 'text-blue-50'],
-        ['from-emerald-400 to-teal-600', 'text-emerald-50'],
-        ['from-orange-400 to-red-600', 'text-orange-50'],
-        ['from-purple-400 to-pink-600', 'text-purple-50'],
-        ['from-cyan-400 to-blue-600', 'text-cyan-50'],
-        ['from-rose-400 to-orange-500', 'text-rose-50'],
-        ['from-violet-400 to-fuchsia-600', 'text-violet-50'],
-        ['from-slate-600 to-slate-800', 'text-slate-200'],
+    // Curated gradients that look good with white text
+    // Format: [Background Gradient Class, Accent Color Class for tags/icons]
+    const styles = [
+        { bg: 'bg-gradient-to-br from-slate-700 to-slate-900', accent: 'text-slate-200' }, // Classic Dark
+        { bg: 'bg-gradient-to-br from-indigo-600 to-blue-800', accent: 'text-blue-200' },   // Corporate Blue
+        { bg: 'bg-gradient-to-br from-violet-600 to-purple-800', accent: 'text-purple-200' }, // Creative Purple
+        { bg: 'bg-gradient-to-br from-emerald-600 to-teal-800', accent: 'text-emerald-200' }, // Sustainable Green
+        { bg: 'bg-gradient-to-br from-rose-600 to-red-800', accent: 'text-rose-200' },       // Urgent Red
+        { bg: 'bg-gradient-to-br from-orange-500 to-amber-700', accent: 'text-amber-200' },   // Energetic Orange
+        { bg: 'bg-gradient-to-br from-cyan-600 to-sky-800', accent: 'text-cyan-200' },       // Tech Cyan
+        { bg: 'bg-gradient-to-br from-fuchsia-600 to-pink-800', accent: 'text-pink-200' },   // Vibrant Pink
     ];
     
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
+    const index = Math.abs(hash) % styles.length;
+    return styles[index];
 };
 
 // --- Components ---
 
-const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-    if (status === 'completed') return null;
-    
-    const config = {
-        pending: { text: '排队中', bg: 'bg-amber-100 text-amber-700 border-amber-200' },
-        processing: { text: 'AI解析中', bg: 'bg-indigo-100 text-indigo-700 border-indigo-200 animate-pulse' },
-        failed: { text: '解析失败', bg: 'bg-red-100 text-red-700 border-red-200' },
-    }[status] || { text: status, bg: 'bg-slate-100 text-slate-600' };
-
-    return (
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${config.bg} flex-shrink-0`}>
-            {config.text}
-        </span>
-    );
-};
-
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
-    const [coverUrl, setCoverUrl] = useState<string | null>(null);
-    const [gradientClass, textClass] = useMemo(() => generateGradient(task.id), [task.id]);
-
-    useEffect(() => {
-        let active = true;
-        if (task.status === 'completed' || task.status === 'processing') {
-            fetchDeepInsightCover(task.id).then(url => {
-                if (active && url) setCoverUrl(url);
-            });
-        }
-        return () => { 
-            active = false; 
-            if (coverUrl) URL.revokeObjectURL(coverUrl); 
-        };
-    }, [task.id, task.status]);
+    const style = useMemo(() => getCardStyle(task.id), [task.id]);
 
     return (
         <div 
             onClick={onClick}
-            className="group relative flex flex-col w-full cursor-pointer perspective-1000"
+            className={`
+                group relative w-full aspect-video rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1
+                ${style.bg}
+            `}
         >
-            {/* Document "Paper" Container */}
-            <div className="relative bg-white rounded-t-lg rounded-br-lg shadow-[0_2px_8px_rgba(0,0,0,0.08)] group-hover:shadow-[0_20px_30px_-10px_rgba(0,0,0,0.15)] group-hover:-translate-y-2 transition-all duration-500 ease-out border border-slate-200 overflow-hidden">
-                
-                {/* 1. Cover Area (A4 Ratio approx) */}
-                <div className="relative aspect-[210/260] overflow-hidden bg-slate-100">
-                    {/* Category Tag */}
-                    {categoryName && (
-                        <div className="absolute top-3 left-3 z-20">
-                            <span className="inline-block px-2 py-0.5 bg-black/60 backdrop-blur-md text-[10px] font-bold text-white rounded-md shadow-sm tracking-wide border border-white/20">
-                                {categoryName}
-                            </span>
-                        </div>
-                    )}
+            {/* Background Texture/Noise (Optional for premium feel) */}
+            <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4yKSIvPjwvc3ZnPg==')]"></div>
+            
+            {/* Hover Gloss Effect */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
 
-                    {/* Image or Generative Placeholder */}
-                    {coverUrl ? (
-                        <img 
-                            src={coverUrl} 
-                            alt={task.file_name} 
-                            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                            loading="lazy"
-                        />
-                    ) : (
-                        <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex flex-col p-6 relative`}>
-                            {/* Abstract Pattern overlay */}
-                            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.4)_1px,transparent_0)] [background-size:20px_20px]"></div>
-                            
-                            <div className="mt-auto relative z-10">
-                                <div className={`w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center mb-3 ${textClass}`}>
-                                    <DocumentTextIcon className="w-5 h-5 text-white" />
-                                </div>
-                                <h3 className="text-white font-bold text-lg leading-tight line-clamp-3 drop-shadow-md">
-                                    {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
-                                </h3>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Glossy Overlay (Shine) */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/0 to-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+            <div className="relative h-full flex flex-col justify-between p-5 z-10">
+                {/* Top Row: Category & Status */}
+                <div className="flex justify-between items-start">
+                    <span className="inline-block px-2.5 py-1 bg-white/10 backdrop-blur-md text-[10px] font-bold text-white/90 rounded-md border border-white/10">
+                        {categoryName || '未分类'}
+                    </span>
                     
-                    {/* Dark Overlay on Hover for Text Visibility if image */}
-                    {coverUrl && (
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    {/* Status Dot */}
+                    {task.status === 'processing' && (
+                        <div className="flex items-center gap-1.5 bg-indigo-500/30 backdrop-blur px-2 py-1 rounded-full border border-indigo-400/30">
+                            <span className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-pulse"></span>
+                            <span className="text-[9px] text-white/90 font-medium">解析中</span>
+                        </div>
                     )}
-
-                    {/* Action Button (Floats up) */}
-                    <div className="absolute bottom-4 left-0 right-0 flex justify-center translate-y-10 group-hover:translate-y-0 transition-transform duration-300 delay-75">
-                        <span className="px-5 py-2 bg-white/90 backdrop-blur text-slate-900 text-xs font-bold rounded-full shadow-lg flex items-center gap-1.5 hover:bg-white hover:scale-105 transition-all">
-                            阅读报告 <ArrowRightIcon className="w-3 h-3" />
-                        </span>
-                    </div>
                 </div>
 
-                {/* 2. Info Body (Clean & Minimal) */}
-                <div className="p-4 bg-white relative z-10">
-                    {/* If coverUrl exists, show title here because it's not on the image */}
-                    {coverUrl ? (
-                        <h3 className="text-sm font-bold text-slate-800 leading-snug line-clamp-2 mb-3 h-[2.5em] group-hover:text-indigo-600 transition-colors">
-                            {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
-                        </h3>
-                    ) : (
-                        // If generative cover, title is on cover, show summary or just spacer
-                        <div className="h-[2.5em] flex items-center">
-                             <p className="text-xs text-slate-400 line-clamp-2">
-                                AI 深度解析报告，点击查看完整内容与关键数据提取。
-                             </p>
-                        </div>
-                    )}
+                {/* Middle: Title */}
+                <div className="mt-2 mb-auto pt-2">
+                    <h3 className="text-white font-bold text-lg leading-snug line-clamp-2 tracking-tight group-hover:underline decoration-white/30 underline-offset-4">
+                        {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
+                    </h3>
+                </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-50">
-                        <div className="flex items-center gap-3 text-[11px] text-slate-400 font-medium">
-                            <span className="flex items-center gap-1">
-                                <DocumentTextIcon className="w-3 h-3" />
-                                {task.total_pages || '-'} 页
-                            </span>
-                            <span className="w-px h-3 bg-slate-200"></span>
-                            <span>{formatDate(task.updated_at)}</span>
-                        </div>
-                        <StatusBadge status={task.status} />
+                {/* Bottom: Meta Info */}
+                <div className="flex items-center justify-between pt-4 border-t border-white/10 mt-2">
+                    <div className="flex items-center gap-3 text-xs text-white/60 font-medium">
+                        <span className="flex items-center gap-1">
+                            <DocumentTextIcon className="w-3.5 h-3.5 opacity-70" />
+                            {task.total_pages || '-'} 页
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <ClockIcon className="w-3.5 h-3.5 opacity-70" />
+                            {formatDate(task.updated_at)}
+                        </span>
+                    </div>
+
+                    {/* Hover Action Icon */}
+                    <div className={`
+                        w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center 
+                        opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300
+                    `}>
+                        <ArrowRightIcon className="w-4 h-4 text-white" />
                     </div>
                 </div>
             </div>
-            
-            {/* "Stacked Paper" Effect beneath the card */}
-            <div className="absolute inset-x-2 bottom-0 h-2 bg-slate-200 rounded-b-lg -z-10 group-hover:translate-y-1 transition-transform duration-500 ease-out shadow-sm"></div>
-            <div className="absolute inset-x-4 bottom-[-4px] h-2 bg-slate-100 rounded-b-lg -z-20 group-hover:translate-y-2 transition-transform duration-500 ease-out shadow-sm"></div>
         </div>
     );
 };
@@ -181,17 +120,16 @@ const FilterTab: React.FC<{ label: string; count?: number; isActive: boolean; on
     <button
         onClick={onClick}
         className={`
-            relative px-4 py-2.5 text-sm font-bold transition-all duration-200 flex items-center gap-2
-            ${isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}
+            relative px-4 py-2 text-sm font-bold transition-all duration-200 flex items-center gap-2 rounded-lg
+            ${isActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}
         `}
     >
         {label}
         {count !== undefined && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
                 {count}
             </span>
         )}
-        {isActive && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-full"></div>}
     </button>
 );
 
@@ -256,15 +194,16 @@ export const DeepDives: React.FC = () => {
             
             {/* Header Section */}
             <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 flex-shrink-0 shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)]">
-                <div className="max-w-[1920px] mx-auto px-4 md:px-8 pt-6 pb-0">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2">
+                <div className="max-w-[1920px] mx-auto px-4 md:px-8 py-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         
                         {/* Title & Description */}
                         <div>
                             <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
                                 深度洞察库
-                                <span className="text-xs font-normal text-slate-500 px-2 py-1 bg-slate-100 rounded-full border border-slate-200 hidden sm:inline-block">
-                                    AI Refined Reports
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
+                                    <SparklesIcon className="w-3 h-3" />
+                                    AI Refined
                                 </span>
                             </h1>
                             <p className="text-sm text-slate-500 mt-1">
@@ -281,7 +220,7 @@ export const DeepDives: React.FC = () => {
                                     placeholder="搜索报告..." 
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                                    className="w-full pl-10 pr-4 py-2 bg-slate-100 border border-transparent rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all placeholder:text-slate-400"
                                 />
                             </div>
                             <button 
@@ -294,8 +233,8 @@ export const DeepDives: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Filter Tabs */}
-                    <div className="flex items-center gap-1 overflow-x-auto no-scrollbar border-t border-transparent">
+                    {/* Filter Tabs - separated row for clarity */}
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mt-6">
                         <FilterTab 
                             label="全部" 
                             count={tasks.length} 
@@ -316,20 +255,28 @@ export const DeepDives: React.FC = () => {
             </header>
 
             {/* Content Grid */}
-            <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 bg-slate-50/50">
+            <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 bg-slate-50">
                 <div className="max-w-[1920px] mx-auto">
                     {isLoading && tasks.length === 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 md:gap-8">
-                            {[...Array(10)].map((_, i) => (
-                                <div key={i} className="aspect-[210/297] bg-white rounded-xl border border-slate-200 p-4 space-y-4 animate-pulse shadow-sm">
-                                    <div className="w-full h-1/2 bg-slate-100 rounded-lg mb-4"></div>
-                                    <div className="w-3/4 h-4 bg-slate-100 rounded"></div>
-                                    <div className="w-1/2 h-3 bg-slate-100 rounded"></div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                            {[...Array(8)].map((_, i) => (
+                                <div key={i} className="aspect-video bg-white rounded-xl border border-slate-200 p-5 space-y-4 animate-pulse shadow-sm flex flex-col justify-between">
+                                    <div className="flex justify-between">
+                                        <div className="w-16 h-4 bg-slate-100 rounded"></div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="w-full h-4 bg-slate-100 rounded"></div>
+                                        <div className="w-2/3 h-4 bg-slate-100 rounded"></div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-2">
+                                        <div className="w-10 h-3 bg-slate-100 rounded"></div>
+                                        <div className="w-16 h-3 bg-slate-100 rounded"></div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     ) : filteredTasks.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 md:gap-10 pb-20">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-20">
                             {filteredTasks.map(task => (
                                 <InsightCard 
                                     key={task.id} 
