@@ -73,24 +73,24 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 )}
             </div>
 
-            {/* 2. 品牌色遮罩 (Brand Color Tint) */}
-            {/* 简化为单纯的半透明遮罩，移除 mix-blend-multiply 以防止在深色背景上图片过暗 */}
-            <div className="absolute inset-0 bg-indigo-900/30 transition-colors duration-300 group-hover:bg-indigo-900/20"></div>
+            {/* 2. 品牌色微 tint (Brand Tint) */}
+            {/* 降低透明度至 20% (indigo-900/20)，让图片更通透，同时保留品牌色调 */}
+            <div className="absolute inset-0 bg-indigo-900/20 transition-colors duration-300 group-hover:bg-indigo-900/10 pointer-events-none"></div>
             
-            {/* 3. 底部渐变遮罩 (Readability Gradient) */}
-            {/* 加深底部渐变，确保文字清晰 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/20 to-transparent opacity-90"></div>
+            {/* 3. 底部强力渐变 (Text Protection Gradient) */}
+            {/* 使用深靛蓝 (indigo-950) 构建更强的底部渐变，确保白字清晰 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/95 via-indigo-950/50 to-transparent opacity-90 pointer-events-none"></div>
 
             {/* 4. 内容层 */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
                 {/* Top: Badges */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-950/40 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
                         {categoryName || 'REPORT'}
                     </span>
                     
                     {task.status === 'processing' && (
-                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-500/80 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-600/90 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
                             <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             解析中
                         </span>
@@ -103,14 +103,14 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                         {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                     </h3>
                     
-                    <div className="flex items-center justify-between text-xs text-slate-300 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
+                    <div className="flex items-center justify-between text-xs text-slate-200 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
                         <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1.5">
-                                <ClockIcon className="w-3.5 h-3.5 opacity-70" />
+                            <span className="flex items-center gap-1.5 opacity-80">
+                                <ClockIcon className="w-3.5 h-3.5" />
                                 {formatDate(task.updated_at)}
                             </span>
-                            <span className="flex items-center gap-1.5">
-                                <ChipIcon className="w-3.5 h-3.5 opacity-70" />
+                            <span className="flex items-center gap-1.5 opacity-80">
+                                <ChipIcon className="w-3.5 h-3.5" />
                                 {task.total_pages || '-'}P
                             </span>
                         </div>
