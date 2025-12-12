@@ -314,7 +314,7 @@ export const ArticleList: React.FC = () => {
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <h3 className="font-bold text-gray-700 text-lg flex items-center gap-2">
-                        <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 文章库 ({total})
+                        <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 采集文章 ({total})
                     </h3>
                     {selectedIds.size > 0 && (
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">

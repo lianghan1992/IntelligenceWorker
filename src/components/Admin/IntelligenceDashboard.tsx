@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { SourceConfig } from './Intelligence/SourceConfig';
 import { ArticleList } from './Intelligence/ArticleList';
@@ -50,7 +49,7 @@ export const IntelligenceDashboard: React.FC = () => {
                             `}
                         >
                             <ViewListIcon className="w-5 h-5" />
-                            文章库
+                            采集文章
                         </button>
                         <button
                             onClick={() => setActiveTab('segments')}
