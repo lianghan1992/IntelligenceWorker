@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
-import { getDeepInsightTasks, getDeepInsightCategories } from '../../api/deepInsight';
+import { getDeepInsightTasks, getDeepInsightCategories, fetchDeepInsightCover } from '../../api/deepInsight';
 import { SearchIcon, DocumentTextIcon, RefreshIcon, CloudIcon, ArrowRightIcon, SparklesIcon, ClockIcon, CloseIcon, ChipIcon } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
@@ -26,63 +26,95 @@ const formatDate = (dateString: string) => {
 // --- Components ---
 
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
-    // 移除封面图背景逻辑，改用纯净的 CSS 样式
-    
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        let currentUrl: string | null = null;
+
+        if (['processing', 'completed'].includes(task.status)) {
+            fetchDeepInsightCover(task.id).then(url => {
+                if (active && url) {
+                    setCoverUrl(url);
+                    currentUrl = url;
+                }
+            });
+        }
+        return () => { 
+            active = false;
+            if (currentUrl) URL.revokeObjectURL(currentUrl);
+        };
+    }, [task.id, task.status]);
+
     return (
         <div 
             onClick={onClick}
-            className="group relative w-full aspect-[16/10] bg-slate-900 rounded-xl border border-slate-800 hover:border-indigo-500/50 shadow-sm hover:shadow-lg hover:shadow-indigo-500/10 transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between p-5"
+            className="group relative w-full aspect-[16/10] rounded-xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-500 hover:-translate-y-1 bg-slate-900 ring-1 ring-slate-900/5"
         >
-            {/* Background Decor: Abstract Icon Watermark */}
-            <div className="absolute -right-6 -bottom-6 text-slate-800 group-hover:text-indigo-900/20 transition-colors duration-500 pointer-events-none transform rotate-12 group-hover:rotate-0 group-hover:scale-110">
-                <DocumentTextIcon className="w-32 h-32 opacity-50" />
+            {/* 1. 底层封面图 */}
+            <div className="absolute inset-0 bg-slate-800">
+                {coverUrl ? (
+                    <img 
+                        src={coverUrl} 
+                        alt="" 
+                        className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 opacity-0 ${isImageLoaded ? 'opacity-100' : ''}`}
+                        onLoad={() => setIsImageLoaded(true)}
+                    />
+                ) : (
+                    // 缺省图：使用品牌色渐变
+                    <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                        <DocumentTextIcon className="w-16 h-16 text-slate-700 opacity-50" />
+                    </div>
+                )}
             </div>
 
-            {/* Background Decor: Subtle Gradient Mesh on Hover */}
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-transparent to-purple-500/0 group-hover:from-indigo-500/5 group-hover:to-purple-500/5 transition-all duration-500 pointer-events-none"></div>
+            {/* 2. 品牌色遮罩 (Brand Color Tint) */}
+            {/* 使用 Indigo-900 混合模式，给图片染上一层高级的深蓝品牌色，统一所有封面的色调 */}
+            <div className="absolute inset-0 bg-indigo-900/60 mix-blend-multiply transition-colors duration-300 group-hover:bg-indigo-900/50"></div>
+            
+            {/* 3. 底部渐变遮罩 (Readability Gradient) */}
+            {/* 保证底部文字始终清晰 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/40 to-transparent opacity-90"></div>
 
-            {/* Top Section */}
-            <div className="relative z-10 flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2 py-1 rounded bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-400 group-hover:text-indigo-400 group-hover:border-indigo-500/30 transition-colors uppercase tracking-wider">
+            {/* 4. 内容层 */}
+            <div className="relative h-full flex flex-col justify-between p-5 z-10">
+                {/* Top: Badges */}
+                <div className="flex justify-between items-start">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
                         {categoryName || 'REPORT'}
                     </span>
+                    
                     {task.status === 'processing' && (
-                        <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/20 text-[10px] text-indigo-300 font-medium animate-pulse">
-                            <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full"></span>
+                        <span className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-indigo-500/80 backdrop-blur-md border border-indigo-400/30 text-[10px] text-white font-medium animate-pulse">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
                             解析中
                         </span>
                     )}
                 </div>
-                
-                {/* PDF Icon Badge */}
-                <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-inner">
-                    <DocumentTextIcon className="w-4 h-4" />
-                </div>
-            </div>
 
-            {/* Middle Section: Title */}
-            <div className="relative z-10 mt-auto mb-4">
-                <h3 className="text-base md:text-lg font-bold text-slate-100 leading-snug line-clamp-3 group-hover:text-white transition-colors">
-                    {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
-                </h3>
-            </div>
-
-            {/* Bottom Section: Meta */}
-            <div className="relative z-10 pt-4 border-t border-slate-800 group-hover:border-slate-700/50 transition-colors flex items-center justify-between">
-                <div className="flex items-center gap-4 text-xs font-medium text-slate-500 group-hover:text-slate-400 transition-colors">
-                    <span className="flex items-center gap-1.5">
-                        <ClockIcon className="w-3.5 h-3.5" />
-                        {formatDate(task.updated_at)}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                        <ChipIcon className="w-3.5 h-3.5" />
-                        {task.total_pages || '-'}P
-                    </span>
-                </div>
-                
-                <div className="text-indigo-500 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all duration-300">
-                    <ArrowRightIcon className="w-4 h-4" />
+                {/* Bottom: Info */}
+                <div>
+                    <h3 className="text-base md:text-lg font-bold text-white leading-snug line-clamp-2 mb-3 drop-shadow-md group-hover:text-indigo-200 transition-colors">
+                        {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
+                    </h3>
+                    
+                    <div className="flex items-center justify-between text-xs text-slate-300 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1.5">
+                                <ClockIcon className="w-3.5 h-3.5 opacity-70" />
+                                {formatDate(task.updated_at)}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <ChipIcon className="w-3.5 h-3.5 opacity-70" />
+                                {task.total_pages || '-'}P
+                            </span>
+                        </div>
+                        
+                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 group-hover:text-white transition-all transform group-hover:translate-x-1">
+                            <ArrowRightIcon className="w-3 h-3" />
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
