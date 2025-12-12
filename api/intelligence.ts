@@ -26,9 +26,12 @@ import {
     IntelLlmTask
 } from '../types';
 
-// --- Service Status ---
+// --- Service Status & Stats ---
 export const getServiceHealth = (): Promise<{ status: string }> => 
     apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`);
+
+export const getTodayArticleCount = (): Promise<{ count: number; date: string }> =>
+    apiFetch<{ count: number; date: string }>(`${INTELSPIDER_SERVICE_PATH}/stats/today_articles_count`);
 
 // --- Gemini Management (IntelSpider) ---
 export const checkIntelGeminiStatus = (): Promise<{ valid: boolean; message: string }> => 
