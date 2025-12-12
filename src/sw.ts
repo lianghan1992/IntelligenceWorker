@@ -5,7 +5,7 @@ export {}; // Mark as module
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
 // 每次发版修改这里的版本号 (v1 -> v2 -> v3...)
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v2';
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v3';
 
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [

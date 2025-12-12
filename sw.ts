@@ -4,7 +4,9 @@ export {}; // Mark as module
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v1';
+// 每次发版修改这里的版本号 (v1 -> v2 -> v3...)
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v3';
+
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
   '/',
@@ -17,6 +19,9 @@ const urlsToCache = [
 
 // Install: Cache the app shell
 sw.addEventListener('install', (event) => {
+  // 强制立即接管，跳过等待
+  sw.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -33,16 +38,20 @@ sw.addEventListener('install', (event) => {
 sw.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      // 立即接管所有客户端页面
+      sw.clients.claim(),
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheWhitelist.indexOf(cacheName) === -1) {
+              console.log('Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+    ])
   );
 });
 
@@ -69,7 +78,26 @@ sw.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For other requests (app assets), use a cache-first strategy.
+  // Network First strategy for HTML to ensure updates are seen immediately
+  if (request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, response.clone());
+            return response;
+          });
+        })
+        .catch(() => {
+          return caches.match(request).then(response => {
+             return response || Promise.reject('Offline and no cache.');
+          });
+        })
+    );
+    return;
+  }
+
+  // For other requests (assets), use Cache First, falling back to network
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {
@@ -88,9 +116,7 @@ sw.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         }).catch(error => {
-            console.error('Fetch failed:', error);
-            // Re-throw to allow default browser handling of the network error.
-            // This ensures the promise chain either resolves to a Response or is rejected.
+            // console.error('Fetch failed:', error);
             throw error;
         });
       })
