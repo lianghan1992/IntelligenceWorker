@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { 
@@ -239,7 +238,7 @@ export const ArticleList: React.FC = () => {
         setIsBatchGenerating(true);
         try {
             // Since the batch API is generic (process next N), we iterate selected IDs to ensure specific targeting
-            const ids = Array.from(selectedIds);
+            const ids = Array.from(selectedIds) as string[];
             const promises = ids.map(id => generateArticleHtml(id));
             await Promise.all(promises);
             
