@@ -37,6 +37,25 @@ const App: React.FC = () => {
   
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
+  // PWA Cleanup: Unregister Service Worker if it exists
+  // Executing this inside useEffect ensures the document is in a valid state
+  useEffect(() => {
+    const cleanupServiceWorker = async () => {
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          for (const registration of registrations) {
+            await registration.unregister();
+            console.log('ServiceWorker unregistered successfully.');
+          }
+        } catch (error) {
+          console.warn('Service Worker unregistration failed (non-critical):', error);
+        }
+      }
+    };
+    cleanupServiceWorker();
+  }, []);
+
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
     setShowAuthModal(false);
