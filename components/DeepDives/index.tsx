@@ -50,10 +50,10 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
     return (
         <div 
             onClick={onClick}
-            className="group relative w-full aspect-video rounded-xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-300 hover:-translate-y-1 bg-slate-900 ring-1 ring-slate-900/5"
+            className="group relative w-full aspect-video rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl hover:shadow-indigo-900/10 transition-all duration-300 hover:-translate-y-1 bg-slate-100 ring-1 ring-slate-200"
         >
             {/* 1. 底层封面图 */}
-            <div className="absolute inset-0 bg-slate-800">
+            <div className="absolute inset-0 bg-slate-200">
                 {coverUrl ? (
                     <img 
                         src={coverUrl} 
@@ -62,25 +62,24 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                         onLoad={() => setIsImageLoaded(true)}
                     />
                 ) : (
-                    // 缺省图：使用品牌色渐变
-                    <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-                        <DocumentTextIcon className="w-12 h-12 text-slate-700 opacity-50" />
+                    // 缺省图：使用极简的浅色背景
+                    <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                        <DocumentTextIcon className="w-12 h-12 text-slate-300 opacity-50" />
                     </div>
                 )}
             </div>
 
-            {/* 2. 品牌色遮罩 (Brand Color Overlay) - 修复为更纯净的深靛蓝 */}
-            {/* mix-blend-multiply 让背景图与颜色融合，保持深邃感 */}
-            <div className="absolute inset-0 bg-indigo-950/80 mix-blend-multiply transition-opacity duration-300 group-hover:bg-indigo-900/70"></div>
+            {/* 2. 品牌色微 tint (Brand Tint) - 极低浓度，仅做色调统一 */}
+            <div className="absolute inset-0 bg-indigo-900/20 mix-blend-multiply transition-opacity duration-300 group-hover:bg-transparent pointer-events-none"></div>
             
-            {/* 3. 底部渐变遮罩 (增强底部文字可读性) */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-80"></div>
+            {/* 3. 底部文字保护罩 (Text Protection Gradient) - 仅在底部存在 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent opacity-80 pointer-events-none"></div>
 
             {/* 4. 内容层 */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
                 {/* Top: Badges */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2 py-1 rounded bg-white/10 backdrop-blur-md border border-white/10 text-[10px] font-medium text-white tracking-wide shadow-sm">
+                    <span className="inline-flex items-center px-2 py-1 rounded bg-black/20 backdrop-blur-md border border-white/10 text-[10px] font-medium text-white tracking-wide shadow-sm">
                         {categoryName || '未分类'}
                     </span>
                     
@@ -94,11 +93,11 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
 
                 {/* Bottom: Info */}
                 <div>
-                    <h3 className="text-base md:text-lg font-bold text-white leading-snug line-clamp-2 mb-3 drop-shadow-md group-hover:text-indigo-50 transition-colors">
+                    <h3 className="text-base md:text-lg font-bold text-white leading-snug line-clamp-2 mb-2 drop-shadow-md group-hover:text-indigo-50 transition-colors">
                         {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                     </h3>
                     
-                    <div className="flex items-center justify-between text-xs text-indigo-100/70 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
+                    <div className="flex items-center justify-between text-xs text-white/80 font-medium border-t border-white/10 pt-3 group-hover:border-white/30 transition-colors">
                         <div className="flex items-center gap-4">
                             <span className="flex items-center gap-1.5">
                                 <ClockIcon className="w-3.5 h-3.5 opacity-80" />
@@ -111,7 +110,7 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                         </div>
                         
                         {/* 交互提示箭头 */}
-                        <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 group-hover:text-white transition-all transform group-hover:translate-x-1">
+                        <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white group-hover:bg-indigo-500 group-hover:text-white transition-all transform group-hover:translate-x-1">
                             <ArrowRightIcon className="w-3 h-3" />
                         </div>
                     </div>
