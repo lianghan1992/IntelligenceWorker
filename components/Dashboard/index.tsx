@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, InfoItem, View, ApiPoi, SystemSource } from '../../types';
 import { DashboardWidgets } from './DashboardWidgets';
@@ -6,7 +7,7 @@ import { SubscriptionManager } from './SubscriptionManager';
 import { FocusPointManagerModal } from './FocusPointManagerModal';
 import { TodaysEvents } from './TodaysEvents';
 import { RecentDeepDives } from './RecentDeepDives';
-import { getUserPois, searchArticlesFiltered } from '../../api';
+import { getUserPois, searchArticlesFiltered, searchSemanticSegments } from '../../api';
 import { LazyLoadModule, FocusPointsSkeleton, SubscriptionManagerSkeleton } from './LazyLoadModule';
 import { GearIcon, SearchIcon, PlusIcon, SparklesIcon } from '../icons';
 
@@ -27,8 +28,10 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, onManageFocusPoints
                 const today = new Date();
                 const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}T00:00:00`;
 
+                // Use parallel requests for efficiency
                 const [pois, articlesRes] = await Promise.all([
                     getUserPois(),
+                    // Check general activity
                     searchArticlesFiltered({ publish_date_start: dateStr, query_text: '*', limit: 1, page: 1 })
                 ]);
 
@@ -43,9 +46,14 @@ const DailyBriefing: React.FC<DailyBriefingProps> = ({ user, onManageFocusPoints
                         content: <>今日全网新增情报 <strong className="text-indigo-600">{totalToday}</strong> 条。您尚未设置关注点，建议立即配置以获取个性化简报。</>
                     });
                 } else {
-                    // Simple heuristic: Check top POI activity
-                    const topPoi = pois[0]; // Simplified for speed, ideally check counts
-                    const topPoiCountRes = await searchArticlesFiltered({ publish_date_start: dateStr, query_text: topPoi.content, limit: 1 });
+                    // Check activity for the top priority POI using semantic search for accuracy
+                    const topPoi = pois[0];
+                    const topPoiCountRes = await searchSemanticSegments({ 
+                        start_date: dateStr, 
+                        query_text: topPoi.content, 
+                        page_size: 1,
+                        similarity_threshold: 0.35
+                    });
                     
                     setBriefing({
                         title: `${greeting}，${user.username}`,
@@ -161,8 +169,9 @@ const FocusPointsSection: React.FC<{ onManageClick: () => void; subscriptions: S
 
                 if (pois.length > 0) {
                     const feedPromises = pois.map(poi => 
-                        searchArticlesFiltered({
-                            limit: 3, 
+                        // Use semantic search to get relevant items, limiting to 3 for performance
+                        searchSemanticSegments({
+                            page_size: 3, 
                             similarity_threshold: 0.35,
                             page: 1,
                             query_text: poi.content
