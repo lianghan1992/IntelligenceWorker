@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getSpiderSources, createIntelLlmTask, getIntelLlmTasks, downloadIntelLlmTaskReport } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
 import { SpiderSource, IntelLlmTask } from '../../../types';
-import { SparklesIcon, RefreshIcon, DownloadIcon, ClockIcon, CheckCircleIcon, ShieldExclamationIcon, PlayIcon } from '../../icons';
+import { SparklesIcon, RefreshIcon, DownloadIcon, ClockIcon, CheckCircleIcon, ShieldExclamationIcon, PlayIcon, QuestionMarkCircleIcon } from '../../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -34,6 +34,9 @@ export const LlmTaskManager: React.FC = () => {
     
     const [selectedSources, setSelectedSources] = useState<string[]>([]);
     const [needSummary, setNeedSummary] = useState(false);
+    
+    // Debug/About State
+    const [showAbout, setShowAbout] = useState(false);
     
     // Data State
     const [sources, setSources] = useState<SpiderSource[]>([]);
@@ -136,13 +139,22 @@ export const LlmTaskManager: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50/50">
+        <div className="flex flex-col h-full bg-slate-50/50 relative">
             {/* Create Task Panel */}
             <div className="bg-white border-b border-gray-200 p-6 shadow-sm z-10 flex-shrink-0">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <SparklesIcon className="w-5 h-5 text-purple-600" />
-                    新建 LLM 智能分析任务
-                </h3>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <SparklesIcon className="w-5 h-5 text-purple-600" />
+                        新建 LLM 智能分析任务
+                    </h3>
+                    <button 
+                        onClick={() => setShowAbout(true)} 
+                        className="text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer"
+                        title="查看版本信息"
+                    >
+                        <QuestionMarkCircleIcon className="w-4 h-4" /> 关于
+                    </button>
+                </div>
                 
                 <div className="space-y-4">
                     {/* Main Description */}
@@ -163,17 +175,17 @@ export const LlmTaskManager: React.FC = () => {
                                 <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">起始月份</label>
                                 <input 
                                     type="month" 
-                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors"
+                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors cursor-pointer"
                                     value={startMonth}
                                     onChange={e => setStartMonth(e.target.value)}
                                 />
                             </div>
-                            <div className="text-gray-400 pb-2">-</div>
+                            <div className="text-gray-400 pb-2 font-bold">-</div>
                             <div className="flex-1">
                                 <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">结束月份</label>
                                 <input 
                                     type="month" 
-                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors"
+                                    className="w-full p-2 bg-white border border-gray-300 rounded-lg text-sm focus:border-purple-500 outline-none h-[38px] transition-colors cursor-pointer"
                                     value={endMonth}
                                     onChange={e => setEndMonth(e.target.value)}
                                 />
@@ -258,7 +270,7 @@ export const LlmTaskManager: React.FC = () => {
                                             {task.description}
                                         </td>
                                         <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                                            {/* @ts-ignore: Assuming time_range exists on IntelLlmTask based on create payload, though not in strict type def in original snippet but useful to show if available */}
+                                            {/* @ts-ignore: Assuming time_range exists on IntelLlmTask based on create payload */}
                                             {task.time_range || '-'}
                                         </td>
                                         <td className="px-6 py-4">
@@ -286,6 +298,34 @@ export const LlmTaskManager: React.FC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* About Modal */}
+            {showAbout && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-gray-100">
+                        <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <QuestionMarkCircleIcon className="w-6 h-6" />
+                        </div>
+                        <h4 className="text-xl font-bold text-gray-800 mb-6">关于 Auto Insight</h4>
+                        <div className="space-y-3 text-sm text-gray-600 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <p className="flex justify-between">
+                                <span>版本号:</span>
+                                <span className="font-mono font-bold text-indigo-600">0.0.1</span>
+                            </p>
+                            <p className="flex justify-between">
+                                <span>更新日期:</span>
+                                <span className="font-mono">2025.12.12 15:05</span>
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setShowAbout(false)} 
+                            className="w-full py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-md active:scale-95"
+                        >
+                            关闭
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

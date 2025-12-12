@@ -139,7 +139,7 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
         } catch (e: any) {
-            const msg = e.message || String(e);
+            const msg = e instanceof Error ? e.message : String(e);
             alert(msg);
         } finally {
             setGeneratingId(null);
@@ -180,7 +180,7 @@ export const ArticleList: React.FC = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (e: any) {
-            const message = e.message || String(e);
+            const message = e instanceof Error ? e.message : String(e);
             alert(message);
         } finally {
             setPdfDownloadingId(null);
