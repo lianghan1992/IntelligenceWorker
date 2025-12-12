@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -69,10 +70,28 @@ const port = process.env.PORT || 8764;
 const buildPath = path.join(__dirname, 'dist');
 
 // 提供构建后的静态文件
-app.use(express.static(buildPath));
+// 设置静态资源缓存，但排除 index.html
+app.use(express.static(buildPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      // 禁止缓存 index.html，确保每次发布都能看到最新版本
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      // 其他静态资源可以长缓存 (Vite 会生成带哈希的文件名)
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
+  }
+}));
 
 // 对于所有其他GET请求，返回index.html，以支持客户端路由 (SPA)
 app.get('/*', (req, res) => {
+  // 同样对 SPA 的入口 index.html 禁用缓存
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
   res.sendFile(path.join(buildPath, 'index.html'), (err) => {
     if (err) {
       res.status(500).send(err);
