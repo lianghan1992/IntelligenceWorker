@@ -27,7 +27,6 @@ const formatDate = (dateString: string) => {
 
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
     const [coverUrl, setCoverUrl] = useState<string | null>(null);
-    const [isImageLoaded, setIsImageLoaded] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -35,11 +34,17 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
 
         if (['processing', 'completed'].includes(task.status)) {
             fetchDeepInsightCover(task.id).then(url => {
-                if (active && url) {
-                    setCoverUrl(url);
-                    currentUrl = url;
+                if (active) {
+                    if (url) {
+                        setCoverUrl(url);
+                        currentUrl = url;
+                    } else {
+                        setCoverUrl(null);
+                    }
                 }
             });
+        } else {
+            setCoverUrl(null);
         }
         return () => { 
             active = false;
@@ -57,9 +62,8 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 {coverUrl ? (
                     <img 
                         src={coverUrl} 
-                        alt="" 
-                        className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 opacity-0 ${isImageLoaded ? 'opacity-100' : ''}`}
-                        onLoad={() => setIsImageLoaded(true)}
+                        alt={task.file_name} 
+                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                 ) : (
                     // 缺省图：使用品牌色渐变
@@ -70,12 +74,12 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
             </div>
 
             {/* 2. 品牌色遮罩 (Brand Color Tint) */}
-            {/* 使用 Indigo-900 混合模式，给图片染上一层高级的深蓝品牌色，统一所有封面的色调 */}
-            <div className="absolute inset-0 bg-indigo-900/60 mix-blend-multiply transition-colors duration-300 group-hover:bg-indigo-900/50"></div>
+            {/* 简化为单纯的半透明遮罩，移除 mix-blend-multiply 以防止在深色背景上图片过暗 */}
+            <div className="absolute inset-0 bg-indigo-900/30 transition-colors duration-300 group-hover:bg-indigo-900/20"></div>
             
             {/* 3. 底部渐变遮罩 (Readability Gradient) */}
-            {/* 保证底部文字始终清晰 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/40 to-transparent opacity-90"></div>
+            {/* 加深底部渐变，确保文字清晰 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/20 to-transparent opacity-90"></div>
 
             {/* 4. 内容层 */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
