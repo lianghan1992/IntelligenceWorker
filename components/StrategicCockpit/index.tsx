@@ -119,11 +119,12 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                 response = await searchArticlesFiltered(params);
             } else {
                 // Use semantic search for POIs, or manual search, or other categories
+                // Adjusted similarity_threshold to 0.35 as requested
                 response = await searchSemanticSegments({
                     query_text: queryValue,
                     page,
                     page_size: limit,
-                    similarity_threshold: 0.45 // Adjusted threshold for broader recall
+                    similarity_threshold: 0.35
                 });
             }
             
