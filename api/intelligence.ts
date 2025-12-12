@@ -1,5 +1,3 @@
-
-
 // src/api/intelligence.ts
 
 import { INTELSPIDER_SERVICE_PATH } from '../config';
@@ -43,6 +41,12 @@ export const updateIntelGeminiCookies = (data: { secure_1psid: string; secure_1p
 
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> => 
     apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled })
+    });
+
+export const toggleRetrospectiveHtmlGeneration = (enabled: boolean): Promise<{ message: string; enabled: boolean }> =>
+    apiFetch<{ message: string; enabled: boolean }>(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, {
         method: 'POST',
         body: JSON.stringify({ enabled })
     });

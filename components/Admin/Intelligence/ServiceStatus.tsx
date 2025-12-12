@@ -1,9 +1,8 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { getServiceHealth, getProxies, addProxy, deleteProxy, testProxy, checkIntelGeminiStatus, updateIntelGeminiCookies, toggleIntelHtmlGeneration } from '../../../api/intelligence';
 import { SpiderProxy } from '../../../types';
-import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon } from '../../icons';
+import { RefreshIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, TrashIcon, PlayIcon, ServerIcon, ChevronDownIcon, ChevronRightIcon, SparklesIcon, CloseIcon, StopIcon, DocumentTextIcon, QuestionMarkCircleIcon, ShieldCheckIcon } from '../../icons';
 import { TaskList } from './TaskList';
 
 const Spinner: React.FC = () => (
@@ -396,7 +395,6 @@ export const ServiceStatus: React.FC = () => {
                 </div>
             )}
 
-            {/* HTML Generation Settings Modal */}
             {isHtmlSettingsOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
                     <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
