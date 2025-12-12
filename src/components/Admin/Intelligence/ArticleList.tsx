@@ -274,13 +274,13 @@ export const ArticleList: React.FC = () => {
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
             
-            {/* Gemini Engine Toolbar */}
+            {/* Gemini Engine Toolbar - 直接在 ArticleList 中实现，无需导入 ServiceStatus */}
             <div className="px-4 py-3 border-b bg-purple-50/50 flex flex-col sm:flex-row gap-3 justify-between items-center">
                 <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600">
                         <SparklesIcon className="w-4 h-4" />
                     </div>
-                    <span className="text-sm font-bold text-gray-700">Gemini 引擎</span>
+                    <span className="text-sm font-bold text-gray-700">Gemini 引擎 (v3.1)</span>
                     <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${geminiStatus?.valid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                         {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效'}
                     </span>

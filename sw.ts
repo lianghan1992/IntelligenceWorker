@@ -4,8 +4,8 @@ export {}; // Mark as module
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// 每次发版修改这里的版本号 (v1 -> v2 -> v3...)
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v3';
+// 强制升级版本号 v3 -> v4
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v4';
 
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -62,7 +62,6 @@ sw.addEventListener('fetch', (event) => {
 
   // For API calls and socket connections, always go to the network.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) {
-    // For GET requests, try network first, then cache. For others (POST, PUT, etc.), only network.
     if (request.method !== 'GET') {
         event.respondWith(fetch(request));
         return;
@@ -78,7 +77,8 @@ sw.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network First strategy for HTML to ensure updates are seen immediately
+  // HTML: Network First (Strategy Change)
+  // 以前可能是 Cache First，现在改为 HTML 文件永远优先网络，确保发布即更新
   if (request.destination === 'document') {
     event.respondWith(
       fetch(request)
@@ -97,7 +97,7 @@ sw.addEventListener('fetch', (event) => {
     return;
   }
 
-  // For other requests (assets), use Cache First, falling back to network
+  // Assets: Cache First
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {
@@ -106,7 +106,6 @@ sw.addEventListener('fetch', (event) => {
         }
 
         return fetch(request).then((networkResponse) => {
-          // Cache the new response for future use
           if (networkResponse && networkResponse.status === 200 && request.method === 'GET') {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME)
@@ -116,7 +115,6 @@ sw.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         }).catch(error => {
-            // console.error('Fetch failed:', error);
             throw error;
         });
       })
