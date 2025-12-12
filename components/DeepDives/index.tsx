@@ -58,12 +58,12 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
             className="group relative w-full aspect-[16/10] rounded-xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl hover:shadow-indigo-900/20 transition-all duration-500 hover:-translate-y-1 bg-slate-900 ring-1 ring-slate-900/5"
         >
             {/* 1. 底层封面图 */}
-            <div className="absolute inset-0 bg-slate-800">
+            <div className="absolute inset-0 bg-slate-800 overflow-hidden">
                 {coverUrl ? (
                     <img 
                         src={coverUrl} 
                         alt={task.file_name} 
-                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                        className="w-full h-full object-cover transition-transform duration-700 ease-out scale-[1.02] group-hover:scale-110 filter blur-[3px]"
                     />
                 ) : (
                     // 缺省图：使用品牌色渐变
@@ -73,19 +73,19 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 )}
             </div>
 
-            {/* 2. 品牌色微 tint (Brand Tint) */}
-            {/* 降低透明度至 20% (indigo-900/20)，让图片更通透，同时保留品牌色调 */}
-            <div className="absolute inset-0 bg-indigo-900/20 transition-colors duration-300 group-hover:bg-indigo-900/10 pointer-events-none"></div>
+            {/* 2. 品牌色遮罩 (Brand Tint) */}
+            {/* 增加透明度至 50% (indigo-900/50)，配合高斯模糊让背景更深沉，突出文字 */}
+            <div className="absolute inset-0 bg-indigo-900/50 transition-colors duration-300 group-hover:bg-indigo-900/40 pointer-events-none"></div>
             
             {/* 3. 底部强力渐变 (Text Protection Gradient) */}
-            {/* 使用深靛蓝 (indigo-950) 构建更强的底部渐变，确保白字清晰 */}
-            <div className="absolute inset-0 bg-gradient-to-t from-indigo-950/95 via-indigo-950/50 to-transparent opacity-90 pointer-events-none"></div>
+            {/* 使用深色渐变 (slate-950) 确保底部白字清晰可读 */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-indigo-950/40 to-transparent opacity-90 pointer-events-none"></div>
 
             {/* 4. 内容层 */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
                 {/* Top: Badges */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-950/40 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-black/20 backdrop-blur-md border border-white/10 text-[10px] font-bold text-indigo-100 tracking-wide shadow-sm">
                         {categoryName || 'REPORT'}
                     </span>
                     
@@ -105,11 +105,11 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                     
                     <div className="flex items-center justify-between text-xs text-slate-200 font-medium border-t border-white/10 pt-3 group-hover:border-white/20 transition-colors">
                         <div className="flex items-center gap-4">
-                            <span className="flex items-center gap-1.5 opacity-80">
+                            <span className="flex items-center gap-1.5 opacity-90">
                                 <ClockIcon className="w-3.5 h-3.5" />
                                 {formatDate(task.updated_at)}
                             </span>
-                            <span className="flex items-center gap-1.5 opacity-80">
+                            <span className="flex items-center gap-1.5 opacity-90">
                                 <ChipIcon className="w-3.5 h-3.5" />
                                 {task.total_pages || '-'}P
                             </span>
