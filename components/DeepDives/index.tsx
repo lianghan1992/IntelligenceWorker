@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
-import { getDeepInsightTasks, getDeepInsightCategories } from '../../api/deepInsight';
+import { getDeepInsightTasks, getDeepInsightCategories, fetchDeepInsightCover } from '../../api/deepInsight';
 import { SearchIcon, DocumentTextIcon, RefreshIcon, CloudIcon, ArrowRightIcon, SparklesIcon, ClockIcon } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
@@ -31,17 +31,16 @@ const getCardStyle = (id: string) => {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
     
-    // Curated gradients that look good with white text
-    // Format: [Background Gradient Class, Accent Color Class for tags/icons]
+    // Curated gradients - High saturation for blend modes
     const styles = [
-        { bg: 'bg-gradient-to-br from-slate-700 to-slate-900', accent: 'text-slate-200' }, // Classic Dark
-        { bg: 'bg-gradient-to-br from-indigo-600 to-blue-800', accent: 'text-blue-200' },   // Corporate Blue
-        { bg: 'bg-gradient-to-br from-violet-600 to-purple-800', accent: 'text-purple-200' }, // Creative Purple
-        { bg: 'bg-gradient-to-br from-emerald-600 to-teal-800', accent: 'text-emerald-200' }, // Sustainable Green
-        { bg: 'bg-gradient-to-br from-rose-600 to-red-800', accent: 'text-rose-200' },       // Urgent Red
-        { bg: 'bg-gradient-to-br from-orange-500 to-amber-700', accent: 'text-amber-200' },   // Energetic Orange
-        { bg: 'bg-gradient-to-br from-cyan-600 to-sky-800', accent: 'text-cyan-200' },       // Tech Cyan
-        { bg: 'bg-gradient-to-br from-fuchsia-600 to-pink-800', accent: 'text-pink-200' },   // Vibrant Pink
+        { bg: 'bg-gradient-to-br from-slate-600 to-slate-900', accent: 'text-slate-200' },
+        { bg: 'bg-gradient-to-br from-indigo-500 to-blue-900', accent: 'text-blue-200' },
+        { bg: 'bg-gradient-to-br from-violet-500 to-purple-900', accent: 'text-purple-200' },
+        { bg: 'bg-gradient-to-br from-emerald-500 to-teal-900', accent: 'text-emerald-200' },
+        { bg: 'bg-gradient-to-br from-rose-500 to-red-900', accent: 'text-rose-200' },
+        { bg: 'bg-gradient-to-br from-amber-500 to-orange-900', accent: 'text-amber-200' },
+        { bg: 'bg-gradient-to-br from-cyan-500 to-sky-900', accent: 'text-cyan-200' },
+        { bg: 'bg-gradient-to-br from-fuchsia-500 to-pink-900', accent: 'text-pink-200' },
     ];
     
     const index = Math.abs(hash) % styles.length;
@@ -52,31 +51,73 @@ const getCardStyle = (id: string) => {
 
 const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
     const style = useMemo(() => getCardStyle(task.id), [task.id]);
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        let currentUrl: string | null = null;
+
+        // Only try to fetch cover if status indicates processing has likely happened
+        if (['processing', 'completed'].includes(task.status)) {
+            fetchDeepInsightCover(task.id).then(url => {
+                if (active && url) {
+                    setCoverUrl(url);
+                    currentUrl = url;
+                }
+            });
+        }
+        return () => { 
+            active = false;
+            if (currentUrl) URL.revokeObjectURL(currentUrl);
+        };
+    }, [task.id, task.status]);
 
     return (
         <div 
             onClick={onClick}
-            className={`
-                group relative w-full aspect-video rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1
-                ${style.bg}
-            `}
+            className="group relative w-full aspect-video rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 bg-slate-900"
         >
-            {/* Background Texture/Noise (Optional for premium feel) */}
-            <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4yKSIvPjwvc3ZnPg==')]"></div>
-            
-            {/* Hover Gloss Effect */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+            {/* 1. Base Image Layer */}
+            {coverUrl && (
+                <img 
+                    src={coverUrl} 
+                    alt={task.file_name}
+                    className={`
+                        absolute inset-0 w-full h-full object-cover object-top transition-all duration-700 ease-out group-hover:scale-105
+                        ${isImageLoaded ? 'opacity-100' : 'opacity-0'}
+                    `}
+                    onLoad={() => setIsImageLoaded(true)}
+                />
+            )}
 
+            {/* 2. Gradient Overlay Layer (Color Tint) */}
+            {/* If image exists, we use multiply blend mode to tint the image with the generated color. 
+                If no image, this layer acts as the solid background. */}
+            <div className={`
+                absolute inset-0 transition-opacity duration-500
+                ${style.bg}
+                ${coverUrl && isImageLoaded ? 'opacity-80 mix-blend-multiply group-hover:opacity-70' : 'opacity-100'}
+            `}></div>
+
+            {/* 3. Dark Gradient Layer (Readability) */}
+            {/* Always present to ensure text at bottom is readable */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent opacity-90"></div>
+
+            {/* 4. Texture Layer (Subtle Noise) */}
+            <div className="absolute inset-0 opacity-[0.07] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4yKSIvPjwvc3ZnPg==')] pointer-events-none"></div>
+
+            {/* 5. Content Layer */}
             <div className="relative h-full flex flex-col justify-between p-5 z-10">
-                {/* Top Row: Category & Status */}
+                {/* Top Row */}
                 <div className="flex justify-between items-start">
-                    <span className="inline-block px-2.5 py-1 bg-white/10 backdrop-blur-md text-[10px] font-bold text-white/90 rounded-md border border-white/10">
+                    <span className="inline-flex items-center px-2 py-1 bg-white/10 backdrop-blur-md text-[10px] font-bold text-white/90 rounded border border-white/10 shadow-sm">
                         {categoryName || '未分类'}
                     </span>
                     
                     {/* Status Dot */}
                     {task.status === 'processing' && (
-                        <div className="flex items-center gap-1.5 bg-indigo-500/30 backdrop-blur px-2 py-1 rounded-full border border-indigo-400/30">
+                        <div className="flex items-center gap-1.5 bg-indigo-500/30 backdrop-blur-md px-2 py-1 rounded-full border border-indigo-400/30">
                             <span className="w-1.5 h-1.5 bg-indigo-300 rounded-full animate-pulse"></span>
                             <span className="text-[9px] text-white/90 font-medium">解析中</span>
                         </div>
@@ -84,28 +125,28 @@ const InsightCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onCl
                 </div>
 
                 {/* Middle: Title */}
-                <div className="mt-2 mb-auto pt-2">
-                    <h3 className="text-white font-bold text-lg leading-snug line-clamp-2 tracking-tight group-hover:underline decoration-white/30 underline-offset-4">
+                <div className="mt-auto mb-3">
+                    <h3 className="text-white font-bold text-lg leading-snug line-clamp-2 tracking-tight drop-shadow-md group-hover:text-white/90 transition-colors">
                         {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                     </h3>
                 </div>
 
                 {/* Bottom: Meta Info */}
-                <div className="flex items-center justify-between pt-4 border-t border-white/10 mt-2">
-                    <div className="flex items-center gap-3 text-xs text-white/60 font-medium">
+                <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                    <div className="flex items-center gap-3 text-xs text-white/70 font-medium">
                         <span className="flex items-center gap-1">
-                            <DocumentTextIcon className="w-3.5 h-3.5 opacity-70" />
+                            <DocumentTextIcon className="w-3.5 h-3.5 opacity-80" />
                             {task.total_pages || '-'} 页
                         </span>
                         <span className="flex items-center gap-1">
-                            <ClockIcon className="w-3.5 h-3.5 opacity-70" />
+                            <ClockIcon className="w-3.5 h-3.5 opacity-80" />
                             {formatDate(task.updated_at)}
                         </span>
                     </div>
 
                     {/* Hover Action Icon */}
                     <div className={`
-                        w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center 
+                        w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/10
                         opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-300
                     `}>
                         <ArrowRightIcon className="w-4 h-4 text-white" />
@@ -120,7 +161,7 @@ const FilterTab: React.FC<{ label: string; count?: number; isActive: boolean; on
     <button
         onClick={onClick}
         className={`
-            relative px-4 py-2 text-sm font-bold transition-all duration-200 flex items-center gap-2 rounded-lg
+            relative px-4 py-2 text-sm font-bold transition-all duration-200 flex items-center gap-2 rounded-lg whitespace-nowrap
             ${isActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}
         `}
     >
@@ -234,7 +275,7 @@ export const DeepDives: React.FC = () => {
                     </div>
 
                     {/* Filter Tabs - separated row for clarity */}
-                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mt-6">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar mt-6 pb-1">
                         <FilterTab 
                             label="全部" 
                             count={tasks.length} 
