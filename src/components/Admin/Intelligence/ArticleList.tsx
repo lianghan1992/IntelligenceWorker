@@ -1,8 +1,18 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
-import { getSpiderArticles, deleteSpiderArticle, generateArticleHtml, getArticleHtml, downloadArticlePdf } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon } from '../../icons';
+import { 
+    getSpiderArticles, 
+    deleteSpiderArticle, 
+    generateArticleHtml, 
+    getArticleHtml, 
+    downloadArticlePdf,
+    checkIntelGeminiStatus,
+    updateIntelGeminiCookies,
+    toggleIntelHtmlGeneration,
+    toggleRetrospectiveHtmlGeneration
+} from '../../../api/intelligence';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -91,6 +101,81 @@ export const ArticleList: React.FC = () => {
     const [viewingHtmlId, setViewingHtmlId] = useState<string | null>(null);
     const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null);
 
+    // --- Gemini Engine State ---
+    const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean; message: string } | null>(null);
+    const [isCheckingGemini, setIsCheckingGemini] = useState(false);
+    const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
+    const [cookieForm, setCookieForm] = useState({ secure_1psid: '', secure_1psidts: '' });
+    const [isUpdatingCookie, setIsUpdatingCookie] = useState(false);
+    const [isHtmlSettingsOpen, setIsHtmlSettingsOpen] = useState(false);
+    const [isTogglingHtml, setIsTogglingHtml] = useState(false);
+    const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
+    const [isTogglingRetro, setIsTogglingRetro] = useState(false);
+
+    // --- Gemini Actions ---
+    const fetchGeminiStatus = async () => {
+        setIsCheckingGemini(true);
+        try {
+            const res = await checkIntelGeminiStatus();
+            setGeminiStatus(res);
+        } catch (e) {
+            setGeminiStatus({ valid: false, message: 'Check failed' });
+        } finally {
+            setIsCheckingGemini(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchGeminiStatus();
+    }, []);
+
+    const handleUpdateCookie = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!cookieForm.secure_1psid || !cookieForm.secure_1psidts) {
+            alert('请填写所有必填项');
+            return;
+        }
+        setIsUpdatingCookie(true);
+        try {
+            await updateIntelGeminiCookies(cookieForm);
+            setIsCookieModalOpen(false);
+            setCookieForm({ secure_1psid: '', secure_1psidts: '' });
+            fetchGeminiStatus();
+            alert('Cookie 更新成功');
+        } catch (e: any) {
+            alert('更新失败: ' + (e.message || '未知错误'));
+        } finally {
+            setIsUpdatingCookie(false);
+        }
+    };
+
+    const handleHtmlToggle = async (enabled: boolean) => {
+        setIsTogglingHtml(true);
+        try {
+            const res = await toggleIntelHtmlGeneration(enabled);
+            alert(`操作成功: ${res.message}`);
+            setIsHtmlSettingsOpen(false);
+        } catch (e: any) {
+            alert(`操作失败: ${e.message}`);
+        } finally {
+            setIsTogglingHtml(false);
+        }
+    };
+
+    const handleRetroToggle = async (enabled: boolean) => {
+        setIsTogglingRetro(true);
+        try {
+            const res = await toggleRetrospectiveHtmlGeneration(enabled);
+            alert(`操作成功: ${res.message}`);
+            setIsRetroSettingsOpen(false);
+        } catch (e: any) {
+            alert(`操作失败: ${e.message}`);
+        } finally {
+            setIsTogglingRetro(false);
+        }
+    };
+
+    // --- Articles Actions ---
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -188,6 +273,44 @@ export const ArticleList: React.FC = () => {
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
+            
+            {/* Gemini Engine Toolbar */}
+            <div className="px-4 py-3 border-b bg-purple-50/50 flex flex-col sm:flex-row gap-3 justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600">
+                        <SparklesIcon className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-700">Gemini 引擎</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${geminiStatus?.valid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效'}
+                    </span>
+                    <button onClick={fetchGeminiStatus} className="text-gray-400 hover:text-gray-600">
+                        <RefreshIcon className={`w-3.5 h-3.5 ${isCheckingGemini ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
+                <div className="flex items-center gap-2">
+                     <button 
+                        onClick={() => setIsHtmlSettingsOpen(true)}
+                        className="text-xs px-3 py-1.5 bg-white border border-purple-100 text-purple-700 rounded-lg hover:bg-purple-50 font-bold transition-colors shadow-sm flex items-center gap-1"
+                    >
+                        <DocumentTextIcon className="w-3.5 h-3.5"/> HTML 生成
+                    </button>
+                    <button 
+                        onClick={() => setIsRetroSettingsOpen(true)}
+                        className="text-xs px-3 py-1.5 bg-white border border-orange-100 text-orange-700 rounded-lg hover:bg-orange-50 font-bold transition-colors shadow-sm flex items-center gap-1"
+                    >
+                        <ClockIcon className="w-3.5 h-3.5"/> HTML 追溯
+                    </button>
+                    <button 
+                        onClick={() => setIsCookieModalOpen(true)}
+                        className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold transition-colors shadow-sm"
+                    >
+                        更新 Cookie
+                    </button>
+                </div>
+            </div>
+
+            {/* Article List Header */}
             <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <h3 className="font-bold text-gray-700 text-lg flex items-center gap-2">
@@ -428,6 +551,129 @@ export const ArticleList: React.FC = () => {
                     onConfirm={handleDelete}
                     onCancel={() => setDeleteId(null)}
                 />
+            )}
+
+            {/* Gemini Modals */}
+            {isCookieModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-purple-600" /> 更新 Gemini Cookie
+                            </h3>
+                            <button onClick={() => setIsCookieModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateCookie} className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSID</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psid}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psid: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSID 值..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSIDTS</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psidts}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psidts: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSIDTS 值..."
+                                />
+                            </div>
+                            <div className="flex justify-end pt-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={isUpdatingCookie}
+                                    className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isUpdatingCookie ? <WhiteSpinner /> : '保存更新'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isHtmlSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <DocumentTextIcon className="w-5 h-5 text-blue-600" /> HTML 生成管理
+                            </h3>
+                            <button onClick={() => setIsHtmlSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                开启后，系统将在爬取文章时自动调用 LLM 将 Markdown 内容转换为美化的 HTML 格式。这可能会增加 Token 消耗。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button 
+                                    onClick={() => handleHtmlToggle(true)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启生成
+                                </button>
+                                <button 
+                                    onClick={() => handleHtmlToggle(false)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isRetroSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <ClockIcon className="w-5 h-5 text-orange-600" /> HTML 历史追溯
+                            </h3>
+                            <button onClick={() => setIsRetroSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                开启后，系统将在后台对历史已采集但未生成HTML的文章进行追溯生成。这会消耗额外的 Token 额度。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={() => handleRetroToggle(true)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启追溯
+                                </button>
+                                <button
+                                    onClick={() => handleRetroToggle(false)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止追溯
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
