@@ -46,8 +46,8 @@ const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({
             try {
                 const res = await getArticleHtml(articleId);
                 setHtmlContent(res.html_content);
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : String(err);
+            } catch (err: any) {
+                const msg = err.message || String(err);
                 setError(msg || '获取HTML失败');
             } finally {
                 setIsLoading(false);
@@ -143,8 +143,8 @@ export const ArticleList: React.FC = () => {
             setCookieForm({ secure_1psid: '', secure_1psidts: '' });
             fetchGeminiStatus();
             alert('Cookie 更新成功');
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
+        } catch (e: any) {
+            const msg = e.message || String(e);
             alert('更新失败: ' + msg);
         } finally {
             setIsUpdatingCookie(false);
@@ -157,8 +157,8 @@ export const ArticleList: React.FC = () => {
             const res = await toggleIntelHtmlGeneration(enabled);
             alert(`操作成功: ${res.message}`);
             setIsHtmlSettingsOpen(false);
-        } catch (e: unknown) {
-            const errMsg = e instanceof Error ? e.message : String(e);
+        } catch (e: any) {
+            const errMsg = e.message || String(e);
             alert(`操作失败: ${errMsg}`);
         } finally {
             setIsTogglingHtml(false);
@@ -171,8 +171,8 @@ export const ArticleList: React.FC = () => {
             const res = await toggleRetrospectiveHtmlGeneration(enabled);
             alert(`操作成功: ${res.message}`);
             setIsRetroSettingsOpen(false);
-        } catch (e: unknown) {
-            const errMsg = e instanceof Error ? e.message : String(e);
+        } catch (e: any) {
+            const errMsg = e.message || String(e);
             alert(`操作失败: ${errMsg}`);
         } finally {
             setIsTogglingRetro(false);
@@ -211,7 +211,7 @@ export const ArticleList: React.FC = () => {
             await deleteSpiderArticle(deleteId);
             setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
-        } catch (e: unknown) {
+        } catch (e: any) {
             alert('删除失败');
         } finally {
             setIsDeleting(false);
@@ -226,8 +226,8 @@ export const ArticleList: React.FC = () => {
             // Optimistically update
             setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
-        } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
+        } catch (e: any) {
+            const msg = e.message || String(e);
             alert(msg);
         } finally {
             setGeneratingId(null);
@@ -247,7 +247,7 @@ export const ArticleList: React.FC = () => {
             setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
-        } catch (e: unknown) {
+        } catch (e: any) {
             alert('批量触发失败，部分任务可能未启动');
         } finally {
             setIsBatchGenerating(false);
@@ -267,8 +267,8 @@ export const ArticleList: React.FC = () => {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e: unknown) {
-            const message = e instanceof Error ? e.message : String(e);
+        } catch (e: any) {
+            const message = e.message || String(e);
             alert(message);
         } finally {
             setPdfDownloadingId(null);
