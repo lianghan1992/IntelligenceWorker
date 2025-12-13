@@ -1,6 +1,4 @@
 
-
-
 export interface TechItemHistory {
     id: string;
     tech_item_id: string;
@@ -578,14 +576,32 @@ export interface IntelLlmTask {
 
 // --- StratifyAI (AI Report Generator) Types ---
 
+export type StratifyTaskStatus =
+    | 'created'
+    | 'processing' // Legacy/fallback
+    | 'outline_generated'
+    | 'content_generation_pending'
+    | 'content_generating'
+    | 'content_generated'
+    | 'completed'
+    | 'failed';
+
+export type StratifyPageStatus =
+    | 'pending'
+    | 'generating'
+    | 'done'
+    | 'html_generated'
+    | 'error';
+
 export interface StratifyTask {
     id: string;
-    user_input: string;
-    status: 'pending' | 'processing' | 'outline_generated' | 'content_generating' | 'completed' | 'failed';
+    topic: string; // The topic/title of the task
+    user_input?: string; // Legacy
+    status: StratifyTaskStatus;
     current_step: string;
     created_at: string;
-    outline?: StratifyOutline;
-    pages?: StratifyPage[];
+    outline?: StratifyOutline | null;
+    pages?: StratifyPage[]; // Backend returns this array, might be empty initially
 }
 
 export interface StratifyOutline {
@@ -595,10 +611,12 @@ export interface StratifyOutline {
 
 export interface StratifyPage {
     page_index: number;
-    title: string;
-    content: string; // Markdown content
-    html_content?: string;
-    status: 'pending' | 'generating' | 'completed' | 'failed';
+    title: string | null;
+    content_markdown: string | null; // Renamed from content
+    html_content: string | null;
+    status: StratifyPageStatus;
+    // Legacy support for component during transition
+    content?: string; 
 }
 
 export interface StratifyQueueStatus {

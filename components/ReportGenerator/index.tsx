@@ -507,24 +507,25 @@ const ContentGeneratorView: React.FC<{
                 setTaskStatus(task.status);
                 
                 // Map API pages to UI slides
-                if (task.pages) {
+                if (task.pages && task.pages.length > 0) {
                     const uiSlides: Slide[] = task.pages.map(p => ({
                         id: `p-${p.page_index}`,
-                        title: p.title,
-                        content: p.content, // This updates from summary to full content as it generates
-                        status: p.status === 'completed' ? 'done' : 
+                        title: p.title || `Page ${p.page_index}`,
+                        // Map content_markdown (new API) to content (UI Slide)
+                        content: p.content_markdown || '', 
+                        status: (p.status === 'done' || p.status === 'html_generated') ? 'done' : 
                                 p.status === 'generating' ? 'generating' : 'queued'
                     }));
                     setSlides(uiSlides);
                 }
 
-                if (task.status === 'completed') {
+                if (task.status === 'completed' || task.status === 'content_generated') {
                     clearInterval(interval);
                     // Pass mapped slides
                     const finalSlides = (task.pages || []).map(p => ({
                         id: `p-${p.page_index}`,
-                        title: p.title,
-                        content: p.content,
+                        title: p.title || `Page ${p.page_index}`,
+                        content: p.content_markdown || '',
                         status: 'done' as const
                     }));
                     onComplete(finalSlides);
@@ -743,6 +744,7 @@ export const ReportGenerator: React.FC = () => {
             await confirmStratifyOutline(taskId);
             
             // 2. Prepare initial slides for UI from outline
+            // Use content from outline pages as initial content (brief description)
             const initialSlides: Slide[] = taskData.outline.pages.map((p, i) => ({
                 id: `slide-${i}`,
                 title: p.title,
