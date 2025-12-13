@@ -17,35 +17,36 @@ import { DeepDiveReader } from './DeepDiveReader';
 // --- Components ---
 
 // 1. Generative Tech Cover (Pure CSS/SVG - No External Requests)
-const TechBlueprintCover: React.FC<{ task: DeepInsightTask; className?: string }> = ({ task, className = "" }) => {
-    // Deterministic hash to select a theme based on task ID
-    const hash = task.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+// Renamed to SmartTechCover to force refresh
+const SmartTechCover: React.FC<{ task: DeepInsightTask; className?: string }> = ({ task, className = "" }) => {
+    // Deterministic hash to select a theme based on task ID or name
+    const seed = (task.id || task.file_name || 'default').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     
     const themes = [
-        { name: 'Quantum', from: 'from-indigo-900', to: 'to-slate-900', accent: 'text-indigo-500/20', icon: ChipIcon },
-        { name: 'Nebula', from: 'from-blue-900', to: 'to-slate-900', accent: 'text-blue-500/20', icon: GlobeIcon },
-        { name: 'Matrix', from: 'from-emerald-900', to: 'to-slate-900', accent: 'text-emerald-500/20', icon: ServerIcon },
-        { name: 'Fusion', from: 'from-orange-900', to: 'to-slate-900', accent: 'text-orange-500/20', icon: LightningBoltIcon },
-        { name: 'Deep', from: 'from-slate-800', to: 'to-black', accent: 'text-gray-500/20', icon: DatabaseIcon },
-        { name: 'Aero', from: 'from-cyan-900', to: 'to-slate-900', accent: 'text-cyan-500/20', icon: ChartIcon },
+        { name: 'Indigo', bg: 'bg-indigo-950', from: 'from-indigo-900', to: 'to-slate-900', accent: 'text-indigo-500/30', icon: ChipIcon },
+        { name: 'Blue', bg: 'bg-blue-950', from: 'from-blue-900', to: 'to-slate-900', accent: 'text-blue-500/30', icon: GlobeIcon },
+        { name: 'Emerald', bg: 'bg-emerald-950', from: 'from-emerald-900', to: 'to-slate-900', accent: 'text-emerald-500/30', icon: ServerIcon },
+        { name: 'Violet', bg: 'bg-violet-950', from: 'from-violet-900', to: 'to-slate-900', accent: 'text-violet-500/30', icon: LightningBoltIcon },
+        { name: 'Slate', bg: 'bg-slate-900', from: 'from-slate-800', to: 'to-black', accent: 'text-gray-500/30', icon: DatabaseIcon },
+        { name: 'Cyan', bg: 'bg-cyan-950', from: 'from-cyan-900', to: 'to-slate-900', accent: 'text-cyan-500/30', icon: ChartIcon },
     ];
 
-    const theme = themes[hash % themes.length];
+    const theme = themes[seed % themes.length];
     const BigIcon = theme.icon;
 
     return (
-        <div className={`relative w-full h-full overflow-hidden bg-gradient-to-br ${theme.from} via-slate-900 ${theme.to} ${className}`}>
+        <div className={`relative w-full h-full overflow-hidden ${theme.bg} bg-gradient-to-br ${theme.from} via-slate-900 ${theme.to} ${className}`}>
             {/* Grid Pattern */}
-            <div className="absolute inset-0 opacity-20" 
+            <div className="absolute inset-0 opacity-30" 
                 style={{ 
-                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)', 
+                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)', 
                     backgroundSize: '24px 24px' 
                 }}>
             </div>
             
             {/* Abstract Geometric Shapes with Animation */}
-            <div className="absolute top-[-30%] -right-[10%] w-[80%] h-[120%] border border-white/5 rounded-full opacity-50 transform rotate-12 animate-pulse" style={{ animationDuration: '4s' }}></div>
-            <div className="absolute top-[20%] -left-[20%] w-[60%] h-[100%] border border-white/5 rounded-full opacity-30 transform -rotate-12"></div>
+            <div className="absolute top-[-30%] -right-[10%] w-[80%] h-[120%] border border-white/10 rounded-full opacity-60 transform rotate-12 animate-pulse" style={{ animationDuration: '4s' }}></div>
+            <div className="absolute top-[20%] -left-[20%] w-[60%] h-[100%] border border-white/5 rounded-full opacity-40 transform -rotate-12"></div>
             
             {/* Huge Watermark Icon */}
             <div className={`absolute -bottom-6 -right-6 transform -rotate-12 ${theme.accent}`}>
@@ -53,18 +54,18 @@ const TechBlueprintCover: React.FC<{ task: DeepInsightTask; className?: string }
             </div>
 
             {/* Type Badge */}
-            <div className="absolute top-3 left-3 z-10">
-                <span className="inline-flex items-center backdrop-blur-md bg-white/10 border border-white/10 rounded px-2 py-0.5 text-[10px] font-mono text-white/90 font-bold uppercase tracking-widest shadow-sm">
-                    {task.file_type}
+            <div className="absolute top-3 left-3 z-20">
+                <span className="inline-flex items-center backdrop-blur-md bg-white/10 border border-white/20 rounded px-2.5 py-1 text-[10px] font-mono text-white font-bold uppercase tracking-widest shadow-sm">
+                    {task.file_type || 'DOC'}
                 </span>
             </div>
 
             {/* Processing Animation Overlay */}
             {task.status === 'processing' && (
-                <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-20">
-                    <div className="flex flex-col items-center gap-2">
-                        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-[10px] text-indigo-300 font-bold tracking-wider animate-pulse">ANALYZING</span>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-30">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-xs text-indigo-300 font-bold tracking-wider animate-pulse">AI 解析中...</span>
                     </div>
                 </div>
             )}
@@ -142,7 +143,7 @@ const HeroCard: React.FC<{ task: DeepInsightTask | null; isLoading: boolean; onC
             className="group relative w-full h-[320px] rounded-2xl overflow-hidden shadow-2xl cursor-pointer border border-slate-200/20"
         >
             {/* Generative Background */}
-            <TechBlueprintCover task={task} className="absolute inset-0" />
+            <SmartTechCover task={task} className="absolute inset-0" />
             
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
@@ -227,6 +228,7 @@ export const DeepDives: React.FC = () => {
 
     const featuredTask = useMemo(() => {
         if (tasks.length === 0) return null;
+        // Prioritize completed, then processing, then any
         return tasks.find(t => t.status === 'completed') || tasks.find(t => t.status === 'processing') || tasks[0];
     }, [tasks]);
 
@@ -351,7 +353,7 @@ export const DeepDives: React.FC = () => {
                                 >
                                     {/* Generative Cover Background */}
                                     <div className="absolute inset-0 z-0">
-                                        <TechBlueprintCover task={task} className="transform transition-transform duration-700 group-hover:scale-105" />
+                                        <SmartTechCover task={task} className="transform transition-transform duration-700 group-hover:scale-105" />
                                     </div>
 
                                     {/* Gradient & Content Overlay */}
