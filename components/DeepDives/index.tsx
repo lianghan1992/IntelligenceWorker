@@ -16,14 +16,17 @@ import { DeepDiveReader } from './DeepDiveReader';
 
 // --- Assets & Utilities ---
 
-// Color palettes for Smart Covers based on index/hash
-const COVER_THEMES = [
-    { from: 'from-blue-600', via: 'via-indigo-500', to: 'to-purple-600', accent: 'bg-blue-400' },
-    { from: 'from-emerald-500', via: 'via-teal-500', to: 'to-cyan-600', accent: 'bg-emerald-400' },
-    { from: 'from-orange-500', via: 'via-red-500', to: 'to-pink-600', accent: 'bg-orange-400' },
-    { from: 'from-violet-600', via: 'via-fuchsia-600', to: 'to-rose-500', accent: 'bg-violet-400' },
-    { from: 'from-cyan-500', via: 'via-blue-500', to: 'to-indigo-600', accent: 'bg-cyan-400' },
-    { from: 'from-slate-700', via: 'via-slate-600', to: 'to-slate-800', accent: 'bg-slate-400' }, // Dark/Metallic
+// 精选 Unsplash 高清科技/汽车/抽象图源 (免费开源)
+// 关键词: Futuristic Car, HUD, Abstract Tech, Wireframe, Blueprint
+const THEMED_BACKGROUNDS = [
+    'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=800&q=80', // 抽象几何汽车
+    'https://images.unsplash.com/photo-1518020382325-ce47716c80c5?auto=format&fit=crop&w=800&q=80', // 赛博朋克数据流
+    'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=800&q=80', // 深色豪华车侧影
+    'https://images.unsplash.com/photo-1519389950476-2953d6313295?auto=format&fit=crop&w=800&q=80', // 芯片/电路板/算力
+    'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800&q=80', // 科技隧道/速度感
+    'https://images.unsplash.com/photo-1532187643603-ba119ca4109e?auto=format&fit=crop&w=800&q=80', // 抽象点阵/全息
+    'https://images.unsplash.com/photo-1485291571150-772bcfc10da5?auto=format&fit=crop&w=800&q=80', // 极简黑夜车灯
+    'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80', // 3D 渲染/金属质感
 ];
 
 // Generate a deterministic index from a string ID
@@ -32,7 +35,7 @@ const getThemeIndex = (id: string) => {
     for (let i = 0; i < id.length; i++) {
         hash = id.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return Math.abs(hash) % COVER_THEMES.length;
+    return Math.abs(hash) % THEMED_BACKGROUNDS.length;
 };
 
 // --- Smart Art Cover Component ---
@@ -40,11 +43,7 @@ const SmartArtCover: React.FC<{ task: DeepInsightTask; className?: string }> = (
     const [realCoverUrl, setRealCoverUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const theme = COVER_THEMES[getThemeIndex(task.id)];
-    // Pseudo-random positions for abstract shapes based on ID
-    const seed = getThemeIndex(task.id + "shape"); 
-    const shapePos1 = { top: `${(seed * 10) % 60}%`, left: `${(seed * 20) % 60}%` };
-    const shapePos2 = { bottom: `${(seed * 15) % 50}%`, right: `${(seed * 25) % 50}%` };
+    const bgImage = THEMED_BACKGROUNDS[getThemeIndex(task.id)];
 
     useEffect(() => {
         let active = true;
@@ -71,28 +70,42 @@ const SmartArtCover: React.FC<{ task: DeepInsightTask; className?: string }> = (
 
     return (
         <div className={`relative overflow-hidden w-full h-full bg-slate-900 ${className}`}>
-            {/* 1. Base Abstract Art Layer (Always present, used as fallback or background) */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${theme.from} ${theme.via} ${theme.to} opacity-90 transition-transform duration-1000 group-hover:scale-110`}></div>
+            {/* 1. Base High-Quality Image Layer */}
+            <div 
+                className="absolute inset-0 bg-cover bg-center transition-transform duration-1000 group-hover:scale-110 opacity-80 mix-blend-luminosity group-hover:mix-blend-normal"
+                style={{ backgroundImage: `url('${realCoverUrl || bgImage}')` }}
+            ></div>
             
-            {/* 2. Abstract Geometric Shapes (Cyberpunk feel) */}
-            <div className="absolute inset-0 opacity-40 mix-blend-overlay">
-                <div className={`absolute w-40 h-40 rounded-full blur-3xl ${theme.accent}`} style={shapePos1}></div>
-                <div className={`absolute w-32 h-32 rounded-full blur-2xl bg-white`} style={shapePos2}></div>
-                {/* Noise Texture */}
-                <div className="absolute inset-0" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.1'/%3E%3C/svg%3E")` }}></div>
+            {/* 2. "Blueprint" Wireframe Overlay Effect */}
+            <div className="absolute inset-0 opacity-30 pointer-events-none" 
+                 style={{ 
+                     backgroundImage: `
+                        linear-gradient(rgba(59, 130, 246, 0.3) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(59, 130, 246, 0.3) 1px, transparent 1px)
+                     `,
+                     backgroundSize: '20px 20px'
+                 }}>
             </div>
 
-            {/* 3. Real Cover Image (If available, overlay on top) */}
-            {realCoverUrl && (
-                <div 
-                    className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-700 opacity-80 mix-blend-overlay group-hover:opacity-60"
-                    style={{ backgroundImage: `url('${realCoverUrl}')` }}
-                />
-            )}
-
-            {/* 4. Type Badge (e.g. PDF/PPT) - Decorative */}
-            <div className="absolute top-4 right-4 border border-white/20 bg-white/10 backdrop-blur-md rounded px-2 py-0.5 text-[10px] font-mono text-white/80 font-bold uppercase tracking-widest shadow-sm">
-                {task.file_type}
+            {/* 3. Gradient Overlay for Text Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-indigo-900/20 mix-blend-multiply"></div>
+            
+            {/* 4. Abstract Geometric Shapes (Tech Accents) */}
+            <div className="absolute top-0 right-0 p-4 opacity-40">
+                <div className="w-16 h-16 border-t-2 border-r-2 border-blue-400/50 rounded-tr-xl"></div>
+            </div>
+            
+            {/* 5. Type Badge */}
+            <div className="absolute top-3 left-3 flex items-center gap-2">
+                <span className="backdrop-blur-md bg-white/10 border border-white/20 rounded px-2 py-0.5 text-[10px] font-mono text-white font-bold uppercase tracking-widest shadow-sm">
+                    {task.file_type}
+                </span>
+                {task.status === 'processing' && (
+                    <span className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                    </span>
+                )}
             </div>
         </div>
     );
@@ -147,7 +160,7 @@ const HeroCard: React.FC<{ task: DeepInsightTask | null; isLoading: boolean; onC
         return (
             <div className="relative w-full h-[360px] rounded-3xl overflow-hidden border border-slate-200 bg-slate-900 shadow-xl flex items-center justify-center text-center p-8 group">
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-[#0f172a] to-blue-900/40"></div>
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: `url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200&q=80')`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
                 <div className="relative z-10 max-w-xl">
                     <div className="w-16 h-16 bg-white/10 rounded-2xl backdrop-blur-md flex items-center justify-center mx-auto mb-6 border border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.1)] group-hover:scale-110 transition-transform">
                         <DocumentTextIcon className="w-8 h-8 text-blue-200" />
@@ -172,7 +185,7 @@ const HeroCard: React.FC<{ task: DeepInsightTask | null; isLoading: boolean; onC
             </div>
             
             {/* Glass Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/40 to-transparent"></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-[#0f172a]/60 to-transparent"></div>
             
             <div className="relative h-full flex flex-col justify-end p-8 md:p-12 z-10">
                 <div className="flex items-center gap-3 mb-3">
