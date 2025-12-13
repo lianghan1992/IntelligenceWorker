@@ -25,7 +25,9 @@ const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
             }
         };
 
-        window.requestAnimationFrame(step);
+        if (value !== displayValue) {
+            window.requestAnimationFrame(step);
+        }
     }, [value]);
 
     return <span>{displayValue.toLocaleString()}</span>;
@@ -93,19 +95,32 @@ export const DashboardWidgets: React.FC = () => {
                 // 并行加载不同微服务的数据
                 const [articlesRes, techItems, deepRes, eventsRes] = await Promise.all([
                     // 1. 情报服务：今日文章
-                    getTodayArticleCount().catch(() => ({ count: 0 })),
-                    // 2. 竞争力服务：获取技术情报列表并统计数量 (替代旧版 Dashboard API)
-                    getTechItems({ limit: 1000 }).catch(() => []),
+                    getTodayArticleCount().catch(err => {
+                        console.warn("Failed to fetch article count", err);
+                        return { count: 0 };
+                    }),
+                    // 2. 竞争力服务：获取技术情报列表并统计数量
+                    getTechItems({ limit: 1000 }).catch(err => {
+                        console.warn("Failed to fetch tech items", err);
+                        return [];
+                    }),
                     // 3. 深度洞察服务：任务统计 (获取 completed 数量)
-                    getDeepInsightTasksStats().catch(() => ({ total: 0, completed: 0, failed: 0, processing: 0, pending: 0 })),
+                    getDeepInsightTasksStats().catch(err => {
+                        console.warn("Failed to fetch deep insight stats", err);
+                        return { total: 0, completed: 0, failed: 0, processing: 0, pending: 0 };
+                    }),
                     // 4. 直播服务：即将开始
-                    getLivestreamTasks({ status: 'scheduled', limit: 1 }).catch(() => ({ total: 0 }))
+                    getLivestreamTasks({ status: 'scheduled', limit: 1 }).catch(err => {
+                        console.warn("Failed to fetch livestream tasks", err);
+                        return { total: 0 };
+                    })
                 ]);
 
                 setStats({
                     articlesToday: articlesRes.count || 0,
                     kbTotal: Array.isArray(techItems) ? techItems.length : 0,
-                    docsProcessed: deepRes.completed || 0, // 使用 completed 字段
+                    // Ensure we access the correct property and handle potential undefined
+                    docsProcessed: (deepRes && typeof deepRes.completed === 'number') ? deepRes.completed : 0,
                     upcomingEvents: eventsRes.total || 0
                 });
 
