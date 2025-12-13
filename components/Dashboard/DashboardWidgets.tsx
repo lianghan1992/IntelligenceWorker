@@ -96,8 +96,8 @@ export const DashboardWidgets: React.FC = () => {
                     getTodayArticleCount().catch(() => ({ count: 0 })),
                     // 2. 竞争力服务：获取技术情报列表并统计数量 (替代旧版 Dashboard API)
                     getTechItems({ limit: 1000 }).catch(() => []),
-                    // 3. 深度洞察服务：已处理文档
-                    getDeepInsightTasksStats().catch(() => ({ completed: 0 })),
+                    // 3. 深度洞察服务：任务统计 (获取 completed 数量)
+                    getDeepInsightTasksStats().catch(() => ({ total: 0, completed: 0, failed: 0, processing: 0, pending: 0 })),
                     // 4. 直播服务：即将开始
                     getLivestreamTasks({ status: 'scheduled', limit: 1 }).catch(() => ({ total: 0 }))
                 ]);
@@ -105,7 +105,7 @@ export const DashboardWidgets: React.FC = () => {
                 setStats({
                     articlesToday: articlesRes.count || 0,
                     kbTotal: Array.isArray(techItems) ? techItems.length : 0,
-                    docsProcessed: deepRes.completed || 0,
+                    docsProcessed: deepRes.completed || 0, // 使用 completed 字段
                     upcomingEvents: eventsRes.total || 0
                 });
 
