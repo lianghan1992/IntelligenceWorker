@@ -9,71 +9,197 @@ import {
 import { 
     SearchIcon, RefreshIcon, ArrowRightIcon, SparklesIcon,
     ChartIcon, LightningBoltIcon, ClockIcon, ViewGridIcon,
-    DocumentTextIcon, EyeIcon, CubeIcon, ChipIcon, GlobeIcon,
-    ServerIcon, DatabaseIcon
+    DocumentTextIcon, ChipIcon, GlobeIcon,
+    ServerIcon, DatabaseIcon, CubeIcon, ShieldCheckIcon
 } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
-// --- Components ---
+// --- Visual Generative Engine ---
 
-// 1. Generative Tech Cover (Pure CSS/SVG - No External Requests)
-// Renamed to SmartTechCover to force refresh
-const SmartTechCover: React.FC<{ task: DeepInsightTask; className?: string }> = ({ task, className = "" }) => {
-    // Deterministic hash to select a theme based on task ID or name
-    const seed = (task.id || task.file_name || 'default').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    
-    const themes = [
-        { name: 'Indigo', bg: 'bg-indigo-950', from: 'from-indigo-900', to: 'to-slate-900', accent: 'text-indigo-500/30', icon: ChipIcon },
-        { name: 'Blue', bg: 'bg-blue-950', from: 'from-blue-900', to: 'to-slate-900', accent: 'text-blue-500/30', icon: GlobeIcon },
-        { name: 'Emerald', bg: 'bg-emerald-950', from: 'from-emerald-900', to: 'to-slate-900', accent: 'text-emerald-500/30', icon: ServerIcon },
-        { name: 'Violet', bg: 'bg-violet-950', from: 'from-violet-900', to: 'to-slate-900', accent: 'text-violet-500/30', icon: LightningBoltIcon },
-        { name: 'Slate', bg: 'bg-slate-900', from: 'from-slate-800', to: 'to-black', accent: 'text-gray-500/30', icon: DatabaseIcon },
-        { name: 'Cyan', bg: 'bg-cyan-950', from: 'from-cyan-900', to: 'to-slate-900', accent: 'text-cyan-500/30', icon: ChartIcon },
-    ];
+// 1. Pseudo-random number generator for deterministic visuals based on Task ID
+const createRNG = (seedString: string) => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < seedString.length; i++) {
+        h ^= seedString.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return function() {
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        return (h >>> 0) / 4294967296;
+    }
+};
 
-    const theme = themes[seed % themes.length];
-    const BigIcon = theme.icon;
+// 2. Rich Cyberpunk Themes
+const themes = [
+    { name: 'Neon Tokyo', from: 'from-fuchsia-900', via: 'via-purple-900', to: 'to-indigo-900', accent: 'text-fuchsia-400', glow: 'shadow-fuchsia-500/50', particle: '#e879f9' },
+    { name: 'Cyber Blue', from: 'from-blue-900', via: 'via-cyan-900', to: 'to-slate-900', accent: 'text-cyan-400', glow: 'shadow-cyan-500/50', particle: '#22d3ee' },
+    { name: 'Matrix', from: 'from-emerald-900', via: 'via-green-900', to: 'to-slate-900', accent: 'text-emerald-400', glow: 'shadow-emerald-500/50', particle: '#34d399' },
+    { name: 'Solar Flare', from: 'from-orange-900', via: 'via-red-900', to: 'to-slate-900', accent: 'text-orange-400', glow: 'shadow-orange-500/50', particle: '#fbbf24' },
+    { name: 'Deep Space', from: 'from-indigo-950', via: 'via-slate-900', to: 'to-black', accent: 'text-indigo-400', glow: 'shadow-indigo-500/50', particle: '#818cf8' },
+    { name: 'Synthwave', from: 'from-violet-900', via: 'via-pink-900', to: 'to-slate-900', accent: 'text-pink-400', glow: 'shadow-pink-500/50', particle: '#f472b6' },
+    { name: 'Arctic', from: 'from-sky-900', via: 'via-slate-800', to: 'to-gray-900', accent: 'text-sky-300', glow: 'shadow-sky-500/50', particle: '#7dd3fc' },
+    { name: 'Crimson', from: 'from-rose-900', via: 'via-red-950', to: 'to-black', accent: 'text-rose-500', glow: 'shadow-rose-500/50', particle: '#fb7185' },
+];
+
+const icons = [ChipIcon, GlobeIcon, ServerIcon, LightningBoltIcon, DatabaseIcon, ChartIcon, CubeIcon, ShieldCheckIcon];
+
+// 3. Generative Particle Component
+const ParticleFlow: React.FC<{ rng: () => number, color: string }> = ({ rng, color }) => {
+    // Generate 15-25 particles with random properties
+    const particles = useMemo(() => {
+        const count = 15 + Math.floor(rng() * 10);
+        return Array.from({ length: count }).map((_, i) => ({
+            id: i,
+            x: Math.floor(rng() * 100),
+            y: Math.floor(rng() * 100),
+            size: 1 + rng() * 2,
+            duration: 3 + rng() * 5,
+            delay: rng() * 2,
+            opacity: 0.3 + rng() * 0.5
+        }));
+    }, []);
 
     return (
-        <div className={`relative w-full h-full overflow-hidden ${theme.bg} bg-gradient-to-br ${theme.from} via-slate-900 ${theme.to} ${className}`}>
-            {/* Grid Pattern */}
-            <div className="absolute inset-0 opacity-30" 
-                style={{ 
-                    backgroundImage: 'linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)', 
-                    backgroundSize: '24px 24px' 
-                }}>
-            </div>
-            
-            {/* Abstract Geometric Shapes with Animation */}
-            <div className="absolute top-[-30%] -right-[10%] w-[80%] h-[120%] border border-white/10 rounded-full opacity-60 transform rotate-12 animate-pulse" style={{ animationDuration: '4s' }}></div>
-            <div className="absolute top-[20%] -left-[20%] w-[60%] h-[100%] border border-white/5 rounded-full opacity-40 transform -rotate-12"></div>
-            
-            {/* Huge Watermark Icon */}
-            <div className={`absolute -bottom-6 -right-6 transform -rotate-12 ${theme.accent}`}>
-                <BigIcon className="w-40 h-40" />
-            </div>
-
-            {/* Type Badge */}
-            <div className="absolute top-3 left-3 z-20">
-                <span className="inline-flex items-center backdrop-blur-md bg-white/10 border border-white/20 rounded px-2.5 py-1 text-[10px] font-mono text-white font-bold uppercase tracking-widest shadow-sm">
-                    {task.file_type || 'DOC'}
-                </span>
-            </div>
-
-            {/* Processing Animation Overlay */}
-            {task.status === 'processing' && (
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-30">
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-xs text-indigo-300 font-bold tracking-wider animate-pulse">AI 解析中...</span>
-                    </div>
-                </div>
-            )}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {particles.map((p) => (
+                <div
+                    key={p.id}
+                    className="absolute rounded-full animate-float-up"
+                    style={{
+                        left: `${p.x}%`,
+                        top: `${p.y}%`,
+                        width: `${p.size}px`,
+                        height: `${p.size}px`,
+                        backgroundColor: color,
+                        opacity: p.opacity,
+                        animationDuration: `${p.duration}s`,
+                        animationDelay: `-${p.delay}s`,
+                        boxShadow: `0 0 ${p.size * 2}px ${color}`
+                    }}
+                />
+            ))}
+            <style>{`
+                @keyframes float-up {
+                    0% { transform: translateY(0) scale(1); opacity: 0; }
+                    50% { opacity: 0.8; }
+                    100% { transform: translateY(-100px) scale(0); opacity: 0; }
+                }
+                .animate-float-up {
+                    animation: float-up linear infinite;
+                }
+            `}</style>
         </div>
     );
 };
 
-// 2. Stat Card
+// 4. Holographic Grid Background
+const HolographicGrid: React.FC<{ accentColor: string }> = ({ accentColor }) => (
+    <div 
+        className="absolute inset-0 opacity-20 pointer-events-none"
+        style={{ 
+            backgroundImage: `
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), 
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px)
+            `, 
+            backgroundSize: '30px 30px',
+            transform: 'perspective(500px) rotateX(20deg) scale(1.2)',
+            transformOrigin: 'bottom'
+        }}
+    >
+        {/* Scanline */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/10 to-transparent h-[20%] w-full animate-scan"></div>
+        <style>{`
+            @keyframes scan {
+                0% { top: -20%; }
+                100% { top: 120%; }
+            }
+            .animate-scan {
+                animation: scan 4s linear infinite;
+            }
+        `}</style>
+    </div>
+);
+
+// --- Main Smart Cover Component ---
+const SmartTechCover: React.FC<{ task: DeepInsightTask; className?: string }> = ({ task, className = "" }) => {
+    const rng = useMemo(() => createRNG(task.id + (task.file_name || '')), [task.id]);
+    
+    // Select Theme & Icon deterministically
+    const themeIndex = Math.floor(rng() * themes.length);
+    const theme = themes[themeIndex];
+    
+    const iconIndex = Math.floor(rng() * icons.length);
+    const BigIcon = icons[iconIndex];
+
+    return (
+        <div className={`relative w-full h-full overflow-hidden bg-gradient-to-br ${theme.from} ${theme.via} ${theme.to} ${className}`}>
+            
+            {/* 1. Dynamic Aurora Blobs (Background Movement) */}
+            <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-30 animate-spin-slow origin-center">
+                <div className={`absolute top-[20%] left-[20%] w-[40%] h-[40%] rounded-full bg-gradient-to-r from-transparent to-${theme.accent.split('-')[1]}-500/30 blur-3xl`}></div>
+                <div className={`absolute bottom-[20%] right-[20%] w-[30%] h-[30%] rounded-full bg-gradient-to-r from-transparent to-white/10 blur-3xl`}></div>
+            </div>
+
+            {/* 2. Holographic Grid */}
+            <HolographicGrid accentColor={theme.particle} />
+
+            {/* 3. Particle Flow System */}
+            <ParticleFlow rng={rng} color={theme.particle} />
+            
+            {/* 4. Abstract Geometric Decor (Generated SVG) */}
+            <svg className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" viewBox="0 0 400 300">
+                <path 
+                    d={`M ${rng()*400} ${rng()*300} L ${rng()*400} ${rng()*300} L ${rng()*400} ${rng()*300} Z`} 
+                    fill="none" 
+                    stroke="white" 
+                    strokeWidth="1" 
+                    className="animate-pulse"
+                />
+                <circle cx={rng()*400} cy={rng()*300} r={20 + rng()*50} stroke="white" strokeWidth="0.5" fill="none" opacity="0.5" />
+            </svg>
+
+            {/* 5. Huge Watermark Icon (Rotated) */}
+            <div className={`absolute -bottom-10 -right-10 transform -rotate-12 opacity-10 ${theme.accent}`}>
+                <BigIcon className="w-56 h-56" />
+            </div>
+
+            {/* 6. Foreground Content (Type Badge) */}
+            <div className="absolute top-3 left-3 z-20">
+                <div className="flex flex-col gap-1">
+                    <span className={`inline-flex items-center backdrop-blur-md bg-white/10 border border-white/20 rounded px-2.5 py-1 text-[10px] font-mono text-white font-bold uppercase tracking-widest shadow-lg ${theme.glow}`}>
+                        {task.file_type || 'DOC'}
+                    </span>
+                    {task.total_pages > 50 && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold text-white/70 bg-black/20 rounded w-fit">
+                            DEEP DIVE
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Processing Overlay */}
+            {task.status === 'processing' && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-30">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className={`w-12 h-12 border-4 ${theme.accent.replace('text', 'border')} border-t-transparent rounded-full animate-spin`}></div>
+                        <span className={`text-xs font-bold tracking-widest animate-pulse ${theme.accent}`}>
+                            ANALYZING DATA...
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                .animate-spin-slow {
+                    animation: spin 20s linear infinite;
+                }
+            `}</style>
+        </div>
+    );
+};
+
+// 2. Stat Card (Unchanged but using updated icon imports if needed)
 const StatCard: React.FC<{ 
     title: string; 
     value: number | string; 
@@ -119,16 +245,13 @@ const HeroCard: React.FC<{ task: DeepInsightTask | null; isLoading: boolean; onC
     if (!task) {
         return (
             <div className="w-full h-[320px] rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex items-center justify-center relative overflow-hidden group">
-                {/* Abstract Background */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-900 to-slate-900"></div>
-                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
-                
+                <SmartTechCover task={{ id: 'demo', file_name: 'AUTO INSIGHT DEMO', file_type: 'SYSTEM', status: 'completed', total_pages: 0 } as any} className="absolute inset-0 opacity-50" />
                 <div className="relative z-10 text-center max-w-lg px-6">
-                    <div className="w-16 h-16 bg-indigo-600/20 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-indigo-500/30 text-indigo-400 group-hover:scale-110 transition-transform duration-500">
+                    <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-6 border border-white/20 text-white group-hover:scale-110 transition-transform duration-500 shadow-lg">
                         <DocumentTextIcon className="w-8 h-8" />
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3 tracking-tight">开启深度洞察</h2>
-                    <p className="text-slate-400 text-sm mb-8">上传行业报告，AI 将自动构建知识图谱与深度分析。</p>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3 tracking-tight drop-shadow-lg">开启深度洞察</h2>
+                    <p className="text-slate-200 text-sm mb-8 drop-shadow-md">上传行业报告，AI 将自动构建知识图谱与深度分析。</p>
                     <button onClick={onClick} className="px-8 py-3 bg-white text-slate-900 rounded-full text-sm font-bold hover:bg-indigo-50 transition-colors shadow-lg shadow-white/10 flex items-center gap-2 mx-auto">
                         <ArrowRightIcon className="w-4 h-4" /> 立即上传
                     </button>
@@ -145,32 +268,32 @@ const HeroCard: React.FC<{ task: DeepInsightTask | null; isLoading: boolean; onC
             {/* Generative Background */}
             <SmartTechCover task={task} className="absolute inset-0" />
             
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+            {/* Gradient Overlay for Text Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent/10"></div>
             
             {/* Content */}
             <div className="absolute bottom-0 left-0 right-0 p-8 z-10 flex flex-col items-start">
                 <div className="flex items-center gap-3 mb-3">
-                    <span className="px-2.5 py-1 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest rounded shadow-lg shadow-indigo-600/20">
+                    <span className="px-2.5 py-1 bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-widest rounded shadow-lg shadow-indigo-600/20 border border-white/10">
                         Featured Insight
                     </span>
-                    <span className="text-[10px] text-indigo-200 font-mono">ID: {task.id.slice(0,8)}</span>
+                    <span className="text-[10px] text-indigo-200 font-mono bg-black/30 px-2 py-0.5 rounded">ID: {task.id.slice(0,8)}</span>
                 </div>
                 
-                <h1 className="text-2xl md:text-4xl font-bold text-white leading-tight mb-4 line-clamp-2 max-w-3xl drop-shadow-md group-hover:text-indigo-100 transition-colors">
+                <h1 className="text-2xl md:text-4xl font-bold text-white leading-tight mb-4 line-clamp-2 max-w-3xl drop-shadow-xl group-hover:text-indigo-100 transition-colors">
                     {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                 </h1>
                 
-                <div className="flex items-center gap-6 text-xs font-medium text-white/80">
-                    <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">
+                <div className="flex items-center gap-6 text-xs font-medium text-white/90">
+                    <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors">
                         <DocumentTextIcon className="w-3.5 h-3.5" />
                         {task.total_pages} 页深度解析
                     </div>
-                    <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10">
+                    <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 hover:bg-white/20 transition-colors">
                         <ClockIcon className="w-3.5 h-3.5" />
                         {new Date(task.created_at).toLocaleDateString()}
                     </div>
-                    <div className="flex items-center gap-1 text-indigo-300 group-hover:translate-x-1 transition-transform ml-auto">
+                    <div className="flex items-center gap-1 text-indigo-300 group-hover:translate-x-1 transition-transform ml-auto font-bold">
                         开始阅读 <ArrowRightIcon className="w-3.5 h-3.5" />
                     </div>
                 </div>
@@ -349,7 +472,7 @@ export const DeepDives: React.FC = () => {
                                 <div 
                                     key={task.id} 
                                     onClick={() => setReaderTask(task)}
-                                    className="group relative aspect-[16/10] bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden flex flex-col"
+                                    className="group relative aspect-[16/10] bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-2xl transition-all duration-300 cursor-pointer overflow-hidden flex flex-col"
                                 >
                                     {/* Generative Cover Background */}
                                     <div className="absolute inset-0 z-0">
@@ -357,15 +480,15 @@ export const DeepDives: React.FC = () => {
                                     </div>
 
                                     {/* Gradient & Content Overlay */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent z-10 flex flex-col justify-end p-5">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/50 to-transparent z-10 flex flex-col justify-end p-5">
                                         <div className="transform transition-transform duration-300 group-hover:-translate-y-1">
                                             <div className="flex justify-between items-end mb-2">
-                                                <span className="text-[10px] font-bold text-white/60 bg-white/10 backdrop-blur-sm px-2 py-0.5 rounded border border-white/10">
+                                                <span className="text-[10px] font-bold text-white/80 bg-white/10 backdrop-blur-md px-2 py-0.5 rounded border border-white/10 shadow-sm">
                                                     {categoryName}
                                                 </span>
                                             </div>
                                             
-                                            <h3 className="text-base font-bold text-white leading-snug line-clamp-2 mb-2 drop-shadow-md group-hover:text-indigo-100 transition-colors">
+                                            <h3 className="text-base font-bold text-white leading-snug line-clamp-2 mb-2 drop-shadow-md group-hover:text-indigo-200 transition-colors">
                                                 {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                                             </h3>
                                             
@@ -377,11 +500,11 @@ export const DeepDives: React.FC = () => {
                                                 </div>
                                                 
                                                 {task.status === 'completed' ? (
-                                                    <span className="text-emerald-400 flex items-center gap-1">
+                                                    <span className="text-emerald-400 flex items-center gap-1 font-bold">
                                                         <SparklesIcon className="w-3 h-3" /> Ready
                                                     </span>
                                                 ) : (
-                                                    <span className="text-blue-400 flex items-center gap-1">
+                                                    <span className="text-blue-400 flex items-center gap-1 font-bold">
                                                         <RefreshIcon className="w-3 h-3 animate-spin" /> {task.status}
                                                     </span>
                                                 )}
