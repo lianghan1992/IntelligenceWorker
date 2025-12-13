@@ -43,8 +43,8 @@ const TechBlueprintCover: React.FC<{ task: DeepInsightTask; className?: string }
                 }}>
             </div>
             
-            {/* Abstract Geometric Shapes */}
-            <div className="absolute top-[-30%] -right-[10%] w-[80%] h-[120%] border border-white/5 rounded-full opacity-50 transform rotate-12"></div>
+            {/* Abstract Geometric Shapes with Animation */}
+            <div className="absolute top-[-30%] -right-[10%] w-[80%] h-[120%] border border-white/5 rounded-full opacity-50 transform rotate-12 animate-pulse" style={{ animationDuration: '4s' }}></div>
             <div className="absolute top-[20%] -left-[20%] w-[60%] h-[100%] border border-white/5 rounded-full opacity-30 transform -rotate-12"></div>
             
             {/* Huge Watermark Icon */}
