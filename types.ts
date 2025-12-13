@@ -1,5 +1,6 @@
 
 
+
 export interface TechItemHistory {
     id: string;
     tech_item_id: string;
@@ -573,4 +574,44 @@ export interface IntelLlmTask {
     created_at: string;
     completed_at?: string;
     csv_path?: string;
+}
+
+// --- StratifyAI (AI Report Generator) Types ---
+
+export interface StratifyTask {
+    id: string;
+    user_input: string;
+    status: 'pending' | 'processing' | 'outline_generated' | 'content_generating' | 'completed' | 'failed';
+    current_step: string;
+    created_at: string;
+    outline?: StratifyOutline;
+    pages?: StratifyPage[];
+}
+
+export interface StratifyOutline {
+    title: string;
+    pages: { title: string; content: string }[];
+}
+
+export interface StratifyPage {
+    page_index: number;
+    title: string;
+    content: string; // Markdown content
+    html_content?: string;
+    status: 'pending' | 'generating' | 'completed' | 'failed';
+}
+
+export interface StratifyQueueStatus {
+    zhipu: { queue_length: number; total_keys: number; total_concurrency: number };
+    gemini: { queue_length: number; total_keys: number; total_concurrency: number };
+}
+
+export interface StratifyStreamEvent {
+    task_id: string;
+    status: string;
+    current_step: string;
+    topic?: string;
+    partial_content?: string; // For streaming text
+    log?: string; // System logs
+    queue_position?: StratifyQueueStatus;
 }

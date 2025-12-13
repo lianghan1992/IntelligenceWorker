@@ -1,49 +1,13 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
-    ViewGridIcon, ChartIcon 
+    ViewGridIcon, ChartIcon, RefreshIcon 
 } from '../icons';
-import { Slide, SearchChunkResult } from '../../types';
-import { searchChunks } from '../../api';
-
-// 模拟的AI思考过程和JSON输出
-const mockAiThoughtProcess = `
-> [AI 思考过程]
-分析用户的核心指令：“PPT编写技巧指南”。这个组词没有明显的逻辑结构或语义关联，无法识别为宽泛的主题(idea)、结构化大纲(outline)或完整内容(full_content)。根据工作流程，当用户输入随意输入导致无法理解时，我需要生成一份关于PPT编写技巧的大纲，共5页。我将基于专业知识，构建一个逻辑严谨的大纲，涵盖PPT的关键要素，包括重要性、设计原则、内容组织、视觉元素和实践优化，确保每个页面标题精炼、内容摘要简明扼要。
-
-> [AI JSON 输出]
----FINAL_JSON_OUTPUT---
-{
-  "type": "outline",
-  "data": {
-    "title": "PPT编写技巧指南",
-    "pages": [
-      {
-        "title": "引言：PPT的重要性",
-        "content": "介绍PPT在商业和学术中的关键作用，以及为什么掌握编写技巧至关重要。"
-      },
-      {
-        "title": "设计原则：简洁与清晰",
-        "content": "讨论PPT设计的基本原则，如使用简洁的布局、一致的字体和颜色，确保信息易于理解。"
-      },
-      {
-        "title": "内容组织：逻辑结构",
-        "content": "讲解如何组织PPT内容，包括使用标题、要点、图表等，确保逻辑流畅。"
-      },
-      {
-        "title": "视觉元素：图表与图像",
-        "content": "强调使用高质量图表和图像来增强视觉吸引力，避免信息过载。"
-      },
-      {
-        "title": "实践与优化",
-        "content": "提供实用技巧，如排练演讲、获取反馈，以及如何根据受众调整内容。"
-      }
-    ]
-  }
-}
-`;
+import { Slide, SearchChunkResult, StratifyTask, StratifyQueueStatus } from '../../types';
+import { searchChunks, createStratifyTask, getStratifyTask, reviseStratifyOutline, confirmStratifyOutline, generateStratifyFullContent, downloadStratifyPdf } from '../../api';
+import { STRATIFY_SERVICE_PATH } from '../../config';
 
 // --- 流程动画卡片组件 ---
 const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) => {
@@ -334,27 +298,73 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void }> = ({ onGenerat
     );
 };
 
-// --- 阶段2: 生成进度 ---
-const GenerationProgress: React.FC<{ title: string; onComplete: () => void }> = ({ title, onComplete }) => {
-    const [log, setLog] = useState('');
-    const fullLog = `> 初始化报告生成流程...
-> 任务ID: gen_1750689845867
-> 分析请求...
-> 正在连接AI模型 (zhipu@glm-4.5-flash) ...
-${mockAiThoughtProcess}`;
+// --- 阶段2: 生成进度 (SSE Log Viewer) ---
+const GenerationProgress: React.FC<{ 
+    taskId: string; 
+    onComplete: (task: StratifyTask) => void;
+    onUpdateStatus: (step: string) => void;
+}> = ({ taskId, onComplete, onUpdateStatus }) => {
+    const [logs, setLogs] = useState<string[]>([]);
+    const [queueStatus, setQueueStatus] = useState<StratifyQueueStatus | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        let index = 0;
-        const interval = setInterval(() => {
-            setLog(prev => prev + fullLog[index]);
-            index++;
-            if (index >= fullLog.length) {
-                clearInterval(interval);
-                setTimeout(onComplete, 1000); // Wait a bit after finishing
+        if (!taskId) return;
+
+        const token = localStorage.getItem('accessToken');
+        // Support query param auth for SSE
+        const url = `${STRATIFY_SERVICE_PATH}/tasks/${taskId}/stream${token ? `?token=${token}` : ''}`;
+        
+        const eventSource = new EventSource(url);
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Update Logs
+                if (data.log) {
+                    setLogs(prev => [...prev, `> ${data.log}`]);
+                }
+                
+                // Update Queue
+                if (data.queue_position) {
+                    setQueueStatus(data.queue_position);
+                }
+
+                // Handle Status Transitions
+                if (data.current_step) {
+                    onUpdateStatus(data.current_step);
+                }
+
+                if (data.status === 'outline_generated') {
+                    // Fetch full task to get the outline
+                    getStratifyTask(taskId).then(task => {
+                        eventSource.close();
+                        onComplete(task);
+                    });
+                }
+            } catch (e) {
+                console.error("Parse SSE error", e);
             }
-        }, 10); // Faster typing speed
-        return () => clearInterval(interval);
-    }, []);
+        };
+
+        eventSource.onerror = (err) => {
+            console.error("SSE Error:", err);
+            // Optional: Retry logic or manual fetch fallback
+            eventSource.close();
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, [taskId, onComplete, onUpdateStatus]);
+
+    // Auto-scroll
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [logs]);
 
     return (
          <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in-0">
@@ -365,14 +375,23 @@ ${mockAiThoughtProcess}`;
                         <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
                         <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
                      </div>
-                     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{title}</h2>
+                     <div className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                        <span>TASK: {taskId.slice(0, 8)}</span>
+                        {queueStatus && (
+                            <span className="bg-gray-800 px-2 rounded text-cyan-400">
+                                Q: {queueStatus.gemini.queue_length + queueStatus.zhipu.queue_length}
+                            </span>
+                        )}
+                     </div>
                      <div className="w-12"></div>
                 </div>
-                <div className="p-6 h-96 overflow-y-auto text-sm">
-                    <pre className="text-green-400/90 whitespace-pre-wrap">
-                        {log}
-                        <span className="inline-block w-2 h-4 bg-green-500 animate-pulse ml-1 align-middle" />
-                    </pre>
+                <div ref={scrollRef} className="p-6 h-96 overflow-y-auto text-sm scroll-smooth">
+                    <div className="space-y-1">
+                        {logs.map((log, i) => (
+                            <div key={i} className="text-green-400/90 whitespace-pre-wrap break-all">{log}</div>
+                        ))}
+                    </div>
+                    <div className="mt-2 text-green-500 animate-pulse">_</div>
                 </div>
             </div>
         </div>
@@ -380,90 +399,150 @@ ${mockAiThoughtProcess}`;
 };
 
 // --- 阶段3: 大纲审查 ---
-const OutlineEditor: React.FC<{ outline: Slide[]; onGenerateContent: () => void }> = ({ outline, onGenerateContent }) => (
-    <div className="max-w-4xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-500 pb-20">
-        <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg mb-8 text-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-            <h2 className="text-3xl font-extrabold text-gray-900 mb-2">PPT编写技巧指南</h2>
-            <p className="text-gray-500">共 {outline.length} 页 · 预计阅读时间 5 分钟</p>
-        </div>
-        
-        <div className="space-y-4 mb-8">
-            {outline.map((slide, index) => (
-                <div key={slide.id} className="bg-white p-6 rounded-xl border border-gray-200 flex items-start gap-5 shadow-sm hover:shadow-md transition-shadow group">
-                    <div className="flex-shrink-0 w-10 h-10 bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 font-bold rounded-xl flex items-center justify-center border border-gray-100 group-hover:border-indigo-100 transition-colors">
-                        {String(index + 1).padStart(2, '0')}
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-indigo-700 transition-colors">{slide.title}</h3>
-                        <p className="text-gray-600 text-sm leading-relaxed">{slide.content}</p>
-                    </div>
-                </div>
-            ))}
-        </div>
+const OutlineEditor: React.FC<{ 
+    taskId: string; 
+    taskData: StratifyTask; 
+    onGenerateContent: () => void;
+    onUpdateTask: (task: StratifyTask) => void;
+}> = ({ taskId, taskData, onGenerateContent, onUpdateTask }) => {
+    const [revisionRequest, setRevisionRequest] = useState('');
+    const [isRevising, setIsRevising] = useState(false);
 
-        <div className="bg-gradient-to-br from-white to-indigo-50 p-6 rounded-2xl border border-indigo-100 shadow-lg sticky bottom-6">
-            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                <div className="p-1.5 bg-indigo-100 rounded-lg">
-                    <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                </div>
-                AI 智能修订
-            </h3>
-            <div className="relative">
-                <textarea
-                    placeholder="请输入您对大纲的整体修改意见。例如：“增加一个市场竞争分析章节”或“将技术挑战和商业化前景合并”"
-                    className="w-full h-24 p-4 pr-32 bg-white border border-indigo-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-sm"
-                />
-                <div className="absolute bottom-3 right-3">
-                    <button 
-                        onClick={onGenerateContent}
-                        className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700 transition transform hover:scale-105 flex items-center gap-2"
-                    >
-                        生成内容 <ArrowRightIcon className="w-4 h-4" />
-                    </button>
+    const handleRevise = async () => {
+        if (!revisionRequest.trim()) return;
+        setIsRevising(true);
+        try {
+            await reviseStratifyOutline(taskId, revisionRequest);
+            alert('大纲修改请求已提交，AI正在处理...');
+            // Simple wait for demo, ideally poll or stream
+            setTimeout(async () => {
+                const updated = await getStratifyTask(taskId);
+                onUpdateTask(updated);
+                setIsRevising(false);
+                setRevisionRequest('');
+            }, 3000);
+        } catch (e) {
+            alert('提交失败');
+            setIsRevising(false);
+        }
+    };
+
+    const outline = taskData.outline?.pages || [];
+
+    return (
+        <div className="max-w-4xl mx-auto animate-in fade-in-0 slide-in-from-bottom-4 duration-500 pb-20">
+            <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-lg mb-8 text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                <h2 className="text-3xl font-extrabold text-gray-900 mb-2">{taskData.outline?.title || '生成的大纲'}</h2>
+                <p className="text-gray-500">共 {outline.length} 页</p>
+            </div>
+            
+            <div className="space-y-4 mb-8">
+                {outline.map((slide, index) => (
+                    <div key={index} className="bg-white p-6 rounded-xl border border-gray-200 flex items-start gap-5 shadow-sm hover:shadow-md transition-shadow group">
+                        <div className="flex-shrink-0 w-10 h-10 bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 font-bold rounded-xl flex items-center justify-center border border-gray-100 group-hover:border-indigo-100 transition-colors">
+                            {String(index + 1).padStart(2, '0')}
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-indigo-700 transition-colors">{slide.title}</h3>
+                            <p className="text-gray-600 text-sm leading-relaxed">{slide.content}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-gradient-to-br from-white to-indigo-50 p-6 rounded-2xl border border-indigo-100 shadow-lg sticky bottom-6">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                    <div className="p-1.5 bg-indigo-100 rounded-lg">
+                        <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                    </div>
+                    AI 智能修订
+                </h3>
+                <div className="relative">
+                    <textarea
+                        value={revisionRequest}
+                        onChange={e => setRevisionRequest(e.target.value)}
+                        placeholder="请输入您对大纲的整体修改意见。例如：“增加一个市场竞争分析章节”或“将技术挑战和商业化前景合并”"
+                        className="w-full h-24 p-4 pr-32 bg-white border border-indigo-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-sm text-sm"
+                        disabled={isRevising}
+                    />
+                    <div className="absolute bottom-3 right-3 flex gap-2">
+                        <button 
+                            onClick={handleRevise}
+                            disabled={isRevising || !revisionRequest.trim()}
+                            className="px-4 py-2 bg-white border border-indigo-200 text-indigo-700 text-sm font-bold rounded-lg hover:bg-indigo-50 transition"
+                        >
+                            {isRevising ? '修订中...' : '提交修改'}
+                        </button>
+                        <button 
+                            onClick={onGenerateContent}
+                            className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700 transition transform hover:scale-105 flex items-center gap-2"
+                        >
+                            确认大纲并生成内容 <ArrowRightIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 
-// --- 阶段4: 内容生成 ---
-const ContentGeneratorView: React.FC<{ slides: Slide[]; onComplete: () => void }> = ({ slides: initialSlides, onComplete }) => {
-    const [slides, setSlides] = useState(initialSlides);
+// --- 阶段4: 内容生成 (Polling Real Data) ---
+const ContentGeneratorView: React.FC<{ 
+    taskId: string; 
+    onComplete: (slides: Slide[]) => void 
+}> = ({ taskId, onComplete }) => {
+    const [slides, setSlides] = useState<Slide[]>([]);
+    const [taskStatus, setTaskStatus] = useState<string>('content_generating');
 
     useEffect(() => {
-        let currentSlide = 0;
-        const processSlide = () => {
-            if (currentSlide >= slides.length) {
-                setTimeout(onComplete, 1000);
-                return;
-            }
-            
-            // Mark as generating
-            setSlides(prev => prev.map((s, i) => i === currentSlide ? { ...s, status: 'generating' } : s));
-            
-            // Simulate generation
-            setTimeout(() => {
-                setSlides(prev => prev.map((s, i) => i === currentSlide ? { 
-                    ...s, 
-                    status: 'done',
-                    content: `这是为“${s.title}”页面生成的详细内容。AI会根据大纲中的摘要进行扩展，填充具体的数据点、分析和论据。例如，在设计原则部分，可以详细阐述留白、对比、重复、对齐等具体技巧，并提供正反案例对比图。`
-                } : s));
-                currentSlide++;
-                processSlide();
-            }, 2000);
-        };
+        // Initial call to trigger generation
+        generateStratifyFullContent(taskId);
 
-        processSlide();
-    }, []);
+        // Polling loop to check status
+        const interval = setInterval(async () => {
+            try {
+                const task = await getStratifyTask(taskId);
+                setTaskStatus(task.status);
+                
+                // Map API pages to UI slides
+                if (task.pages) {
+                    const uiSlides: Slide[] = task.pages.map(p => ({
+                        id: `p-${p.page_index}`,
+                        title: p.title,
+                        content: p.content, // This updates from summary to full content as it generates
+                        status: p.status === 'completed' ? 'done' : 
+                                p.status === 'generating' ? 'generating' : 'queued'
+                    }));
+                    setSlides(uiSlides);
+                }
+
+                if (task.status === 'completed') {
+                    clearInterval(interval);
+                    // Pass mapped slides
+                    const finalSlides = (task.pages || []).map(p => ({
+                        id: `p-${p.page_index}`,
+                        title: p.title,
+                        content: p.content,
+                        status: 'done' as const
+                    }));
+                    onComplete(finalSlides);
+                }
+            } catch (e) {
+                console.error("Polling failed", e);
+            }
+        }, 2000);
+
+        return () => clearInterval(interval);
+    }, [taskId, onComplete]);
 
     return (
         <div className="max-w-4xl mx-auto animate-in fade-in-0 pb-20">
             <div className="flex items-center justify-between mb-6">
                  <div>
                     <h2 className="text-2xl font-bold text-gray-900">正在生成内容...</h2>
-                    <p className="text-gray-500 text-sm mt-1">AI 正在逐页撰写详细报告内容，请稍候</p>
+                    <p className="text-gray-500 text-sm mt-1">AI 正在逐页撰写详细报告内容，请稍候 ({taskStatus})</p>
                  </div>
                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
             </div>
@@ -486,15 +565,13 @@ const ContentGeneratorView: React.FC<{ slides: Slide[]; onComplete: () => void }
                             {slide.status === 'queued' && <span className="text-xs text-gray-400">排队中</span>}
                         </div>
                         
-                        {/* Terminal-like Output Area */}
                         <div className={`
                             bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-hidden transition-all duration-500
                             ${slide.status === 'queued' ? 'h-0 p-0 opacity-0' : 'h-auto opacity-100'}
                         `}>
                             {slide.status === 'generating' && (
                                 <div className="text-blue-300">
-                                    <p>{'>'} 正在连接AI模型 (zhipu@glm-4.5-flash)...</p>
-                                    <p>{'>'} 分析页面主题：“{slide.title}”</p>
+                                    <p>{'>'} 正在连接AI模型...</p>
                                     <p>{'>'} 检索相关知识库片段...</p>
                                     <p className="flex items-center gap-2">
                                         {'>'} 生成草稿... <span className="w-2 h-4 bg-blue-400 animate-pulse block"></span>
@@ -504,12 +581,17 @@ const ContentGeneratorView: React.FC<{ slides: Slide[]; onComplete: () => void }
                             {slide.status === 'done' && (
                                 <div className="text-green-400">
                                     <p>{'>'} 内容生成完毕。</p>
-                                    <p className="text-gray-400 mt-2 line-clamp-2 opacity-80">{slide.content}</p>
+                                    <p className="text-gray-400 mt-2 line-clamp-3 opacity-80">{slide.content.slice(0, 150)}...</p>
                                 </div>
                             )}
                         </div>
                     </div>
                 ))}
+                {slides.length === 0 && (
+                    <div className="text-center text-gray-400 py-10">
+                        正在初始化生成队列...
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -517,15 +599,43 @@ const ContentGeneratorView: React.FC<{ slides: Slide[]; onComplete: () => void }
 
 
 // --- 阶段5: 报告预览 ---
-const ReportPreview: React.FC<{ slides: Slide[]; onStartOver: () => void }> = ({ slides, onStartOver }) => {
+const ReportPreview: React.FC<{ 
+    taskId: string;
+    slides: Slide[]; 
+    onStartOver: () => void 
+}> = ({ taskId, slides, onStartOver }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [isExporting, setIsExporting] = useState(false);
 
-    const handleExport = () => {
-        alert("正在准备导出为PDF...");
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const blob = await downloadStratifyPdf(taskId);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `report_${taskId.slice(0, 8)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e: any) {
+            alert(e.message || "下载失败");
+        } finally {
+            setIsExporting(false);
+        }
     };
     
     const goToNext = () => setCurrentIndex(prev => (prev + 1) % slides.length);
     const goToPrev = () => setCurrentIndex(prev => (prev - 1 + slides.length) % slides.length);
+
+    // Markdown rendering with window.marked
+    const renderMarkdown = (content: string) => {
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return { __html: window.marked.parse(content) };
+        }
+        return { __html: `<pre class="whitespace-pre-wrap">${content}</pre>` };
+    };
 
     return (
         <div className="max-w-6xl mx-auto animate-in fade-in-0 pb-10 h-full flex flex-col">
@@ -538,11 +648,11 @@ const ReportPreview: React.FC<{ slides: Slide[]; onStartOver: () => void }> = ({
                 <div className="flex gap-3">
                     <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition-colors shadow-sm">
                         <SparklesIcon className="w-4 h-4 text-purple-600"/>
-                        AI 润色
+                        AI 润色 (Coming Soon)
                     </button>
-                    <button onClick={handleExport} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
-                        <DownloadIcon className="w-4 h-4"/>
-                        导出 PDF
+                    <button onClick={handleExport} disabled={isExporting} className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50">
+                        {isExporting ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div> : <DownloadIcon className="w-4 h-4"/>}
+                        {isExporting ? '生成中...' : '导出 PDF'}
                     </button>
                 </div>
             </div>
@@ -576,7 +686,7 @@ const ReportPreview: React.FC<{ slides: Slide[]; onStartOver: () => void }> = ({
 
                         <h3 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-8 leading-tight">{slides[currentIndex].title}</h3>
                         <div className="text-base sm:text-lg text-gray-600 leading-relaxed prose max-w-none flex-1 overflow-y-auto custom-scrollbar">
-                            <p>{slides[currentIndex].content}</p>
+                            <div dangerouslySetInnerHTML={renderMarkdown(slides[currentIndex].content)} />
                         </div>
                         
                         {/* Hover Navigation Overlay */}
@@ -605,29 +715,58 @@ const ReportPreview: React.FC<{ slides: Slide[]; onStartOver: () => void }> = ({
 
 export const ReportGenerator: React.FC = () => {
     const [flowState, setFlowState] = useState<'idea' | 'generatingOutline' | 'outlineReview' | 'generatingContent' | 'preview'>('idea');
+    const [taskId, setTaskId] = useState<string | null>(null);
+    const [taskData, setTaskData] = useState<StratifyTask | null>(null);
     const [slides, setSlides] = useState<Slide[]>([]);
 
-    const handleStartOutlineGeneration = () => {
-        setFlowState('generatingOutline');
+    const handleStartTask = async (idea: string) => {
+        try {
+            const task = await createStratifyTask(idea);
+            setTaskId(task.id);
+            setTaskData(task);
+            setFlowState('generatingOutline');
+        } catch (e) {
+            alert('创建任务失败，请重试');
+        }
     };
     
-    const handleOutlineGenerated = () => {
-        const outlineData = JSON.parse(mockAiThoughtProcess.split('---FINAL_JSON_OUTPUT---')[1]).data;
-        const initialSlides: Slide[] = outlineData.pages.map((page: any, index: number) => ({
-            id: `slide-${index}`,
-            title: page.title,
-            content: page.content, // Initially content is the outline summary
-            status: 'queued',
-        }));
-        setSlides(initialSlides);
+    const handleOutlineReady = (updatedTask: StratifyTask) => {
+        setTaskData(updatedTask);
         setFlowState('outlineReview');
     };
 
-    const handleStartContentGeneration = () => {
-        setFlowState('generatingContent');
+    const handleConfirmOutline = async () => {
+        if (!taskId || !taskData?.outline) return;
+        
+        try {
+            // 1. Confirm outline to update status
+            await confirmStratifyOutline(taskId);
+            
+            // 2. Prepare initial slides for UI from outline
+            const initialSlides: Slide[] = taskData.outline.pages.map((p, i) => ({
+                id: `slide-${i}`,
+                title: p.title,
+                content: p.content, 
+                status: 'queued'
+            }));
+            setSlides(initialSlides);
+            
+            // 3. Move to next view
+            setFlowState('generatingContent');
+        } catch (e) {
+            console.error(e);
+            alert("确认大纲失败，请重试");
+        }
+    };
+
+    const handleContentComplete = (finalSlides: Slide[]) => {
+        setSlides(finalSlides);
+        setFlowState('preview');
     };
     
     const handleStartOver = () => {
+        setTaskId(null);
+        setTaskData(null);
         setSlides([]);
         setFlowState('idea');
     };
@@ -649,11 +788,41 @@ export const ReportGenerator: React.FC = () => {
             <ProcessFlowCards currentStep={getStepFromState(flowState)} />
             
             <div className="flex-1 relative">
-                {flowState === 'idea' && <IdeaInput onGenerate={handleStartOutlineGeneration} />}
-                {flowState === 'generatingOutline' && <GenerationProgress title="AI 深度推理中..." onComplete={handleOutlineGenerated} />}
-                {flowState === 'outlineReview' && <OutlineEditor outline={slides} onGenerateContent={handleStartContentGeneration} />}
-                {flowState === 'generatingContent' && <ContentGeneratorView slides={slides} onComplete={() => setFlowState('preview')} />}
-                {flowState === 'preview' && <ReportPreview slides={slides} onStartOver={handleStartOver} />}
+                {flowState === 'idea' && (
+                    <IdeaInput onGenerate={handleStartTask} />
+                )}
+                
+                {flowState === 'generatingOutline' && taskId && (
+                    <GenerationProgress 
+                        taskId={taskId} 
+                        onComplete={handleOutlineReady}
+                        onUpdateStatus={(step) => {}}
+                    />
+                )}
+                
+                {flowState === 'outlineReview' && taskId && taskData && (
+                    <OutlineEditor 
+                        taskId={taskId} 
+                        taskData={taskData} 
+                        onGenerateContent={handleConfirmOutline} 
+                        onUpdateTask={setTaskData}
+                    />
+                )}
+                
+                {flowState === 'generatingContent' && taskId && (
+                    <ContentGeneratorView 
+                        taskId={taskId}
+                        onComplete={handleContentComplete} 
+                    />
+                )}
+                
+                {flowState === 'preview' && taskId && (
+                    <ReportPreview 
+                        taskId={taskId}
+                        slides={slides} 
+                        onStartOver={handleStartOver} 
+                    />
+                )}
             </div>
         </div>
     );

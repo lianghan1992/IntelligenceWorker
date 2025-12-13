@@ -31,3 +31,6 @@ export const DOCUMENT_PROCESSING_SERVICE_PATH = `${API_BASE_URL}/document-proces
 
 // Full path for Deep Insight service
 export const DEEP_INSIGHT_SERVICE_PATH = `${API_BASE_URL}/deep_insight`;
+
+// Full path for StratifyAI service (AI Report Generator)
+export const STRATIFY_SERVICE_PATH = `${API_BASE_URL}/stratifyai`;
