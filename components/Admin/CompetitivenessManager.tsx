@@ -556,6 +556,18 @@ const ReviewQueue: React.FC = () => {
         fetchPending();
     }, [fetchPending]);
 
+    // Auto-refill when list is empty but total > 0
+    useEffect(() => {
+        if (!isLoading && items.length === 0 && total > 0) {
+            const maxPage = Math.ceil(total / 20) || 1;
+            if (page > maxPage) {
+                setPage(maxPage);
+            } else {
+                fetchPending();
+            }
+        }
+    }, [items.length, total, isLoading, page, fetchPending]);
+
     const handleApprove = async (itemId: string) => {
         setIsActionLoading(itemId);
         try {
@@ -571,7 +583,7 @@ const ReviewQueue: React.FC = () => {
     };
 
     const handleReject = async (itemId: string) => {
-        if (!confirm('确定要拒绝并删除此条情报吗？此操作不可恢复。')) return;
+        // Removed confirmation as requested
         setIsActionLoading(itemId);
         try {
             await rejectReviewItems([itemId]);
