@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
-import { getDeepInsightTasks, getDeepInsightCategories, fetchDeepInsightCover } from '../../api/deepInsight';
-import { SearchIcon, DocumentTextIcon, RefreshIcon, CloudIcon, ArrowRightIcon, SparklesIcon, CalendarIcon, ChipIcon } from '../icons';
+import { getDeepInsightTasks, getDeepInsightCategories } from '../../api/deepInsight';
+import { SearchIcon, DocumentTextIcon, RefreshIcon, CloudIcon, ArrowRightIcon, SparklesIcon, CalendarIcon, ChipIcon, ViewGridIcon } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
 // --- Helpers ---
@@ -16,7 +16,7 @@ const formatDate = (dateString: string) => {
     }).replace(/\//g, '-');
 };
 
-// 生成基于字符串的确定性哈希，用于分配颜色
+// 基于ID生成确定性哈希，用于固定卡片的主题颜色
 const getHash = (str: string) => {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -25,12 +25,13 @@ const getHash = (str: string) => {
     return Math.abs(hash);
 };
 
-// 复刻原型中的卡片主题配置 (背景渐变 + 光斑颜色)
+// 原型设计中的四种主题配置 (背景渐变 + 光斑颜色 + 纹理图)
+// 纹理图片链接直接沿用原型中的CDN地址
 const THEMES = [
     { 
         name: 'Blue', 
         bg: 'bg-gradient-to-r from-blue-900 to-slate-900', 
-        blob1: 'bg-primary/20', 
+        blob1: 'bg-primary/20', // Assuming primary is blue-ish
         blob2: 'bg-purple-500/10',
         tagBg: 'bg-white/10 text-white ring-white/20',
         texture: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDiwQUGV7LNhx3xeloH5vwakHQsn0_EtrUOtmNJJrstG33wMx2QBOfBdfSagVbvwYDYsoCGdRBZmssTusVw_NshuPKrLxR1Fe9L7rhftK4ypmlX4AdiPpb5LkAhp0i3DUAQlUKwGigPrYX7VmLBHcJup2UwVkWLzqyFGFDcruiBRLGZ6vxGyWZRhs1ynnuYTNxgliCJQJ_bFpVuR8tembCAMAEcQxTVAm6vu1I7TgP4ntV22kX3eyukivbKhmXwth-pchq4DqjHfJZe'
@@ -64,36 +65,39 @@ const THEMES = [
 // --- Components ---
 
 const PrototypeCard: React.FC<{ task: DeepInsightTask; categoryName?: string; onClick: () => void }> = ({ task, categoryName, onClick }) => {
-    // 基于ID选择主题，保证同一卡片颜色固定
+    // 确定性选择主题
     const themeIndex = getHash(task.id) % THEMES.length;
     const theme = THEMES[themeIndex];
 
     return (
         <div 
             onClick={onClick}
-            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full"
+            className="group relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer h-full"
         >
-            {/* Cover Image Area (32 height unit approx 128px) */}
+            {/* Cover Image Area */}
             <div className="relative h-32 w-full overflow-hidden flex-shrink-0">
-                {/* Background Gradient */}
+                {/* 1. Base Gradient Background */}
                 <div className={`absolute inset-0 ${theme.bg}`}></div>
                 
-                {/* Decorative Abstract Shapes (Blobs) */}
-                <div className={`absolute -right-10 -top-20 h-64 w-64 rounded-full blur-3xl ${theme.blob1}`}></div>
-                <div className={`absolute -left-10 -bottom-20 h-64 w-64 rounded-full blur-3xl ${theme.blob2}`}></div>
+                {/* 2. Abstract Blobs (Blurred Shapes) */}
+                <div className={`absolute -right-10 -top-20 h-64 w-64 rounded-full blur-3xl ${theme.blob1} opacity-60`}></div>
+                <div className={`absolute -left-10 -bottom-20 h-64 w-64 rounded-full blur-3xl ${theme.blob2} opacity-60`}></div>
                 
                 <div className="relative z-10 flex h-full items-center px-5 w-full">
-                    {/* Abstract tech pattern background (Texture) */}
+                    {/* 3. Texture Pattern Overlay */}
                     <div 
                         className="absolute inset-0 opacity-20 bg-cover bg-center mix-blend-overlay" 
                         style={{ backgroundImage: `url('${theme.texture}')` }}
                     ></div>
                     
-                    {/* Text Content in Cover */}
-                    <div className="relative z-20 w-full pr-4">
-                        <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset backdrop-blur-sm mb-2 ${theme.tagBg}`}>
+                    {/* Content Layer */}
+                    <div className="relative z-20 w-full pr-2">
+                        {/* Glassmorphism Tag */}
+                        <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-bold ring-1 ring-inset backdrop-blur-sm mb-2 shadow-sm ${theme.tagBg}`}>
                             {categoryName || '行业洞察'}
                         </span>
+                        
+                        {/* Title with drop shadow for readability */}
                         <h3 className="text-lg md:text-xl font-bold text-white leading-tight line-clamp-2 drop-shadow-sm tracking-tight">
                             {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                         </h3>
@@ -101,22 +105,24 @@ const PrototypeCard: React.FC<{ task: DeepInsightTask; categoryName?: string; on
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="flex flex-col gap-3 p-4 flex-1 justify-end">
+            {/* Info Area */}
+            <div className="flex flex-col gap-3 p-4 flex-1 justify-end bg-white">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                     <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                            <CalendarIcon className="w-4 h-4" />
+                        <span className="flex items-center gap-1.5">
+                            <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                             {formatDate(task.created_at)}
                         </span>
-                        <span className="flex items-center gap-1">
-                            <DocumentTextIcon className="w-4 h-4" />
+                        <span className="flex items-center gap-1.5">
+                            <DocumentTextIcon className="w-3.5 h-3.5 text-slate-400" />
                             {task.total_pages > 0 ? `${task.total_pages}页` : 'PDF'}
                         </span>
                     </div>
-                    <span className="text-[#135bec] font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform duration-300">
+                    
+                    {/* Action Link */}
+                    <span className="text-indigo-600 font-bold flex items-center gap-0.5 group-hover:translate-x-1 transition-transform duration-300">
                         阅读
-                        <ArrowRightIcon className="w-4 h-4" />
+                        <ArrowRightIcon className="w-3.5 h-3.5" />
                     </span>
                 </div>
             </div>
@@ -128,14 +134,14 @@ const FilterChip: React.FC<{ label: string; icon?: React.ReactNode; isActive: bo
     <button
         onClick={onClick}
         className={`
-            snap-start shrink-0 flex h-9 items-center gap-2 rounded-full px-4 transition-all active:scale-95 text-sm font-medium whitespace-nowrap
+            snap-start shrink-0 flex h-9 items-center gap-2 rounded-full px-4 transition-all active:scale-95 text-sm font-medium whitespace-nowrap border
             ${isActive 
-                ? 'bg-[#135bec] text-white shadow-lg shadow-blue-500/20' 
-                : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/20' 
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
             }
         `}
     >
-        {icon && <span className={isActive ? 'text-white' : 'text-slate-600'}>{icon}</span>}
+        {icon && <span className={isActive ? 'text-white' : 'text-slate-400'}>{icon}</span>}
         <span>{label}</span>
     </button>
 );
@@ -189,33 +195,37 @@ export const DeepDives: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-[#f6f6f8] overflow-hidden font-display">
             
-            {/* Top App Bar - 适配原型的透明模糊顶栏 */}
-            <div className="sticky top-0 z-40 bg-[#f6f6f8]/90 backdrop-blur-md px-5 py-3 flex items-center justify-between border-b border-black/5">
-                {/* Title Section */}
+            {/* 1. Transparent/Blurred Top Bar */}
+            <div className="sticky top-0 z-40 bg-[#f6f6f8]/90 backdrop-blur-xl px-5 py-3 flex items-center justify-between border-b border-black/5">
+                {/* Title */}
                 <div className={`transition-all duration-300 ${isMobileSearchOpen ? 'w-0 opacity-0 overflow-hidden' : 'w-auto opacity-100'}`}>
                     <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">深度洞察</h1>
                 </div>
 
-                {/* Search Section */}
-                <div className={`flex items-center justify-end gap-2 transition-all duration-300 ${isMobileSearchOpen ? 'flex-1 w-full' : ''}`}>
+                {/* Search Action */}
+                <div className={`flex items-center justify-end gap-3 transition-all duration-300 ${isMobileSearchOpen ? 'flex-1 w-full' : ''}`}>
                     {isMobileSearchOpen ? (
+                        // Mobile Expanded Search
                         <div className="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
-                            <input 
-                                type="text" 
-                                placeholder="搜索报告..." 
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-4 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#135bec]/20 shadow-sm"
-                                autoFocus
-                                onBlur={() => !searchQuery && setIsMobileSearchOpen(false)}
-                            />
+                            <div className="relative flex-1">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="搜索报告..." 
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+                                    autoFocus
+                                    onBlur={() => !searchQuery && setIsMobileSearchOpen(false)}
+                                />
+                            </div>
                             <button onClick={() => setIsMobileSearchOpen(false)} className="p-2 text-slate-500 font-bold text-sm whitespace-nowrap">
                                 取消
                             </button>
                         </div>
                     ) : (
-                        <div className="flex gap-2">
-                            {/* Desktop Search Box (Hidden on Mobile) */}
+                        <div className="flex gap-3">
+                            {/* Desktop Search */}
                             <div className="hidden md:block relative">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input 
@@ -223,11 +233,11 @@ export const DeepDives: React.FC = () => {
                                     placeholder="搜索报告..." 
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
-                                    className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#135bec]/20 w-64 shadow-sm"
+                                    className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-64 shadow-sm transition-shadow hover:shadow"
                                 />
                             </div>
                             
-                            {/* Mobile Search Button */}
+                            {/* Mobile Search Icon */}
                             <button 
                                 onClick={() => setIsMobileSearchOpen(true)}
                                 className="md:hidden flex items-center justify-center w-10 h-10 rounded-full bg-white hover:bg-slate-100 transition-colors text-slate-600 shadow-sm border border-slate-200"
@@ -246,9 +256,9 @@ export const DeepDives: React.FC = () => {
                 </div>
             </div>
 
-            {/* Filter Chips - Horizontal Scroll */}
-            <div className="w-full pt-4 pb-2 bg-[#f6f6f8] z-30">
-                <div className="flex gap-3 px-5 overflow-x-auto hide-scrollbar snap-x no-scrollbar">
+            {/* 2. Filter Chips (Horizontal Scroll) */}
+            <div className="w-full pt-4 pb-2 bg-[#f6f6f8] z-30 flex-shrink-0">
+                <div className="flex gap-3 px-5 overflow-x-auto hide-scrollbar snap-x no-scrollbar pb-2">
                     <FilterChip 
                         label="全部" 
                         icon={<ViewGridIcon className="w-4 h-4" />}
@@ -260,7 +270,6 @@ export const DeepDives: React.FC = () => {
                             key={cat.id} 
                             label={cat.name} 
                             icon={
-                                // Simple mapping for icons based on name keywords, fallback to generic
                                 cat.name.includes('驾驶') ? <ChipIcon className="w-4 h-4"/> :
                                 cat.name.includes('座舱') ? <SparklesIcon className="w-4 h-4"/> :
                                 <CloudIcon className="w-4 h-4"/>
@@ -272,12 +281,12 @@ export const DeepDives: React.FC = () => {
                 </div>
             </div>
 
-            {/* Report List Content */}
+            {/* 3. Grid Content */}
             <main className="flex-1 overflow-y-auto custom-scrollbar p-5 pb-24">
                 <div className="max-w-[1920px] mx-auto">
                     {isLoading && tasks.length === 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                            {[...Array(4)].map((_, i) => (
+                            {[...Array(8)].map((_, i) => (
                                 <div key={i} className="h-64 rounded-2xl bg-white p-4 shadow-sm border border-slate-100 animate-pulse flex flex-col">
                                     <div className="h-32 bg-slate-200 rounded-xl w-full mb-4"></div>
                                     <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
@@ -286,7 +295,7 @@ export const DeepDives: React.FC = () => {
                             ))}
                         </div>
                     ) : filteredTasks.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 animate-in fade-in zoom-in-95 duration-500">
                             {filteredTasks.map(task => (
                                 <PrototypeCard 
                                     key={task.id} 
@@ -299,13 +308,13 @@ export const DeepDives: React.FC = () => {
                     ) : (
                         <div className="flex flex-col items-center justify-center py-32 text-center">
                             <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm border border-slate-100">
-                                <CloudIcon className="w-10 h-10 text-slate-300" />
+                                <CloudIcon className="w-10 h-10 text-slate-300 opacity-50" />
                             </div>
                             <h3 className="text-lg font-bold text-slate-800">暂无相关报告</h3>
-                            <p className="text-slate-500 mt-2 text-sm">尝试调整筛选条件</p>
+                            <p className="text-slate-500 mt-2 text-sm">尝试调整筛选条件或搜索关键词</p>
                             <button 
                                 onClick={() => { setSelectedCategoryId(null); setSearchQuery(''); }}
-                                className="mt-6 px-6 py-2 bg-white border border-slate-300 rounded-full text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                                className="mt-6 px-6 py-2.5 bg-white border border-slate-300 rounded-full text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-all shadow-sm"
                             >
                                 重置筛选
                             </button>
@@ -321,18 +330,6 @@ export const DeepDives: React.FC = () => {
                     onClose={() => setReaderTask(null)} 
                 />
             )}
-
-            {/* Helper Component for ViewGrid Icon used in 'All' chip */}
-            <div className="hidden">
-               {/* Just to ensure icon import usage if not used elsewhere */}
-            </div>
         </div>
     );
 };
-
-// Local Icon Components for the Prototype Style if needed (using existing icons map)
-const ViewGridIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z" />
-    </svg>
-);
