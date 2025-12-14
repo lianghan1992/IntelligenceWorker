@@ -182,14 +182,30 @@ const OutlineGenerator: React.FC<{
     // 尝试解析 JSON
     useEffect(() => {
         if (!isGenerating && streamContent) {
-            const result = parseLlmJson<{ title: string; pages: any[] }>(streamContent);
-            if (result && result.pages) {
-                setParsedOutline(result);
-                // 自动保存到后端，但不跳转，等待用户确认
-                updateStratifyTask(taskId, { 
-                    status: 'outline_generated',
-                    outline: result 
-                });
+            // 使用宽松的类型定义，兼容 'outline' 或 'pages' 字段
+            const result = parseLlmJson<any>(streamContent);
+            
+            if (result) {
+                // 核心修复：后端可能返回 'outline' 数组，而不是前端定义的 'pages'
+                const pages = result.pages || result.outline;
+                
+                if (pages && Array.isArray(pages)) {
+                    const normalizedOutline: StratifyOutline = {
+                        title: result.title,
+                        pages: pages
+                    };
+                    
+                    setParsedOutline(normalizedOutline);
+                    // 自动保存到后端，但不跳转，等待用户确认
+                    updateStratifyTask(taskId, { 
+                        status: 'outline_generated',
+                        outline: normalizedOutline 
+                    });
+                } else {
+                    console.warn("Parsed JSON but found no 'pages' or 'outline' array:", result);
+                }
+            } else {
+                console.error("Failed to parse JSON from stream content");
             }
         }
     }, [isGenerating, streamContent, taskId]);
@@ -208,7 +224,7 @@ const OutlineGenerator: React.FC<{
                     </div>
                     <div className="whitespace-pre-wrap break-all min-h-[200px]">
                         {streamContent || "正在连接 AI 模型..."}
-                        {isGenerating && <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse"></span>}
+                        {isGenerating && <span className="inline-block w-2 h-4 bg-green-50 ml-1 animate-pulse"></span>}
                     </div>
                 </div>
             )}
