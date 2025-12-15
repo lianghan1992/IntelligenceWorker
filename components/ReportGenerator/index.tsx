@@ -171,10 +171,13 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
     }
 
     // 3. Extract Outline Items (Incremental)
+    // Support both "content" and "summary" keys as the LLM might interchange them
     const outlineStartIdx = text.indexOf('"outline"');
     if (outlineStartIdx !== -1) {
         const outlineSection = text.slice(outlineStartIdx);
-        const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"content"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
+        // Regex to capture title and either content or summary
+        // Note: The structure is typically [{"title": "...", "summary": "..."}, ...]
+        const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
         
         let match;
         while ((match = itemRegex.exec(outlineSection)) !== null) {
@@ -255,6 +258,7 @@ const OutlineGenerationModal: React.FC<{
     const [isGenerating, setIsGenerating] = useState(false);
     const [finalOutline, setFinalOutline] = useState<StratifyOutline | null>(null);
     const [showThought, setShowThought] = useState(true);
+    const [showDebug, setShowDebug] = useState(false); // Debug state
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [revisionInput, setRevisionInput] = useState('');
     const [isRevising, setIsRevising] = useState(false);
@@ -478,6 +482,18 @@ const OutlineGenerationModal: React.FC<{
                     <div ref={contentEndRef} className="h-4" />
                 </div>
 
+                {/* Debug Panel (Optional) */}
+                {showDebug && (
+                    <div className="px-8 pb-4 border-t border-slate-100 bg-slate-50">
+                        <div className="text-xs text-slate-400 mb-1 font-bold">RAW STREAM DATA:</div>
+                        <textarea 
+                            value={streamContent} 
+                            readOnly 
+                            className="w-full h-32 text-[10px] font-mono bg-slate-200/50 border border-slate-200 p-2 rounded text-slate-600 resize-none outline-none" 
+                        />
+                    </div>
+                )}
+
                 {/* 3. Footer Action */}
                 <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4">
                     {/* Revision Input Area (Only visible when not generating) */}
@@ -503,6 +519,13 @@ const OutlineGenerationModal: React.FC<{
                     )}
 
                     <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                        <button 
+                            onClick={() => setShowDebug(!showDebug)} 
+                            className="hidden sm:block text-[10px] text-slate-400 hover:text-indigo-500 underline transition-colors"
+                        >
+                            {showDebug ? '隐藏调试' : '调试'}
+                        </button>
+
                         <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
                             {isGenerating ? (
                                 <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div> 实时生成中</span>
