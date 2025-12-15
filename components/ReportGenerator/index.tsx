@@ -4,7 +4,7 @@ import {
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
-    ClockIcon, PencilIcon, RefreshIcon, StopIcon
+    ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -23,7 +23,7 @@ const MarkdownStyles = () => (
             margin-top: 1.5em;
             margin-bottom: 1.5em;
             font-size: 0.875em;
-            line-height: 1.5; /* 增加行高 */
+            line-height: 1.5;
         }
         .prose th {
             background-color: #f8fafc;
@@ -44,8 +44,8 @@ const MarkdownStyles = () => (
         .prose blockquote {
             font-style: normal;
             border-left-width: 4px;
-            border-color: #6366f1; /* Indigo-500 */
-            background-color: #f5f3ff; /* Indigo-50 */
+            border-color: #6366f1;
+            background-color: #f5f3ff;
             padding: 1rem;
             border-radius: 0.5rem;
             color: #4f46e5;
@@ -590,133 +590,14 @@ const OutlineGenerationModal: React.FC<{
     );
 };
 
-// --- Component: Page Generation Card (Enhanced Layout) ---
-const PageGenerationCard: React.FC<{ 
-    page: StratifyPage & { thought_process?: string; sessionId?: string };
-    onRevise: (pageIndex: number, request: string) => void;
-    isRevising: boolean;
-}> = ({ page, onRevise, isRevising }) => {
-    const [revisionInput, setRevisionInput] = useState('');
-    
-    // Auto-scroll when generating
-    const cardRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (page.status === 'generating' && cardRef.current) {
-            // Scroll element into view smoothly if it's the active one
-            // cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }, [page.status]);
-
-    const renderMarkdown = (content: string) => {
-        if (!content) return { __html: '' };
-        if (window.marked && typeof window.marked.parse === 'function') {
-            return { __html: window.marked.parse(content) };
-        }
-        return { __html: `<pre class="whitespace-pre-wrap font-sans">${content}</pre>` };
-    };
-
-    const handleRevisionSubmit = (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        if (!revisionInput.trim()) return;
-        onRevise(page.page_index, revisionInput);
-        setRevisionInput('');
-    };
-
-    return (
-        <div ref={cardRef} className="w-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col mb-8 transition-all hover:shadow-xl">
-            {/* Header / Status Bar */}
-            <div className={`px-6 py-4 border-b flex justify-between items-center ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-gray-50 border-gray-100'}`}>
-                <div className="flex items-center gap-3">
-                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 font-mono font-bold text-slate-500 shadow-sm">
-                        {String(page.page_index).padStart(2, '0')}
-                    </span>
-                    <h3 className="text-lg font-bold text-slate-800">{page.title}</h3>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                    {page.status === 'done' && <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full"><CheckIcon className="w-3 h-3"/> 已完成</span>}
-                    {page.status === 'generating' && (
-                        <div className="flex items-center gap-2 text-indigo-600">
-                            <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
-                            </span>
-                            <span className="text-xs font-bold uppercase tracking-wider">{isRevising ? '正在修改...' : '正在撰写...'}</span>
-                        </div>
-                    )}
-                    {page.status === 'pending' && <span className="text-xs text-slate-400 font-medium">等待中</span>}
-                </div>
-            </div>
-
-            {/* Content Body (Document Style) */}
-            <div className="p-8 md:p-12 min-h-[400px] bg-white relative">
-                <MarkdownStyles />
-                
-                {/* Thinking Block */}
-                {page.status === 'generating' && !page.content_markdown && page.thought_process && (
-                    <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700 shadow-inner">
-                        <div className="flex items-center gap-2 text-green-400 text-xs font-mono font-bold uppercase mb-2">
-                            <BrainIcon className="w-3 h-3 animate-pulse" /> AI Thinking
-                        </div>
-                        <div className="text-slate-300 text-sm font-mono leading-relaxed whitespace-pre-wrap opacity-90">
-                            {page.thought_process}
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Text Content */}
-                {page.content_markdown ? (
-                    <div className="prose prose-lg max-w-none text-slate-700 prose-headings:text-slate-900 prose-strong:text-slate-900 prose-a:text-indigo-600">
-                        <div dangerouslySetInnerHTML={renderMarkdown(page.content_markdown)} />
-                        {page.status === 'generating' && <span className="typing-cursor"></span>}
-                    </div>
-                ) : (
-                    page.status === 'pending' && (
-                        <div className="flex flex-col items-center justify-center h-full py-20 opacity-30">
-                            <DocumentTextIcon className="w-16 h-16 text-slate-400 mb-4" />
-                            <p className="text-slate-500 font-medium">内容即将生成</p>
-                        </div>
-                    )
-                )}
-            </div>
-
-            {/* Revision Footer (Chat Style) */}
-            {page.status === 'done' && (
-                <div className="border-t border-slate-100 bg-slate-50 p-4">
-                    <form onSubmit={handleRevisionSubmit} className="relative flex items-center gap-2 max-w-3xl mx-auto">
-                        <div className="absolute left-3 text-indigo-500">
-                            <SparklesIcon className="w-5 h-5" />
-                        </div>
-                        <input 
-                            type="text" 
-                            className="w-full pl-10 pr-24 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm text-slate-700"
-                            placeholder="输入修改意见，例如：‘补充更多数据案例’ 或 ‘精简本段文字’..."
-                            value={revisionInput}
-                            onChange={(e) => setRevisionInput(e.target.value)}
-                            disabled={isRevising}
-                        />
-                        <button 
-                            type="submit" 
-                            disabled={!revisionInput.trim() || isRevising}
-                            className="absolute right-2 px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
-                        >
-                            发送
-                        </button>
-                    </form>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// --- 阶段4: 串行内容生成 (Sequential Generation) ---
+// --- Component: Split View Content Generator ---
 const ContentGenerator: React.FC<{
     taskId: string;
     outline: StratifyOutline;
     onComplete: (pages: StratifyPage[]) => void;
     initialSessionId: string | null;
 }> = ({ taskId, outline, onComplete, initialSessionId }) => {
-    // Shared State
+    // Local State
     const [pages, setPages] = useState<(StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean })[]>(() => 
         outline.pages.map((p, i) => ({
             page_index: i + 1,
@@ -726,15 +607,18 @@ const ContentGenerator: React.FC<{
             status: 'pending',
             thought_process: '',
             isRevising: false,
-            // Initialize with the session ID from outline stage if available, but technically content gen starts its own flow or continues
-            // We will maintain a single running session ID in the parent ref to chain requests.
         }))
     );
     
-    // We use a ref to track the CURRENT active session ID across the sequential chain
+    const [activePageIndex, setActivePageIndex] = useState(1);
+    const [isGlobalBusy, setIsGlobalBusy] = useState(false); // Global lock for sequential constraint
+    const [showThought, setShowThought] = useState(true); // Toggle per page or global? Let's make it local toggle in UI but state is global preference
+    const [revisionInput, setRevisionInput] = useState('');
+
     const currentSessionIdRef = useRef<string | null>(initialSessionId);
     const hasStartedRef = useRef(false);
     const [progress, setProgress] = useState(0);
+    const activePageData = pages[activePageIndex - 1];
 
     const updatePage = (idx: number, updates: Partial<typeof pages[0]>) => {
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
@@ -746,103 +630,119 @@ const ContentGenerator: React.FC<{
         hasStartedRef.current = true;
 
         const generateSequentially = async () => {
-            // Iterate through pages sequentially
-            for (let i = 0; i < outline.pages.length; i++) {
-                const pageOutline = outline.pages[i];
-                const pageIdx = i + 1;
+            setIsGlobalBusy(true);
+            try {
+                // Iterate through pages sequentially
+                for (let i = 0; i < outline.pages.length; i++) {
+                    const pageOutline = outline.pages[i];
+                    const pageIdx = i + 1;
 
-                updatePage(pageIdx, { status: 'generating' });
+                    updatePage(pageIdx, { status: 'generating' });
+                    // Auto-switch view to the page being generated if it's the first run
+                    setActivePageIndex(pageIdx);
 
-                let buffer = '';
-                // Flag to ensure we only capture the session ID once per stream if needed, 
-                // but actually we just need to update our ref if it changes/is established.
-                
-                try {
-                    await streamGenerate(
-                        {
-                            prompt_name: 'generate_content',
-                            variables: {
-                                outline: JSON.stringify(outline), 
-                                page_index: pageIdx,
-                                page_title: pageOutline.title,
-                                page_summary: pageOutline.content
+                    let buffer = '';
+                    
+                    try {
+                        await streamGenerate(
+                            {
+                                prompt_name: 'generate_content',
+                                variables: {
+                                    outline: JSON.stringify(outline), 
+                                    page_index: pageIdx,
+                                    page_title: pageOutline.title,
+                                    page_summary: pageOutline.content
+                                },
+                                // CRITICAL: Pass the current session ID to maintain context
+                                session_id: currentSessionIdRef.current || undefined
                             },
-                            // CRITICAL: Pass the current session ID to maintain context
-                            session_id: currentSessionIdRef.current || undefined
-                        },
-                        (chunk) => {
-                            buffer += chunk;
-                            const { thought, content, title } = parsePageStream(buffer);
-                            updatePage(pageIdx, { 
-                                content_markdown: content,
-                                thought_process: thought || undefined,
-                                title: title || pageOutline.title 
-                            });
-                        },
-                        () => {
-                            updatePage(pageIdx, { status: 'done' });
-                            setProgress(Math.round(((i + 1) / outline.pages.length) * 100));
-                        },
-                        (err) => {
-                            console.error(`Page ${pageIdx} error:`, err);
-                            updatePage(pageIdx, { status: 'failed', content_markdown: `生成失败: ${err}` });
-                        },
-                        (sid) => {
-                            // Update the session ref so the NEXT page uses this session
-                            if (sid) {
-                                currentSessionIdRef.current = sid;
-                                updatePage(pageIdx, { sessionId: sid });
+                            (chunk) => {
+                                buffer += chunk;
+                                const { thought, content, title } = parsePageStream(buffer);
+                                updatePage(pageIdx, { 
+                                    content_markdown: content,
+                                    thought_process: thought || undefined,
+                                    title: title || pageOutline.title 
+                                });
+                            },
+                            () => {
+                                // Explicitly mark as done when stream ends successfully
+                                updatePage(pageIdx, { status: 'done' });
+                                setProgress(Math.round(((i + 1) / outline.pages.length) * 100));
+                            },
+                            (err) => {
+                                console.error(`Page ${pageIdx} error:`, err);
+                                updatePage(pageIdx, { status: 'failed', content_markdown: `生成失败: ${err}` });
+                            },
+                            (sid) => {
+                                // Update the session ref so the NEXT page uses this session
+                                if (sid) {
+                                    currentSessionIdRef.current = sid;
+                                    updatePage(pageIdx, { sessionId: sid });
+                                }
                             }
-                        }
-                    );
-                } catch (error) {
-                    console.error("Sequence error", error);
+                        );
+                    } catch (error) {
+                        console.error("Sequence error", error);
+                        updatePage(pageIdx, { status: 'failed' });
+                    }
                 }
+            } finally {
+                // Ensure global busy lock is released even if errors occur
+                setIsGlobalBusy(false);
             }
         };
 
         generateSequentially();
-    }, [outline]); // Dependencies should be stable
+    }, [outline]); 
 
     // Handle Revision
-    const handlePageRevise = async (pageIndex: number, request: string) => {
-        const targetPage = pages.find(p => p.page_index === pageIndex);
-        if (!targetPage || targetPage.status === 'generating') return;
+    const handlePageRevise = async () => {
+        if (!revisionInput.trim() || isGlobalBusy || activePageData.status === 'generating') return;
 
-        updatePage(pageIndex, { status: 'generating', isRevising: true, thought_process: '' });
+        const targetPageIdx = activePageData.page_index;
+        const request = revisionInput;
+        setRevisionInput('');
+        
+        setIsGlobalBusy(true); // Lock globally
+        updatePage(targetPageIdx, { status: 'generating', isRevising: true, thought_process: '' });
         
         let buffer = ''; 
         
-        streamGenerate(
-            {
-                prompt_name: 'revise_content',
-                variables: {
-                    current_content: targetPage.content_markdown || '',
-                    user_revision_request: request
+        try {
+            await streamGenerate(
+                {
+                    prompt_name: 'revise_content',
+                    variables: {
+                        current_content: activePageData.content_markdown || '',
+                        user_revision_request: request
+                    },
+                    // Use the session ID specific to this flow (which should be consistent)
+                    session_id: currentSessionIdRef.current || undefined
                 },
-                // Use the session ID specific to this flow (which should be consistent)
-                session_id: currentSessionIdRef.current || undefined
-            },
-            (chunk) => {
-                buffer += chunk;
-                const { thought, content, title } = parsePageStream(buffer);
-                updatePage(pageIndex, { 
-                    content_markdown: content,
-                    thought_process: thought || undefined,
-                    title: title || targetPage.title
-                });
-            },
-            () => {
-                updatePage(pageIndex, { status: 'done', isRevising: false });
-            },
-            (err) => {
-                alert("修改失败，请重试");
-                updatePage(pageIndex, { status: 'done', isRevising: false });
-            },
-            (sid) => {
-                if (sid) currentSessionIdRef.current = sid;
-            }
-        );
+                (chunk) => {
+                    buffer += chunk;
+                    const { thought, content, title } = parsePageStream(buffer);
+                    updatePage(targetPageIdx, { 
+                        content_markdown: content,
+                        thought_process: thought || undefined,
+                        title: title || activePageData.title
+                    });
+                },
+                () => {
+                    updatePage(targetPageIdx, { status: 'done', isRevising: false });
+                },
+                (err) => {
+                    alert("修改失败，请重试");
+                    updatePage(targetPageIdx, { status: 'done', isRevising: false }); // Revert to done
+                },
+                (sid) => {
+                    if (sid) currentSessionIdRef.current = sid;
+                }
+            );
+        } finally {
+            setIsGlobalBusy(false); // Unlock globally
+        }
     };
 
     const handleCompleteAll = async () => {
@@ -854,49 +754,194 @@ const ContentGenerator: React.FC<{
 
     const isAllDone = pages.every(p => p.status === 'done' || p.status === 'failed');
 
+    const renderMarkdown = (content: string) => {
+        if (!content) return { __html: '' };
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return { __html: window.marked.parse(content) };
+        }
+        return { __html: `<pre class="whitespace-pre-wrap font-sans">${content}</pre>` };
+    };
+
     return (
-        <div className="flex flex-col h-full bg-slate-50">
-            {/* Top Bar */}
-            <div className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
-                <div>
-                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">AI 内容创作引擎</h2>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">
-                        {isAllDone ? '所有章节已生成，请审阅后导出。' : '正在按顺序生成章节，保持上下文连贯...'}
-                    </p>
-                </div>
-                <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-end">
-                        <div className="text-2xl font-black text-indigo-600 font-mono">{progress}%</div>
-                    </div>
-                    {isAllDone ? (
-                        <button 
-                            onClick={handleCompleteAll}
-                            className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
-                        >
-                            完成创作 <ArrowRightIcon className="w-5 h-5"/>
-                        </button>
-                    ) : (
-                        <div className="w-10 h-10 relative flex items-center justify-center">
-                            <svg className="animate-spin w-full h-full text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
+        <div className="flex h-full bg-slate-50 overflow-hidden relative">
+            <MarkdownStyles />
+            
+            {/* 1. Left Sidebar: Outline Navigation */}
+            <div className="w-64 md:w-72 bg-white border-r border-slate-200 flex flex-col h-full z-10 flex-shrink-0">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">报告大纲</h3>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                        <span className="font-mono">{progress}%</span>
+                        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
                         </div>
-                    )}
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                    {pages.map((page) => {
+                        const isActive = activePageIndex === page.page_index;
+                        return (
+                            <button
+                                key={page.page_index}
+                                onClick={() => setActivePageIndex(page.page_index)}
+                                className={`w-full text-left px-3 py-3 rounded-lg flex items-start gap-3 transition-all ${
+                                    isActive 
+                                        ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200 shadow-sm' 
+                                        : 'hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <div className="mt-0.5">
+                                    {page.status === 'done' ? (
+                                        <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center text-green-600 border border-green-200">
+                                            <CheckIcon className="w-2.5 h-2.5" />
+                                        </div>
+                                    ) : page.status === 'generating' ? (
+                                        <div className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin"></div>
+                                    ) : page.status === 'failed' ? (
+                                        <div className="w-4 h-4 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-[10px]">!</div>
+                                    ) : (
+                                        <div className="w-4 h-4 rounded-full border-2 border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-400 bg-white">
+                                            {page.page_index}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-semibold truncate leading-tight">{page.title}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                                        {page.status === 'pending' ? '等待生成...' : 
+                                         page.status === 'generating' ? (page.isRevising ? '正在修改...' : '正在撰写...') : 
+                                         page.status === 'done' ? '已完成' : '失败'}
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                {/* Complete Button in Sidebar */}
+                <div className="p-4 border-t border-slate-200 bg-slate-50">
+                    <button 
+                        onClick={handleCompleteAll}
+                        disabled={!isAllDone || isGlobalBusy}
+                        className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                        {isGlobalBusy ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : <CheckIcon className="w-4 h-4" />}
+                        {isAllDone ? '完成并导出' : '等待生成...'}
+                    </button>
                 </div>
             </div>
-            
-            {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-                <div className="max-w-4xl mx-auto space-y-8 pb-24">
-                    {pages.map((page) => (
-                        <PageGenerationCard 
-                            key={page.page_index} 
-                            page={page} 
-                            onRevise={handlePageRevise}
-                            isRevising={!!page.isRevising}
-                        />
-                    ))}
+
+            {/* 2. Right Main Area: Content Reader */}
+            <div className="flex-1 flex flex-col h-full bg-slate-50 min-w-0">
+                {/* Top Bar */}
+                <div className="h-16 px-6 border-b border-slate-200 bg-white flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">PAGE {String(activePageData.page_index).padStart(2, '0')}</div>
+                        <h2 className="text-lg font-bold text-slate-800 truncate max-w-xl">{activePageData.title}</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                            activePageData.status === 'generating' ? 'bg-indigo-50 text-indigo-600' :
+                            activePageData.status === 'done' ? 'bg-green-50 text-green-600' :
+                            'bg-slate-100 text-slate-500'
+                        }`}>
+                            {activePageData.status === 'generating' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>}
+                            {activePageData.status === 'done' && <CheckIcon className="w-3.5 h-3.5" />}
+                            {activePageData.status === 'generating' ? 'Writing...' : activePageData.status}
+                        </span>
+                        
+                        {/* Global Lock Indicator */}
+                        {isGlobalBusy && activePageData.status !== 'generating' && (
+                            <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 text-xs font-medium rounded-full border border-amber-100" title="其他页面正在生成或修改中，暂无法操作">
+                                <LockClosedIcon className="w-3 h-3" />
+                                <span>系统忙</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Content Scroll Area */}
+                <div className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar scroll-smooth">
+                    <div className="max-w-3xl mx-auto space-y-8 pb-20">
+                        {/* Thinking Process Accordion (Collapsible) */}
+                        {activePageData.thought_process && (
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm transition-all">
+                                <button 
+                                    onClick={() => setShowThought(!showThought)}
+                                    className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+                                >
+                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wide">
+                                        <BrainIcon className={`w-4 h-4 ${activePageData.status === 'generating' ? 'text-indigo-500 animate-pulse' : 'text-slate-400'}`} />
+                                        AI Thinking Process
+                                    </div>
+                                    <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform ${showThought ? 'rotate-180' : ''}`} />
+                                </button>
+                                
+                                {showThought && (
+                                    <div className="p-4 bg-slate-900 text-slate-300 font-mono text-xs leading-relaxed border-t border-slate-200 animate-in slide-in-from-top-2">
+                                        <div className="whitespace-pre-wrap opacity-90">
+                                            {activePageData.thought_process}
+                                            {activePageData.status === 'generating' && !activePageData.content_markdown && (
+                                                <span className="inline-block w-1.5 h-3 bg-green-500 ml-1 animate-pulse align-middle"></span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Main Markdown Content */}
+                        <div className="bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-slate-200 min-h-[500px]">
+                            {activePageData.content_markdown ? (
+                                <div className="prose prose-lg max-w-none text-slate-700 prose-headings:text-slate-900 prose-strong:text-slate-900 prose-a:text-indigo-600">
+                                    <div dangerouslySetInnerHTML={renderMarkdown(activePageData.content_markdown)} />
+                                    {activePageData.status === 'generating' && <span className="typing-cursor"></span>}
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full py-20 opacity-30 gap-4">
+                                    {activePageData.status === 'pending' ? (
+                                        <>
+                                            <DocumentTextIcon className="w-16 h-16 text-slate-400" />
+                                            <p className="text-slate-500 font-medium">内容即将生成...</p>
+                                        </>
+                                    ) : (
+                                        <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom Revision Bar */}
+                <div className="p-4 border-t border-slate-200 bg-white z-20 flex-shrink-0">
+                    <div className="max-w-3xl mx-auto relative">
+                        <form 
+                            onSubmit={(e) => { e.preventDefault(); handlePageRevise(); }}
+                            className={`flex items-center gap-2 transition-opacity ${isGlobalBusy ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
+                        >
+                            <div className="relative flex-1">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-500">
+                                    <SparklesIcon className="w-5 h-5" />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-inner focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all outline-none text-sm text-slate-700 placeholder:text-slate-400"
+                                    placeholder={isGlobalBusy ? "请等待当前生成任务完成后再进行修改..." : "输入修改建议，如：‘补充更多数据案例’ 或 ‘精简本段文字’..."}
+                                    value={revisionInput}
+                                    onChange={(e) => setRevisionInput(e.target.value)}
+                                    disabled={isGlobalBusy || activePageData.status !== 'done'}
+                                />
+                            </div>
+                            <button 
+                                type="submit" 
+                                disabled={!revisionInput.trim() || isGlobalBusy || activePageData.status !== 'done'}
+                                className="px-6 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2"
+                            >
+                                <ArrowRightIcon className="w-4 h-4" />
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -953,7 +998,7 @@ export const ReportGenerator: React.FC = () => {
             {/* Header / Process Bar (Only show in early steps or final) */}
             {step !== 4 && <ProcessFlowCards currentStep={step} />}
 
-            <div className="flex-1 relative z-10 overflow-hidden flex flex-col">
+            <div className="flex-1 relative z-10 overflow-hidden flex flex-col min-h-0">
                 {step === 1 && (
                     <IdeaInput onStart={handleStart} isLoading={isLoading} />
                 )}
