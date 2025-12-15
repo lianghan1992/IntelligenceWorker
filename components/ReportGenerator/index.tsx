@@ -14,7 +14,7 @@ import {
     streamGenerate, 
 } from '../../api/stratify';
 
-// --- 流程动画卡片组件 (保持精致) ---
+// --- 流程动画卡片组件 ---
 const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) => {
     const steps = [
         { id: 1, icon: LightBulbIcon, title: "意图识别", desc: "语义解析", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", ring: "ring-amber-100" },
@@ -145,18 +145,13 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
     );
 };
 
-// --- Helper: Incremental Stream Parser ---
-// This parser is designed to extract partial data from a potentially incomplete JSON string.
+// --- Helper: Incremental Stream Parser for Outline ---
 const parseIncrementalStream = (text: string): { thought: string | null, title: string | null, outline: any[] } => {
     let thought = null;
     let title = null;
     let outline: any[] = [];
 
     // 1. Extract Thought Process (Incremental)
-    // Matches "thought_process": "..." 
-    // Captures content even if the closing quote hasn't arrived yet.
-    // Logic: Look for start tag, grab everything until (next key's start quote) OR (end of string).
-    // Note: We assume keys start with " on a new line or after a comma.
     const thoughtRegex = /"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s;
     const thoughtMatch = text.match(thoughtRegex);
     if (thoughtMatch) {
@@ -176,17 +171,9 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
     }
 
     // 3. Extract Outline Items (Incremental)
-    // We want to capture items as they appear: { "title": "T", "content": "C" }
-    // Even if "content" is partial.
-    
-    // Strategy: Split text by outline start ` "outline": [`
     const outlineStartIdx = text.indexOf('"outline"');
     if (outlineStartIdx !== -1) {
         const outlineSection = text.slice(outlineStartIdx);
-        
-        // Regex to find individual item blocks. 
-        // It matches { ... "title": "...", ... "content": "..." ... }
-        // We use a global regex to iterate through all occurrences found SO FAR.
         const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"content"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
         
         let match;
@@ -206,6 +193,46 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
     }
 
     return { thought, title, outline };
+};
+
+// --- Helper: Incremental Stream Parser for Content (Page) ---
+// Parses: { "thought_process": "...", "title": "...", "content": "..." }
+const parsePageStream = (text: string) => {
+    let thought = null;
+    let content = '';
+
+    // Extract thought
+    const thoughtMatch = text.match(/"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s);
+    if (thoughtMatch) {
+        thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    // Extract content
+    // We look for "content": " ... and take everything after it until the end or closing quote
+    const contentStartMatch = text.match(/"content"\s*:\s*"/);
+    if (contentStartMatch && contentStartMatch.index !== undefined) {
+        const start = contentStartMatch.index + contentStartMatch[0].length;
+        let raw = text.slice(start);
+        
+        // Remove closing sequence if it appears to be the end of the JSON
+        // This is a heuristic for streaming: if we see `"` followed by `}` or end of string, 
+        // we might want to trim it. But since we are streaming, the end might not be the real end.
+        // However, for display, we want to show clean text.
+        
+        // If the string ends with `"}`, it's likely the end of the JSON object.
+        if (raw.endsWith('"}')) raw = raw.slice(0, -2);
+        // If it just ends with `"`, it might be the end of the content string.
+        else if (raw.endsWith('"')) raw = raw.slice(0, -1);
+        
+        // Unescape JSON string
+        content = raw
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\t/g, '\t');
+    }
+
+    return { thought, content };
 };
 
 // --- 阶段2 & 3: 智能大纲生成模态框 (Visual Upgrade) ---
@@ -477,13 +504,15 @@ const ContentGenerator: React.FC<{
     onComplete: (pages: StratifyPage[]) => void;
 }> = ({ taskId, outline, onComplete }) => {
     // Local state to track each page's generation status and content
-    const [pages, setPages] = useState<StratifyPage[]>(() => 
+    // Added thought_process to state for live feedback
+    const [pages, setPages] = useState<(StratifyPage & { thought_process?: string })[]>(() => 
         outline.pages.map((p, i) => ({
             page_index: i + 1,
             title: p.title,
             content_markdown: '',
             html_content: null,
-            status: 'pending' // pending -> generating -> done
+            status: 'pending', // pending -> generating -> done
+            thought_process: ''
         }))
     );
     
@@ -497,7 +526,7 @@ const ContentGenerator: React.FC<{
         // Start generation for all pages (Frontend Drive!)
         const generateAll = async () => {
             
-            const updatePage = (idx: number, updates: Partial<StratifyPage>) => {
+            const updatePage = (idx: number, updates: Partial<StratifyPage & { thought_process?: string }>) => {
                 setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
             };
 
@@ -505,7 +534,7 @@ const ContentGenerator: React.FC<{
                 const pageIdx = i + 1;
                 updatePage(pageIdx, { status: 'generating' });
 
-                let contentBuffer = '';
+                let buffer = '';
                 await streamGenerate(
                     {
                         prompt_name: 'generate_content',
@@ -517,8 +546,13 @@ const ContentGenerator: React.FC<{
                         }
                     },
                     (chunk) => {
-                        contentBuffer += chunk;
-                        updatePage(pageIdx, { content_markdown: contentBuffer });
+                        buffer += chunk;
+                        // Real-time parsing of the JSON stream
+                        const { thought, content } = parsePageStream(buffer);
+                        updatePage(pageIdx, { 
+                            content_markdown: content,
+                            thought_process: thought || undefined
+                        });
                     },
                     () => {
                         updatePage(pageIdx, { status: 'done' });
@@ -534,7 +568,9 @@ const ContentGenerator: React.FC<{
             // All done, save to backend
             const finalPages = await new Promise<StratifyPage[]>(resolve => {
                 setPages(current => {
-                    resolve(current);
+                    // Strip extra thought_process before saving
+                    const cleanPages = current.map(({ thought_process, ...rest }) => rest);
+                    resolve(cleanPages);
                     return current;
                 });
             });
@@ -555,20 +591,27 @@ const ContentGenerator: React.FC<{
     }, [pages]);
 
     return (
-        <div className="max-w-5xl mx-auto p-6 pb-20 animate-in fade-in duration-700">
-            <div className="flex items-center justify-between mb-8">
+        <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24 animate-in fade-in duration-700">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
                  <div>
                     <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">内容创作引擎运行中</h2>
-                    <p className="text-slate-500 text-sm mt-2 font-medium">AI 正在并发撰写 {pages.length} 个章节，请稍候...</p>
+                    <p className="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                        </span>
+                        AI 正在并发撰写 {pages.length} 个章节，请稍候...
+                    </p>
                  </div>
-                 <div className="flex items-center gap-4 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-100">
+                 <div className="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100">
                     <div className="text-right">
-                        <div className="text-3xl font-black text-indigo-600 font-mono">{progress}%</div>
+                        <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 font-mono">{progress}%</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</div>
                     </div>
-                    <div className="w-12 h-12 relative">
+                    <div className="w-16 h-16 relative">
                         <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-slate-100" />
-                            <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="4" fill="transparent" className="text-indigo-600 transition-all duration-500 ease-out" strokeDasharray={125.6} strokeDashoffset={125.6 - (125.6 * progress) / 100} />
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-indigo-600 transition-all duration-500 ease-out" strokeDasharray={175.9} strokeDashoffset={175.9 - (175.9 * progress) / 100} strokeLinecap="round" />
                         </svg>
                     </div>
                  </div>
@@ -577,36 +620,66 @@ const ContentGenerator: React.FC<{
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {pages.map((page) => (
                     <div key={page.page_index} className={`
-                        bg-white p-6 rounded-2xl border shadow-sm transition-all duration-300 relative overflow-hidden group
-                        ${page.status === 'generating' ? 'border-indigo-500/50 ring-4 ring-indigo-500/5 shadow-indigo-100' : 'border-slate-200'}
+                        bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col
+                        ${page.status === 'generating' 
+                            ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
+                            : 'border-slate-200 hover:shadow-md hover:border-slate-300'
+                        }
                     `}>
-                        {/* Status Bar */}
-                        {page.status === 'generating' && (
-                            <div className="absolute top-0 left-0 right-0 h-1 bg-indigo-100 overflow-hidden">
-                                <div className="h-full bg-indigo-500 w-1/3 animate-[shimmer_1.5s_infinite]"></div>
-                            </div>
-                        )}
-
-                        <div className="flex justify-between items-center mb-4">
+                        {/* Status Bar / Header */}
+                        <div className={`px-5 py-4 border-b flex justify-between items-center ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}`}>
                             <div className="flex items-center gap-3">
-                                <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${page.status === 'done' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                <span className={`text-[10px] font-extrabold px-2 py-1 rounded border tracking-wider ${
+                                    page.status === 'done' ? 'bg-green-100 text-green-700 border-green-200' : 
+                                    page.status === 'generating' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
+                                    'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
                                     PAGE {String(page.page_index).padStart(2, '0')}
                                 </span>
-                                <h3 className="font-bold text-slate-800 text-base line-clamp-1" title={page.title}>{page.title}</h3>
+                                <h3 className="font-bold text-slate-800 text-sm line-clamp-1" title={page.title}>{page.title}</h3>
                             </div>
-                            {page.status === 'done' && <div className="bg-green-100 p-1 rounded-full"><CheckIcon className="w-4 h-4 text-green-600" /></div>}
-                            {page.status === 'generating' && <span className="text-xs font-bold text-indigo-600 animate-pulse flex items-center gap-1"><SparklesIcon className="w-3 h-3"/> Writing...</span>}
-                        </div>
-                        
-                        <div className="bg-slate-50/50 rounded-xl p-4 font-mono text-xs h-40 overflow-y-auto text-slate-600 relative border border-slate-100 custom-scrollbar group-hover:bg-white group-hover:shadow-inner transition-colors">
-                            {page.content_markdown ? (
-                                <div className="whitespace-pre-wrap">{page.content_markdown}</div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                                    {page.status === 'pending' ? '等待队列中...' : '准备中...'}
+                            
+                            {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500" />}
+                            {page.status === 'generating' && (
+                                <div className="flex items-center gap-2 text-indigo-600">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse">Writing</span>
+                                    <div className="flex gap-0.5">
+                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
+                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
+                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                                    </div>
                                 </div>
                             )}
-                            {page.status === 'generating' && <div className="animate-pulse w-2 h-4 bg-indigo-500 inline-block align-middle ml-1"></div>}
+                        </div>
+                        
+                        <div className="flex-1 bg-slate-50/30 p-5 font-sans text-xs sm:text-sm h-64 overflow-y-auto relative custom-scrollbar group-hover:bg-white transition-colors">
+                            {/* Empty State / Pending */}
+                            {!page.content_markdown && !page.thought_process && (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-60">
+                                    <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin" style={{ animationDuration: '3s' }}></div>
+                                    <span className="text-xs font-medium">准备中...</span>
+                                </div>
+                            )}
+
+                            {/* Thinking State */}
+                            {page.status === 'generating' && !page.content_markdown && page.thought_process && (
+                                <div className="text-slate-500 italic animate-pulse">
+                                    <div className="flex items-center gap-2 mb-2 text-indigo-500 font-bold text-xs uppercase tracking-wide">
+                                        <BrainIcon className="w-3 h-3" /> Thinking Process
+                                    </div>
+                                    <div className="whitespace-pre-wrap opacity-80">{page.thought_process}</div>
+                                </div>
+                            )}
+
+                            {/* Content Stream */}
+                            {page.content_markdown && (
+                                <div className="whitespace-pre-wrap text-slate-700 leading-relaxed animate-in fade-in duration-500">
+                                    {page.content_markdown}
+                                    {page.status === 'generating' && (
+                                        <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-1 animate-pulse align-middle shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
