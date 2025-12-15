@@ -4,7 +4,8 @@ import {
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
-    ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon, PhotoIcon
+    ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon, PhotoIcon,
+    CodeIcon // Assuming CodeIcon exists or mapping it below
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -72,6 +73,21 @@ const MarkdownStyles = () => (
         @keyframes blink {
             0%, 100% { opacity: 1; }
             50% { opacity: 0; }
+        }
+        /* 代码流滚动条 */
+        .code-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .code-scrollbar::-webkit-scrollbar-track {
+            background: #1e1e1e; 
+        }
+        .code-scrollbar::-webkit-scrollbar-thumb {
+            background: #444; 
+            border-radius: 4px;
+        }
+        .code-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555; 
         }
     `}</style>
 );
@@ -1044,6 +1060,7 @@ const HtmlGenerator: React.FC<{
     const hasStartedRef = useRef(false);
     const [progress, setProgress] = useState(0);
     const activePageData = pages[activePageIndex - 1];
+    const codeContainerRef = useRef<HTMLDivElement>(null);
 
     const updatePage = (idx: number, updates: Partial<StratifyPage>) => {
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
@@ -1065,6 +1082,7 @@ const HtmlGenerator: React.FC<{
                     setActivePageIndex(pageIdx); // Auto follow progress
 
                     let buffer = '';
+                    let lastUpdateTime = 0;
                     
                     try {
                         // Independent Session Call (session_id is undefined)
@@ -1079,14 +1097,27 @@ const HtmlGenerator: React.FC<{
                             },
                             (chunk) => {
                                 buffer += chunk;
-                                const html = parseHtmlStream(buffer); // Use the new parser
+                                const now = Date.now();
                                 
-                                updatePage(pageIdx, { 
-                                    html_content: html // Update with parsed HTML
-                                });
+                                // Stream Throttle: 50ms for smoother code typing effect
+                                if (now - lastUpdateTime > 50) {
+                                    const html = parseHtmlStream(buffer);
+                                    // Update even if small, to show typing effect
+                                    if (html) {
+                                        updatePage(pageIdx, { 
+                                            html_content: html 
+                                        });
+                                        lastUpdateTime = now;
+                                    }
+                                }
                             },
                             () => {
-                                updatePage(pageIdx, { status: 'done' });
+                                // Final update to ensure we have the complete content and mark as done
+                                const html = parseHtmlStream(buffer);
+                                updatePage(pageIdx, { 
+                                    html_content: html,
+                                    status: 'done' 
+                                });
                                 setProgress(Math.round(((i + 1) / initialPages.length) * 100));
                             },
                             (err) => {
@@ -1106,6 +1137,13 @@ const HtmlGenerator: React.FC<{
 
         generateSequentially();
     }, [initialPages]);
+
+    // Auto-scroll logic for code block
+    useEffect(() => {
+        if (activePageData.status === 'generating' && codeContainerRef.current) {
+            codeContainerRef.current.scrollTop = codeContainerRef.current.scrollHeight;
+        }
+    }, [activePageData.html_content, activePageData.status]);
 
     const handleFinalize = async () => {
         // Save to backend
@@ -1162,7 +1200,7 @@ const HtmlGenerator: React.FC<{
                                     <div className="text-sm font-semibold truncate leading-tight">{page.title}</div>
                                     <div className="text-[10px] text-slate-400 mt-0.5 truncate">
                                         {page.status === 'pending' ? '等待排版...' : 
-                                         page.status === 'generating' ? '正在渲染HTML...' : 
+                                         page.status === 'generating' ? '正在编写HTML...' : 
                                          page.status === 'done' ? '排版完成' : '失败'}
                                     </div>
                                 </div>
@@ -1183,7 +1221,7 @@ const HtmlGenerator: React.FC<{
                 </div>
             </div>
 
-            {/* 2. Right Main Area: HTML Preview */}
+            {/* 2. Right Main Area: Content Preview */}
             <div className="flex-1 flex flex-col h-full bg-slate-100 min-w-0">
                 {/* Top Bar */}
                 <div className="h-16 px-6 border-b border-slate-200 bg-white flex items-center justify-between shadow-sm z-10 flex-shrink-0">
@@ -1199,15 +1237,46 @@ const HtmlGenerator: React.FC<{
                         }`}>
                             {activePageData.status === 'generating' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>}
                             {activePageData.status === 'done' && <CheckIcon className="w-3.5 h-3.5" />}
-                            {activePageData.status === 'generating' ? 'Rendering...' : 'Rendered'}
+                            {activePageData.status === 'generating' ? 'Coding...' : 'Rendered'}
                         </span>
                     </div>
                 </div>
 
                 {/* Content Preview Area */}
                 <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-slate-200/50 p-4 md:p-8">
-                    <div className="w-full max-w-[1000px] h-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden relative">
-                        {activePageData.html_content ? (
+                    
+                    {/* Fixed 16:9 Aspect Ratio Container */}
+                    <div className="w-full max-w-[1000px] aspect-video bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden relative">
+                        
+                        {activePageData.status === 'generating' ? (
+                            /* --- Streaming Code Block View --- */
+                            <div className="absolute inset-0 bg-[#1e1e1e] flex flex-col font-mono text-xs md:text-sm">
+                                <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-[#3e3e3e] text-gray-400 text-xs select-none">
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex gap-1.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></div>
+                                            <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></div>
+                                            <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></div>
+                                        </div>
+                                        <span className="ml-2 font-semibold">AI_Generator.html</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <span className="animate-pulse w-2 h-2 bg-green-500 rounded-full"></span>
+                                        <span>Live Streaming</span>
+                                    </div>
+                                </div>
+                                <div 
+                                    ref={codeContainerRef}
+                                    className="flex-1 p-4 overflow-y-auto text-green-400 code-scrollbar"
+                                >
+                                    <pre className="whitespace-pre-wrap break-all">
+                                        {activePageData.html_content || <span className="text-gray-500 opacity-50">// Initializing stream connection...</span>}
+                                        <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>
+                                    </pre>
+                                </div>
+                            </div>
+                        ) : activePageData.html_content ? (
+                            /* --- Final Iframe View --- */
                             <iframe 
                                 srcDoc={activePageData.html_content} 
                                 className="w-full h-full border-none" 
@@ -1215,20 +1284,13 @@ const HtmlGenerator: React.FC<{
                                 sandbox="allow-scripts allow-same-origin"
                             />
                         ) : (
+                            /* --- Empty State --- */
                             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
-                                {activePageData.status === 'generating' ? (
-                                    <>
-                                        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                                        <p className="text-sm font-medium text-indigo-600">AI 正在生成 HTML 代码...</p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <PhotoIcon className="w-16 h-16 opacity-20" />
-                                        <p className="text-sm font-medium">等待排版</p>
-                                    </>
-                                )}
+                                <PhotoIcon className="w-16 h-16 opacity-20" />
+                                <p className="text-sm font-medium">等待排版</p>
                             </div>
                         )}
+                        
                     </div>
                 </div>
             </div>
