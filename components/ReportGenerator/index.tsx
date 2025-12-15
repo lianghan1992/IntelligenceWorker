@@ -14,7 +14,7 @@ import {
     streamGenerate, 
 } from '../../api/stratify';
 
-// --- 流程动画卡片组件 ---
+// --- 流程动画卡片组件 (保持精致) ---
 const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) => {
     const steps = [
         { id: 1, icon: LightBulbIcon, title: "意图识别", desc: "语义解析", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", ring: "ring-amber-100" },
@@ -27,14 +27,12 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     return (
         <div className="w-full max-w-5xl mx-auto mb-8 px-4 pt-6">
             <div className="relative">
-                {/* Connecting Line */}
                 <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 rounded-full hidden md:block"></div>
                 <div 
-                    className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 -translate-y-1/2 rounded-full hidden md:block transition-all duration-1000 ease-in-out"
+                    className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 -translate-y-1/2 rounded-full hidden md:block transition-all duration-1000 ease-in-out"
                     style={{ width: `${Math.max(0, (currentStep - 1) * 25)}%` }}
                 ></div>
                 
-                {/* Steps Grid */}
                 <div className="grid grid-cols-5 gap-2 md:gap-4 relative z-10">
                     {steps.map((step, i) => {
                         const isActive = currentStep === step.id;
@@ -46,7 +44,6 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                                 key={step.id} 
                                 className={`flex flex-col items-center text-center transition-all duration-500 group ${isPending ? 'opacity-50 grayscale' : 'opacity-100'}`}
                             >
-                                {/* Card/Icon Node */}
                                 <div className={`
                                     relative w-10 h-10 md:w-14 md:h-14 rounded-2xl border flex items-center justify-center transition-all duration-500 ease-out
                                     ${isActive 
@@ -56,14 +53,9 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                                             : 'bg-white border-gray-100 text-gray-300 shadow-sm'
                                     }
                                 `}>
-                                    <div className={`
-                                        transition-all duration-300 transform
-                                        ${isActive ? `${step.color} scale-110` : ''}
-                                    `}>
+                                    <div className={`transition-all duration-300 transform ${isActive ? `${step.color} scale-110` : ''}`}>
                                         {isCompleted ? <CheckIcon className="w-5 h-5 md:w-6 md:h-6" /> : <step.icon className="w-5 h-5 md:w-6 md:h-6" />}
                                     </div>
-                                    
-                                    {/* Active Pulse */}
                                     {isActive && (
                                         <span className="absolute -top-1 -right-1 flex h-3 w-3">
                                             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${step.bg} opacity-75`}></span>
@@ -71,8 +63,6 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                                         </span>
                                     )}
                                 </div>
-                                
-                                {/* Text Labels */}
                                 <div className={`mt-3 space-y-0.5 transition-all duration-300 ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-70'}`}>
                                     <h4 className={`text-[10px] md:text-xs font-bold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                                         {step.title}
@@ -95,7 +85,6 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
     return (
         <div className="flex flex-col items-center justify-start h-full overflow-y-auto pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="w-full max-w-3xl text-center px-4 mt-8 md:mt-16 relative">
-                {/* Background Decor */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] -z-10 pointer-events-none"></div>
 
                 <div className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold border border-indigo-100 shadow-sm animate-bounce">
@@ -144,7 +133,6 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
                     </div>
                 </div>
 
-                {/* Tags */}
                 <div className="mt-12 flex flex-wrap justify-center gap-3">
                     {['行业研究', '竞品分析', '技术洞察', '市场趋势', '政策解读'].map(tag => (
                         <span key={tag} onClick={() => setIdea(prev => tag + " ")} className="cursor-pointer px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors shadow-sm">
@@ -157,44 +145,63 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
     );
 };
 
-// --- Helper: Robust Content Parser ---
-const parseOutlineStream = (text: string): { thought: string | null, title: string | null, outline: any[] } => {
+// --- Helper: Incremental Stream Parser ---
+// This parser is designed to extract partial data from a potentially incomplete JSON string.
+const parseIncrementalStream = (text: string): { thought: string | null, title: string | null, outline: any[] } => {
     let thought = null;
     let title = null;
     let outline: any[] = [];
 
-    // 1. Thought Process: Extract content between <thought> tags or JSON field
-    // New model sometimes outputs raw text then JSON, or "thought_process" field
-    const thoughtMatch = text.match(/"thought_process"\s*:\s*"(.*?)"/s) || text.match(/<thought>(.*?)<\/thought>/s);
+    // 1. Extract Thought Process (Incremental)
+    // Matches "thought_process": "..." 
+    // Captures content even if the closing quote hasn't arrived yet.
+    // Logic: Look for start tag, grab everything until (next key's start quote) OR (end of string).
+    // Note: We assume keys start with " on a new line or after a comma.
+    const thoughtRegex = /"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s;
+    const thoughtMatch = text.match(thoughtRegex);
     if (thoughtMatch) {
+        // Handle escaped newlines for display
         thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
     }
 
-    // 2. Title: Pattern "title": "..." or # Title
-    const titleMatchJson = text.match(/"title"\s*:\s*"(.*?)"/);
-    if (titleMatchJson) {
-        title = titleMatchJson[1];
+    // 2. Extract Title (Incremental)
+    const titleRegex = /"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/;
+    const titleMatch = text.match(titleRegex);
+    if (titleMatch) {
+        title = titleMatch[1];
     } else {
+        // Fallback for markdown format title
         const mdTitle = text.match(/^#\s+(.*$)/m);
         if (mdTitle) title = mdTitle[1].trim();
     }
 
-    // 3. Outline Items: Robust Regex for streaming JSON objects
-    // Matches { "title": "...", "content": "..." } even if surrounded by other text
-    // Using [\s\S] to match across newlines
-    const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"content"\s*:\s*"(.*?)"\s*}/g;
-    let match;
-    while ((match = itemRegex.exec(text)) !== null) {
-        // Simple unescape for JSON strings
-        const cleanTitle = match[1].replace(/\\"/g, '"');
-        const cleanContent = match[2].replace(/\\"/g, '"').replace(/\\n/g, ' ');
+    // 3. Extract Outline Items (Incremental)
+    // We want to capture items as they appear: { "title": "T", "content": "C" }
+    // Even if "content" is partial.
+    
+    // Strategy: Split text by outline start ` "outline": [`
+    const outlineStartIdx = text.indexOf('"outline"');
+    if (outlineStartIdx !== -1) {
+        const outlineSection = text.slice(outlineStartIdx);
         
-        // Avoid duplicates if stream re-sends or overlaps (simple check)
-        if (!outline.find(o => o.title === cleanTitle)) {
-            outline.push({
-                title: cleanTitle,
-                content: cleanContent
-            });
+        // Regex to find individual item blocks. 
+        // It matches { ... "title": "...", ... "content": "..." ... }
+        // We use a global regex to iterate through all occurrences found SO FAR.
+        const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"content"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
+        
+        let match;
+        while ((match = itemRegex.exec(outlineSection)) !== null) {
+            const cleanTitle = match[1].replace(/\\"/g, '"');
+            // Content might be partial (hit end of string)
+            const cleanContent = match[2].replace(/\\"/g, '"').replace(/\\n/g, ' ');
+            
+            // Only add if we have at least a title
+            if (cleanTitle) {
+                outline.push({
+                    title: cleanTitle,
+                    content: cleanContent
+                });
+            }
         }
     }
 
@@ -244,21 +251,22 @@ const OutlineGenerationModal: React.FC<{
         }
     }, [isOpen, taskId, topic]);
 
-    // Auto-scroll logic (Optimized)
+    // Smart Auto-scroll: Only if user is near bottom
     useEffect(() => {
         if (scrollContainerRef.current && isGenerating) {
             const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
-            // Only auto-scroll if user is near bottom
-            if (scrollHeight - scrollTop - clientHeight < 200) {
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
+            if (isNearBottom) {
                 contentEndRef.current?.scrollIntoView({ behavior: 'smooth' });
             }
         }
     }, [streamContent, isGenerating]);
 
-    // Parse Data
+    // Parse Data using the incremental parser
     const displayData = useMemo(() => {
-        const parsed = parseOutlineStream(streamContent);
+        const parsed = parseIncrementalStream(streamContent);
         
+        // Finalize if done
         if (!isGenerating && parsed.title && parsed.outline.length > 0 && !finalOutline) {
              const normalized: StratifyOutline = {
                 title: parsed.title,
@@ -277,14 +285,14 @@ const OutlineGenerationModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop with Blur */}
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500"></div>
+            {/* Backdrop with strong blur */}
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-500" onClick={onClose}></div>
 
             {/* Modal Container */}
             <div className="relative bg-white/95 w-full max-w-4xl rounded-[24px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-4 duration-500 ring-1 ring-black/5">
                 
                 {/* 1. Header Area */}
-                <div className="px-8 py-5 border-b border-slate-100 bg-white/80 backdrop-blur-sm z-10 flex justify-between items-center">
+                <div className="px-6 py-4 border-b border-slate-100 bg-white/90 backdrop-blur-md z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className={`p-2.5 rounded-xl transition-colors duration-500 ${isGenerating ? 'bg-indigo-50 text-indigo-600' : 'bg-green-50 text-green-600'}`}>
                             {isGenerating ? (
@@ -294,27 +302,17 @@ const OutlineGenerationModal: React.FC<{
                             )}
                         </div>
                         <div>
-                            <h3 className="font-bold text-slate-900 text-xl tracking-tight flex items-center gap-2">
-                                {isGenerating ? 'AI 智能规划中...' : '大纲构建完成'}
+                            <h3 className="font-bold text-slate-900 text-lg tracking-tight flex items-center gap-2">
+                                {isGenerating ? 'AI 深度思考与构建中...' : '大纲构建完成'}
                                 {isGenerating && <span className="flex h-2 w-2 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span></span>}
                             </h3>
-                            <p className="text-sm text-slate-500 font-medium">
-                                {isGenerating ? '正在深度分析主题，构建逻辑框架...' : '请审阅以下大纲，确认无误后生成正文'}
+                            <p className="text-xs text-slate-500 font-medium">
+                                {isGenerating ? '正在实时流式输出思考过程与结构...' : '请审阅以下大纲，确认无误后生成正文'}
                             </p>
                         </div>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                        {/* Collapsible Thought Toggle */}
-                        <button 
-                            onClick={() => setShowThought(!showThought)}
-                            className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showThought ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200'}`}
-                        >
-                            <SparklesIcon className="w-3 h-3" />
-                            {showThought ? '隐藏思考' : '思考过程'}
-                        </button>
-                        
-                        {/* Close Button */}
                         <button 
                             onClick={onClose}
                             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all"
@@ -326,48 +324,52 @@ const OutlineGenerationModal: React.FC<{
                 </div>
 
                 {/* 2. Scrollable Content */}
-                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/50 p-6 sm:p-8 custom-scrollbar relative">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/50 p-6 sm:p-8 custom-scrollbar relative space-y-8">
                     
-                    {/* Thought Process (Collapsible) */}
-                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showThought && (displayData.thought || isGenerating) ? 'max-h-[500px] mb-8 opacity-100' : 'max-h-0 mb-0 opacity-0'}`}>
-                        <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-inner overflow-hidden ring-1 ring-white/10">
-                            <div className="bg-slate-800/50 px-5 py-3 border-b border-slate-700 flex items-center gap-2">
-                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                                    <ClockIcon className="w-3.5 h-3.5" /> AI Thinking Process
-                                </span>
-                                <div className="flex gap-1.5 ml-auto">
-                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
-                                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div>
-                                </div>
-                            </div>
-                            <div className="p-5 font-mono text-xs sm:text-sm text-slate-300 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar-dark">
+                    {/* A. Thinking Process (Terminal Style) */}
+                    <div className="animate-in slide-in-from-top-4 duration-700">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                                <ClockIcon className="w-3.5 h-3.5" /> AI Thinking Process
+                            </span>
+                            <button 
+                                onClick={() => setShowThought(!showThought)}
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                            >
+                                {showThought ? '收起' : '展开'}
+                            </button>
+                        </div>
+                        
+                        <div className={`transition-all duration-500 ease-in-out overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-[#1e1e1e] ${showThought ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="p-4 font-mono text-xs sm:text-sm text-green-400/90 leading-relaxed overflow-y-auto max-h-[400px] custom-scrollbar-dark">
                                 {displayData.thought ? (
-                                    <div className="whitespace-pre-wrap">{displayData.thought}</div>
-                                ) : (
-                                    <div className="flex items-center gap-2 text-slate-500 italic">
-                                        思考中 <span className="animate-pulse">_</span>
+                                    <div className="whitespace-pre-wrap">
+                                        <span className="text-gray-500 mr-2">$</span>
+                                        {displayData.thought}
+                                        {isGenerating && <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>}
                                     </div>
-                                )}
-                                {isGenerating && (
-                                    <span className="inline-block w-2 h-4 bg-indigo-500 ml-1 animate-pulse align-middle"></span>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-gray-500 italic">
+                                        <span className="text-gray-600">$</span> Initializing thought process...
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    <div className="max-w-3xl mx-auto space-y-8">
+                    {/* B. Generated Result (Document Style) */}
+                    <div className="space-y-6">
                         {/* Title Section */}
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">
                                 <DocumentTextIcon className="w-4 h-4" /> Proposed Title
                             </div>
                             {displayData.title ? (
-                                <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm animate-in slide-in-from-bottom-2 duration-500">
+                                <div className="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 leading-tight py-2 animate-in fade-in slide-in-from-left-4 duration-500">
                                     {displayData.title}
                                 </div>
                             ) : (
-                                <div className="h-24 bg-slate-200/50 rounded-2xl animate-pulse"></div>
+                                <div className="h-10 w-2/3 bg-slate-200/50 rounded-lg animate-pulse"></div>
                             )}
                         </div>
 
@@ -381,25 +383,30 @@ const OutlineGenerationModal: React.FC<{
                                 {displayData.outline.map((item: any, idx: number) => (
                                     <div 
                                         key={idx} 
-                                        className="group bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex gap-5 items-start transition-all duration-300 hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 animate-in slide-in-from-bottom-4 fill-mode-backwards"
-                                        style={{ animationDelay: `${idx * 100}ms` }}
+                                        className="group bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex gap-5 items-start transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200 animate-in slide-in-from-bottom-4 fill-mode-backwards hover:-translate-y-0.5"
                                     >
-                                        <div className="flex-shrink-0 w-10 h-10 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center text-sm font-bold font-mono border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/30 transition-all duration-300">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center text-sm font-bold font-mono border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/30 transition-all duration-300 mt-1">
                                             {String(idx + 1).padStart(2, '0')}
                                         </div>
-                                        <div className="flex-1 min-w-0 pt-1">
-                                            <h4 className="font-bold text-slate-800 text-lg mb-2 group-hover:text-indigo-700 transition-colors">{item.title}</h4>
-                                            <p className="text-sm text-slate-500 leading-relaxed bg-slate-50/50 p-3 rounded-xl border border-slate-100 group-hover:bg-white group-hover:shadow-inner transition-colors">
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-slate-800 text-lg mb-2 group-hover:text-indigo-700 transition-colors">
+                                                {item.title}
+                                            </h4>
+                                            <p className="text-sm text-slate-500 leading-relaxed group-hover:text-slate-600">
                                                 {item.content}
+                                                {/* If this is the last item and still generating, show cursor */}
+                                                {isGenerating && idx === displayData.outline.length - 1 && (
+                                                    <span className="inline-block w-1.5 h-1.5 bg-indigo-500 rounded-full ml-1 animate-ping"></span>
+                                                )}
                                             </p>
                                         </div>
                                     </div>
                                 ))}
                                 
-                                {/* Loading Skeleton Card */}
+                                {/* Loading Skeleton Card (When thinking but no new item yet) */}
                                 {isGenerating && (
-                                    <div className="p-5 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-slate-400 bg-slate-50/30 animate-pulse">
-                                        <div className="w-5 h-5 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin"></div>
+                                    <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-slate-400 bg-slate-50/30 animate-pulse">
+                                        <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin"></div>
                                         <span className="text-sm font-medium">正在构思下一章节...</span>
                                     </div>
                                 )}
@@ -411,7 +418,7 @@ const OutlineGenerationModal: React.FC<{
                 </div>
 
                 {/* 3. Footer Action */}
-                <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex justify-between items-center">
+                <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
                         {isGenerating ? (
                             <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div> 实时生成中</span>
