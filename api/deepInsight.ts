@@ -33,6 +33,16 @@ export const deleteDeepInsightUpload = (fileName: string): Promise<{ message: st
         method: 'DELETE',
     });
 
+export const uploadDeepInsightFiles = (files: File[]): Promise<void> => {
+    const uploadFormData = new FormData();
+    // API expects field name 'files' (plural) for multipart/form-data
+    files.forEach(f => uploadFormData.append('files', f));
+    return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
+        method: 'POST',
+        body: uploadFormData,
+    });
+};
+
 // --- Tasks Core ---
 
 export const getDeepInsightTasks = (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
@@ -60,12 +70,7 @@ export const startDeepInsightTask = (taskId: string): Promise<{ message: string 
 // Convenience: Upload -> Create -> Start
 export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
     // 1. Upload File
-    const uploadFormData = new FormData();
-    uploadFormData.append('files[]', file);
-    await apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
-        method: 'POST',
-        body: uploadFormData,
-    });
+    await uploadDeepInsightFiles([file]);
 
     // 2. Create Task
     const taskRes = await createDeepInsightTask(file.name, category_id);
@@ -100,9 +105,6 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
 
 // Fetch HTML content for a specific page
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
-    // Assuming backend endpoint follows pattern or we access static resource if implied by doc
-    // If specific endpoint '/html' doesn't exist on page resource, this might need adjustment based on backend implementation.
-    // Preserving existing logic as per user code structure.
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
@@ -175,6 +177,17 @@ export const updateDeepInsightGeminiCookies = (data: { secure_1psid: string; sec
     
     return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/gemini/cookies`, {
         method: 'POST',
+        body: formData,
+    });
+};
+
+export const updateDeepInsightGeminiEnvCookies = (data: { secure_1psid: string; secure_1psidts: string }): Promise<{ ok: boolean; message: string }> => {
+    const formData = new FormData();
+    formData.append('secure_1psid', data.secure_1psid);
+    formData.append('secure_1psidts', data.secure_1psidts);
+    
+    return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/gemini/env-cookies`, {
+        method: 'PUT',
         body: formData,
     });
 };

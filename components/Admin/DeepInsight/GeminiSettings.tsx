@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { updateDeepInsightGeminiCookies, checkDeepInsightGeminiCookies } from '../../../api';
+import { updateDeepInsightGeminiEnvCookies, checkDeepInsightGeminiCookies } from '../../../api';
 import { SparklesIcon, ServerIcon, CheckCircleIcon, ShieldExclamationIcon, QuestionMarkCircleIcon, RefreshIcon } from '../../icons';
 
 export const GeminiSettings: React.FC = () => {
@@ -40,10 +41,11 @@ export const GeminiSettings: React.FC = () => {
         setIsLoading(true);
         setStatus(null);
         try {
-            const response = await updateDeepInsightGeminiCookies(formData);
+            // Using the ENV update to persist changes
+            const response = await updateDeepInsightGeminiEnvCookies(formData);
             setStatus({ 
                 type: 'success', 
-                message: response.message || '更新成功'
+                message: response.message || '配置更新成功 (已持久化)'
             });
             await checkStatus();
         } catch (err: any) {
@@ -162,18 +164,8 @@ export const GeminiSettings: React.FC = () => {
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">HTTP 代理 (可选)</label>
-                        <div className="relative">
-                            <ServerIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input 
-                                type="text" 
-                                value={formData.http_proxy}
-                                onChange={e => setFormData(p => ({ ...p, http_proxy: e.target.value }))}
-                                className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2.5 pl-10 pr-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                                placeholder="http://127.0.0.1:20171 (若留空则使用环境变量)"
-                            />
-                        </div>
+                    <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100">
+                        提示: 此处配置将更新环境变量 (.env)，服务重启后依然有效。HTTP 代理配置请在服务器端环境变量中设置。
                     </div>
 
                     <div className="pt-4">

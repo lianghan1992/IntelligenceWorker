@@ -1,5 +1,3 @@
-
-
 // src/api.ts
 
 // This file now acts as a "barrel" file, re-exporting all API functions
@@ -14,3 +12,4 @@ export * from './api/livestream';
 export * from './api/competitiveness';
 export * from './api/documentProcessing';
 export * from './api/deepInsight';
+export * from './api/stratify';

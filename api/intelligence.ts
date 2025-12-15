@@ -157,6 +157,21 @@ export const createSpiderPoint = async (data: {
     return { ...res, id: res.uuid, point_name: res.name, point_url: res.url };
 };
 
+export const updateSpiderPoint = async (uuid: string, data: {
+    name?: string;
+    url?: string;
+    cron_schedule?: string;
+    initial_pages?: number;
+    is_active?: boolean;
+}): Promise<SpiderPoint> => {
+    // Update point: PATCH /intelspider/points/{uuid}
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+    return { ...res, id: res.uuid, point_name: res.name, point_url: res.url };
+};
+
 export const triggerSpiderTask = (data: { point_uuid: string; task_type?: 'initial' | 'incremental' }): Promise<SpiderTaskTriggerResponse> => {
     // Trigger task: POST /intelspider/tasks/trigger/
     return apiFetch<SpiderTaskTriggerResponse>(`${INTELSPIDER_SERVICE_PATH}/tasks/trigger/`, {
