@@ -497,6 +497,100 @@ const OutlineGenerationModal: React.FC<{
     );
 };
 
+// --- Component: Page Generation Card ---
+const PageGenerationCard: React.FC<{ page: StratifyPage & { thought_process?: string } }> = ({ page }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom when content updates
+    useEffect(() => {
+        if (scrollRef.current && page.status === 'generating') {
+            // Use scrollTo with smooth behavior for natural effect
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+    }, [page.content_markdown, page.status, page.thought_process]);
+
+    const renderMarkdown = (content: string) => {
+        if (!content) return { __html: '' };
+        if (window.marked && typeof window.marked.parse === 'function') {
+            // Add custom class for prose
+            return { __html: window.marked.parse(content) };
+        }
+        return { __html: `<pre class="whitespace-pre-wrap font-sans">${content}</pre>` };
+    };
+
+    return (
+        <div className={`
+            bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col h-96
+            ${page.status === 'generating' 
+                ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
+                : 'border-slate-200 hover:shadow-md hover:border-slate-300'
+            }
+        `}>
+            {/* Status Bar / Header */}
+            <div className={`px-5 py-4 border-b flex justify-between items-center flex-shrink-0 ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                    <span className={`text-[10px] font-extrabold px-2 py-1 rounded border tracking-wider flex-shrink-0 ${
+                        page.status === 'done' ? 'bg-green-100 text-green-700 border-green-200' : 
+                        page.status === 'generating' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
+                        'bg-slate-100 text-slate-500 border-slate-200'
+                    }`}>
+                        PAGE {String(page.page_index).padStart(2, '0')}
+                    </span>
+                    <h3 className="font-bold text-slate-800 text-sm truncate" title={page.title}>{page.title}</h3>
+                </div>
+                
+                {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                {page.status === 'generating' && (
+                    <div className="flex items-center gap-2 text-indigo-600 flex-shrink-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse hidden sm:inline">Writing</span>
+                        <div className="flex gap-0.5">
+                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
+                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
+                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                        </div>
+                    </div>
+                )}
+            </div>
+            
+            <div 
+                ref={scrollRef}
+                className="flex-1 bg-slate-50/30 p-6 font-sans text-sm overflow-y-auto relative custom-scrollbar group-hover:bg-white transition-colors"
+            >
+                {/* Empty State / Pending */}
+                {!page.content_markdown && !page.thought_process && (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-60">
+                        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin" style={{ animationDuration: '3s' }}></div>
+                        <span className="text-xs font-medium">准备中...</span>
+                    </div>
+                )}
+
+                {/* Thinking State */}
+                {page.status === 'generating' && !page.content_markdown && page.thought_process && (
+                    <div className="text-slate-500 italic animate-pulse mb-4">
+                        <div className="flex items-center gap-2 mb-2 text-indigo-500 font-bold text-xs uppercase tracking-wide">
+                            <BrainIcon className="w-3 h-3" /> Thinking Process
+                        </div>
+                        <div className="whitespace-pre-wrap opacity-80 text-xs font-mono border-l-2 border-indigo-200 pl-3">{page.thought_process}</div>
+                    </div>
+                )}
+
+                {/* Content Stream */}
+                {page.content_markdown && (
+                    <div className="prose prose-sm max-w-none prose-slate prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-slate-800 animate-in fade-in duration-500">
+                        <div dangerouslySetInnerHTML={renderMarkdown(page.content_markdown)} />
+                        {page.status === 'generating' && (
+                            <span className="inline-block w-2 h-5 bg-indigo-500 ml-1 animate-pulse align-middle shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // --- 阶段4: 并发内容生成 ---
 const ContentGenerator: React.FC<{
     taskId: string;
@@ -619,69 +713,7 @@ const ContentGenerator: React.FC<{
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {pages.map((page) => (
-                    <div key={page.page_index} className={`
-                        bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col
-                        ${page.status === 'generating' 
-                            ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
-                            : 'border-slate-200 hover:shadow-md hover:border-slate-300'
-                        }
-                    `}>
-                        {/* Status Bar / Header */}
-                        <div className={`px-5 py-4 border-b flex justify-between items-center ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}`}>
-                            <div className="flex items-center gap-3">
-                                <span className={`text-[10px] font-extrabold px-2 py-1 rounded border tracking-wider ${
-                                    page.status === 'done' ? 'bg-green-100 text-green-700 border-green-200' : 
-                                    page.status === 'generating' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
-                                    'bg-slate-100 text-slate-500 border-slate-200'
-                                }`}>
-                                    PAGE {String(page.page_index).padStart(2, '0')}
-                                </span>
-                                <h3 className="font-bold text-slate-800 text-sm line-clamp-1" title={page.title}>{page.title}</h3>
-                            </div>
-                            
-                            {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500" />}
-                            {page.status === 'generating' && (
-                                <div className="flex items-center gap-2 text-indigo-600">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse">Writing</span>
-                                    <div className="flex gap-0.5">
-                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
-                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
-                                        <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div className="flex-1 bg-slate-50/30 p-5 font-sans text-xs sm:text-sm h-64 overflow-y-auto relative custom-scrollbar group-hover:bg-white transition-colors">
-                            {/* Empty State / Pending */}
-                            {!page.content_markdown && !page.thought_process && (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-60">
-                                    <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin" style={{ animationDuration: '3s' }}></div>
-                                    <span className="text-xs font-medium">准备中...</span>
-                                </div>
-                            )}
-
-                            {/* Thinking State */}
-                            {page.status === 'generating' && !page.content_markdown && page.thought_process && (
-                                <div className="text-slate-500 italic animate-pulse">
-                                    <div className="flex items-center gap-2 mb-2 text-indigo-500 font-bold text-xs uppercase tracking-wide">
-                                        <BrainIcon className="w-3 h-3" /> Thinking Process
-                                    </div>
-                                    <div className="whitespace-pre-wrap opacity-80">{page.thought_process}</div>
-                                </div>
-                            )}
-
-                            {/* Content Stream */}
-                            {page.content_markdown && (
-                                <div className="whitespace-pre-wrap text-slate-700 leading-relaxed animate-in fade-in duration-500">
-                                    {page.content_markdown}
-                                    {page.status === 'generating' && (
-                                        <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-1 animate-pulse align-middle shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <PageGenerationCard key={page.page_index} page={page} />
                 ))}
             </div>
             
