@@ -200,30 +200,52 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
     );
 };
 
-// --- Parsers (Helpers) ---
+// --- Parsers (Helpers) - UPDATED for Reasoning Models ---
 const parseIncrementalStream = (text: string): { thought: string | null, title: string | null, outline: any[] } => {
     let thought = null;
     let title = null;
     let outline: any[] = [];
 
-    const thoughtRegex = /"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s;
-    const thoughtMatch = text.match(thoughtRegex);
-    if (thoughtMatch) {
-        thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    // 1. Detect Reasoning (Content before JSON)
+    // Heuristic: Find first '{' that likely starts the JSON structure.
+    // If there is significant text before it, treat that as thought.
+    let jsonStartIndex = text.indexOf('{');
+    const codeBlockIndex = text.indexOf('```json');
+    
+    if (codeBlockIndex !== -1) {
+        // If code block exists, text before it is definitely thought
+        jsonStartIndex = text.indexOf('{', codeBlockIndex);
+        if (jsonStartIndex !== -1) {
+            thought = text.slice(0, codeBlockIndex).trim();
+        }
+    } else if (jsonStartIndex > 10) {
+        // Fallback: If no code block, but text starts late, treat prelude as thought
+        thought = text.slice(0, jsonStartIndex).trim();
+    }
+
+    const jsonPart = jsonStartIndex !== -1 ? text.slice(jsonStartIndex) : text;
+
+    // 2. Fallback to internal thought_process key if raw thought is empty
+    if (!thought) {
+        const thoughtRegex = /"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s;
+        const thoughtMatch = jsonPart.match(thoughtRegex);
+        if (thoughtMatch) {
+            thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
     }
 
     const titleRegex = /"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/;
-    const titleMatch = text.match(titleRegex);
+    const titleMatch = jsonPart.match(titleRegex);
     if (titleMatch) {
         title = titleMatch[1];
     } else {
-        const mdTitle = text.match(/^#\s+(.*$)/m);
+        const mdTitle = jsonPart.match(/^#\s+(.*$)/m);
         if (mdTitle) title = mdTitle[1].trim();
     }
 
-    const outlineStartIdx = text.indexOf('"outline"');
+    const outlineStartIdx = jsonPart.indexOf('"outline"');
     if (outlineStartIdx !== -1) {
-        const outlineSection = text.slice(outlineStartIdx);
+        const outlineSection = jsonPart.slice(outlineStartIdx);
         const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
         
         let match;
@@ -244,20 +266,38 @@ const parsePageStream = (text: string) => {
     let content = '';
     let title = null;
 
-    const thoughtMatch = text.match(/"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s);
-    if (thoughtMatch) {
-        thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    // 1. Detect Reasoning (Content before JSON)
+    let jsonStartIndex = text.indexOf('{');
+    const codeBlockIndex = text.indexOf('```json');
+    
+    if (codeBlockIndex !== -1) {
+        jsonStartIndex = text.indexOf('{', codeBlockIndex);
+        if (jsonStartIndex !== -1) {
+            thought = text.slice(0, codeBlockIndex).trim();
+        }
+    } else if (jsonStartIndex > 10) {
+        thought = text.slice(0, jsonStartIndex).trim();
     }
 
-    const titleMatch = text.match(/"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/);
+    const jsonPart = jsonStartIndex !== -1 ? text.slice(jsonStartIndex) : text;
+
+    // 2. Fallback to internal thought_process
+    if (!thought) {
+        const thoughtMatch = jsonPart.match(/"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s);
+        if (thoughtMatch) {
+            thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
+    }
+
+    const titleMatch = jsonPart.match(/"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/);
     if (titleMatch) {
         title = titleMatch[1];
     }
 
-    const contentStartMatch = text.match(/"content"\s*:\s*"/);
+    const contentStartMatch = jsonPart.match(/"content"\s*:\s*"/);
     if (contentStartMatch && contentStartMatch.index !== undefined) {
         const start = contentStartMatch.index + contentStartMatch[0].length;
-        let raw = text.slice(start);
+        let raw = jsonPart.slice(start);
         
         if (raw.match(/"\s*}\s*(```)?\s*$/)) {
              raw = raw.replace(/"\s*}\s*(```)?\s*$/, '');
