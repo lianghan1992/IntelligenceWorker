@@ -314,6 +314,48 @@ const parsePageStream = (text: string) => {
     return { thought, content, title };
 };
 
+// Helper for parsing HTML generated response which is in format: { "html": "..." }
+const parseHtmlStream = (text: string) => {
+    let html = '';
+    
+    // 1. Skip Thinking / Find JSON start
+    let jsonStartIndex = text.indexOf('{');
+    const codeBlockIndex = text.indexOf('```json');
+    if (codeBlockIndex !== -1) {
+        jsonStartIndex = text.indexOf('{', codeBlockIndex);
+    }
+    
+    const jsonPart = jsonStartIndex !== -1 ? text.slice(jsonStartIndex) : text;
+
+    // 2. Find "html" key
+    const htmlStartMatch = jsonPart.match(/"html"\s*:\s*"/);
+    if (htmlStartMatch && htmlStartMatch.index !== undefined) {
+        const start = htmlStartMatch.index + htmlStartMatch[0].length;
+        let raw = jsonPart.slice(start);
+        
+        // Find closing quote (not escaped)
+        let end = -1;
+        for(let i=0; i<raw.length; i++) {
+            if(raw[i] === '"' && (i===0 || raw[i-1] !== '\\')) {
+                end = i;
+                break;
+            }
+        }
+        
+        if(end !== -1) {
+            raw = raw.slice(0, end);
+        }
+
+        html = raw
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\t/g, '\t');
+    }
+    
+    return html;
+};
+
 // --- 阶段2 & 3: 智能大纲生成模态框 (Visual Upgrade) ---
 const OutlineGenerationModal: React.FC<{ 
     isOpen: boolean;
@@ -1037,14 +1079,10 @@ const HtmlGenerator: React.FC<{
                             },
                             (chunk) => {
                                 buffer += chunk;
-                                // Simple parser: accumulated chunk is the HTML content. 
-                                // Ideally, parsePageStream logic could be reused if backend wraps it, 
-                                // but for HTML gen usually raw stream is fine or simple extract.
-                                // Let's reuse parsePageStream for robust JSON/thought handling if backend uses it.
+                                const html = parseHtmlStream(buffer); // Use the new parser
                                 
-                                // FIX: Use buffer directly for HTML content as per user request
                                 updatePage(pageIdx, { 
-                                    html_content: buffer
+                                    html_content: html // Update with parsed HTML
                                 });
                             },
                             () => {
@@ -1264,6 +1302,7 @@ export const ReportGenerator: React.FC = () => {
 
                 {step === 4 && currentTask && currentTask.outline && (
                     <ContentGenerator 
+                        key={currentTask.id} // FORCE REMOUNT
                         taskId={currentTask.id}
                         outline={currentTask.outline}
                         onComplete={handleContentComplete}
@@ -1273,6 +1312,7 @@ export const ReportGenerator: React.FC = () => {
 
                 {step === 5 && currentTask && currentTask.pages && (
                     <HtmlGenerator 
+                        key={currentTask.id} // FORCE REMOUNT
                         taskId={currentTask.id}
                         pages={currentTask.pages} // Pass generated content pages
                         onComplete={handleHtmlComplete}
@@ -1303,6 +1343,7 @@ export const ReportGenerator: React.FC = () => {
             {/* Outline Modal (Controlled) */}
             {currentTask && (
                 <OutlineGenerationModal 
+                    key={currentTask.id} // FORCE REMOUNT on task ID change
                     isOpen={step === 2 || step === 3}
                     taskId={currentTask.id}
                     topic={currentTask.topic}
