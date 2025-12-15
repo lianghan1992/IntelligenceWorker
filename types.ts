@@ -368,12 +368,14 @@ export interface StratifyPage {
 
 export interface StratifyStreamChunk {
     content?: string;
+    session_id?: string;
 }
 
 export interface GenerateStreamParams {
     prompt_name: string;
     variables: Record<string, any>;
     model_override?: string;
+    session_id?: string;
 }
 
 // --- Strategic Cockpit Types ---

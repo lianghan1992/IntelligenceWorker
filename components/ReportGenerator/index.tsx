@@ -4,7 +4,7 @@ import {
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
-    ClockIcon
+    ClockIcon, PencilIcon, RefreshIcon
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -200,11 +200,18 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
 const parsePageStream = (text: string) => {
     let thought = null;
     let content = '';
+    let title = null;
 
     // Extract thought
     const thoughtMatch = text.match(/"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s);
     if (thoughtMatch) {
         thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
+    }
+
+    // Extract Title (if present)
+    const titleMatch = text.match(/"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/);
+    if (titleMatch) {
+        title = titleMatch[1];
     }
 
     // Extract content
@@ -214,16 +221,17 @@ const parsePageStream = (text: string) => {
         const start = contentStartMatch.index + contentStartMatch[0].length;
         let raw = text.slice(start);
         
-        // Remove closing sequence if it appears to be the end of the JSON
-        // This is a heuristic for streaming: if we see `"` followed by `}` or end of string, 
-        // we might want to trim it. But since we are streaming, the end might not be the real end.
-        // However, for display, we want to show clean text.
-        
-        // If the string ends with `"}`, it's likely the end of the JSON object.
-        if (raw.endsWith('"}')) raw = raw.slice(0, -2);
-        // If it just ends with `"`, it might be the end of the content string.
-        else if (raw.endsWith('"')) raw = raw.slice(0, -1);
-        
+        // Robust cleanup for end of stream or end of JSON
+        // If it looks like it ends with the JSON closing sequence
+        if (raw.match(/"\s*}\s*(```)?\s*$/)) {
+             raw = raw.replace(/"\s*}\s*(```)?\s*$/, '');
+        } else if (raw.endsWith('"')) {
+             // Check if it's an escaped quote (part of content) or real closing quote
+             if (!raw.endsWith('\\"')) {
+                 raw = raw.slice(0, -1);
+             }
+        }
+
         // Unescape JSON string
         content = raw
             .replace(/\\n/g, '\n')
@@ -232,7 +240,7 @@ const parsePageStream = (text: string) => {
             .replace(/\\t/g, '\t');
     }
 
-    return { thought, content };
+    return { thought, content, title };
 };
 
 // --- 阶段2 & 3: 智能大纲生成模态框 (Visual Upgrade) ---
@@ -247,12 +255,15 @@ const OutlineGenerationModal: React.FC<{
     const [isGenerating, setIsGenerating] = useState(false);
     const [finalOutline, setFinalOutline] = useState<StratifyOutline | null>(null);
     const [showThought, setShowThought] = useState(true);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [revisionInput, setRevisionInput] = useState('');
+    const [isRevising, setIsRevising] = useState(false);
     
     const hasStartedRef = useRef(false);
     const contentEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Stream Trigger
+    // Initial Stream Trigger
     useEffect(() => {
         if (isOpen && !hasStartedRef.current && taskId) {
             hasStartedRef.current = true;
@@ -273,10 +284,52 @@ const OutlineGenerationModal: React.FC<{
                 (err) => {
                     console.error("Gen error", err);
                     setIsGenerating(false);
+                },
+                (sid) => {
+                    setSessionId(sid);
                 }
             );
         }
     }, [isOpen, taskId, topic]);
+
+    // Handle Revision Request
+    const handleReviseOutline = async () => {
+        if (!revisionInput.trim() || !sessionId || isGenerating) return;
+        
+        setIsRevising(true);
+        setIsGenerating(true);
+        setStreamContent(''); // Clear previous stream for new one
+        setRevisionInput('');
+        
+        // Pass the current structured outline as context if needed, or rely on session history.
+        // Based on backend API: revise_outline variables: current_outline, user_revision_request
+        // We will pass the full JSON string of the current parsed outline.
+        
+        const currentOutlineStr = JSON.stringify(displayData.outline);
+
+        streamGenerate(
+            {
+                prompt_name: 'revise_outline',
+                variables: { 
+                    current_outline: currentOutlineStr, 
+                    user_revision_request: revisionInput 
+                },
+                session_id: sessionId // Maintain session
+            },
+            (chunk) => {
+                setStreamContent(prev => prev + chunk);
+            },
+            () => {
+                setIsGenerating(false);
+                setIsRevising(false);
+            },
+            (err) => {
+                console.error("Revision error", err);
+                setIsGenerating(false);
+                setIsRevising(false);
+            }
+        );
+    };
 
     // Smart Auto-scroll: Only if user is near bottom
     useEffect(() => {
@@ -292,21 +345,8 @@ const OutlineGenerationModal: React.FC<{
     // Parse Data using the incremental parser
     const displayData = useMemo(() => {
         const parsed = parseIncrementalStream(streamContent);
-        
-        // Finalize if done
-        if (!isGenerating && parsed.title && parsed.outline.length > 0 && !finalOutline) {
-             const normalized: StratifyOutline = {
-                title: parsed.title,
-                pages: parsed.outline
-            };
-            setFinalOutline(normalized);
-            updateStratifyTask(taskId, { 
-                status: 'outline_generated',
-                outline: normalized 
-            });
-        }
         return parsed;
-    }, [streamContent, isGenerating, taskId, finalOutline]);
+    }, [streamContent]);
 
     if (!isOpen) return null;
 
@@ -330,16 +370,22 @@ const OutlineGenerationModal: React.FC<{
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-900 text-lg tracking-tight flex items-center gap-2">
-                                {isGenerating ? 'AI 深度思考与构建中...' : '大纲构建完成'}
+                                {isGenerating ? (isRevising ? '正在调整大纲...' : 'AI 深度思考与构建中...') : '大纲构建完成'}
                                 {isGenerating && <span className="flex h-2 w-2 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span></span>}
                             </h3>
                             <p className="text-xs text-slate-500 font-medium">
-                                {isGenerating ? '正在实时流式输出思考过程与结构...' : '请审阅以下大纲，确认无误后生成正文'}
+                                {isGenerating ? '正在实时流式输出...' : '请审阅以下大纲，您可以确认生成或提出修改意见'}
                             </p>
                         </div>
                     </div>
                     
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setShowThought(!showThought)}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                        >
+                            {showThought ? '隐藏思考' : '查看思考'}
+                        </button>
                         <button 
                             onClick={onClose}
                             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all"
@@ -355,18 +401,6 @@ const OutlineGenerationModal: React.FC<{
                     
                     {/* A. Thinking Process (Terminal Style) */}
                     <div className="animate-in slide-in-from-top-4 duration-700">
-                        <div className="flex items-center justify-between mb-2 px-1">
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                                <ClockIcon className="w-3.5 h-3.5" /> AI Thinking Process
-                            </span>
-                            <button 
-                                onClick={() => setShowThought(!showThought)}
-                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
-                            >
-                                {showThought ? '收起' : '展开'}
-                            </button>
-                        </div>
-                        
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-[#1e1e1e] ${showThought ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="p-4 font-mono text-xs sm:text-sm text-green-400/90 leading-relaxed overflow-y-auto max-h-[400px] custom-scrollbar-dark">
                                 {displayData.thought ? (
@@ -445,52 +479,74 @@ const OutlineGenerationModal: React.FC<{
                 </div>
 
                 {/* 3. Footer Action */}
-                <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex justify-between items-center shrink-0">
-                    <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-                        {isGenerating ? (
-                            <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div> 实时生成中</span>
-                        ) : (
-                            <span className="flex items-center gap-2 text-green-600"><CheckIcon className="w-4 h-4" /> 生成完毕</span>
-                        )}
-                        <span className="w-px h-3 bg-slate-200 mx-2"></span>
-                        <span>{displayData.outline.length} 章节</span>
-                    </div>
+                <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4">
+                    {/* Revision Input Area (Only visible when not generating) */}
+                    {!isGenerating && (
+                        <div className="flex-1 w-full flex items-center gap-2">
+                            <input 
+                                type="text" 
+                                value={revisionInput}
+                                onChange={(e) => setRevisionInput(e.target.value)}
+                                placeholder="输入修改建议，如：'增加关于自动驾驶的章节' 或 '让语气更专业'"
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
+                                onKeyDown={(e) => e.key === 'Enter' && handleReviseOutline()}
+                            />
+                            <button 
+                                onClick={handleReviseOutline}
+                                disabled={!revisionInput.trim()}
+                                className="p-3 bg-white border border-slate-200 rounded-xl text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                                title="应用修改"
+                            >
+                                <SparklesIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
 
-                    <button 
-                        onClick={() => {
-                            if (isGenerating && displayData.title && displayData.outline.length > 0) {
-                                const normalized: StratifyOutline = {
-                                    title: displayData.title,
-                                    pages: displayData.outline
-                                };
-                                updateStratifyTask(taskId, { status: 'outline_generated', outline: normalized });
-                                onConfirm(normalized);
-                            } else if (finalOutline) {
-                                onConfirm(finalOutline);
-                            }
-                        }}
-                        disabled={(!finalOutline && !isGenerating) || (isGenerating && displayData.outline.length === 0)}
-                        className={`
-                            px-8 py-3.5 rounded-xl font-bold text-white shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2
-                            ${isGenerating 
-                                ? 'bg-slate-800 hover:bg-slate-700 cursor-wait' 
-                                : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:scale-95'
-                            }
-                            disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
-                        `}
-                    >
-                        {isGenerating ? (
-                            <>
-                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                <span>提前生成 ({displayData.outline.length})</span>
-                            </>
-                        ) : (
-                            <>
-                                <span>确认并生成正文</span>
-                                <ArrowRightIcon className="w-5 h-5" />
-                            </>
-                        )}
-                    </button>
+                    <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
+                            {isGenerating ? (
+                                <span className="flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse"></div> 实时生成中</span>
+                            ) : (
+                                <span className="flex items-center gap-2 text-green-600"><CheckIcon className="w-4 h-4" /> 生成完毕</span>
+                            )}
+                            <span className="w-px h-3 bg-slate-200 mx-2"></span>
+                            <span>{displayData.outline.length} 章节</span>
+                        </div>
+
+                        <button 
+                            onClick={() => {
+                                if (displayData.title && displayData.outline.length > 0) {
+                                    const normalized: StratifyOutline = {
+                                        title: displayData.title,
+                                        pages: displayData.outline
+                                    };
+                                    updateStratifyTask(taskId, { status: 'outline_generated', outline: normalized });
+                                    onConfirm(normalized);
+                                }
+                            }}
+                            disabled={isGenerating || displayData.outline.length === 0}
+                            className={`
+                                px-8 py-3 rounded-xl font-bold text-white shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 w-full sm:w-auto justify-center
+                                ${isGenerating 
+                                    ? 'bg-slate-800 hover:bg-slate-700 cursor-wait opacity-80' 
+                                    : 'bg-gradient-to-r from-indigo-600 to-blue-600 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:scale-95'
+                                }
+                                disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none
+                            `}
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                    <span>请稍候...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>确认并生成正文</span>
+                                    <ArrowRightIcon className="w-5 h-5" />
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -498,8 +554,15 @@ const OutlineGenerationModal: React.FC<{
 };
 
 // --- Component: Page Generation Card ---
-const PageGenerationCard: React.FC<{ page: StratifyPage & { thought_process?: string } }> = ({ page }) => {
+const PageGenerationCard: React.FC<{ 
+    page: StratifyPage & { thought_process?: string; sessionId?: string };
+    onRevise: (pageIndex: number, request: string) => void;
+    isRevising: boolean;
+}> = ({ page, onRevise, isRevising }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [isHovered, setIsHovered] = useState(false);
+    const [revisionInput, setRevisionInput] = useState('');
+    const [showRevisionInput, setShowRevisionInput] = useState(false);
 
     // Auto-scroll to bottom when content updates
     useEffect(() => {
@@ -521,14 +584,26 @@ const PageGenerationCard: React.FC<{ page: StratifyPage & { thought_process?: st
         return { __html: `<pre class="whitespace-pre-wrap font-sans">${content}</pre>` };
     };
 
+    const handleRevisionSubmit = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!revisionInput.trim()) return;
+        onRevise(page.page_index, revisionInput);
+        setRevisionInput('');
+        setShowRevisionInput(false);
+    };
+
     return (
-        <div className={`
-            bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col h-96
-            ${page.status === 'generating' 
-                ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
-                : 'border-slate-200 hover:shadow-md hover:border-slate-300'
-            }
-        `}>
+        <div 
+            className={`
+                bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col h-[30rem]
+                ${page.status === 'generating' 
+                    ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
+                    : 'border-slate-200 hover:shadow-md hover:border-slate-300'
+                }
+            `}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* Status Bar / Header */}
             <div className={`px-5 py-4 border-b flex justify-between items-center flex-shrink-0 ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}`}>
                 <div className="flex items-center gap-3 min-w-0">
@@ -542,19 +617,60 @@ const PageGenerationCard: React.FC<{ page: StratifyPage & { thought_process?: st
                     <h3 className="font-bold text-slate-800 text-sm truncate" title={page.title}>{page.title}</h3>
                 </div>
                 
-                {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500 flex-shrink-0" />}
-                {page.status === 'generating' && (
-                    <div className="flex items-center gap-2 text-indigo-600 flex-shrink-0">
-                        <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse hidden sm:inline">Writing</span>
-                        <div className="flex gap-0.5">
-                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
-                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
-                            <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                <div className="flex items-center gap-2">
+                    {page.status === 'done' && !isRevising && (
+                        <button 
+                            onClick={() => setShowRevisionInput(!showRevisionInput)}
+                            className={`p-1.5 rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 ${isHovered || showRevisionInput ? 'opacity-100' : 'opacity-0'}`}
+                            title="修改本页"
+                        >
+                            <PencilIcon className="w-4 h-4" />
+                        </button>
+                    )}
+                    {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                    {page.status === 'generating' && (
+                        <div className="flex items-center gap-2 text-indigo-600 flex-shrink-0">
+                            <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse hidden sm:inline">{isRevising ? 'Revising' : 'Writing'}</span>
+                            <div className="flex gap-0.5">
+                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
+                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
+                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
             
+            {/* Revision Input Overlay */}
+            {showRevisionInput && (
+                <div className="absolute top-[60px] left-0 right-0 z-20 p-3 bg-white border-b border-indigo-100 shadow-md animate-in slide-in-from-top-2">
+                    <form onSubmit={handleRevisionSubmit} className="flex gap-2">
+                        <input 
+                            type="text" 
+                            autoFocus
+                            value={revisionInput}
+                            onChange={(e) => setRevisionInput(e.target.value)}
+                            placeholder="输入修改意见，例如：'精简本页内容'..."
+                            className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                        <button 
+                            type="submit"
+                            disabled={!revisionInput.trim()}
+                            className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                            确认
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setShowRevisionInput(false)}
+                            className="p-2 text-slate-400 hover:text-slate-600"
+                        >
+                            <CloseIcon className="w-4 h-4" />
+                        </button>
+                    </form>
+                </div>
+            )}
+
             <div 
                 ref={scrollRef}
                 className="flex-1 bg-slate-50/30 p-6 font-sans text-sm overflow-y-auto relative custom-scrollbar group-hover:bg-white transition-colors"
@@ -569,11 +685,14 @@ const PageGenerationCard: React.FC<{ page: StratifyPage & { thought_process?: st
 
                 {/* Thinking State */}
                 {page.status === 'generating' && !page.content_markdown && page.thought_process && (
-                    <div className="text-slate-500 italic animate-pulse mb-4">
-                        <div className="flex items-center gap-2 mb-2 text-indigo-500 font-bold text-xs uppercase tracking-wide">
-                            <BrainIcon className="w-3 h-3" /> Thinking Process
+                    <div className="bg-slate-900 rounded-lg p-4 mb-4 font-mono text-xs text-green-400 border border-slate-800 shadow-inner animate-in slide-in-from-top-2">
+                        <div className="flex items-center gap-2 mb-2 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+                            <BrainIcon className="w-3 h-3" /> AI Thinking
                         </div>
-                        <div className="whitespace-pre-wrap opacity-80 text-xs font-mono border-l-2 border-indigo-200 pl-3">{page.thought_process}</div>
+                        <div className="whitespace-pre-wrap leading-relaxed opacity-90">
+                            {page.thought_process}
+                            <span className="inline-block w-1.5 h-3 bg-green-500 ml-1 animate-pulse align-middle"></span>
+                        </div>
                     </div>
                 )}
 
@@ -599,31 +718,32 @@ const ContentGenerator: React.FC<{
 }> = ({ taskId, outline, onComplete }) => {
     // Local state to track each page's generation status and content
     // Added thought_process to state for live feedback
-    const [pages, setPages] = useState<(StratifyPage & { thought_process?: string })[]>(() => 
+    const [pages, setPages] = useState<(StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean })[]>(() => 
         outline.pages.map((p, i) => ({
             page_index: i + 1,
             title: p.title,
             content_markdown: '',
             html_content: null,
             status: 'pending', // pending -> generating -> done
-            thought_process: ''
+            thought_process: '',
+            isRevising: false
         }))
     );
     
     const [progress, setProgress] = useState(0);
     const hasStartedRef = useRef(false);
 
+    const updatePage = (idx: number, updates: Partial<StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean }>) => {
+        setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
+    };
+
+    // Initial Generation
     useEffect(() => {
         if (hasStartedRef.current) return;
         hasStartedRef.current = true;
 
         // Start generation for all pages (Frontend Drive!)
         const generateAll = async () => {
-            
-            const updatePage = (idx: number, updates: Partial<StratifyPage & { thought_process?: string }>) => {
-                setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
-            };
-
             const promises = outline.pages.map(async (pageOutline, i) => {
                 const pageIdx = i + 1;
                 updatePage(pageIdx, { status: 'generating' });
@@ -642,10 +762,11 @@ const ContentGenerator: React.FC<{
                     (chunk) => {
                         buffer += chunk;
                         // Real-time parsing of the JSON stream
-                        const { thought, content } = parsePageStream(buffer);
+                        const { thought, content, title } = parsePageStream(buffer);
                         updatePage(pageIdx, { 
                             content_markdown: content,
-                            thought_process: thought || undefined
+                            thought_process: thought || undefined,
+                            title: title || pageOutline.title // Update title if model refines it
                         });
                     },
                     () => {
@@ -653,29 +774,67 @@ const ContentGenerator: React.FC<{
                     },
                     (err) => {
                         updatePage(pageIdx, { status: 'failed', content_markdown: `Error: ${err}` });
+                    },
+                    (sessionId) => {
+                        updatePage(pageIdx, { sessionId });
                     }
                 );
             });
 
             await Promise.all(promises);
-            
-            // All done, save to backend
-            const finalPages = await new Promise<StratifyPage[]>(resolve => {
-                setPages(current => {
-                    // Strip extra thought_process before saving
-                    const cleanPages = current.map(({ thought_process, ...rest }) => rest);
-                    resolve(cleanPages);
-                    return current;
-                });
-            });
-            
-            await saveStratifyPages(taskId, finalPages);
-            await updateStratifyTask(taskId, { status: 'completed' });
-            onComplete(finalPages);
         };
 
         generateAll();
-    }, [outline, taskId, onComplete]);
+    }, [outline]);
+
+    // Handle Page Revision
+    const handlePageRevise = async (pageIndex: number, request: string) => {
+        const targetPage = pages.find(p => p.page_index === pageIndex);
+        if (!targetPage || targetPage.status === 'generating') return;
+
+        updatePage(pageIndex, { status: 'generating', isRevising: true, thought_process: '' });
+        
+        let buffer = ''; // Clear buffer for new content stream (replacement)
+        
+        // Use existing session if available, otherwise just use current content as context
+        const variables = {
+            current_content: targetPage.content_markdown || '',
+            user_revision_request: request
+        };
+
+        streamGenerate(
+            {
+                prompt_name: 'revise_content',
+                variables,
+                session_id: targetPage.sessionId
+            },
+            (chunk) => {
+                buffer += chunk;
+                const { thought, content, title } = parsePageStream(buffer);
+                updatePage(pageIndex, { 
+                    content_markdown: content,
+                    thought_process: thought || undefined,
+                    title: title || targetPage.title
+                });
+            },
+            () => {
+                updatePage(pageIndex, { status: 'done', isRevising: false });
+            },
+            (err) => {
+                console.error("Revision failed", err);
+                updatePage(pageIndex, { status: 'done', isRevising: false }); // Revert status but keep error logs?
+                alert("修改失败，请重试");
+            }
+        );
+    };
+
+    const handleCompleteAll = async () => {
+        // Save to backend
+        const finalPages = pages.map(({ thought_process, sessionId, isRevising, ...rest }) => rest);
+        await saveStratifyPages(taskId, finalPages);
+        await updateStratifyTask(taskId, { status: 'completed' });
+        onComplete(finalPages);
+    };
 
     // Calculate progress
     useEffect(() => {
@@ -684,17 +843,21 @@ const ContentGenerator: React.FC<{
         setProgress(Math.round((done / total) * 100));
     }, [pages]);
 
+    const isAllDone = pages.every(p => p.status === 'done' || p.status === 'failed');
+
     return (
         <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24 animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
                  <div>
                     <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">内容创作引擎运行中</h2>
                     <p className="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
-                        <span className="relative flex h-3 w-3">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                        </span>
-                        AI 正在并发撰写 {pages.length} 个章节，请稍候...
+                        {!isAllDone && (
+                            <span className="relative flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                            </span>
+                        )}
+                        {isAllDone ? '所有章节已生成，您可以逐页进行修改或直接完成。' : `AI 正在并发撰写 ${pages.length} 个章节，请稍候...`}
                     </p>
                  </div>
                  <div className="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100">
@@ -702,18 +865,32 @@ const ContentGenerator: React.FC<{
                         <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 font-mono">{progress}%</div>
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</div>
                     </div>
-                    <div className="w-16 h-16 relative">
-                        <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
-                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-indigo-600 transition-all duration-500 ease-out" strokeDasharray={175.9} strokeDashoffset={175.9 - (175.9 * progress) / 100} strokeLinecap="round" />
-                        </svg>
-                    </div>
+                    {isAllDone ? (
+                        <button 
+                            onClick={handleCompleteAll}
+                            className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
+                        >
+                            完成创作 <ArrowRightIcon className="w-5 h-5"/>
+                        </button>
+                    ) : (
+                        <div className="w-16 h-16 relative">
+                            <svg className="w-full h-full transform -rotate-90">
+                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
+                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-indigo-600 transition-all duration-500 ease-out" strokeDasharray={175.9} strokeDashoffset={175.9 - (175.9 * progress) / 100} strokeLinecap="round" />
+                            </svg>
+                        </div>
+                    )}
                  </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {pages.map((page) => (
-                    <PageGenerationCard key={page.page_index} page={page} />
+                    <PageGenerationCard 
+                        key={page.page_index} 
+                        page={page} 
+                        onRevise={handlePageRevise}
+                        isRevising={!!page.isRevising}
+                    />
                 ))}
             </div>
             
@@ -727,197 +904,96 @@ const ContentGenerator: React.FC<{
     );
 };
 
-// --- 阶段5: 预览 ---
-const ReportPreview: React.FC<{ 
-    taskId: string;
-    slides: Slide[]; 
-    onStartOver: () => void 
-}> = ({ taskId, slides, onStartOver }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    // Markdown rendering with window.marked (Assumed global)
-    const renderMarkdown = (content: string) => {
-        if (window.marked && typeof window.marked.parse === 'function') {
-            return { __html: window.marked.parse(content) };
-        }
-        return { __html: `<pre class="whitespace-pre-wrap">${content}</pre>` };
-    };
-
-    const goToPrev = () => setCurrentIndex(prev => (prev - 1 + slides.length) % slides.length);
-    const goToNext = () => setCurrentIndex(prev => (prev + 1) % slides.length);
-
-    return (
-        <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 h-full flex flex-col pt-4">
-            <div className="flex justify-between items-center mb-6 px-4">
-                <button onClick={onStartOver} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
-                    <ArrowLeftIcon className="w-4 h-4"/>
-                    返回首页
-                </button>
-                <div className="flex gap-3">
-                    <button className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all flex items-center gap-2">
-                        <DownloadIcon className="w-4 h-4" /> 导出 PDF
-                    </button>
-                </div>
-            </div>
-            
-            <div className="flex-1 flex gap-6 overflow-hidden px-4">
-                {/* Thumbnails */}
-                <div className="hidden md:flex flex-col w-56 gap-3 overflow-y-auto pr-2 custom-scrollbar pb-4">
-                    {slides.map((slide, idx) => (
-                        <div 
-                            key={slide.id}
-                            onClick={() => setCurrentIndex(idx)}
-                            className={`
-                                p-4 rounded-xl border cursor-pointer transition-all duration-200 group
-                                ${idx === currentIndex 
-                                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md transform scale-[1.02]' 
-                                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-sm'
-                                }
-                            `}
-                        >
-                            <div className="flex justify-between items-center mb-2">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${idx === currentIndex ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-100 text-slate-500'}`}>P {idx + 1}</span>
-                            </div>
-                            <div className={`text-xs font-bold line-clamp-2 ${idx === currentIndex ? 'text-indigo-900' : 'text-slate-700'}`}>{slide.title}</div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Main Slide */}
-                <div className="flex-1 flex flex-col min-w-0">
-                    <div className="aspect-[16/9] w-full bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 sm:p-12 md:p-16 flex flex-col relative overflow-hidden group">
-                        {/* Page Number Watermark */}
-                        <div className="absolute top-6 right-8 text-slate-100 font-black text-6xl opacity-50 pointer-events-none select-none font-mono">
-                            {String(currentIndex + 1).padStart(2, '0')}
-                        </div>
-                        
-                        <h3 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mb-8 leading-tight border-b-2 border-slate-100 pb-6 relative z-10">
-                            {slides[currentIndex].title}
-                        </h3>
-                        
-                        <div className="text-base sm:text-lg text-slate-600 leading-relaxed prose prose-slate max-w-none flex-1 overflow-y-auto custom-scrollbar relative z-10">
-                            <div dangerouslySetInnerHTML={renderMarkdown(slides[currentIndex].content)} />
-                        </div>
-                        
-                        {/* Nav Overlay */}
-                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 pointer-events-none flex justify-between items-center px-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <button onClick={goToPrev} className="pointer-events-auto p-3 bg-white/80 hover:bg-white text-slate-700 rounded-full shadow-lg border border-slate-100 backdrop-blur-sm transition-all hover:scale-110"><ArrowLeftIcon className="w-6 h-6" /></button>
-                            <button onClick={goToNext} className="pointer-events-auto p-3 bg-white/80 hover:bg-white text-slate-700 rounded-full shadow-lg border border-slate-100 backdrop-blur-sm transition-all hover:scale-110"><ArrowRightIcon className="w-6 h-6" /></button>
-                        </div>
-                    </div>
-                    
-                    <div className="mt-4 flex justify-center gap-2">
-                        {slides.map((_, idx) => (
-                            <button 
-                                key={idx}
-                                onClick={() => setCurrentIndex(idx)}
-                                className={`w-2 h-2 rounded-full transition-all ${idx === currentIndex ? 'bg-indigo-600 w-6' : 'bg-slate-300 hover:bg-slate-400'}`}
-                            />
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- Main Container ---
+// --- Main Export: Report Generator ---
 export const ReportGenerator: React.FC = () => {
-    const [flowState, setFlowState] = useState<'idea' | 'generatingOutline' | 'outlineReview' | 'generatingContent' | 'preview'>('idea');
-    const [taskId, setTaskId] = useState<string | null>(null);
-    const [topic, setTopic] = useState('');
-    const [outline, setOutline] = useState<StratifyOutline | null>(null);
-    const [slides, setSlides] = useState<Slide[]>([]);
-    const [isCreating, setIsCreating] = useState(false);
-
-    // Initial Task Creation
-    const handleStartTask = async (userIdea: string) => {
-        setIsCreating(true);
-        setTopic(userIdea);
+    const [step, setStep] = useState(1);
+    const [currentTask, setCurrentTask] = useState<StratifyTask | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    
+    // Step 1: Create Task
+    const handleStart = async (topic: string) => {
+        setIsLoading(true);
         try {
-            const task = await createStratifyTask(userIdea);
-            setTaskId(task.id);
-            setFlowState('generatingOutline');
+            const task = await createStratifyTask(topic);
+            setCurrentTask(task);
+            setStep(2); // Move to outline generation step
         } catch (e) {
-            alert('创建任务失败');
+            alert("启动失败，请重试");
         } finally {
-            setIsCreating(false);
+            setIsLoading(false);
         }
     };
-    
-    // Outline Confirmation
-    const handleOutlineConfirm = (confirmedOutline: StratifyOutline) => {
-        setOutline(confirmedOutline);
-        setFlowState('generatingContent');
+
+    // Step 2 & 3: Outline Confirmed
+    const handleOutlineConfirmed = (outline: StratifyOutline) => {
+        if (currentTask) {
+            setCurrentTask({ ...currentTask, outline });
+            setStep(4); // Move to content generation
+        }
     };
 
-    // Content Generation Completion
+    // Step 4: Content Generation Complete
     const handleContentComplete = (pages: StratifyPage[]) => {
-        const uiSlides: Slide[] = pages.map(p => ({
-            id: `p-${p.page_index}`,
-            title: p.title,
-            content: p.content_markdown || '',
-            status: 'done'
-        }));
-        setSlides(uiSlides);
-        setFlowState('preview');
-    };
-    
-    const handleStartOver = () => {
-        setTaskId(null);
-        setOutline(null);
-        setSlides([]);
-        setFlowState('idea');
+        if (currentTask) {
+            setCurrentTask({ ...currentTask, pages, status: 'completed' });
+            setStep(5);
+        }
     };
 
-    const getStepFromState = (state: string) => {
-        switch(state) {
-            case 'idea': return 1;
-            case 'generatingOutline': return 2;
-            case 'outlineReview': return 3; // Technically inside modal flow, but conceptually review
-            case 'generatingContent': return 4;
-            case 'preview': return 5;
-            default: return 1;
-        }
+    const handleReset = () => {
+        setStep(1);
+        setCurrentTask(null);
     };
 
     return (
-        <div className="p-4 sm:p-6 bg-[#f8fafc] min-h-full flex flex-col font-sans">
-            <ProcessFlowCards currentStep={getStepFromState(flowState)} />
-            
-            <div className="flex-1 relative">
-                {flowState === 'idea' && (
-                    <IdeaInput onStart={handleStartTask} isLoading={isCreating} />
-                )}
-                
-                {/* 
-                    New Modal-based Outline Generation
-                    It triggers automatically when state is 'generatingOutline' and we have a task ID
-                */}
-                <OutlineGenerationModal 
-                    isOpen={flowState === 'generatingOutline' && !!taskId}
-                    taskId={taskId!}
-                    topic={topic}
-                    onClose={() => setFlowState('idea')}
-                    onConfirm={handleOutlineConfirm}
-                />
+        <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
+            {/* Header / Process Bar */}
+            <ProcessFlowCards currentStep={step} />
 
-                {flowState === 'generatingContent' && taskId && outline && (
+            <div className="flex-1 relative z-10 overflow-hidden">
+                {step === 1 && (
+                    <IdeaInput onStart={handleStart} isLoading={isLoading} />
+                )}
+
+                {step === 4 && currentTask && currentTask.outline && (
                     <ContentGenerator 
-                        taskId={taskId}
-                        outline={outline}
-                        onComplete={handleContentComplete} 
+                        taskId={currentTask.id}
+                        outline={currentTask.outline}
+                        onComplete={handleContentComplete}
                     />
                 )}
-                
-                {flowState === 'preview' && taskId && (
-                    <ReportPreview 
-                        taskId={taskId}
-                        slides={slides} 
-                        onStartOver={handleStartOver} 
-                    />
+
+                {step === 5 && (
+                    <div className="flex flex-col items-center justify-center h-full gap-6 animate-in zoom-in-95 duration-500">
+                        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-4 shadow-xl">
+                            <CheckIcon className="w-12 h-12" />
+                        </div>
+                        <h2 className="text-3xl font-bold text-slate-800">报告生成完成</h2>
+                        <p className="text-slate-500 max-w-md text-center">
+                            您的报告已生成完毕。您可以前往“深度洞察”模块查看完整文档，或下载 PDF。
+                        </p>
+                        <div className="flex gap-4">
+                            <button onClick={handleReset} className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
+                                生成新报告
+                            </button>
+                            <a href="/#/" onClick={(e) => { e.preventDefault(); /* Navigate logic if needed or href for simplicity */ window.location.hash = '#/dives'; window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">
+                                查看报告
+                            </a>
+                        </div>
+                    </div>
                 )}
             </div>
+
+            {/* Outline Modal (Controlled) */}
+            {currentTask && (
+                <OutlineGenerationModal 
+                    isOpen={step === 2 || step === 3}
+                    taskId={currentTask.id}
+                    topic={currentTask.topic}
+                    onClose={() => setStep(1)} // Cancel
+                    onConfirm={handleOutlineConfirmed}
+                />
+            )}
         </div>
     );
 };

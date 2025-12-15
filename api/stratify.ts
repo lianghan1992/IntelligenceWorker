@@ -15,7 +15,8 @@ export const streamGenerate = async (
     params: GenerateStreamParams,
     onData: (text: string) => void,
     onDone?: () => void,
-    onError?: (err: any) => void
+    onError?: (err: any) => void,
+    onSessionId?: (sessionId: string) => void
 ) => {
     const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
@@ -57,6 +58,12 @@ export const streamGenerate = async (
                     }
                     try {
                         const json = JSON.parse(dataStr);
+                        
+                        // Handle Session ID from the stream
+                        if (json.session_id && onSessionId) {
+                            onSessionId(json.session_id);
+                        }
+
                         if (json.content) {
                             onData(json.content);
                         }
