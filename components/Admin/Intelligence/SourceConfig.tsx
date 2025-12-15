@@ -87,7 +87,8 @@ export const SourceConfig: React.FC = () => {
         setRunningPointId(pointId);
         try {
             await triggerSpiderTask({ point_uuid: pointId, task_type: type });
-            // Task triggered, button will just stop spinning. No modal.
+            // Refresh list to update status if applicable, though crawl takes time.
+            fetchPoints(); 
         } catch (e) { alert('触发任务失败'); }
         finally { setRunningPointId(null); }
     };
@@ -123,8 +124,7 @@ export const SourceConfig: React.FC = () => {
             } else {
                 await enableSpiderPoint(point.uuid);
             }
-            // Optimistic update for better UX
-            setPoints(prev => prev.map(p => p.uuid === point.uuid ? { ...p, is_active: !p.is_active } : p));
+            await fetchPoints(); // Refresh from server to ensure sync
         } catch (e) {
             alert('操作失败');
         } finally {
@@ -225,8 +225,8 @@ export const SourceConfig: React.FC = () => {
                                         
                                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4 bg-gray-50 p-2 md:p-3 rounded-lg">
                                             <div className="col-span-2"><span className="text-gray-400">调度规则:</span> <span className="font-mono text-indigo-600 font-bold">{point.cron_schedule}</span></div>
-                                            <div><span className="text-gray-400">上次采集:</span> {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleDateString() : 'Never'}</div>
-                                            <div><span className="text-gray-400">深度:</span> {point.initial_pages || 100} 页</div>
+                                            <div><span className="text-gray-400">上次采集:</span> {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never'}</div>
+                                            <div><span className="text-gray-400">深度:</span> {point.initial_pages ? `${point.initial_pages} 页` : '-'}</div>
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
