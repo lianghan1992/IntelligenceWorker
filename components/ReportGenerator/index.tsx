@@ -4,7 +4,7 @@ import {
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
-    ClockIcon, PencilIcon, RefreshIcon
+    ClockIcon, PencilIcon, RefreshIcon, StopIcon
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -14,7 +14,69 @@ import {
     streamGenerate, 
 } from '../../api/stratify';
 
-// --- 流程动画卡片组件 ---
+// --- 样式注入：修复 Markdown 表格和排版 ---
+const MarkdownStyles = () => (
+    <style>{`
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5em;
+            margin-bottom: 1.5em;
+            font-size: 0.875em;
+            line-height: 1.5; /* 增加行高 */
+        }
+        .prose th {
+            background-color: #f8fafc;
+            font-weight: 700;
+            text-align: left;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            color: #1e293b;
+        }
+        .prose td {
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+        }
+        .prose tr:nth-child(even) {
+            background-color: #fcfcfc;
+        }
+        .prose blockquote {
+            font-style: normal;
+            border-left-width: 4px;
+            border-color: #6366f1; /* Indigo-500 */
+            background-color: #f5f3ff; /* Indigo-50 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            color: #4f46e5;
+        }
+        .prose ul > li::marker {
+            color: #cbd5e1;
+        }
+        .prose h1, .prose h2, .prose h3 {
+            color: #0f172a;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+        }
+        /* 打字机光标效果 */
+        .typing-cursor::after {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 1.2em;
+            background-color: #4f46e5;
+            margin-left: 2px;
+            vertical-align: text-bottom;
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+    `}</style>
+);
+
+// --- 流程动画卡片组件 (保持不变) ---
 const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) => {
     const steps = [
         { id: 1, icon: LightBulbIcon, title: "意图识别", desc: "语义解析", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", ring: "ring-amber-100" },
@@ -25,7 +87,7 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     ];
 
     return (
-        <div className="w-full max-w-5xl mx-auto mb-8 px-4 pt-6">
+        <div className="w-full max-w-5xl mx-auto mb-4 px-4 pt-4 flex-shrink-0">
             <div className="relative">
                 <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 rounded-full hidden md:block"></div>
                 <div 
@@ -45,7 +107,7 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                                 className={`flex flex-col items-center text-center transition-all duration-500 group ${isPending ? 'opacity-50 grayscale' : 'opacity-100'}`}
                             >
                                 <div className={`
-                                    relative w-10 h-10 md:w-14 md:h-14 rounded-2xl border flex items-center justify-center transition-all duration-500 ease-out
+                                    relative w-8 h-8 md:w-12 md:h-12 rounded-2xl border flex items-center justify-center transition-all duration-500 ease-out
                                     ${isActive 
                                         ? `bg-white ${step.border} shadow-[0_0_25px_rgba(0,0,0,0.08)] scale-110 z-20 ring-4 ${step.ring}` 
                                         : isCompleted 
@@ -54,20 +116,13 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                                     }
                                 `}>
                                     <div className={`transition-all duration-300 transform ${isActive ? `${step.color} scale-110` : ''}`}>
-                                        {isCompleted ? <CheckIcon className="w-5 h-5 md:w-6 md:h-6" /> : <step.icon className="w-5 h-5 md:w-6 md:h-6" />}
+                                        {isCompleted ? <CheckIcon className="w-4 h-4 md:w-6 md:h-6" /> : <step.icon className="w-4 h-4 md:w-6 md:h-6" />}
                                     </div>
-                                    {isActive && (
-                                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${step.bg} opacity-75`}></span>
-                                            <span className={`relative inline-flex rounded-full h-3 w-3 ${step.color.replace('text-', 'bg-')}`}></span>
-                                        </span>
-                                    )}
                                 </div>
-                                <div className={`mt-3 space-y-0.5 transition-all duration-300 ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-70'}`}>
+                                <div className={`mt-2 space-y-0.5 transition-all duration-300 ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-70'}`}>
                                     <h4 className={`text-[10px] md:text-xs font-bold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                                         {step.title}
                                     </h4>
-                                    <p className="hidden md:block text-[10px] text-gray-400 font-medium">{step.desc}</p>
                                 </div>
                             </div>
                         );
@@ -78,7 +133,7 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     );
 };
 
-// --- 阶段1: 创意输入 ---
+// --- 阶段1: 创意输入 (保持不变) ---
 const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean }> = ({ onStart, isLoading }) => {
     const [idea, setIdea] = useState('');
 
@@ -145,102 +200,74 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
     );
 };
 
-// --- Helper: Incremental Stream Parser for Outline ---
+// --- Parsers (Helpers) ---
 const parseIncrementalStream = (text: string): { thought: string | null, title: string | null, outline: any[] } => {
     let thought = null;
     let title = null;
     let outline: any[] = [];
 
-    // 1. Extract Thought Process (Incremental)
     const thoughtRegex = /"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s;
     const thoughtMatch = text.match(thoughtRegex);
     if (thoughtMatch) {
-        // Handle escaped newlines for display
         thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
     }
 
-    // 2. Extract Title (Incremental)
     const titleRegex = /"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/;
     const titleMatch = text.match(titleRegex);
     if (titleMatch) {
         title = titleMatch[1];
     } else {
-        // Fallback for markdown format title
         const mdTitle = text.match(/^#\s+(.*$)/m);
         if (mdTitle) title = mdTitle[1].trim();
     }
 
-    // 3. Extract Outline Items (Incremental)
-    // Support both "content" and "summary" keys as the LLM might interchange them
     const outlineStartIdx = text.indexOf('"outline"');
     if (outlineStartIdx !== -1) {
         const outlineSection = text.slice(outlineStartIdx);
-        // Regex to capture title and either content or summary
-        // Note: The structure is typically [{"title": "...", "summary": "..."}, ...]
         const itemRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(.*?)(?:"\s*}|"\s*,|"$)/gs;
         
         let match;
         while ((match = itemRegex.exec(outlineSection)) !== null) {
             const cleanTitle = match[1].replace(/\\"/g, '"');
-            // Content might be partial (hit end of string)
             const cleanContent = match[2].replace(/\\"/g, '"').replace(/\\n/g, ' ');
             
-            // Only add if we have at least a title
             if (cleanTitle) {
-                outline.push({
-                    title: cleanTitle,
-                    content: cleanContent
-                });
+                outline.push({ title: cleanTitle, content: cleanContent });
             }
         }
     }
-
     return { thought, title, outline };
 };
 
-// --- Helper: Incremental Stream Parser for Content (Page) ---
-// Parses: { "thought_process": "...", "title": "...", "content": "..." }
 const parsePageStream = (text: string) => {
     let thought = null;
     let content = '';
     let title = null;
 
-    // Extract thought
     const thoughtMatch = text.match(/"thought_process"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/s);
     if (thoughtMatch) {
         thought = thoughtMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
     }
 
-    // Extract Title (if present)
     const titleMatch = text.match(/"title"\s*:\s*"(.*?)(?:"\s*,|"\s*}|$)/);
     if (titleMatch) {
         title = titleMatch[1];
     }
 
-    // Extract content
-    // We look for "content": " ... and take everything after it until the end or closing quote
     const contentStartMatch = text.match(/"content"\s*:\s*"/);
     if (contentStartMatch && contentStartMatch.index !== undefined) {
         const start = contentStartMatch.index + contentStartMatch[0].length;
         let raw = text.slice(start);
         
-        // Robust cleanup for end of stream or end of JSON
-        // If it looks like it ends with the JSON closing sequence
         if (raw.match(/"\s*}\s*(```)?\s*$/)) {
              raw = raw.replace(/"\s*}\s*(```)?\s*$/, '');
         } else if (raw.endsWith('"')) {
-             // Check if it's an escaped quote (part of content) or real closing quote
              if (!raw.endsWith('\\"')) {
                  raw = raw.slice(0, -1);
              }
         }
 
-        // Unescape JSON string
-        content = raw
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\')
-            .replace(/\\t/g, '\t');
+        content = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\t/g, '\t');
     }
 
     return { thought, content, title };
@@ -252,13 +279,12 @@ const OutlineGenerationModal: React.FC<{
     taskId: string;
     topic: string;
     onClose: () => void;
-    onConfirm: (outline: StratifyOutline) => void;
+    onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
 }> = ({ isOpen, taskId, topic, onClose, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [finalOutline, setFinalOutline] = useState<StratifyOutline | null>(null);
     const [showThought, setShowThought] = useState(true);
-    const [showDebug, setShowDebug] = useState(false); // Debug state
+    const [showDebug, setShowDebug] = useState(false);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [revisionInput, setRevisionInput] = useState('');
     const [isRevising, setIsRevising] = useState(false);
@@ -290,7 +316,7 @@ const OutlineGenerationModal: React.FC<{
                     setIsGenerating(false);
                 },
                 (sid) => {
-                    setSessionId(sid);
+                    if (sid) setSessionId(sid);
                 }
             );
         }
@@ -298,16 +324,13 @@ const OutlineGenerationModal: React.FC<{
 
     // Handle Revision Request
     const handleReviseOutline = async () => {
-        if (!revisionInput.trim() || !sessionId || isGenerating) return;
+        if (!revisionInput.trim() || isGenerating) return;
         
         setIsRevising(true);
         setIsGenerating(true);
-        setStreamContent(''); // Clear previous stream for new one
+        setStreamContent(''); // Clear for new content
+        const currentInput = revisionInput;
         setRevisionInput('');
-        
-        // Pass the current structured outline as context if needed, or rely on session history.
-        // Based on backend API: revise_outline variables: current_outline, user_revision_request
-        // We will pass the full JSON string of the current parsed outline.
         
         const currentOutlineStr = JSON.stringify(displayData.outline);
 
@@ -316,9 +339,9 @@ const OutlineGenerationModal: React.FC<{
                 prompt_name: 'revise_outline',
                 variables: { 
                     current_outline: currentOutlineStr, 
-                    user_revision_request: revisionInput 
+                    user_revision_request: currentInput 
                 },
-                session_id: sessionId // Maintain session
+                session_id: sessionId || undefined // Use existing session
             },
             (chunk) => {
                 setStreamContent(prev => prev + chunk);
@@ -335,7 +358,7 @@ const OutlineGenerationModal: React.FC<{
         );
     };
 
-    // Smart Auto-scroll: Only if user is near bottom
+    // Smart Auto-scroll
     useEffect(() => {
         if (scrollContainerRef.current && isGenerating) {
             const { scrollHeight, scrollTop, clientHeight } = scrollContainerRef.current;
@@ -346,23 +369,19 @@ const OutlineGenerationModal: React.FC<{
         }
     }, [streamContent, isGenerating]);
 
-    // Parse Data using the incremental parser
     const displayData = useMemo(() => {
-        const parsed = parseIncrementalStream(streamContent);
-        return parsed;
+        return parseIncrementalStream(streamContent);
     }, [streamContent]);
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop with strong blur */}
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-500" onClick={onClose}></div>
 
-            {/* Modal Container */}
             <div className="relative bg-white/95 w-full max-w-4xl rounded-[24px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-4 duration-500 ring-1 ring-black/5">
                 
-                {/* 1. Header Area */}
+                {/* Header */}
                 <div className="px-6 py-4 border-b border-slate-100 bg-white/90 backdrop-blur-md z-10 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className={`p-2.5 rounded-xl transition-colors duration-500 ${isGenerating ? 'bg-indigo-50 text-indigo-600' : 'bg-green-50 text-green-600'}`}>
@@ -400,10 +419,9 @@ const OutlineGenerationModal: React.FC<{
                     </div>
                 </div>
 
-                {/* 2. Scrollable Content */}
+                {/* Content */}
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-slate-50/50 p-6 sm:p-8 custom-scrollbar relative space-y-8">
-                    
-                    {/* A. Thinking Process (Terminal Style) */}
+                    {/* Thinking Process */}
                     <div className="animate-in slide-in-from-top-4 duration-700">
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-[#1e1e1e] ${showThought ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="p-4 font-mono text-xs sm:text-sm text-green-400/90 leading-relaxed overflow-y-auto max-h-[400px] custom-scrollbar-dark">
@@ -422,9 +440,8 @@ const OutlineGenerationModal: React.FC<{
                         </div>
                     </div>
 
-                    {/* B. Generated Result (Document Style) */}
+                    {/* Result */}
                     <div className="space-y-6">
-                        {/* Title Section */}
                         <div className="space-y-2">
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">
                                 <DocumentTextIcon className="w-4 h-4" /> Proposed Title
@@ -438,7 +455,6 @@ const OutlineGenerationModal: React.FC<{
                             )}
                         </div>
 
-                        {/* Outline Cards */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">
                                 <ViewGridIcon className="w-4 h-4" /> Structural Outline
@@ -448,9 +464,9 @@ const OutlineGenerationModal: React.FC<{
                                 {displayData.outline.map((item: any, idx: number) => (
                                     <div 
                                         key={idx} 
-                                        className="group bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex gap-5 items-start transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200 animate-in slide-in-from-bottom-4 fill-mode-backwards hover:-translate-y-0.5"
+                                        className="group bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex gap-5 items-start transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200 animate-in slide-in-from-bottom-4 fill-mode-backwards"
                                     >
-                                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center text-sm font-bold font-mono border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/30 transition-all duration-300 mt-1">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-slate-50 text-slate-500 rounded-lg flex items-center justify-center text-sm font-bold font-mono border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 mt-1">
                                             {String(idx + 1).padStart(2, '0')}
                                         </div>
                                         <div className="flex-1 min-w-0">
@@ -459,7 +475,6 @@ const OutlineGenerationModal: React.FC<{
                                             </h4>
                                             <p className="text-sm text-slate-500 leading-relaxed group-hover:text-slate-600">
                                                 {item.content}
-                                                {/* If this is the last item and still generating, show cursor */}
                                                 {isGenerating && idx === displayData.outline.length - 1 && (
                                                     <span className="inline-block w-1.5 h-1.5 bg-indigo-500 rounded-full ml-1 animate-ping"></span>
                                                 )}
@@ -468,7 +483,6 @@ const OutlineGenerationModal: React.FC<{
                                     </div>
                                 ))}
                                 
-                                {/* Loading Skeleton Card (When thinking but no new item yet) */}
                                 {isGenerating && (
                                     <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-slate-400 bg-slate-50/30 animate-pulse">
                                         <div className="w-4 h-4 border-2 border-slate-300 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -482,7 +496,7 @@ const OutlineGenerationModal: React.FC<{
                     <div ref={contentEndRef} className="h-4" />
                 </div>
 
-                {/* Debug Panel (Optional) */}
+                {/* Debug */}
                 {showDebug && (
                     <div className="px-8 pb-4 border-t border-slate-100 bg-slate-50">
                         <div className="text-xs text-slate-400 mb-1 font-bold">RAW STREAM DATA:</div>
@@ -494,16 +508,15 @@ const OutlineGenerationModal: React.FC<{
                     </div>
                 )}
 
-                {/* 3. Footer Action */}
+                {/* Footer */}
                 <div className="px-8 py-5 border-t border-slate-100 bg-white z-10 flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4">
-                    {/* Revision Input Area (Only visible when not generating) */}
                     {!isGenerating && (
                         <div className="flex-1 w-full flex items-center gap-2">
                             <input 
                                 type="text" 
                                 value={revisionInput}
                                 onChange={(e) => setRevisionInput(e.target.value)}
-                                placeholder="输入修改建议，如：'增加关于自动驾驶的章节' 或 '让语气更专业'"
+                                placeholder="输入修改建议，如：'增加关于自动驾驶的章节'..."
                                 className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-shadow"
                                 onKeyDown={(e) => e.key === 'Enter' && handleReviseOutline()}
                             />
@@ -544,7 +557,8 @@ const OutlineGenerationModal: React.FC<{
                                         pages: displayData.outline
                                     };
                                     updateStratifyTask(taskId, { status: 'outline_generated', outline: normalized });
-                                    onConfirm(normalized);
+                                    // Pass both outline AND sessionId to proceed to next step
+                                    onConfirm(normalized, sessionId);
                                 }
                             }}
                             disabled={isGenerating || displayData.outline.length === 0}
@@ -576,32 +590,26 @@ const OutlineGenerationModal: React.FC<{
     );
 };
 
-// --- Component: Page Generation Card ---
+// --- Component: Page Generation Card (Enhanced Layout) ---
 const PageGenerationCard: React.FC<{ 
     page: StratifyPage & { thought_process?: string; sessionId?: string };
     onRevise: (pageIndex: number, request: string) => void;
     isRevising: boolean;
 }> = ({ page, onRevise, isRevising }) => {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const [isHovered, setIsHovered] = useState(false);
     const [revisionInput, setRevisionInput] = useState('');
-    const [showRevisionInput, setShowRevisionInput] = useState(false);
-
-    // Auto-scroll to bottom when content updates
+    
+    // Auto-scroll when generating
+    const cardRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        if (scrollRef.current && page.status === 'generating') {
-            // Use scrollTo with smooth behavior for natural effect
-            scrollRef.current.scrollTo({
-                top: scrollRef.current.scrollHeight,
-                behavior: 'smooth'
-            });
+        if (page.status === 'generating' && cardRef.current) {
+            // Scroll element into view smoothly if it's the active one
+            // cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-    }, [page.content_markdown, page.status, page.thought_process]);
+    }, [page.status]);
 
     const renderMarkdown = (content: string) => {
         if (!content) return { __html: '' };
         if (window.marked && typeof window.marked.parse === 'function') {
-            // Add custom class for prose
             return { __html: window.marked.parse(content) };
         }
         return { __html: `<pre class="whitespace-pre-wrap font-sans">${content}</pre>` };
@@ -612,224 +620,208 @@ const PageGenerationCard: React.FC<{
         if (!revisionInput.trim()) return;
         onRevise(page.page_index, revisionInput);
         setRevisionInput('');
-        setShowRevisionInput(false);
     };
 
     return (
-        <div 
-            className={`
-                bg-white rounded-2xl border shadow-sm transition-all duration-500 relative overflow-hidden group flex flex-col h-[30rem]
-                ${page.status === 'generating' 
-                    ? 'border-indigo-500/50 ring-4 ring-indigo-500/10 shadow-xl shadow-indigo-500/10 scale-[1.01] z-10' 
-                    : 'border-slate-200 hover:shadow-md hover:border-slate-300'
-                }
-            `}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
-            {/* Status Bar / Header */}
-            <div className={`px-5 py-4 border-b flex justify-between items-center flex-shrink-0 ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-white border-slate-100'}`}>
-                <div className="flex items-center gap-3 min-w-0">
-                    <span className={`text-[10px] font-extrabold px-2 py-1 rounded border tracking-wider flex-shrink-0 ${
-                        page.status === 'done' ? 'bg-green-100 text-green-700 border-green-200' : 
-                        page.status === 'generating' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
-                        'bg-slate-100 text-slate-500 border-slate-200'
-                    }`}>
-                        PAGE {String(page.page_index).padStart(2, '0')}
+        <div ref={cardRef} className="w-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col mb-8 transition-all hover:shadow-xl">
+            {/* Header / Status Bar */}
+            <div className={`px-6 py-4 border-b flex justify-between items-center ${page.status === 'generating' ? 'bg-indigo-50/50 border-indigo-100' : 'bg-gray-50 border-gray-100'}`}>
+                <div className="flex items-center gap-3">
+                    <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-slate-200 font-mono font-bold text-slate-500 shadow-sm">
+                        {String(page.page_index).padStart(2, '0')}
                     </span>
-                    <h3 className="font-bold text-slate-800 text-sm truncate" title={page.title}>{page.title}</h3>
+                    <h3 className="text-lg font-bold text-slate-800">{page.title}</h3>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                    {page.status === 'done' && !isRevising && (
-                        <button 
-                            onClick={() => setShowRevisionInput(!showRevisionInput)}
-                            className={`p-1.5 rounded-lg transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 ${isHovered || showRevisionInput ? 'opacity-100' : 'opacity-0'}`}
-                            title="修改本页"
-                        >
-                            <PencilIcon className="w-4 h-4" />
-                        </button>
-                    )}
-                    {page.status === 'done' && <CheckIcon className="w-5 h-5 text-green-500 flex-shrink-0" />}
+                <div className="flex items-center gap-3">
+                    {page.status === 'done' && <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full"><CheckIcon className="w-3 h-3"/> 已完成</span>}
                     {page.status === 'generating' && (
-                        <div className="flex items-center gap-2 text-indigo-600 flex-shrink-0">
-                            <span className="text-[10px] font-bold uppercase tracking-wider animate-pulse hidden sm:inline">{isRevising ? 'Revising' : 'Writing'}</span>
-                            <div className="flex gap-0.5">
-                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce"></span>
-                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.1s]"></span>
-                                <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                            </div>
+                        <div className="flex items-center gap-2 text-indigo-600">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
+                            </span>
+                            <span className="text-xs font-bold uppercase tracking-wider">{isRevising ? '正在修改...' : '正在撰写...'}</span>
                         </div>
                     )}
+                    {page.status === 'pending' && <span className="text-xs text-slate-400 font-medium">等待中</span>}
                 </div>
             </div>
-            
-            {/* Revision Input Overlay */}
-            {showRevisionInput && (
-                <div className="absolute top-[60px] left-0 right-0 z-20 p-3 bg-white border-b border-indigo-100 shadow-md animate-in slide-in-from-top-2">
-                    <form onSubmit={handleRevisionSubmit} className="flex gap-2">
+
+            {/* Content Body (Document Style) */}
+            <div className="p-8 md:p-12 min-h-[400px] bg-white relative">
+                <MarkdownStyles />
+                
+                {/* Thinking Block */}
+                {page.status === 'generating' && !page.content_markdown && page.thought_process && (
+                    <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700 shadow-inner">
+                        <div className="flex items-center gap-2 text-green-400 text-xs font-mono font-bold uppercase mb-2">
+                            <BrainIcon className="w-3 h-3 animate-pulse" /> AI Thinking
+                        </div>
+                        <div className="text-slate-300 text-sm font-mono leading-relaxed whitespace-pre-wrap opacity-90">
+                            {page.thought_process}
+                        </div>
+                    </div>
+                )}
+
+                {/* Main Text Content */}
+                {page.content_markdown ? (
+                    <div className="prose prose-lg max-w-none text-slate-700 prose-headings:text-slate-900 prose-strong:text-slate-900 prose-a:text-indigo-600">
+                        <div dangerouslySetInnerHTML={renderMarkdown(page.content_markdown)} />
+                        {page.status === 'generating' && <span className="typing-cursor"></span>}
+                    </div>
+                ) : (
+                    page.status === 'pending' && (
+                        <div className="flex flex-col items-center justify-center h-full py-20 opacity-30">
+                            <DocumentTextIcon className="w-16 h-16 text-slate-400 mb-4" />
+                            <p className="text-slate-500 font-medium">内容即将生成</p>
+                        </div>
+                    )
+                )}
+            </div>
+
+            {/* Revision Footer (Chat Style) */}
+            {page.status === 'done' && (
+                <div className="border-t border-slate-100 bg-slate-50 p-4">
+                    <form onSubmit={handleRevisionSubmit} className="relative flex items-center gap-2 max-w-3xl mx-auto">
+                        <div className="absolute left-3 text-indigo-500">
+                            <SparklesIcon className="w-5 h-5" />
+                        </div>
                         <input 
                             type="text" 
-                            autoFocus
+                            className="w-full pl-10 pr-24 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-sm text-slate-700"
+                            placeholder="输入修改意见，例如：‘补充更多数据案例’ 或 ‘精简本段文字’..."
                             value={revisionInput}
                             onChange={(e) => setRevisionInput(e.target.value)}
-                            placeholder="输入修改意见，例如：'精简本页内容'..."
-                            className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            disabled={isRevising}
                         />
                         <button 
-                            type="submit"
-                            disabled={!revisionInput.trim()}
-                            className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                            type="submit" 
+                            disabled={!revisionInput.trim() || isRevising}
+                            className="absolute right-2 px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
                         >
-                            确认
-                        </button>
-                        <button 
-                            type="button"
-                            onClick={() => setShowRevisionInput(false)}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                        >
-                            <CloseIcon className="w-4 h-4" />
+                            发送
                         </button>
                     </form>
                 </div>
             )}
-
-            <div 
-                ref={scrollRef}
-                className="flex-1 bg-slate-50/30 p-6 font-sans text-sm overflow-y-auto relative custom-scrollbar group-hover:bg-white transition-colors"
-            >
-                {/* Empty State / Pending */}
-                {!page.content_markdown && !page.thought_process && (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2 opacity-60">
-                        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-slate-400 animate-spin" style={{ animationDuration: '3s' }}></div>
-                        <span className="text-xs font-medium">准备中...</span>
-                    </div>
-                )}
-
-                {/* Thinking State */}
-                {page.status === 'generating' && !page.content_markdown && page.thought_process && (
-                    <div className="bg-slate-900 rounded-lg p-4 mb-4 font-mono text-xs text-green-400 border border-slate-800 shadow-inner animate-in slide-in-from-top-2">
-                        <div className="flex items-center gap-2 mb-2 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
-                            <BrainIcon className="w-3 h-3" /> AI Thinking
-                        </div>
-                        <div className="whitespace-pre-wrap leading-relaxed opacity-90">
-                            {page.thought_process}
-                            <span className="inline-block w-1.5 h-3 bg-green-500 ml-1 animate-pulse align-middle"></span>
-                        </div>
-                    </div>
-                )}
-
-                {/* Content Stream */}
-                {page.content_markdown && (
-                    <div className="prose prose-sm max-w-none prose-slate prose-p:leading-relaxed prose-headings:font-bold prose-headings:text-slate-800 animate-in fade-in duration-500">
-                        <div dangerouslySetInnerHTML={renderMarkdown(page.content_markdown)} />
-                        {page.status === 'generating' && (
-                            <span className="inline-block w-2 h-5 bg-indigo-500 ml-1 animate-pulse align-middle shadow-[0_0_8px_rgba(99,102,241,0.5)]"></span>
-                        )}
-                    </div>
-                )}
-            </div>
         </div>
     );
 };
 
-// --- 阶段4: 并发内容生成 ---
+// --- 阶段4: 串行内容生成 (Sequential Generation) ---
 const ContentGenerator: React.FC<{
     taskId: string;
     outline: StratifyOutline;
     onComplete: (pages: StratifyPage[]) => void;
-}> = ({ taskId, outline, onComplete }) => {
-    // Local state to track each page's generation status and content
-    // Added thought_process to state for live feedback
+    initialSessionId: string | null;
+}> = ({ taskId, outline, onComplete, initialSessionId }) => {
+    // Shared State
     const [pages, setPages] = useState<(StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean })[]>(() => 
         outline.pages.map((p, i) => ({
             page_index: i + 1,
             title: p.title,
             content_markdown: '',
             html_content: null,
-            status: 'pending', // pending -> generating -> done
+            status: 'pending',
             thought_process: '',
-            isRevising: false
+            isRevising: false,
+            // Initialize with the session ID from outline stage if available, but technically content gen starts its own flow or continues
+            // We will maintain a single running session ID in the parent ref to chain requests.
         }))
     );
     
-    const [progress, setProgress] = useState(0);
+    // We use a ref to track the CURRENT active session ID across the sequential chain
+    const currentSessionIdRef = useRef<string | null>(initialSessionId);
     const hasStartedRef = useRef(false);
+    const [progress, setProgress] = useState(0);
 
-    const updatePage = (idx: number, updates: Partial<StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean }>) => {
+    const updatePage = (idx: number, updates: Partial<typeof pages[0]>) => {
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
     };
 
-    // Initial Generation
+    // Sequential Generation Logic
     useEffect(() => {
         if (hasStartedRef.current) return;
         hasStartedRef.current = true;
 
-        // Start generation for all pages (Frontend Drive!)
-        const generateAll = async () => {
-            const promises = outline.pages.map(async (pageOutline, i) => {
+        const generateSequentially = async () => {
+            // Iterate through pages sequentially
+            for (let i = 0; i < outline.pages.length; i++) {
+                const pageOutline = outline.pages[i];
                 const pageIdx = i + 1;
+
                 updatePage(pageIdx, { status: 'generating' });
 
                 let buffer = '';
-                await streamGenerate(
-                    {
-                        prompt_name: 'generate_content',
-                        variables: {
-                            outline: JSON.stringify(outline), // Pass full context
-                            page_index: pageIdx,
-                            page_title: pageOutline.title,
-                            page_summary: pageOutline.content
+                // Flag to ensure we only capture the session ID once per stream if needed, 
+                // but actually we just need to update our ref if it changes/is established.
+                
+                try {
+                    await streamGenerate(
+                        {
+                            prompt_name: 'generate_content',
+                            variables: {
+                                outline: JSON.stringify(outline), 
+                                page_index: pageIdx,
+                                page_title: pageOutline.title,
+                                page_summary: pageOutline.content
+                            },
+                            // CRITICAL: Pass the current session ID to maintain context
+                            session_id: currentSessionIdRef.current || undefined
+                        },
+                        (chunk) => {
+                            buffer += chunk;
+                            const { thought, content, title } = parsePageStream(buffer);
+                            updatePage(pageIdx, { 
+                                content_markdown: content,
+                                thought_process: thought || undefined,
+                                title: title || pageOutline.title 
+                            });
+                        },
+                        () => {
+                            updatePage(pageIdx, { status: 'done' });
+                            setProgress(Math.round(((i + 1) / outline.pages.length) * 100));
+                        },
+                        (err) => {
+                            console.error(`Page ${pageIdx} error:`, err);
+                            updatePage(pageIdx, { status: 'failed', content_markdown: `生成失败: ${err}` });
+                        },
+                        (sid) => {
+                            // Update the session ref so the NEXT page uses this session
+                            if (sid) {
+                                currentSessionIdRef.current = sid;
+                                updatePage(pageIdx, { sessionId: sid });
+                            }
                         }
-                    },
-                    (chunk) => {
-                        buffer += chunk;
-                        // Real-time parsing of the JSON stream
-                        const { thought, content, title } = parsePageStream(buffer);
-                        updatePage(pageIdx, { 
-                            content_markdown: content,
-                            thought_process: thought || undefined,
-                            title: title || pageOutline.title // Update title if model refines it
-                        });
-                    },
-                    () => {
-                        updatePage(pageIdx, { status: 'done' });
-                    },
-                    (err) => {
-                        updatePage(pageIdx, { status: 'failed', content_markdown: `Error: ${err}` });
-                    },
-                    (sessionId) => {
-                        updatePage(pageIdx, { sessionId });
-                    }
-                );
-            });
-
-            await Promise.all(promises);
+                    );
+                } catch (error) {
+                    console.error("Sequence error", error);
+                }
+            }
         };
 
-        generateAll();
-    }, [outline]);
+        generateSequentially();
+    }, [outline]); // Dependencies should be stable
 
-    // Handle Page Revision
+    // Handle Revision
     const handlePageRevise = async (pageIndex: number, request: string) => {
         const targetPage = pages.find(p => p.page_index === pageIndex);
         if (!targetPage || targetPage.status === 'generating') return;
 
         updatePage(pageIndex, { status: 'generating', isRevising: true, thought_process: '' });
         
-        let buffer = ''; // Clear buffer for new content stream (replacement)
+        let buffer = ''; 
         
-        // Use existing session if available, otherwise just use current content as context
-        const variables = {
-            current_content: targetPage.content_markdown || '',
-            user_revision_request: request
-        };
-
         streamGenerate(
             {
                 prompt_name: 'revise_content',
-                variables,
-                session_id: targetPage.sessionId
+                variables: {
+                    current_content: targetPage.content_markdown || '',
+                    user_revision_request: request
+                },
+                // Use the session ID specific to this flow (which should be consistent)
+                session_id: currentSessionIdRef.current || undefined
             },
             (chunk) => {
                 buffer += chunk;
@@ -844,85 +836,69 @@ const ContentGenerator: React.FC<{
                 updatePage(pageIndex, { status: 'done', isRevising: false });
             },
             (err) => {
-                console.error("Revision failed", err);
-                updatePage(pageIndex, { status: 'done', isRevising: false }); // Revert status but keep error logs?
                 alert("修改失败，请重试");
+                updatePage(pageIndex, { status: 'done', isRevising: false });
+            },
+            (sid) => {
+                if (sid) currentSessionIdRef.current = sid;
             }
         );
     };
 
     const handleCompleteAll = async () => {
-        // Save to backend
         const finalPages = pages.map(({ thought_process, sessionId, isRevising, ...rest }) => rest);
         await saveStratifyPages(taskId, finalPages);
         await updateStratifyTask(taskId, { status: 'completed' });
         onComplete(finalPages);
     };
 
-    // Calculate progress
-    useEffect(() => {
-        const done = pages.filter(p => p.status === 'done').length;
-        const total = pages.length;
-        setProgress(Math.round((done / total) * 100));
-    }, [pages]);
-
     const isAllDone = pages.every(p => p.status === 'done' || p.status === 'failed');
 
     return (
-        <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24 animate-in fade-in duration-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
-                 <div>
-                    <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">内容创作引擎运行中</h2>
-                    <p className="text-slate-500 text-sm mt-2 font-medium flex items-center gap-2">
-                        {!isAllDone && (
-                            <span className="relative flex h-3 w-3">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                            </span>
-                        )}
-                        {isAllDone ? '所有章节已生成，您可以逐页进行修改或直接完成。' : `AI 正在并发撰写 ${pages.length} 个章节，请稍候...`}
+        <div className="flex flex-col h-full bg-slate-50">
+            {/* Top Bar */}
+            <div className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shadow-sm z-20">
+                <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">AI 内容创作引擎</h2>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">
+                        {isAllDone ? '所有章节已生成，请审阅后导出。' : '正在按顺序生成章节，保持上下文连贯...'}
                     </p>
-                 </div>
-                 <div className="flex items-center gap-4 bg-white px-6 py-4 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="text-right">
-                        <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 font-mono">{progress}%</div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Completed</div>
+                </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex flex-col items-end">
+                        <div className="text-2xl font-black text-indigo-600 font-mono">{progress}%</div>
                     </div>
                     {isAllDone ? (
                         <button 
                             onClick={handleCompleteAll}
-                            className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
+                            className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
                         >
                             完成创作 <ArrowRightIcon className="w-5 h-5"/>
                         </button>
                     ) : (
-                        <div className="w-16 h-16 relative">
-                            <svg className="w-full h-full transform -rotate-90">
-                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-slate-100" />
-                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-indigo-600 transition-all duration-500 ease-out" strokeDasharray={175.9} strokeDashoffset={175.9 - (175.9 * progress) / 100} strokeLinecap="round" />
+                        <div className="w-10 h-10 relative flex items-center justify-center">
+                            <svg className="animate-spin w-full h-full text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                         </div>
                     )}
-                 </div>
+                </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {pages.map((page) => (
-                    <PageGenerationCard 
-                        key={page.page_index} 
-                        page={page} 
-                        onRevise={handlePageRevise}
-                        isRevising={!!page.isRevising}
-                    />
-                ))}
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <div className="max-w-4xl mx-auto space-y-8 pb-24">
+                    {pages.map((page) => (
+                        <PageGenerationCard 
+                            key={page.page_index} 
+                            page={page} 
+                            onRevise={handlePageRevise}
+                            isRevising={!!page.isRevising}
+                        />
+                    ))}
+                </div>
             </div>
-            
-            <style>{`
-                @keyframes shimmer {
-                    0% { transform: translateX(-100%); }
-                    100% { transform: translateX(400%); }
-                }
-            `}</style>
         </div>
     );
 };
@@ -932,10 +908,12 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [currentTask, setCurrentTask] = useState<StratifyTask | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [sessionContext, setSessionContext] = useState<string | null>(null); // Store session ID
     
     // Step 1: Create Task
     const handleStart = async (topic: string) => {
         setIsLoading(true);
+        setSessionContext(null); // Reset session
         try {
             const task = await createStratifyTask(topic);
             setCurrentTask(task);
@@ -948,9 +926,10 @@ export const ReportGenerator: React.FC = () => {
     };
 
     // Step 2 & 3: Outline Confirmed
-    const handleOutlineConfirmed = (outline: StratifyOutline) => {
+    const handleOutlineConfirmed = (outline: StratifyOutline, sessionId: string | null) => {
         if (currentTask) {
             setCurrentTask({ ...currentTask, outline });
+            if (sessionId) setSessionContext(sessionId); // Capture session for content gen
             setStep(4); // Move to content generation
         }
     };
@@ -966,14 +945,15 @@ export const ReportGenerator: React.FC = () => {
     const handleReset = () => {
         setStep(1);
         setCurrentTask(null);
+        setSessionContext(null);
     };
 
     return (
         <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
-            {/* Header / Process Bar */}
-            <ProcessFlowCards currentStep={step} />
+            {/* Header / Process Bar (Only show in early steps or final) */}
+            {step !== 4 && <ProcessFlowCards currentStep={step} />}
 
-            <div className="flex-1 relative z-10 overflow-hidden">
+            <div className="flex-1 relative z-10 overflow-hidden flex flex-col">
                 {step === 1 && (
                     <IdeaInput onStart={handleStart} isLoading={isLoading} />
                 )}
@@ -983,6 +963,7 @@ export const ReportGenerator: React.FC = () => {
                         taskId={currentTask.id}
                         outline={currentTask.outline}
                         onComplete={handleContentComplete}
+                        initialSessionId={sessionContext}
                     />
                 )}
 
@@ -999,7 +980,7 @@ export const ReportGenerator: React.FC = () => {
                             <button onClick={handleReset} className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
                                 生成新报告
                             </button>
-                            <a href="/#/" onClick={(e) => { e.preventDefault(); /* Navigate logic if needed or href for simplicity */ window.location.hash = '#/dives'; window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">
+                            <a href="/#/" onClick={(e) => { e.preventDefault(); window.location.hash = '#/dives'; window.location.reload(); }} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg">
                                 查看报告
                             </a>
                         </div>
@@ -1013,7 +994,7 @@ export const ReportGenerator: React.FC = () => {
                     isOpen={step === 2 || step === 3}
                     taskId={currentTask.id}
                     topic={currentTask.topic}
-                    onClose={() => setStep(1)} // Cancel
+                    onClose={() => setStep(1)} 
                     onConfirm={handleOutlineConfirmed}
                 />
             )}
