@@ -1028,10 +1028,10 @@ const HtmlGenerator: React.FC<{
                         // Independent Session Call (session_id is undefined)
                         await streamGenerate(
                             {
-                                prompt_name: 'generate_page_html',
+                                prompt_name: 'generate_html',
                                 variables: {
                                     page_title: page.title,
-                                    page_content: page.content_markdown || ''
+                                    markdown_content: page.content_markdown || ''
                                 },
                                 session_id: undefined // Explicitly undefined for independent context
                             },
@@ -1041,9 +1041,10 @@ const HtmlGenerator: React.FC<{
                                 // Ideally, parsePageStream logic could be reused if backend wraps it, 
                                 // but for HTML gen usually raw stream is fine or simple extract.
                                 // Let's reuse parsePageStream for robust JSON/thought handling if backend uses it.
-                                const { content } = parsePageStream(buffer);
+                                
+                                // FIX: Use buffer directly for HTML content as per user request
                                 updatePage(pageIdx, { 
-                                    html_content: content || buffer, // Fallback to raw buffer if parse fails (assuming raw stream)
+                                    html_content: buffer
                                 });
                             },
                             () => {
