@@ -1,12 +1,11 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
-    ViewGridIcon, ChartIcon 
+    ViewGridIcon, ChartIcon, PlayIcon
 } from '../icons';
-import { Slide, SearchChunkResult, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
-import { searchChunks } from '../../api';
+import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
     createStratifyTask, 
     updateStratifyTask, 
@@ -81,21 +80,8 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     );
 };
 
-// --- 知识库检索模态框 (Placeholder implementation for context) ---
-const KnowledgeSearchModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    // (Implementation kept same as previous, abbreviated for brevity in this refactor)
-    return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}>
-            <div className="bg-white p-6 rounded-lg" onClick={e => e.stopPropagation()}>
-                <h3>知识库检索 (功能同前)</h3>
-                <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded">关闭</button>
-            </div>
-        </div>
-    );
-};
-
 // --- 阶段1: 创意输入 ---
-const IdeaInput: React.FC<{ onGenerate: (idea: string) => void, isLoading: boolean }> = ({ onGenerate, isLoading }) => {
+const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean }> = ({ onStart, isLoading }) => {
     const [idea, setIdea] = useState('');
 
     return (
@@ -119,7 +105,7 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void, isLoading: boole
 
                 <div className="mt-8 flex justify-center">
                     <button 
-                        onClick={() => onGenerate(idea)}
+                        onClick={() => onStart(idea)}
                         disabled={!idea.trim() || isLoading}
                         className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all flex items-center justify-center gap-2 min-w-[160px]"
                     >
@@ -141,24 +127,74 @@ const IdeaInput: React.FC<{ onGenerate: (idea: string) => void, isLoading: boole
     );
 };
 
-// --- 阶段2 & 3: 大纲生成与确认 ---
-const OutlineGenerator: React.FC<{ 
-    taskId: string; 
+// --- Helper: Partial Parser ---
+// Extracts specific fields from a potentially incomplete JSON string
+const extractField = (text: string, key: string, nextKeys: string[]): string | null => {
+    // Basic regex to find "key": "value..."
+    // Note: This is a simplified parser for display purposes.
+    const keyRegex = new RegExp(`"${key}"\\s*:\\s*"`);
+    const match = text.match(keyRegex);
+    
+    if (match && match.index !== undefined) {
+        const start = match.index + match[0].length;
+        let end = text.length;
+        
+        // Find the earliest occurrence of any next key
+        for (const nextKey of nextKeys) {
+            const nextMatch = text.match(new RegExp(`"${nextKey}"\\s*:`));
+            if (nextMatch && nextMatch.index !== undefined && nextMatch.index > start) {
+                // Determine cut off point (usually comma and quote before the next key)
+                // We just take up to the next key's start position minus some buffer
+                if (nextMatch.index < end) {
+                    end = nextMatch.index; 
+                }
+            }
+        }
+        
+        // Clean up the string (handle escaped quotes roughly)
+        let rawContent = text.substring(start, end);
+        
+        // Remove trailing characters if we hit the next key or end of JSON
+        rawContent = rawContent.replace(/",\s*$/, '').replace(/"\s*$/, '');
+        
+        // Unescape standard JSON chars for display
+        try {
+            // Add quotes to make it a valid JSON string for parsing if needed, 
+            // but here we just want raw text. 
+            // Simple replace for common escaped chars
+            return rawContent
+                .replace(/\\"/g, '"')
+                .replace(/\\n/g, '\n')
+                .replace(/\\t/g, '\t');
+        } catch (e) {
+            return rawContent;
+        }
+    }
+    return null;
+};
+
+// --- 阶段2 & 3: 智能大纲生成模态框 ---
+const OutlineGenerationModal: React.FC<{ 
+    isOpen: boolean;
+    taskId: string;
     topic: string;
+    onClose: () => void; // Usually disabled during generation
     onConfirm: (outline: StratifyOutline) => void;
-}> = ({ taskId, topic, onConfirm }) => {
+}> = ({ isOpen, taskId, topic, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
-    const [parsedOutline, setParsedOutline] = useState<StratifyOutline | null>(null);
-    const [isGenerating, setIsGenerating] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [finalOutline, setFinalOutline] = useState<StratifyOutline | null>(null);
     const hasStartedRef = useRef(false);
+    const contentEndRef = useRef<HTMLDivElement>(null);
 
-    // 启动大纲生成流
+    // Stream Trigger
     useEffect(() => {
-        if (hasStartedRef.current) return;
-        hasStartedRef.current = true;
-
-        const startGen = async () => {
-            await streamGenerate(
+        if (isOpen && !hasStartedRef.current && taskId) {
+            hasStartedRef.current = true;
+            setIsGenerating(true);
+            setStreamContent('');
+            
+            streamGenerate(
                 {
                     prompt_name: 'generate_outline',
                     variables: { user_input: topic }
@@ -170,98 +206,153 @@ const OutlineGenerator: React.FC<{
                     setIsGenerating(false);
                 },
                 (err) => {
-                    console.error("Outline gen error", err);
+                    console.error("Gen error", err);
                     setIsGenerating(false);
-                    // Handle error (maybe retry button)
                 }
             );
-        };
-        startGen();
-    }, [topic]);
-
-    // 尝试解析 JSON
-    useEffect(() => {
-        if (!isGenerating && streamContent) {
-            // 使用宽松的类型定义，兼容 'outline' 或 'pages' 字段
-            const result = parseLlmJson<any>(streamContent);
-            
-            if (result) {
-                // 核心修复：后端可能返回 'outline' 数组，而不是前端定义的 'pages'
-                const pages = result.pages || result.outline;
-                
-                if (pages && Array.isArray(pages)) {
-                    const normalizedOutline: StratifyOutline = {
-                        title: result.title,
-                        pages: pages
-                    };
-                    
-                    setParsedOutline(normalizedOutline);
-                    // 自动保存到后端，但不跳转，等待用户确认
-                    updateStratifyTask(taskId, { 
-                        status: 'outline_generated',
-                        outline: normalizedOutline 
-                    });
-                } else {
-                    console.warn("Parsed JSON but found no 'pages' or 'outline' array:", result);
-                }
-            } else {
-                console.error("Failed to parse JSON from stream content");
-            }
         }
-    }, [isGenerating, streamContent, taskId]);
+    }, [isOpen, taskId, topic]);
+
+    // Auto-scroll to bottom of modal content
+    useEffect(() => {
+        if (contentEndRef.current) {
+            contentEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [streamContent]);
+
+    // Extract Display Data from Stream
+    const displayData = useMemo(() => {
+        // Clean markdown blocks first
+        const cleanText = streamContent.replace(/```json/g, '').replace(/```/g, '');
+        
+        const thought = extractField(cleanText, 'thought_process', ['title', 'outline']);
+        const title = extractField(cleanText, 'title', ['outline']);
+        
+        // For outline array, it's complex to regex. We try to parse the whole thing if possible,
+        // or extract the raw string block after "outline": [
+        let outlineItems: any[] = [];
+        
+        // Try full parse first (best case)
+        const fullJson = parseLlmJson<any>(streamContent);
+        if (fullJson) {
+            // Update final state if ready
+            if (!finalOutline && (fullJson.pages || fullJson.outline)) {
+                const normalized: StratifyOutline = {
+                    title: fullJson.title || title || '未命名报告',
+                    pages: fullJson.pages || fullJson.outline || []
+                };
+                setFinalOutline(normalized);
+                // Sync to backend silently
+                updateStratifyTask(taskId, { 
+                    status: 'outline_generated',
+                    outline: normalized 
+                });
+            }
+            if (fullJson.pages || fullJson.outline) {
+                outlineItems = fullJson.pages || fullJson.outline;
+            }
+        } 
+        
+        return { thought, title, outlineItems };
+    }, [streamContent, taskId, finalOutline]);
+
+    if (!isOpen) return null;
 
     return (
-        <div className="max-w-4xl mx-auto p-4 pb-20">
-            {/* Streaming Output (Visible during generation or if parse fails) */}
-            {(!parsedOutline || isGenerating) && (
-                <div className="bg-slate-900 rounded-xl p-6 shadow-2xl mb-6 font-mono text-sm text-green-400 overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-2 opacity-50">
-                        <div className="flex gap-1">
-                            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[85vh] md:max-h-[80vh] overflow-hidden border border-slate-200">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <BrainIcon className={`w-5 h-5 ${isGenerating ? 'text-indigo-600 animate-pulse' : 'text-slate-500'}`} />
+                        <h3 className="font-bold text-slate-800">AI 智能规划中...</h3>
+                    </div>
+                    {isGenerating && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                            Thinking
                         </div>
-                    </div>
-                    <div className="whitespace-pre-wrap break-all min-h-[200px]">
-                        {streamContent || "正在连接 AI 模型..."}
-                        {isGenerating && <span className="inline-block w-2 h-4 bg-green-50 ml-1 animate-pulse"></span>}
-                    </div>
+                    )}
                 </div>
-            )}
 
-            {/* Parsed Outline UI */}
-            {parsedOutline && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                    <div className="bg-white p-8 rounded-2xl border border-indigo-100 shadow-xl mb-8 text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-                        <h2 className="text-3xl font-extrabold text-gray-900 mb-2">{parsedOutline.title}</h2>
-                        <p className="text-gray-500">共 {parsedOutline.pages.length} 页 • 请确认大纲结构</p>
-                    </div>
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-slate-50/30">
                     
-                    <div className="space-y-4 mb-8">
-                        {parsedOutline.pages.map((page, index) => (
-                            <div key={index} className="bg-white p-6 rounded-xl border border-gray-200 flex items-start gap-5 shadow-sm hover:shadow-md transition-shadow group">
-                                <div className="flex-shrink-0 w-10 h-10 bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 font-bold rounded-xl flex items-center justify-center border border-gray-100 group-hover:border-indigo-100 transition-colors">
-                                    {String(index + 1).padStart(2, '0')}
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-gray-800 text-lg mb-1 group-hover:text-indigo-700 transition-colors">{page.title}</h3>
-                                    <p className="text-gray-600 text-sm leading-relaxed">{page.content}</p>
-                                </div>
+                    {/* 1. Thought Process */}
+                    {(displayData.thought || isGenerating) && (
+                        <div className="animate-in slide-in-from-bottom-2 fade-in duration-500">
+                            <h4 className="text-xs font-extrabold text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <LightBulbIcon className="w-4 h-4" /> 深度思考 (Thought Process)
+                            </h4>
+                            <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4 text-sm text-slate-700 leading-relaxed font-mono whitespace-pre-wrap shadow-sm">
+                                {displayData.thought ? displayData.thought : <span className="animate-pulse">正在解析语义意图...</span>}
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
 
-                    <div className="sticky bottom-6 flex justify-center">
-                        <button 
-                            onClick={() => onConfirm(parsedOutline)}
-                            className="px-8 py-3 bg-indigo-600 text-white text-base font-bold rounded-full shadow-lg shadow-indigo-500/40 hover:bg-indigo-700 hover:scale-105 transition-all flex items-center gap-2"
-                        >
-                            确认大纲并生成内容 <ArrowRightIcon className="w-5 h-5" />
-                        </button>
-                    </div>
+                    {/* 2. Title */}
+                    {displayData.title && (
+                        <div className="animate-in slide-in-from-bottom-2 fade-in duration-500 delay-100">
+                            <h4 className="text-xs font-extrabold text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <DocumentTextIcon className="w-4 h-4" /> 拟定标题
+                            </h4>
+                            <div className="text-xl font-bold text-slate-900 bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
+                                {displayData.title}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 3. Outline */}
+                    {displayData.title && (
+                        <div className="animate-in slide-in-from-bottom-2 fade-in duration-500 delay-200">
+                            <h4 className="text-xs font-extrabold text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <ViewGridIcon className="w-4 h-4" /> 结构大纲
+                            </h4>
+                            {displayData.outlineItems.length > 0 ? (
+                                <div className="space-y-3">
+                                    {displayData.outlineItems.map((item: any, idx: number) => (
+                                        <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex gap-3 items-start animate-in fade-in slide-in-from-bottom-1">
+                                            <span className="flex-shrink-0 w-6 h-6 bg-slate-100 text-slate-500 rounded flex items-center justify-center text-xs font-bold font-mono">
+                                                {idx + 1}
+                                            </span>
+                                            <div>
+                                                <div className="font-bold text-slate-800 text-sm">{item.title}</div>
+                                                <div className="text-xs text-slate-500 mt-1 leading-snug">{item.content}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-slate-100 p-4 rounded-xl text-center text-slate-400 text-sm animate-pulse">
+                                    正在构建章节逻辑...
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    <div ref={contentEndRef} />
                 </div>
-            )}
+
+                {/* Footer Action */}
+                <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+                    <button 
+                        onClick={() => finalOutline && onConfirm(finalOutline)}
+                        disabled={!finalOutline || isGenerating}
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 transform active:scale-95"
+                    >
+                        {isGenerating ? (
+                            <>
+                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                生成中...
+                            </>
+                        ) : (
+                            <>
+                                确认并生成正文 <ArrowRightIcon className="w-4 h-4" />
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
@@ -291,7 +382,6 @@ const ContentGenerator: React.FC<{
         hasStartedRef.current = true;
 
         // Start generation for all pages (Frontend Drive!)
-        // To avoid browser limits, we could batch them, but for < 10 pages, parallel is usually fine.
         const generateAll = async () => {
             
             const updatePage = (idx: number, updates: Partial<StratifyPage>) => {
@@ -419,7 +509,7 @@ const ContentGenerator: React.FC<{
     );
 };
 
-// --- 阶段5: 预览 (No changes needed, reuses existing logic) ---
+// --- 阶段5: 预览 ---
 const ReportPreview: React.FC<{ 
     taskId: string;
     slides: Slide[]; 
@@ -500,6 +590,7 @@ export const ReportGenerator: React.FC = () => {
     const [slides, setSlides] = useState<Slide[]>([]);
     const [isCreating, setIsCreating] = useState(false);
 
+    // Initial Task Creation
     const handleStartTask = async (userIdea: string) => {
         setIsCreating(true);
         setTopic(userIdea);
@@ -514,11 +605,13 @@ export const ReportGenerator: React.FC = () => {
         }
     };
     
+    // Outline Confirmation
     const handleOutlineConfirm = (confirmedOutline: StratifyOutline) => {
         setOutline(confirmedOutline);
         setFlowState('generatingContent');
     };
 
+    // Content Generation Completion
     const handleContentComplete = (pages: StratifyPage[]) => {
         const uiSlides: Slide[] = pages.map(p => ({
             id: `p-${p.page_index}`,
@@ -541,7 +634,7 @@ export const ReportGenerator: React.FC = () => {
         switch(state) {
             case 'idea': return 1;
             case 'generatingOutline': return 2;
-            case 'outlineReview': return 3;
+            case 'outlineReview': return 3; // Technically inside modal flow, but conceptually review
             case 'generatingContent': return 4;
             case 'preview': return 5;
             default: return 1;
@@ -554,19 +647,20 @@ export const ReportGenerator: React.FC = () => {
             
             <div className="flex-1 relative">
                 {flowState === 'idea' && (
-                    <IdeaInput onGenerate={handleStartTask} isLoading={isCreating} />
+                    <IdeaInput onStart={handleStartTask} isLoading={isCreating} />
                 )}
                 
-                {flowState === 'generatingOutline' && taskId && (
-                    <OutlineGenerator // Replaces old GenerationProgress
-                        taskId={taskId}
-                        topic={topic}
-                        onConfirm={handleOutlineConfirm} // Transitions to next state inside component via parsed data
-                    />
-                )}
-                
-                {/* Removed separate OutlineEditor as OutlineGenerator handles the display and confirm now */}
-                {/* If needed, OutlineGenerator could have an "Edit" mode, but sticking to stream->view->confirm flow for simplicity */}
+                {/* 
+                    New Modal-based Outline Generation
+                    It triggers automatically when state is 'generatingOutline' and we have a task ID
+                */}
+                <OutlineGenerationModal 
+                    isOpen={flowState === 'generatingOutline' && !!taskId}
+                    taskId={taskId!}
+                    topic={topic}
+                    onClose={() => { /* Prevent closing manually during generation */ }}
+                    onConfirm={handleOutlineConfirm}
+                />
 
                 {flowState === 'generatingContent' && taskId && outline && (
                     <ContentGenerator 
