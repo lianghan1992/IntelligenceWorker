@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Header } from './components/Header';
 import { AuthModal } from './components/HomePage/AuthModal';
@@ -60,12 +59,6 @@ const App: React.FC = () => {
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
     setShowAuthModal(false);
-    setView('dashboard');
-  }, []);
-
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('accessToken');
-    setUser(null);
     setView('dashboard');
   }, []);
 
@@ -156,7 +149,6 @@ const App: React.FC = () => {
             currentView={view}
             onNavigate={handleNavigate}
             onUpgrade={() => setShowPricingModal(true)}
-            onLogout={handleLogout}
         />
         <main className="flex-1 min-h-0">
           <Suspense fallback={<PageLoader />}>

@@ -74,17 +74,12 @@ export const GenericCrawlerManager: React.FC = () => {
                              // Map IntelligencePointPublic to GenericPoint
                              allPoints.push({
                                  id: p.id,
-                                 uuid: p.uuid || p.id,
-                                 source_uuid: p.source_uuid || src.uuid || src.id,
-                                 source_name: p.source_name || src.source_name,
-                                 name: p.name || p.point_name || 'Unnamed',
+                                 source_name: p.source_name,
                                  point_name: p.point_name || p.name || 'Unnamed',
-                                 url: p.url || p.point_url || '',
                                  point_url: p.point_url || p.url || '',
                                  cron_schedule: p.cron_schedule,
                                  is_active: p.is_active,
                                  created_at: p.created_at || '',
-                                 updated_at: p.updated_at || '',
                                  list_hint: p.list_hint || p.extra_hint,
                                  list_filters: p.list_filters || p.url_filters
                              });
@@ -163,7 +158,7 @@ export const GenericCrawlerManager: React.FC = () => {
             <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar">
                 {activeView === 'points' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {points.map(p => <PointCard key={p.id} point={p} onEdit={(pt) => { setEditingPoint(pt); setFormData({source_name:pt.source_name || '', point_name:pt.point_name || '', point_url:pt.point_url || '', cron_schedule:pt.cron_schedule}); setIsModalOpen(true); }} onToggle={handleTogglePoint} />)}
+                        {points.map(p => <PointCard key={p.id} point={p} onEdit={(pt) => { setEditingPoint(pt); setFormData({source_name:pt.source_name, point_name:pt.point_name, point_url:pt.point_url, cron_schedule:pt.cron_schedule}); setIsModalOpen(true); }} onToggle={handleTogglePoint} />)}
                         {points.length === 0 && !isLoading && (
                             <div className="col-span-full text-center py-20 text-slate-400">暂无配置</div>
                         )}

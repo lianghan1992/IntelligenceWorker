@@ -5,7 +5,7 @@ import {
     getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask,
     deleteSource, deleteSpiderPoint, disableSpiderPoint, enableSpiderPoint
 } from '../../../api/intelligence';
-import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon, StopIcon, CheckCircleIcon, PencilIcon } from '../../icons';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon, StopIcon, CheckCircleIcon } from '../../icons';
 import { PointModal } from './PointModal';
 import { TaskDrawer } from './TaskDrawer';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -28,7 +28,6 @@ export const SourceConfig: React.FC = () => {
     // Modal States
     const [isCreateSourceModalOpen, setIsCreateSourceModalOpen] = useState(false);
     const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
-    const [editingPoint, setEditingPoint] = useState<SpiderPoint | null>(null);
     const [drawerPoint, setDrawerPoint] = useState<SpiderPoint | null>(null);
     
     // Action States
@@ -88,8 +87,7 @@ export const SourceConfig: React.FC = () => {
         setRunningPointId(pointId);
         try {
             await triggerSpiderTask({ point_uuid: pointId, task_type: type });
-            // Refresh list to update status if applicable, though crawl takes time.
-            setTimeout(fetchPoints, 1000); 
+            // Task triggered, button will just stop spinning. No modal.
         } catch (e) { alert('触发任务失败'); }
         finally { setRunningPointId(null); }
     };
@@ -125,7 +123,8 @@ export const SourceConfig: React.FC = () => {
             } else {
                 await enableSpiderPoint(point.uuid);
             }
-            await fetchPoints(); // Refresh from server to ensure sync
+            // Optimistic update for better UX
+            setPoints(prev => prev.map(p => p.uuid === point.uuid ? { ...p, is_active: !p.is_active } : p));
         } catch (e) {
             alert('操作失败');
         } finally {
@@ -197,7 +196,7 @@ export const SourceConfig: React.FC = () => {
                             <div className="flex gap-2 md:gap-3 flex-shrink-0">
                                 <button onClick={fetchPoints} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 border border-transparent hover:border-gray-200"><RefreshIcon className={`w-4 h-4 ${isLoadingPoints?'animate-spin':''}`}/></button>
                                 <button 
-                                    onClick={() => { setEditingPoint(null); setIsCreatePointModalOpen(true); }}
+                                    onClick={() => setIsCreatePointModalOpen(true)}
                                     className="flex items-center gap-1 px-3 py-1.5 md:px-4 md:py-2 bg-indigo-600 text-white rounded-lg text-xs md:text-sm font-bold hover:bg-indigo-700 shadow-md transition-all whitespace-nowrap"
                                 >
                                     <PlusIcon className="w-3.5 h-3.5 md:w-4 md:h-4" /> 新建采集点
@@ -218,14 +217,7 @@ export const SourceConfig: React.FC = () => {
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${point.is_active ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-50 text-gray-500 border-gray-200'}`}>
                                                     {point.is_active ? 'Active' : 'Disabled'}
                                                 </span>
-                                                <button 
-                                                    onClick={() => { setEditingPoint(point); setIsCreatePointModalOpen(true); }}
-                                                    className="text-gray-400 hover:text-indigo-600 transition-colors"
-                                                    title="编辑"
-                                                >
-                                                    <PencilIcon className="w-4 h-4"/>
-                                                </button>
-                                                <button onClick={() => setDeletingPoint(point)} className="text-gray-400 hover:text-red-500 transition-colors" title="删除">
+                                                <button onClick={() => setDeletingPoint(point)} className="text-gray-400 hover:text-red-500 transition-colors">
                                                     <TrashIcon className="w-4 h-4"/>
                                                 </button>
                                             </div>
@@ -233,8 +225,8 @@ export const SourceConfig: React.FC = () => {
                                         
                                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4 bg-gray-50 p-2 md:p-3 rounded-lg">
                                             <div className="col-span-2"><span className="text-gray-400">调度规则:</span> <span className="font-mono text-indigo-600 font-bold">{point.cron_schedule}</span></div>
-                                            <div><span className="text-gray-400">上次采集:</span> {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', second: '2-digit'}) : 'Never'}</div>
-                                            <div><span className="text-gray-400">深度:</span> {point.initial_pages !== undefined ? `${point.initial_pages} 页` : '-'}</div>
+                                            <div><span className="text-gray-400">上次采集:</span> {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleDateString() : 'Never'}</div>
+                                            <div><span className="text-gray-400">深度:</span> {point.initial_pages || 100} 页</div>
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">
@@ -314,13 +306,12 @@ export const SourceConfig: React.FC = () => {
                 </div>
             )}
 
-            {/* Create/Edit Point Modal */}
+            {/* Create Point Modal */}
             <PointModal 
                 isOpen={isCreatePointModalOpen}
-                onClose={() => { setIsCreatePointModalOpen(false); setEditingPoint(null); }}
-                onSave={() => { fetchPoints(); setEditingPoint(null); }}
+                onClose={() => setIsCreatePointModalOpen(false)}
+                onSave={fetchPoints}
                 sourceId={selectedSource?.uuid}
-                pointToEdit={editingPoint}
             />
 
             {/* Task Drawer */}

@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getDeepInsightUploads, deleteDeepInsightUpload, createDeepInsightTask, startDeepInsightTask, getDeepInsightCategories, uploadDeepInsightFiles } from '../../../api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getDeepInsightUploads, deleteDeepInsightUpload, createDeepInsightTask, startDeepInsightTask, getDeepInsightCategories } from '../../../api';
 import { DeepInsightCategory } from '../../../types';
-import { TrashIcon, RefreshIcon, PlayIcon, DocumentTextIcon, PlusIcon, CloudIcon } from '../../icons';
+import { TrashIcon, RefreshIcon, PlayIcon, DocumentTextIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
@@ -17,10 +17,8 @@ export const FileManager: React.FC = () => {
     const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState<string | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
     const [deleteFile, setDeleteFile] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState('');
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -68,30 +66,13 @@ export const FileManager: React.FC = () => {
         }
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const fileList = e.target.files;
-        if (!fileList || fileList.length === 0) return;
-
-        setIsUploading(true);
-        try {
-            const filesArray: File[] = Array.from(fileList);
-            await uploadDeepInsightFiles(filesArray);
-            await fetchData();
-        } catch (err: any) {
-            alert(`上传失败: ${err.message}`);
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-    };
-
     return (
         <div className="bg-white rounded-lg border shadow-sm flex flex-col h-full overflow-hidden">
-            <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                 <h3 className="font-bold text-gray-700 flex items-center gap-2">
                     <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 原始文件管理
                 </h3>
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="flex gap-3">
                     <select 
                         value={selectedCategory} 
                         onChange={e => setSelectedCategory(e.target.value)}
@@ -100,24 +81,6 @@ export const FileManager: React.FC = () => {
                         <option value="">默认分类 (可选)</option>
                         {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
-                    
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileUpload} 
-                        className="hidden" 
-                        multiple 
-                        accept=".pdf"
-                    />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading}
-                        className="px-3 py-2 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1 shadow-sm"
-                    >
-                        {isUploading ? <Spinner /> : <CloudIcon className="w-3.5 h-3.5" />}
-                        上传 PDF
-                    </button>
-
                     <button onClick={fetchData} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 border bg-white shadow-sm" title="刷新">
                         <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
@@ -148,7 +111,7 @@ export const FileManager: React.FC = () => {
                                             <button 
                                                 onClick={() => handleCreateTask(file)}
                                                 disabled={!!isActionLoading}
-                                                className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1 shadow-sm"
+                                                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1 shadow-sm"
                                             >
                                                 {isActionLoading === file ? <Spinner /> : <PlayIcon className="w-3 h-3" />}
                                                 转为任务

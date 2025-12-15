@@ -1,18 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { createSpiderPoint, updateSpiderPoint } from '../../../api/intelligence';
+import { createSpiderPoint } from '../../../api/intelligence';
 import { CloseIcon, RssIcon, ClockIcon } from '../../icons';
-import { IntelligencePointPublic } from '../../../types';
 
 interface PointModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: () => void;
     sourceId?: string;
-    pointToEdit?: IntelligencePointPublic | null;
 }
 
-export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave, sourceId, pointToEdit }) => {
+export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave, sourceId }) => {
     const [name, setName] = useState('');
     const [url, setUrl] = useState('');
     const [pages, setPages] = useState(100);
@@ -26,29 +24,6 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
     const [weekDay, setWeekDay] = useState(1); // 1 = Monday
     const [monthDay, setMonthDay] = useState(1);
     const [customCron, setCustomCron] = useState('30 13 */2 * *');
-
-    // Initialize state when opening
-    useEffect(() => {
-        if (isOpen) {
-            if (pointToEdit) {
-                setName(pointToEdit.name || pointToEdit.point_name || '');
-                setUrl(pointToEdit.url || pointToEdit.point_url || '');
-                setPages(pointToEdit.initial_pages || 100);
-                setCron(pointToEdit.cron_schedule || '0 8 */1 * *');
-                setCronMode('custom'); // Default to custom for editing existing cron to avoid parsing logic complexity
-                setCustomCron(pointToEdit.cron_schedule || '');
-            } else {
-                // Reset for create
-                setName('');
-                setUrl('');
-                setPages(100);
-                setCron('0 8 */1 * *');
-                setCronMode('interval');
-                setTime('08:00');
-                setIntervalDays(1);
-            }
-        }
-    }, [isOpen, pointToEdit]);
 
     // Auto-update cron expression when builder state changes
     useEffect(() => {
@@ -66,42 +41,40 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
         let newCron = '';
 
         if (cronMode === 'interval') {
+            // mm HH */N * *
             newCron = `${validM} ${validH} */${Math.max(1, intervalDays)} * *`;
         } else if (cronMode === 'weekly') {
+            // mm HH * * DoW (0-6, 0 is Sunday, or 1-7. Cron typically 0-6 or 1-7. Let's use 1=Mon...7=Sun or standard 0-6. 
+            // Standard: 0=Sun, 1=Mon...6=Sat. 
+            // Python croniter/Linux cron usually accepts 0-6 or MON-SUN.
             newCron = `${validM} ${validH} * * ${weekDay}`;
         } else if (cronMode === 'monthly') {
+            // mm HH DoM * *
             newCron = `${validM} ${validH} ${Math.max(1, Math.min(31, monthDay))} * *`;
         }
         setCron(newCron);
     }, [cronMode, time, intervalDays, weekDay, monthDay, customCron, isOpen]);
 
     const handleSubmit = async () => {
-        if (!name || !url) return;
+        if (!name || !url || !sourceId) return;
         setIsLoading(true);
         try {
-            if (pointToEdit) {
-                await updateSpiderPoint(pointToEdit.uuid, {
-                    name,
-                    url,
-                    cron_schedule: cron,
-                    initial_pages: pages
-                });
-            } else {
-                if (!sourceId) return;
-                await createSpiderPoint({
-                    source_uuid: sourceId,
-                    name,
-                    url,
-                    cron_schedule: cron,
-                    initial_pages: pages,
-                    is_active: true
-                });
-            }
+            await createSpiderPoint({
+                source_uuid: sourceId,
+                name,
+                url,
+                cron_schedule: cron,
+                initial_pages: pages,
+                is_active: true
+            });
             onSave();
             onClose();
+            // Reset
+            setName(''); setUrl(''); setPages(100);
+            setCronMode('interval'); setTime('08:00'); setIntervalDays(1);
         } catch (e) {
             console.error(e);
-            alert(pointToEdit ? '更新采集点失败' : '创建采集点失败');
+            alert('创建采集点失败');
         } finally {
             setIsLoading(false);
         }
@@ -114,7 +87,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
                 <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                     <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                        <RssIcon className="w-5 h-5 text-indigo-600"/> {pointToEdit ? '编辑采集点' : '新建采集点'}
+                        <RssIcon className="w-5 h-5 text-indigo-600"/> 新建采集点
                     </h3>
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><CloseIcon className="w-5 h-5"/></button>
                 </div>
@@ -243,6 +216,10 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                         <label className="block text-sm font-bold text-gray-700 mb-1">首次采集页数限制</label>
                         <input type="number" value={pages} onChange={e => setPages(parseInt(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
                     </div>
+                    
+                    <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 leading-relaxed">
+                        提示: 创建成功后，请在生成的 <code>crawlers/&#123;source_uuid&#125;/</code> 目录下编写 <code>crawler.py</code> 以实现具体爬取逻辑。
+                    </div>
                 </div>
 
                 <div className="p-5 border-t bg-gray-50 flex justify-end gap-3">
@@ -254,9 +231,9 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                {pointToEdit ? '保存中...' : '提交中...'}
+                                提交中...
                             </>
-                        ) : (pointToEdit ? '保存修改' : '创建')}
+                        ) : '创建'}
                     </button>
                 </div>
             </div>

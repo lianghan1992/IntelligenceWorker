@@ -1,34 +1,51 @@
 
-// --- User & Auth Types ---
+
+export interface TechItemHistory {
+    id: string;
+    tech_item_id: string;
+    event_time: string;
+    change_type: string;
+    description_snapshot: string;
+    reliability_snapshot: number;
+    article_id?: string;
+    created_at: string;
+}
+
+export interface TechItem {
+    id: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
+    name: string;
+    description: string;
+    reliability: number;
+    latest_article_id: string;
+    created_at: string;
+    updated_at: string;
+    history?: TechItemHistory[];
+    is_reviewed?: boolean;
+}
+
 export interface User {
     id: string;
     username: string;
     email: string;
+    role?: string;
     plan_name?: string;
-    status?: string;
     created_at: string;
-    source_subscription_count?: number;
-    poi_count?: number;
 }
 
 export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
 
-export interface SystemSource {
-    id: string;
-    source_name: string;
-    source_type?: string;
-    points_count?: number;
-    articles_count?: number;
-}
-
-export interface Subscription { // Alias used in IntelligencePointManager
+export interface Subscription {
     id: string;
     source_id?: string;
     source_name: string;
     point_name: string;
     point_url: string;
     cron_schedule: string;
-    is_active: boolean;
+    is_active: boolean | number;
     url_filters?: string[];
     extra_hint?: string;
 }
@@ -38,22 +55,20 @@ export interface PlanDetails {
     premium: { name: string; price: number };
 }
 
-// --- Mock Data Types ---
-export interface DeepDive {
-    id: string;
-    title: string;
-    date: string;
-    summary: string;
-    coverImage?: string;
-}
-
 export interface RecommendedSubscription {
     id: string;
     name: string;
     description: string;
 }
 
-// --- Livestream Types ---
+export interface DeepDive {
+    id: string;
+    title: string;
+    summary: string;
+    date: string;
+    url?: string;
+}
+
 export interface LivestreamTask {
     id: string;
     task_name: string;
@@ -61,58 +76,29 @@ export interface LivestreamTask {
     live_url: string;
     start_time: string;
     status: string;
-    cover_image_b64?: string;
     summary_prompt?: string;
-    stats_json?: string; 
+    cover_image_b64?: string;
+    stats_json?: any;
+    created_at: string;
 }
 
 export type AdminView = 'users' | 'events' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight';
 
 export interface LivestreamPrompt {
-    id: string;
     name: string;
     content: string;
 }
 
-// --- Intelligence Types ---
-export interface IntelligencePointPublic {
+export interface SystemSource {
     id: string;
-    uuid: string;
-    source_uuid: string;
-    source_name?: string;
-    name: string;
-    point_name?: string; // Alias
-    url: string;
-    point_url?: string; // Alias
-    cron_schedule: string;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-    initial_pages?: number;
-    list_hint?: string;
-    list_filters?: string[];
-    extra_hint?: string; // Alias for list_hint
-    url_filters?: string[]; // Alias for list_filters
-    max_depth?: number;
-    status?: string;
-    last_crawled_at?: string;
-    mode?: string;
-    type?: string;
-}
-
-export interface IntelligenceSourcePublic {
-    id: string;
-    uuid: string;
-    name: string;
-    source_name?: string; // Alias
-    main_url: string;
-    total_points: number;
-    points_count?: number; // Alias
-    total_articles: number;
-    articles_count?: number; // Alias
-    created_at: string;
-    updated_at: string;
-    points?: IntelligencePointPublic[];
+    source_name: string;
+    main_url?: string;
+    points_count?: number;
+    articles_count?: number;
+    created_at?: string;
+    // UI helper
+    points?: Subscription[];
+    source_type?: string;
 }
 
 export interface InfoItem {
@@ -120,17 +106,12 @@ export interface InfoItem {
     title: string;
     content: string;
     source_name: string;
+    point_name?: string;
     original_url: string;
     publish_date?: string;
     created_at: string;
-    similarity?: number;
-    point_name?: string;
     is_atomized?: boolean;
-    tags?: string;
-}
-
-export interface ArticlePublic extends InfoItem {
-    // Extends InfoItem
+    similarity?: number; // Added for semantic search results
 }
 
 export interface UserListItem {
@@ -139,9 +120,9 @@ export interface UserListItem {
     email: string;
     plan_name: string;
     status: string;
-    created_at: string;
     source_subscription_count: number;
     poi_count: number;
+    created_at: string;
 }
 
 export interface UserForAdminUpdate {
@@ -152,16 +133,15 @@ export interface UserForAdminUpdate {
 }
 
 export interface UserProfileDetails {
-    intelligence_sources: { items: { id: string, source_name: string }[] };
-    points_of_interest: { items: { id: string, content: string, keywords: string }[] };
+    intelligence_sources: { items: { id: string; source_name: string }[] };
+    points_of_interest: { items: { id: string; content: string; keywords: string }[] };
 }
 
 export interface PaginatedResponse<T> {
     items: T[];
     total: number;
     page: number;
-    limit?: number; 
-    page_size?: number; 
+    limit: number;
     totalPages: number;
 }
 
@@ -169,153 +149,100 @@ export interface ApiPoi {
     id: string;
     content: string;
     keywords?: string;
-    related_count?: number;
 }
 
-// Spider / Intelligence specific types
-export type SpiderSource = IntelligenceSourcePublic;
-export type SpiderPoint = IntelligencePointPublic;
+export interface SearchResult {
+    items: InfoItem[];
+    total: number;
+}
 
-export interface SpiderArticle {
-    id: string;
-    uuid: string;
-    title: string;
-    content: string;
+export interface SearchChunkResult {
+    article_id: string;
+    article_title: string;
+    article_url: string;
+    article_publish_date?: string;
+    chunk_index: number;
+    chunk_text: string;
+    similarity_score: number;
     source_name: string;
-    point_name: string;
-    original_url: string;
-    publish_date?: string;
-    created_at: string;
-    collected_at?: string;
-    is_atomized?: boolean;
-    tags?: string;
-    status?: string;
+    merged_content?: string;
+    similarity_scores?: number[];
 }
 
-export interface SpiderTaskTriggerResponse {
+export interface SearchChunksResponse {
+    results: SearchChunkResult[];
+    total_chunks: number;
+    total_articles: number;
+}
+
+export interface ExportChunksResponse {
+    export_data: {
+        article_title: string;
+        article_url: string;
+        article_publish_date: string;
+        merged_content: string;
+        similarity_scores: number[];
+    }[];
+}
+
+export interface LlmSearchRequest {
+    query_text: string;
+    publish_date_start?: string;
+    publish_date_end?: string;
+    source_names?: string[];
+}
+
+export interface LlmSearchResponse {
     task_id: string;
     message: string;
 }
 
-export interface PendingArticle {
+export interface LlmSearchTaskItem {
     id: string;
-    title: string;
-    source_name: string;
-    point_name: string;
-    original_url: string;
-    status: 'pending' | 'rejected' | 'approved';
+    prompt_text: string;
     created_at: string;
-    content?: string;
-    publish_date?: string;
+    processed_count: number;
+    matched_count: number;
 }
 
-export type PendingArticlePublic = PendingArticle;
-
-export interface SpiderTask {
-    id: string;
-    uuid?: string;
-    url: string;
-    task_type: string;
-    status: string;
-    error_message?: string;
-    created_at: string;
-    start_time?: string;
-    end_time?: string;
-    source_name?: string;
-    point_name?: string;
-    articles_collected?: number;
-    page_number?: number;
+export interface LlmSearchTasksResponse {
+    items: LlmSearchTaskItem[];
+    total: number;
 }
 
-export interface IntelligenceTaskPublic extends SpiderTask {}
-
-export interface SpiderTaskCounts {
-    pending: number;
-    running: number;
-    done: number;
-    error: number;
-}
-
-export type SpiderTaskTypeCounts = Record<string, number>;
-
-export interface SpiderProxy {
-    url: string;
-    enabled: boolean;
-    latency_ms?: number;
-    note?: string;
-}
-
-export interface SemanticSearchRequest {
-    query_text: string;
-    page?: number;
-    page_size?: number;
-    max_segments?: number;
-    similarity_threshold?: number;
-    source_uuid?: string;
-    point_uuid?: string;
-    start_date?: string;
-    end_date?: string;
-}
-
-export interface SemanticSearchResponse {
-    items: {
-        article_id: string;
-        title: string;
-        content: string;
-        source_name: string;
-        publish_date: string;
-        similarity: number;
-    }[];
-    total_segments: number;
-}
-
-export interface CreateIntelLlmTaskRequest {
-    user_uuid: string;
-    description: string;
-    time_range?: string;
-    source_uuids?: string[];
-    need_summary?: boolean;
-}
-
-export interface IntelLlmTask {
-    uuid: string;
-    user_uuid: string;
-    description: string;
-    status: string;
-    progress: number;
-    result_url?: string;
-    created_at: string;
-    time_range?: string;
-    matched_count?: number; 
-    processed_count?: number;
-    prompt_text?: string;
-}
-
-// --- Deep Insight Types ---
-export interface DeepInsightCategory {
-    id: string;
-    name: string;
-    created_at: string;
+export interface LlmSearchTaskDetail extends LlmSearchTaskItem {
+    total_articles: number;
+    unrelated_count: number;
+    source_names?: string;
+    publish_date_start?: string;
+    publish_date_end?: string;
 }
 
 export interface DeepInsightTask {
     id: string;
     file_name: string;
     file_type: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    created_at: string;
-    updated_at: string;
+    status: string;
     total_pages: number;
     processed_pages: number;
+    created_at: string;
+    updated_at: string;
     category_id?: string;
+}
+
+export interface DeepInsightCategory {
+    id: string;
+    name: string;
+    created_at: string;
 }
 
 export interface DeepInsightPage {
     id: string;
+    task_id: string;
     page_index: number;
     status: string;
-    content_md?: string;
     image_path?: string;
+    html_path?: string;
 }
 
 export interface DeepInsightPagesResponse {
@@ -323,73 +250,19 @@ export interface DeepInsightPagesResponse {
     total: number;
 }
 
-// --- Report Generator / Stratify Types ---
 export interface Slide {
     id: string;
     title: string;
     content: string;
-    status: 'pending' | 'generating' | 'done' | 'failed';
+    status?: 'queued' | 'generating' | 'done';
 }
 
-export interface SearchChunkResult {
-    article_id: string;
-    chunk_text: string;
-    similarity_score: number;
-    article_title?: string;
-    source_name?: string;
-    article_url?: string;
-    article_publish_date?: string;
-}
-
-export type StratifyTaskStatus = 'created' | 'outline_generated' | 'content_generating' | 'completed' | 'failed';
-
-export interface StratifyTask {
-    id: string;
-    topic: string;
-    status: StratifyTaskStatus;
-    current_step: string;
-    created_at: string;
-    outline?: StratifyOutline | null;
-    pages?: StratifyPage[];
-}
-
-export interface StratifyOutline {
-    title: string;
-    pages: { title: string; content: string }[];
-}
-
-export interface StratifyPage {
-    page_index: number;
-    title: string;
-    content_markdown: string | null;
-    html_content: string | null;
-    status: 'pending' | 'generating' | 'done' | 'failed';
-}
-
-export interface StratifyStreamChunk {
-    content?: string;
-}
-
-export interface GenerateStreamParams {
-    prompt_name: string;
-    variables: Record<string, any>;
-    model_override?: string;
-}
-
-// --- Strategic Cockpit Types ---
 export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
-
-// --- Tech Dashboard & Competitiveness Types ---
-export interface TechDimensionCategory {
-    key: string;
-    label: string;
-    subDimensions: { key: string; label: string }[];
-}
 
 export interface SpecDetail {
     value: string;
     supplier?: string;
-    details?: Record<string, any>;
+    details?: any;
 }
 
 export interface VehicleTechSpec {
@@ -418,50 +291,35 @@ export interface NewTechForecast {
     sourceUrl: string;
 }
 
+export type TechDimensionCategory = {
+    key: string;
+    label: string;
+    subDimensions: { key: string; label: string }[];
+}
+
 export interface TechAnalysisTask {
     id: string;
-    status: string;
+    article_id: string;
+    vehicle_brand: string;
+    vehicle_model: string;
+    tech_dimension: string;
+    secondary_tech_dimension: string;
+    tech_name: string;
+    tech_description: string;
+    reliability: number;
 }
 
 export interface CompetitivenessStatus {
     enabled: boolean;
     worker_enabled: boolean;
     llm_provider: string;
-    cookie_health?: 'healthy' | 'unhealthy' | 'error';
+    cookie_health?: string;
 }
 
 export interface CompetitivenessDimension {
     id: string;
     name: string;
     sub_dimensions: string[];
-}
-
-export interface TechItem {
-    id: string;
-    name: string;
-    vehicle_brand: string;
-    vehicle_model: string;
-    tech_dimension: string;
-    secondary_tech_dimension: string;
-    description: string;
-    reliability: number;
-    updated_at: string;
-    created_at: string;
-    history?: TechItemHistory[];
-}
-
-export interface TechItemHistory {
-    id: string;
-    change_type: string;
-    event_time: string;
-    description_snapshot: string;
-    reliability_snapshot: number;
-    article_id?: string;
-}
-
-export interface DataQueryResponse<T> {
-    data: T[];
-    total: number;
 }
 
 export interface VehicleTechnologyFinding {
@@ -474,6 +332,10 @@ export interface VehicleTechnologyFinding {
     updated_at: string;
 }
 
+export interface DataQueryResponse<T> {
+    data: T[];
+}
+
 export interface MarketAnalysisFinding {
     id: string;
     entity_name: string;
@@ -484,7 +346,6 @@ export interface MarketAnalysisFinding {
     updated_at: string;
 }
 
-// --- Document Processing Types ---
 export interface DocumentTask {
     id: string;
     original_filename: string;
@@ -498,26 +359,139 @@ export interface DocumentTask {
 export interface PaginatedDocumentsResponse {
     items: DocumentTask[];
     total: number;
-    page: number;
-    page_size: number;
     totalPages: number;
 }
 
-// --- LLM Sorting Types ---
-export interface LlmSearchRequest {
-    query_text: string;
+// --- IntelSpider Types (New API) ---
+
+export interface SpiderSource {
+    uuid: string; // New API uses uuid
+    id: string;   // Frontend alias for compatibility
+    name: string;
+    main_url: string;
+    total_points: number;
+    total_articles: number;
+    points_count?: number; // alias
+    articles_count?: number; // alias
+    created_at?: string;
+    updated_at?: string;
+    // Legacy support
+    source_name?: string;
 }
 
-export interface LlmSearchTaskItem {
+export interface SpiderPoint {
+    uuid: string; // New API uses uuid
+    id: string;   // Frontend alias for compatibility
+    source_uuid: string;
+    source_name?: string; // hydrated
+    name: string;
+    point_name?: string; // alias
+    url: string;
+    point_url?: string; // alias
+    cron_schedule: string;
+    initial_pages: number;
+    is_active: boolean;
+    last_crawled_at?: string;
+    // Legacy support
+    url_filters?: string[];
+    extra_hint?: string;
+    created_at?: string;
+    updated_at?: string;
+    max_depth?: number;
+    status?: string;
+    mode?: string;
+    type?: string;
+    list_hint?: string;
+    list_filters?: string[];
+}
+
+export interface SpiderArticle {
     id: string;
-    prompt_text: string;
-    created_at: string;
-    processed_count: number;
-    matched_count: number;
+    uuid: string; // New API
+    source_uuid?: string; // In new db structure this might be linked differently, assuming flattened for UI
+    title: string;
+    content: string;
+    original_url: string;
+    publish_time?: string; // Legacy alias
+    publish_date?: string; // New API
+    collected_at: string;
+    created_at: string; // New API
+    is_reviewed?: boolean;
+    is_atomized?: boolean; // New API
+    source_name?: string; // Optional: Hydrated or joined data
+    point_name?: string;
+    tags?: string;
 }
 
-// --- Generic Crawler Types ---
-export interface GenericPoint extends IntelligencePointPublic {}
+export interface SpiderProxy {
+    url: string;
+    enabled: boolean;
+    note?: string;
+    latency_ms?: number; // UI specific, from test
+    last_checked?: string;
+}
+
+export interface SpiderTaskTriggerResponse {
+    message: string;
+    task_uuid: string;
+}
+
+export interface SpiderTask {
+    uuid: string;
+    id: string; // Alias to uuid
+    point_uuid: string;
+    status: string;
+    task_type: string;
+    start_time?: string;
+    end_time?: string;
+    articles_collected?: number;
+    error_message?: string;
+    created_at: string;
+    
+    // UI Helpers / Hydrated fields
+    source_name?: string;
+    point_name?: string;
+    url?: string; 
+    page_number?: number;
+}
+
+export interface SpiderTaskCounts {
+    total: number;
+    pending: number;
+    running: number;
+    done: number;
+    error: number;
+}
+
+export type SpiderTaskTypeCounts = Record<string, number>;
+
+// --- Legacy Compatibility Types & Aliases ---
+
+export type IntelligencePointPublic = SpiderPoint;
+export type IntelligenceSourcePublic = SpiderSource;
+export type IntelligenceTaskPublic = SpiderTask;
+
+export interface ArticlePublic extends SpiderArticle {
+    source_name: string; // Optional in SpiderArticle but required here for UI
+    point_name?: string;
+    publish_date?: string;
+    created_at: string; // Ensure created_at is present
+    status?: string;
+}
+
+export type PendingArticlePublic = ArticlePublic;
+
+export interface GenericPoint {
+    id: string;
+    source_name: string;
+    point_name: string;
+    point_url: string;
+    cron_schedule: string;
+    is_active: boolean;
+    created_at: string;
+    list_hint?: string;
+    list_filters?: string[];
+}
 
 export interface GenericTask {
     id: string;
@@ -530,4 +504,73 @@ export interface GenericTask {
     start_time: string;
     end_time?: string;
     created_at: string;
+    status: string;
+}
+
+export interface PendingArticle {
+    id: string;
+    title: string;
+    original_url: string;
+    source_name: string;
+    point_name: string;
+    status: 'pending' | 'rejected' | 'approved';
+    content?: string;
+    publish_date?: string;
+    created_at?: string;
+}
+
+export interface ApprovedArticle {
+    id: string;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    point_name: string;
+    original_url: string;
+}
+
+export interface SemanticSearchRequest {
+    query_text: string;
+    source_uuid?: string;
+    point_uuid?: string;
+    start_date?: string;
+    end_date?: string;
+    max_segments?: number;
+    similarity_threshold?: number;
+    page?: number;
+    page_size?: number;
+}
+
+export interface SemanticSegment {
+    article_id: string;
+    similarity: number;
+    title: string;
+    publish_date: string;
+    source_name: string;
+    content: string;
+}
+
+export interface SemanticSearchResponse {
+    total_segments: number;
+    items: SemanticSegment[];
+}
+
+// --- LLM Intelligence Task Types ---
+
+export interface CreateIntelLlmTaskRequest {
+    user_uuid: string;
+    description: string;
+    time_range?: string;
+    source_uuids?: string[];
+    need_summary?: boolean;
+}
+
+export interface IntelLlmTask {
+    uuid: string;
+    user_uuid: string;
+    description: string;
+    status: 'pending' | 'analyzing' | 'completed' | 'failed';
+    progress: number;
+    created_at: string;
+    completed_at?: string;
+    csv_path?: string;
 }
