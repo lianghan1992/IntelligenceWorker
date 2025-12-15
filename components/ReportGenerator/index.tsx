@@ -4,7 +4,7 @@ import {
     SparklesIcon, DownloadIcon, ArrowLeftIcon, ArrowRightIcon, SearchIcon, 
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
-    ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon
+    ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon, PhotoIcon
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -76,14 +76,15 @@ const MarkdownStyles = () => (
     `}</style>
 );
 
-// --- 流程动画卡片组件 (保持不变) ---
+// --- 流程动画卡片组件 ---
 const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) => {
     const steps = [
         { id: 1, icon: LightBulbIcon, title: "意图识别", desc: "语义解析", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", ring: "ring-amber-100" },
         { id: 2, icon: BrainIcon, title: "大纲生成", desc: "逻辑构建", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-200", ring: "ring-purple-100" },
         { id: 3, icon: ViewGridIcon, title: "结构规划", desc: "内容填充", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", ring: "ring-blue-100" },
         { id: 4, icon: SparklesIcon, title: "内容生成", desc: "RAG写作", color: "text-pink-600", bg: "bg-pink-50", border: "border-pink-200", ring: "ring-pink-100" },
-        { id: 5, icon: ChartIcon, title: "完成", desc: "报告预览", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", ring: "ring-emerald-100" },
+        { id: 5, icon: PhotoIcon, title: "排版渲染", desc: "HTML生成", color: "text-indigo-600", bg: "bg-indigo-50", border: "border-indigo-200", ring: "ring-indigo-100" },
+        { id: 6, icon: ChartIcon, title: "完成", desc: "报告预览", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", ring: "ring-emerald-100" },
     ];
 
     return (
@@ -92,10 +93,10 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
                 <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 rounded-full hidden md:block"></div>
                 <div 
                     className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 -translate-y-1/2 rounded-full hidden md:block transition-all duration-1000 ease-in-out"
-                    style={{ width: `${Math.max(0, (currentStep - 1) * 25)}%` }}
+                    style={{ width: `${Math.max(0, (currentStep - 1) * 20)}%` }}
                 ></div>
                 
-                <div className="grid grid-cols-5 gap-2 md:gap-4 relative z-10">
+                <div className="grid grid-cols-6 gap-2 md:gap-4 relative z-10">
                     {steps.map((step, i) => {
                         const isActive = currentStep === step.id;
                         const isCompleted = currentStep > step.id;
@@ -786,10 +787,8 @@ const ContentGenerator: React.FC<{
     };
 
     const handleCompleteAll = async () => {
-        const finalPages = pages.map(({ thought_process, sessionId, isRevising, ...rest }) => rest);
-        await saveStratifyPages(taskId, finalPages);
-        await updateStratifyTask(taskId, { status: 'completed' });
-        onComplete(finalPages);
+        // Just pass data to next step (HTML Generation)
+        onComplete(pages);
     };
 
     const isAllDone = pages.every(p => p.status === 'done' || p.status === 'failed');
@@ -866,7 +865,7 @@ const ContentGenerator: React.FC<{
                         className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                     >
                         {isGlobalBusy ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : <CheckIcon className="w-4 h-4" />}
-                        {isAllDone ? '完成并导出' : '等待生成...'}
+                        {isAllDone ? '完成并进行排版' : '等待生成...'}
                     </button>
                 </div>
             </div>
@@ -988,6 +987,216 @@ const ContentGenerator: React.FC<{
     );
 };
 
+// --- 阶段5: HTML 排版渲染 (HtmlGenerator) ---
+const HtmlGenerator: React.FC<{
+    taskId: string;
+    pages: StratifyPage[]; // Passed from previous step (content generated)
+    onComplete: (finalPages: StratifyPage[]) => void;
+}> = ({ taskId, pages: initialPages, onComplete }) => {
+    // Shared State for pages
+    // We only need to update html_content and status. Markdown is already there.
+    const [pages, setPages] = useState<StratifyPage[]>(initialPages.map(p => ({ ...p, status: 'pending', html_content: null })));
+    
+    const [activePageIndex, setActivePageIndex] = useState(1);
+    const [isGlobalBusy, setIsGlobalBusy] = useState(false); 
+    const hasStartedRef = useRef(false);
+    const [progress, setProgress] = useState(0);
+    const activePageData = pages[activePageIndex - 1];
+
+    const updatePage = (idx: number, updates: Partial<StratifyPage>) => {
+        setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
+    };
+
+    // Sequential HTML Generation Logic
+    useEffect(() => {
+        if (hasStartedRef.current) return;
+        hasStartedRef.current = true;
+
+        const generateSequentially = async () => {
+            setIsGlobalBusy(true);
+            try {
+                for (let i = 0; i < initialPages.length; i++) {
+                    const page = initialPages[i];
+                    const pageIdx = i + 1;
+
+                    updatePage(pageIdx, { status: 'generating' });
+                    setActivePageIndex(pageIdx); // Auto follow progress
+
+                    let buffer = '';
+                    
+                    try {
+                        // Independent Session Call (session_id is undefined)
+                        await streamGenerate(
+                            {
+                                prompt_name: 'generate_page_html',
+                                variables: {
+                                    page_title: page.title,
+                                    page_content: page.content_markdown || ''
+                                },
+                                session_id: undefined // Explicitly undefined for independent context
+                            },
+                            (chunk) => {
+                                buffer += chunk;
+                                // Simple parser: accumulated chunk is the HTML content. 
+                                // Ideally, parsePageStream logic could be reused if backend wraps it, 
+                                // but for HTML gen usually raw stream is fine or simple extract.
+                                // Let's reuse parsePageStream for robust JSON/thought handling if backend uses it.
+                                const { content } = parsePageStream(buffer);
+                                updatePage(pageIdx, { 
+                                    html_content: content || buffer, // Fallback to raw buffer if parse fails (assuming raw stream)
+                                });
+                            },
+                            () => {
+                                updatePage(pageIdx, { status: 'done' });
+                                setProgress(Math.round(((i + 1) / initialPages.length) * 100));
+                            },
+                            (err) => {
+                                console.error(`HTML Page ${pageIdx} error:`, err);
+                                updatePage(pageIdx, { status: 'failed' });
+                            }
+                        );
+                    } catch (error) {
+                        console.error("HTML Sequence error", error);
+                        updatePage(pageIdx, { status: 'failed' });
+                    }
+                }
+            } finally {
+                setIsGlobalBusy(false);
+            }
+        };
+
+        generateSequentially();
+    }, [initialPages]);
+
+    const handleFinalize = async () => {
+        // Save to backend
+        await saveStratifyPages(taskId, pages);
+        await updateStratifyTask(taskId, { status: 'completed' });
+        onComplete(pages);
+    };
+
+    const isAllDone = pages.every(p => p.status === 'done' || p.status === 'failed');
+
+    return (
+        <div className="flex h-full bg-slate-50 overflow-hidden relative">
+            
+            {/* 1. Left Sidebar: Status & Nav */}
+            <div className="w-64 md:w-72 bg-white border-r border-slate-200 flex flex-col h-full z-10 flex-shrink-0">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">排版渲染进度</h3>
+                    <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                        <span className="font-mono">{progress}%</span>
+                        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                    {pages.map((page) => {
+                        const isActive = activePageIndex === page.page_index;
+                        return (
+                            <button
+                                key={page.page_index}
+                                onClick={() => setActivePageIndex(page.page_index)}
+                                className={`w-full text-left px-3 py-3 rounded-lg flex items-start gap-3 transition-all ${
+                                    isActive 
+                                        ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200 shadow-sm' 
+                                        : 'hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <div className="mt-0.5">
+                                    {page.status === 'done' ? (
+                                        <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center text-green-600 border border-green-200">
+                                            <CheckIcon className="w-2.5 h-2.5" />
+                                        </div>
+                                    ) : page.status === 'generating' ? (
+                                        <div className="w-4 h-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin"></div>
+                                    ) : page.status === 'failed' ? (
+                                        <div className="w-4 h-4 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-[10px]">!</div>
+                                    ) : (
+                                        <div className="w-4 h-4 rounded-full border-2 border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-400 bg-white">
+                                            {page.page_index}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-semibold truncate leading-tight">{page.title}</div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                                        {page.status === 'pending' ? '等待排版...' : 
+                                         page.status === 'generating' ? '正在渲染HTML...' : 
+                                         page.status === 'done' ? '排版完成' : '失败'}
+                                    </div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                <div className="p-4 border-t border-slate-200 bg-slate-50">
+                    <button 
+                        onClick={handleFinalize}
+                        disabled={!isAllDone || isGlobalBusy}
+                        className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                        {isGlobalBusy ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : <CheckIcon className="w-4 h-4" />}
+                        {isAllDone ? '查看最终报告' : '等待渲染...'}
+                    </button>
+                </div>
+            </div>
+
+            {/* 2. Right Main Area: HTML Preview */}
+            <div className="flex-1 flex flex-col h-full bg-slate-100 min-w-0">
+                {/* Top Bar */}
+                <div className="h-16 px-6 border-b border-slate-200 bg-white flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                    <div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">PREVIEW PAGE {String(activePageData.page_index).padStart(2, '0')}</div>
+                        <h2 className="text-lg font-bold text-slate-800 truncate max-w-xl">{activePageData.title}</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                            activePageData.status === 'generating' ? 'bg-indigo-50 text-indigo-600' :
+                            activePageData.status === 'done' ? 'bg-green-50 text-green-600' :
+                            'bg-slate-100 text-slate-500'
+                        }`}>
+                            {activePageData.status === 'generating' && <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span>}
+                            {activePageData.status === 'done' && <CheckIcon className="w-3.5 h-3.5" />}
+                            {activePageData.status === 'generating' ? 'Rendering...' : 'Rendered'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Content Preview Area */}
+                <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-slate-200/50 p-4 md:p-8">
+                    <div className="w-full max-w-[1000px] h-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden relative">
+                        {activePageData.html_content ? (
+                            <iframe 
+                                srcDoc={activePageData.html_content} 
+                                className="w-full h-full border-none" 
+                                title="HTML Preview"
+                                sandbox="allow-scripts allow-same-origin"
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
+                                {activePageData.status === 'generating' ? (
+                                    <>
+                                        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                                        <p className="text-sm font-medium text-indigo-600">AI 正在生成 HTML 代码...</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <PhotoIcon className="w-16 h-16 opacity-20" />
+                                        <p className="text-sm font-medium">等待排版</p>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- Main Export: Report Generator ---
 export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
@@ -1022,8 +1231,17 @@ export const ReportGenerator: React.FC = () => {
     // Step 4: Content Generation Complete
     const handleContentComplete = (pages: StratifyPage[]) => {
         if (currentTask) {
+            // Update local state with generated content
+            setCurrentTask({ ...currentTask, pages });
+            setStep(5); // Move to HTML generation
+        }
+    };
+
+    // Step 5: HTML Generation Complete
+    const handleHtmlComplete = (pages: StratifyPage[]) => {
+        if (currentTask) {
             setCurrentTask({ ...currentTask, pages, status: 'completed' });
-            setStep(5);
+            setStep(6); // Move to Final view
         }
     };
 
@@ -1036,7 +1254,7 @@ export const ReportGenerator: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
             {/* Header / Process Bar (Only show in early steps or final) */}
-            {step !== 4 && <ProcessFlowCards currentStep={step} />}
+            {step !== 4 && step !== 5 && <ProcessFlowCards currentStep={step} />}
 
             <div className="flex-1 relative z-10 overflow-hidden flex flex-col min-h-0">
                 {step === 1 && (
@@ -1052,7 +1270,15 @@ export const ReportGenerator: React.FC = () => {
                     />
                 )}
 
-                {step === 5 && (
+                {step === 5 && currentTask && currentTask.pages && (
+                    <HtmlGenerator 
+                        taskId={currentTask.id}
+                        pages={currentTask.pages} // Pass generated content pages
+                        onComplete={handleHtmlComplete}
+                    />
+                )}
+
+                {step === 6 && (
                     <div className="flex flex-col items-center justify-center h-full gap-6 animate-in zoom-in-95 duration-500">
                         <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-4 shadow-xl">
                             <CheckIcon className="w-12 h-12" />
