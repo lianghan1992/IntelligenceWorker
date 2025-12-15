@@ -208,7 +208,7 @@ const OutlineGenerationModal: React.FC<{
     topic: string;
     onClose: () => void;
     onConfirm: (outline: StratifyOutline) => void;
-}> = ({ isOpen, taskId, topic, onConfirm }) => {
+}> = ({ isOpen, taskId, topic, onClose, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [finalOutline, setFinalOutline] = useState<StratifyOutline | null>(null);
@@ -278,10 +278,10 @@ const OutlineGenerationModal: React.FC<{
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             {/* Backdrop with Blur */}
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-500"></div>
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl animate-in fade-in duration-500"></div>
 
             {/* Modal Container */}
-            <div className="relative bg-white w-full max-w-4xl rounded-[24px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-4 duration-500 ring-1 ring-black/5">
+            <div className="relative bg-white/95 w-full max-w-4xl rounded-[24px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-4 duration-500 ring-1 ring-black/5">
                 
                 {/* 1. Header Area */}
                 <div className="px-8 py-5 border-b border-slate-100 bg-white/80 backdrop-blur-sm z-10 flex justify-between items-center">
@@ -304,14 +304,25 @@ const OutlineGenerationModal: React.FC<{
                         </div>
                     </div>
                     
-                    {/* Collapsible Thought Toggle */}
-                    <button 
-                        onClick={() => setShowThought(!showThought)}
-                        className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showThought ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200'}`}
-                    >
-                        <SparklesIcon className="w-3 h-3" />
-                        {showThought ? '隐藏思考过程' : '查看思考过程'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Collapsible Thought Toggle */}
+                        <button 
+                            onClick={() => setShowThought(!showThought)}
+                            className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showThought ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-200'}`}
+                        >
+                            <SparklesIcon className="w-3 h-3" />
+                            {showThought ? '隐藏思考' : '思考过程'}
+                        </button>
+                        
+                        {/* Close Button */}
+                        <button 
+                            onClick={onClose}
+                            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all"
+                            title="关闭"
+                        >
+                            <CloseIcon className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* 2. Scrollable Content */}
@@ -319,22 +330,27 @@ const OutlineGenerationModal: React.FC<{
                     
                     {/* Thought Process (Collapsible) */}
                     <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showThought && (displayData.thought || isGenerating) ? 'max-h-[500px] mb-8 opacity-100' : 'max-h-0 mb-0 opacity-0'}`}>
-                        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden">
-                            <div className="bg-indigo-50/50 px-5 py-3 border-b border-indigo-50 flex items-center gap-2">
-                                <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider flex items-center gap-1.5">
+                        <div className="bg-slate-900 rounded-2xl border border-slate-700 shadow-inner overflow-hidden ring-1 ring-white/10">
+                            <div className="bg-slate-800/50 px-5 py-3 border-b border-slate-700 flex items-center gap-2">
+                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                                     <ClockIcon className="w-3.5 h-3.5" /> AI Thinking Process
                                 </span>
+                                <div className="flex gap-1.5 ml-auto">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
+                                    <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div>
+                                </div>
                             </div>
-                            <div className="p-5 font-mono text-sm text-slate-600 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
+                            <div className="p-5 font-mono text-xs sm:text-sm text-slate-300 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar-dark">
                                 {displayData.thought ? (
                                     <div className="whitespace-pre-wrap">{displayData.thought}</div>
                                 ) : (
-                                    <div className="flex items-center gap-2 text-slate-400 italic">
-                                        思考中 <span className="animate-pulse">...</span>
+                                    <div className="flex items-center gap-2 text-slate-500 italic">
+                                        思考中 <span className="animate-pulse">_</span>
                                     </div>
                                 )}
-                                {isGenerating && !displayData.thought && (
-                                    <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-1 animate-pulse align-middle"></span>
+                                {isGenerating && (
+                                    <span className="inline-block w-2 h-4 bg-indigo-500 ml-1 animate-pulse align-middle"></span>
                                 )}
                             </div>
                         </div>
@@ -351,7 +367,7 @@ const OutlineGenerationModal: React.FC<{
                                     {displayData.title}
                                 </div>
                             ) : (
-                                <div className="h-20 bg-slate-200/50 rounded-2xl animate-pulse"></div>
+                                <div className="h-24 bg-slate-200/50 rounded-2xl animate-pulse"></div>
                             )}
                         </div>
 
@@ -770,7 +786,7 @@ export const ReportGenerator: React.FC = () => {
                     isOpen={flowState === 'generatingOutline' && !!taskId}
                     taskId={taskId!}
                     topic={topic}
-                    onClose={() => { /* Prevent closing manually during generation */ }}
+                    onClose={() => setFlowState('idea')}
                     onConfirm={handleOutlineConfirm}
                 />
 
