@@ -1,4 +1,3 @@
-
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
@@ -60,19 +59,24 @@ export const streamGenerate = async (
                     try {
                         const json = JSON.parse(dataStr);
                         
-                        // Handle Session ID from the stream
+                        // 1. Handle Session ID (Custom StratifyAI Initial Message)
                         if (json.session_id && onSessionId) {
                             onSessionId(json.session_id);
                         }
 
-                        // Handle Standard Content
-                        if (json.content) {
-                            onData(json.content);
-                        }
-
-                        // Handle Reasoning Content (Thinking Process)
-                        if (json.reasoning_content && onReasoning) {
-                            onReasoning(json.reasoning_content);
+                        // 2. Handle OpenAI-compatible Chunk (Pass-through from backend)
+                        if (json.choices && Array.isArray(json.choices) && json.choices.length > 0) {
+                            const delta = json.choices[0].delta;
+                            if (delta) {
+                                // Content
+                                if (delta.content && onData) {
+                                    onData(delta.content);
+                                }
+                                // Reasoning / Thinking Process (e.g. DeepSeek R1)
+                                if (delta.reasoning_content && onReasoning) {
+                                    onReasoning(delta.reasoning_content);
+                                }
+                            }
                         }
                     } catch (e) {
                         // Ignore parse errors for partial chunks
