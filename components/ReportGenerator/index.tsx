@@ -112,6 +112,8 @@ const AnalysisModal: React.FC<{
     reasoningContent?: string;
 }> = ({ isOpen, streamContent, reasoningContent }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const bottomRef = useRef<HTMLDivElement>(null);
+    
     // 实时提取思考过程 (兼容普通模型 Prompt 方式)
     const { thought: extractedThought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
@@ -120,8 +122,8 @@ const AnalysisModal: React.FC<{
 
     // 自动滚动到底部
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (bottomRef.current) {
+            bottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [displayThought, isOpen]);
 
@@ -155,9 +157,10 @@ const AnalysisModal: React.FC<{
                 >
                     <div className="whitespace-pre-wrap">
                         <span className="text-slate-500 mr-2">$</span>
-                        {displayThought || <span className="text-slate-600 italic">正在连接推理引擎...</span>}
+                        {displayThought ? displayThought : <span className="text-slate-500 animate-pulse">连接推理引擎中...</span>}
                         <span className="typing-cursor"></span>
                     </div>
+                    <div ref={bottomRef} />
                 </div>
             </div>
         </div>
@@ -239,6 +242,7 @@ const OutlineGenerator: React.FC<{
     
     const hasStarted = useRef(false);
     const thoughtScrollRef = useRef<HTMLDivElement>(null);
+    const thoughtBottomRef = useRef<HTMLDivElement>(null);
 
     // 解析流
     const { thought: extractedThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
@@ -319,8 +323,8 @@ const OutlineGenerator: React.FC<{
 
     // 自动滚动思考区
     useEffect(() => {
-        if (thoughtScrollRef.current) {
-            thoughtScrollRef.current.scrollTop = thoughtScrollRef.current.scrollHeight;
+        if (thoughtBottomRef.current) {
+            thoughtBottomRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [displayThought]);
 
@@ -350,9 +354,10 @@ const OutlineGenerator: React.FC<{
                     )}
                     <div className="text-green-400 mb-1">// Phase 2: Outline Construction</div>
                     <div className="whitespace-pre-wrap">
-                        {displayThought || "AI 正在思考大纲结构..."}
+                        {displayThought ? displayThought : (isGenerating && "正在连接推理模型...")}
                         {isGenerating && <span className="typing-cursor"></span>}
                     </div>
+                    <div ref={thoughtBottomRef} />
                 </div>
             </div>
 
@@ -571,7 +576,7 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [task, setTask] = useState<StratifyTask | null>(null);
     const [analysisStream, setAnalysisStream] = useState('');
-    const [analysisReasoning, setAnalysisReasoning] = useState('');
+    const [analysisReasoning, setAnalysisReasoning] = useState(''); // Separate reasoning state
     const [step1Thought, setStep1Thought] = useState<string | null>(null);
     const [step1SessionId, setStep1SessionId] = useState<string | null>(null);
     
@@ -584,7 +589,7 @@ export const ReportGenerator: React.FC = () => {
     const handleStart = async (idea: string) => {
         setIsAnalysisModalOpen(true);
         setAnalysisStream('');
-        setAnalysisReasoning('');
+        setAnalysisReasoning(''); // Reset reasoning buffer
         setStep1Thought(null);
         setStep1SessionId(null);
         
@@ -616,7 +621,7 @@ export const ReportGenerator: React.FC = () => {
                 },
                 (err) => { alert('分析失败'); setIsAnalysisModalOpen(false); },
                 (sid) => { tempSessionId = sid; }, // Capture session ID
-                (chunk) => {
+                (chunk) => { // Capture reasoning stream
                     localReasoningBuffer += chunk;
                     setAnalysisReasoning(prev => prev + chunk);
                 }
@@ -635,10 +640,14 @@ export const ReportGenerator: React.FC = () => {
 
         const parsed: any = parseLlmJson(jsonPart);
         
+        // Use the original input as the 'topic' since the simplified JSON doesn't return data.
+        // If type is 'idea', topic is the original input.
+        // If type is 'outline', we might treat original input as the outline content, but for now we pass it as 'topic' to Step 2.
         const updatedTask = { ...task, topic: originalInput };
         setTask(updatedTask);
 
         if (!parsed || !parsed.type) {
+            // Default fallback
             setStep(2);
             return;
         }
@@ -647,8 +656,14 @@ export const ReportGenerator: React.FC = () => {
         if (parsed.type === 'idea') {
             setStep(2);
         } else if (parsed.type === 'outline') {
+            // User provided an outline.
+            // We pass this raw text to Step 2. Step 2's prompt will "Refine" it instead of "Create from scratch".
+            // In the UI flow, we still go to Step 2 (Outline Generator/Review).
             setStep(2); 
         } else if (parsed.type === 'content') {
+            // Full content provided. 
+            // In a real app, we might parse this content into pages directly.
+            // For now, simplify to Outline step to ensure structure is captured first.
             setStep(2);
         } else {
             setStep(2);
@@ -659,6 +674,7 @@ export const ReportGenerator: React.FC = () => {
         if(task) {
             const updated = { ...task, outline };
             setTask(updated);
+            // Pass the session ID along if it was updated in Step 2
             setStep1SessionId(sessionId); 
             setStep(4); 
         }

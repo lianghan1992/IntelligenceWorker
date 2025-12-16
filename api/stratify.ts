@@ -45,44 +45,70 @@ export const streamGenerate = async (
 
         if (!reader) throw new Error("No reader available");
 
+        // 关键修复：引入缓冲区处理跨 Chunk 的断行问题
+        let buffer = '';
+
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
 
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
+            // 将新收到的数据追加到缓冲区
+            buffer += decoder.decode(value, { stream: true });
+            
+            // 按换行符切割，但保留最后一个可能不完整的片段在缓冲区中
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; 
 
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.slice(6).trim();
-                    if (dataStr === '[DONE]') {
-                        continue;
+                const trimmedLine = line.trim();
+                if (!trimmedLine || !trimmedLine.startsWith('data: ')) {
+                    continue;
+                }
+
+                const dataStr = trimmedLine.slice(6).trim();
+                if (dataStr === '[DONE]') {
+                    continue;
+                }
+
+                try {
+                    const json = JSON.parse(dataStr);
+                    
+                    // 1. Handle Session ID (Stratify Protocol)
+                    if (json.session_id && onSessionId) {
+                        onSessionId(json.session_id);
                     }
-                    try {
-                        const json = JSON.parse(dataStr);
-                        
-                        // 1. Handle Session ID (Stratify Protocol)
-                        if (json.session_id && onSessionId) {
-                            onSessionId(json.session_id);
-                        }
 
-                        // 2. Handle Content (Simplified Pass-through)
-                        if (json.content && onData) {
-                            onData(json.content);
-                        }
-
-                        // 3. Handle Reasoning (Simplified Pass-through)
-                        // Backend returns "reasoning", keeping "reasoning_content" for robustness
-                        const reasoning = json.reasoning || json.reasoning_content;
-                        if (reasoning && onReasoning) {
-                            onReasoning(reasoning);
-                        }
-
-                    } catch (e) {
-                        // Ignore parse errors for partial chunks
+                    // 2. Handle Content (Simplified Pass-through)
+                    if (json.content && onData) {
+                        onData(json.content);
                     }
+
+                    // 3. Handle Reasoning (Simplified Pass-through)
+                    // Backend returns "reasoning", keeping "reasoning_content" for robustness
+                    const reasoning = json.reasoning || json.reasoning_content;
+                    if (reasoning && onReasoning) {
+                        onReasoning(reasoning);
+                    }
+
+                } catch (e) {
+                    // 仅当 JSON 确实损坏时才忽略，此时缓冲区机制已保证了行完整性
+                    console.warn("Stream parse error for line:", dataStr, e);
                 }
             }
+        }
+
+        // 处理缓冲区中剩余的内容（如果有）
+        if (buffer.trim().startsWith('data: ')) {
+             try {
+                const dataStr = buffer.trim().slice(6).trim();
+                if (dataStr !== '[DONE]') {
+                    const json = JSON.parse(dataStr);
+                    if (json.content && onData) onData(json.content);
+                    if ((json.reasoning || json.reasoning_content) && onReasoning) onReasoning(json.reasoning || json.reasoning_content);
+                }
+             } catch (e) {
+                 // ignore final partial chunk if invalid
+             }
         }
 
         if (onDone) onDone();
