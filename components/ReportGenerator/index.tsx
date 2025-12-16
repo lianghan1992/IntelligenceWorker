@@ -105,48 +105,43 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
         { id: 6, icon: ChartIcon, title: "完成", desc: "报告预览", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", ring: "ring-emerald-100" },
     ];
 
+    // Minimal Stepper UI
     return (
-        <div className="w-full max-w-5xl mx-auto mb-4 px-4 pt-4 flex-shrink-0">
-            <div className="relative">
-                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-gray-100 -translate-y-1/2 rounded-full hidden md:block"></div>
+        <div className="w-full max-w-xl mx-auto mb-6 px-4 pt-4 flex-shrink-0">
+            <div className="flex items-center justify-between relative">
+                {/* Connecting Line */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-gray-100 -z-10"></div>
                 <div 
-                    className="absolute top-1/2 left-0 h-0.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 -translate-y-1/2 rounded-full hidden md:block transition-all duration-1000 ease-in-out"
-                    style={{ width: `${Math.max(0, (currentStep - 1) * 20)}%` }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-indigo-500 transition-all duration-700 ease-in-out -z-10"
+                    style={{ width: `${Math.min(100, Math.max(0, (currentStep - 1) * 20))}%` }}
                 ></div>
-                
-                <div className="grid grid-cols-6 gap-2 md:gap-4 relative z-10">
-                    {steps.map((step, i) => {
-                        const isActive = currentStep === step.id;
-                        const isCompleted = currentStep > step.id;
-                        const isPending = currentStep < step.id;
 
-                        return (
-                            <div 
-                                key={step.id} 
-                                className={`flex flex-col items-center text-center transition-all duration-500 group ${isPending ? 'opacity-50 grayscale' : 'opacity-100'}`}
-                            >
-                                <div className={`
-                                    relative w-8 h-8 md:w-12 md:h-12 rounded-2xl border flex items-center justify-center transition-all duration-500 ease-out
-                                    ${isActive 
-                                        ? `bg-white ${step.border} shadow-[0_0_25px_rgba(0,0,0,0.08)] scale-110 z-20 ring-4 ${step.ring}` 
-                                        : isCompleted 
-                                            ? 'bg-white border-indigo-100 text-indigo-600 shadow-sm ring-2 ring-indigo-50' 
-                                            : 'bg-white border-gray-100 text-gray-300 shadow-sm'
-                                    }
-                                `}>
-                                    <div className={`transition-all duration-300 transform ${isActive ? `${step.color} scale-110` : ''}`}>
-                                        {isCompleted ? <CheckIcon className="w-4 h-4 md:w-6 md:h-6" /> : <step.icon className="w-4 h-4 md:w-6 md:h-6" />}
-                                    </div>
-                                </div>
-                                <div className={`mt-2 space-y-0.5 transition-all duration-300 ${isActive ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-70'}`}>
-                                    <h4 className={`text-[10px] md:text-xs font-bold ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
-                                        {step.title}
-                                    </h4>
-                                </div>
+                {steps.map((step) => {
+                    const isActive = currentStep === step.id;
+                    const isCompleted = currentStep > step.id;
+                    
+                    return (
+                        <div key={step.id} className="relative flex flex-col items-center group">
+                            <div className={`
+                                w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border-2
+                                ${isActive 
+                                    ? 'bg-indigo-600 border-indigo-600 text-white scale-110 shadow-lg shadow-indigo-200' 
+                                    : isCompleted 
+                                        ? 'bg-white border-indigo-600 text-indigo-600' 
+                                        : 'bg-white border-gray-200 text-gray-300'
+                                }
+                            `}>
+                                {isCompleted ? <CheckIcon className="w-4 h-4" /> : step.id}
                             </div>
-                        );
-                    })}
-                </div>
+                            <span className={`
+                                absolute top-10 text-[10px] font-medium whitespace-nowrap transition-all duration-300
+                                ${isActive ? 'text-indigo-600 -translate-y-1' : 'text-gray-400 opacity-0 group-hover:opacity-100 group-hover:translate-y-0'}
+                            `}>
+                                {step.title}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -166,63 +161,49 @@ const IdeaInput: React.FC<{
     return (
         <div className="flex flex-col items-center justify-start h-full overflow-y-auto pb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <div className="w-full max-w-3xl text-center px-4 mt-8 md:mt-16 relative">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] -z-10 pointer-events-none"></div>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-100/40 rounded-full blur-[100px] -z-10 pointer-events-none"></div>
 
                 <div className="mb-6 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold border border-indigo-100 shadow-sm animate-bounce">
                     <SparklesIcon className="w-3 h-3" />
                     <span>AI 智能报告生成引擎 V2.0</span>
                 </div>
 
-                <h1 className="text-4xl sm:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 tracking-tight mb-6 leading-tight">
-                    从一个想法<br/>到一份专业报告
+                <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight mb-4 leading-tight">
+                    从一个想法到一份专业报告
                 </h1>
-                <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-10">
-                    输入您想要研究的主题，AI 将为您自动完成<span className="text-indigo-600 font-bold bg-indigo-50 px-1 rounded">全网调研</span>、<span className="text-purple-600 font-bold bg-purple-50 px-1 rounded">数据分析</span>与<span className="text-pink-600 font-bold bg-pink-50 px-1 rounded">逻辑构建</span>。
+                <p className="text-sm text-slate-500 max-w-xl mx-auto leading-relaxed mb-8">
+                    输入您想要研究的主题，AI 将为您自动完成<span className="text-indigo-600 font-bold">全网调研</span>、<span className="text-purple-600 font-bold">数据分析</span>与<span className="text-pink-600 font-bold">逻辑构建</span>。
                 </p>
                 
                 <div className="relative group max-w-2xl mx-auto">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-[24px] opacity-25 group-hover:opacity-50 transition duration-500 blur-xl"></div>
-                    <div className="relative bg-white rounded-[20px] shadow-2xl p-2 border border-slate-100">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 rounded-[24px] opacity-30 group-hover:opacity-50 transition duration-500 blur-xl"></div>
+                    <div className="relative bg-white rounded-[20px] shadow-xl p-2 border border-slate-100 ring-1 ring-slate-50">
                         <textarea
                             value={idea}
                             onChange={(e) => setIdea(e.target.value)}
-                            placeholder="例如：‘2024年中国新能源汽车出海战略分析’ 或 ‘固态电池技术发展现状与商业化前景’"
-                            className="w-full h-40 p-5 text-lg bg-transparent border-none resize-none focus:ring-0 text-slate-800 placeholder:text-slate-300 font-medium"
+                            placeholder="例如：‘2024年中国新能源汽车出海战略分析’..."
+                            className="w-full h-32 p-5 text-base bg-slate-50/50 rounded-xl border-none resize-none focus:ring-0 focus:bg-white transition-colors text-slate-800 placeholder:text-slate-300 font-medium"
                             disabled={isLoading}
                         />
-                        <div className="flex justify-between items-center px-4 pb-2">
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs text-slate-400 font-medium">支持中英文输入</span>
-                                <div className="h-4 w-px bg-slate-200"></div>
-                                <div className="flex items-center gap-1.5">
-                                    <GearIcon className="w-3.5 h-3.5 text-slate-400" />
-                                    <select 
-                                        value={selectedScenario}
-                                        onChange={(e) => onSelectScenario(e.target.value)}
-                                        className="text-xs font-medium text-slate-600 bg-transparent outline-none cursor-pointer hover:text-indigo-600 transition-colors"
-                                        disabled={isLoading}
-                                    >
-                                        {scenarios.map(sc => (
-                                            <option key={sc} value={sc}>场景: {sc}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                        <div className="flex justify-between items-center px-4 pb-2 mt-2">
+                            <div className="flex items-center gap-3 opacity-0 pointer-events-none">
+                                {/* Hidden Placeholder for layout balance */}
                             </div>
                             <button 
                                 onClick={() => onStart(idea)}
                                 disabled={!idea.trim() || isLoading}
-                                className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 hover:shadow-indigo-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all flex items-center gap-2 group/btn"
+                                className="px-6 py-2 bg-slate-900 text-white text-xs font-bold rounded-full shadow-lg hover:bg-indigo-600 hover:shadow-indigo-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all flex items-center gap-2 group/btn"
                             >
                                 {isLoading ? (
                                     <>
-                                        <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                                        <div className="animate-spin h-3 w-3 border-2 border-white/30 border-t-white rounded-full"></div>
                                         <span>{loadingText || '启动中...'}</span>
                                     </>
                                 ) : (
                                     <>
-                                        <SparklesIcon className="w-4 h-4 group-hover/btn:animate-ping" />
+                                        <SparklesIcon className="w-3.5 h-3.5 group-hover/btn:animate-ping" />
                                         <span>立即生成</span>
-                                        <ArrowRightIcon className="w-4 h-4 ml-1 transition-transform group-hover/btn:translate-x-1" />
+                                        <ArrowRightIcon className="w-3.5 h-3.5 ml-0.5 transition-transform group-hover/btn:translate-x-1" />
                                     </>
                                 )}
                             </button>
@@ -230,9 +211,9 @@ const IdeaInput: React.FC<{
                     </div>
                 </div>
 
-                <div className="mt-12 flex flex-wrap justify-center gap-3">
+                <div className="mt-10 flex flex-wrap justify-center gap-2.5">
                     {['行业研究', '竞品分析', '技术洞察', '市场趋势', '政策解读'].map(tag => (
-                        <span key={tag} onClick={() => setIdea(prev => tag + " ")} className="cursor-pointer px-4 py-1.5 bg-white border border-slate-200 rounded-full text-sm font-medium text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors shadow-sm">
+                        <span key={tag} onClick={() => setIdea(prev => tag + " ")} className="cursor-pointer px-3 py-1 bg-white border border-slate-200 rounded-full text-xs font-medium text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors shadow-sm">
                             {tag}
                         </span>
                     ))}
@@ -246,48 +227,56 @@ const IdeaInput: React.FC<{
 
 /**
  * Universal helper to split Thought Process from JSON content.
- * Supports:
- * 1. Markdown code block: ```json ... ```
- * 2. Direct JSON start: { ...
- * 3. Fallback: Everything is thought if no JSON structure found yet.
+ * Updated to be robust against various LLM output styles.
  */
 const extractThoughtAndJson = (text: string) => {
     let thought = null;
     let jsonPart = '';
 
-    // Strategy 1: Look for markdown code block start
-    const codeBlockStart = text.indexOf('```json');
-    if (codeBlockStart !== -1) {
-        // Text BEFORE the code block is the thought process
-        thought = text.slice(0, codeBlockStart).trim();
+    // Check if the text matches a code block pattern first
+    // Matches ```json or just ``` start
+    const codeBlockMatch = text.match(/```(?:json)?/i);
+
+    if (codeBlockMatch && codeBlockMatch.index !== undefined) {
+        // If there is text BEFORE the code block, that's the thought
+        if (codeBlockMatch.index > 0) {
+            thought = text.slice(0, codeBlockMatch.index).trim();
+        }
         
-        const contentStart = codeBlockStart + 7; // length of ```json
+        // The JSON content starts after the opening fence
+        const contentStart = codeBlockMatch.index + codeBlockMatch[0].length;
+        
         // Try to find the closing fence
-        const contentEnd = text.lastIndexOf('```'); 
+        const closingMatch = text.slice(contentStart).match(/```/);
         
-        if (contentEnd > contentStart) {
-            jsonPart = text.slice(contentStart, contentEnd).trim();
+        if (closingMatch && closingMatch.index !== undefined) {
+             jsonPart = text.slice(contentStart, contentStart + closingMatch.index).trim();
         } else {
-            // Stream is incomplete, take everything after opening fence
-            jsonPart = text.slice(contentStart).trim();
+             // Incomplete stream, take everything after opening fence
+             jsonPart = text.slice(contentStart).trim();
         }
     } else {
-        // Strategy 2: Look for the first '{' which likely indicates JSON start
+        // No code block found. 
+        // Fallback: Look for the first '{' that looks like the start of the JSON object.
         const jsonStart = text.indexOf('{');
+        
         if (jsonStart !== -1) {
-            // Check if it really looks like the start of the main object (and not embedded in text)
-            // A simple heuristic: if it's near the start or preceded by newlines
-            thought = text.slice(0, jsonStart).trim();
+            // Check if there is meaningful text before the '{'
+            const preJson = text.slice(0, jsonStart).trim();
+            if (preJson.length > 0) {
+                thought = preJson;
+            }
             jsonPart = text.slice(jsonStart).trim();
         } else {
-            // Strategy 3: No JSON structure found yet, assume all is thought (streaming)
+            // No JSON structure found yet. Treat everything as thought.
             thought = text.trim();
             jsonPart = ''; 
         }
     }
     
-    // If thought is empty string, make it null
+    // Normalize empty strings
     if (thought === '') thought = null;
+    if (jsonPart === '') jsonPart = '';
 
     return { thought, jsonPart };
 };
@@ -307,7 +296,6 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
         }
 
         // Extract Pages (or Outline)
-        // Standardize on "pages" array key
         let pagesSection = "";
         const pagesStartIdx = jsonPart.indexOf('"pages"');
         if (pagesStartIdx !== -1) {
@@ -336,8 +324,6 @@ const parseIncrementalStream = (text: string): { thought: string | null, title: 
 
 // For Content Generation (Step 4)
 const parsePageStream = (text: string) => {
-    // UPDATED: Now uses extractThoughtAndJson. 
-    // The prompt 03_generate_content NO LONGER returns `thought_process` inside JSON.
     const { thought, jsonPart } = extractThoughtAndJson(text);
     let content = '';
     let title = null;
@@ -370,7 +356,7 @@ const parsePageStream = (text: string) => {
 
 // For HTML Generation (Step 5)
 const parseHtmlStream = (text: string) => {
-    const { jsonPart } = extractThoughtAndJson(text); // Ignore thought for HTML output usually, or use it if needed
+    const { jsonPart } = extractThoughtAndJson(text);
     let html = '';
 
     if (jsonPart) {
@@ -413,10 +399,15 @@ const AnalysisModal: React.FC<{
     // Extract thought from stream content using the unified parser
     const { thought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
 
-    // If we have extracted thought, show it. 
-    // If not (e.g. strict JSON start), but there is jsonPart, we might still show "Processing..."
-    // If streamContent exists but `thought` is null (started with {), we show "Analyzing structure..."
-    const displayContent = thought || (streamContent && !jsonPart ? streamContent : "正在构建结构化数据...");
+    // Display logic:
+    // 1. If we have explicit thought text, show it.
+    // 2. If we only have raw JSON (no thought detected) but stream exists, we show the raw stream 
+    //    so the user sees *something* happening (like a terminal log), rather than an empty box.
+    // 3. If stream is empty, show "Initializing".
+    let displayContent = thought;
+    if (!displayContent && streamContent) {
+        displayContent = streamContent; // Fallback to raw stream if no thought separation found
+    }
 
     // Auto-scroll
     useEffect(() => {
@@ -442,7 +433,7 @@ const AnalysisModal: React.FC<{
                     className="flex-1 p-6 font-mono text-sm text-green-400 overflow-y-auto bg-black/50 custom-scrollbar-dark leading-relaxed"
                 >
                     <div className="whitespace-pre-wrap">
-                        {displayContent}
+                        {displayContent || <span className="text-slate-600 italic">正在连接模型...</span>}
                         <span className="typing-cursor"></span>
                     </div>
                 </div>
@@ -631,10 +622,11 @@ const OutlineGenerationModal: React.FC<{
                     <div className="animate-in slide-in-from-top-4 duration-700">
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-[#1e1e1e] ${showThought ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="p-4 font-mono text-xs sm:text-sm text-green-400/90 leading-relaxed overflow-y-auto max-h-[400px] custom-scrollbar-dark">
-                                {displayData.thought ? (
+                                {displayData.thought || streamContent ? (
                                     <div className="whitespace-pre-wrap">
                                         <span className="text-gray-500 mr-2">$</span>
-                                        {displayData.thought}
+                                        {displayData.thought || streamContent} 
+                                        {/* Show streamContent if thought is null, to ensure terminal isn't empty during parsing */}
                                         {isGenerating && <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>}
                                     </div>
                                 ) : (
@@ -1485,8 +1477,11 @@ export const ReportGenerator: React.FC = () => {
                 },
                 () => {
                     // Analysis stream done, process result
-                    setIsAnalysisOpen(false); // Close Modal
-                    processAnalysisResult(analysisBuffer, task, sessionId);
+                    // Use timeout to let the user see the result briefly
+                    setTimeout(() => {
+                        setIsAnalysisOpen(false); // Close Modal
+                        processAnalysisResult(analysisBuffer, task, sessionId);
+                    }, 1500);
                 },
                 (err) => {
                     console.error("Analysis stream failed:", err);
