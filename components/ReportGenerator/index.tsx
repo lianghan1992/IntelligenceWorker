@@ -34,7 +34,6 @@ const MarkdownStyles = () => (
 );
 
 // --- 核心解析器：分离思考与JSON ---
-// 针对后端 Prompt 结构： "思考过程 (Markdown) \n ```json { ... } ```"
 const extractThoughtAndJson = (text: string) => {
     let thought = '';
     let jsonPart = '';
@@ -55,10 +54,8 @@ const extractThoughtAndJson = (text: string) => {
         hasJsonStart = true;
     } else {
         // 2. 兜底：寻找第一个 '{'，假设它是 JSON 的开始
-        // 只有当 '{' 之前的文本看起来像思考（包含换行或足够长）时才分割
         const jsonStartIndex = text.indexOf('{');
         if (jsonStartIndex !== -1) {
-            // 简单的启发式：如果 { 在很后面，或者前面有明显的思考痕迹
             thought = text.slice(0, jsonStartIndex).trim();
             jsonPart = text.slice(jsonStartIndex);
             hasJsonStart = true;
@@ -108,28 +105,71 @@ const MinimalStepper: React.FC<{ currentStep: number }> = ({ currentStep }) => {
     );
 };
 
-// --- 阶段1: 创意输入 (含内联思考展示) ---
-const IdeaInput: React.FC<{ 
-    onStart: (idea: string) => void, 
-    isAnalyzing: boolean,
-    analysisStream: string, // 传入实时流
-}> = ({ onStart, isAnalyzing, analysisStream }) => {
-    const [idea, setIdea] = useState('');
-    const { thought } = useMemo(() => extractThoughtAndJson(analysisStream), [analysisStream]);
-    
-    // Auto-scroll for thought box
-    const thoughtRef = useRef<HTMLDivElement>(null);
+// --- NEW: Analysis Modal (弹窗式意图分析) ---
+const AnalysisModal: React.FC<{
+    isOpen: boolean;
+    streamContent: string;
+}> = ({ isOpen, streamContent }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    // 实时提取思考过程
+    const { thought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
+
+    // 自动滚动到底部
     useEffect(() => {
-        if (thoughtRef.current) {
-            thoughtRef.current.scrollTop = thoughtRef.current.scrollHeight;
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [thought]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-[#0f172a] w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[60vh] animate-in zoom-in-95 duration-300 ring-1 ring-white/10">
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-slate-800 bg-[#1e293b] flex items-center gap-4">
+                    <div className="relative flex-shrink-0">
+                         <div className="absolute inset-0 bg-indigo-500 rounded-full blur opacity-50 animate-pulse"></div>
+                         <BrainIcon className="w-8 h-8 text-indigo-400 relative z-10" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-100 tracking-wide text-lg flex items-center gap-2">
+                            AI 深度意图识别
+                            <span className="flex h-2 w-2 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-0.5">正在分析您的输入并规划最佳报告路径...</p>
+                    </div>
+                </div>
+                
+                {/* Terminal / Log View */}
+                <div 
+                    ref={scrollRef}
+                    className="flex-1 p-6 font-mono text-sm text-green-400 overflow-y-auto bg-black/50 custom-scrollbar-dark leading-relaxed"
+                >
+                    <div className="whitespace-pre-wrap">
+                        <span className="text-slate-500 mr-2">$</span>
+                        {thought || <span className="text-slate-600 italic">正在连接推理引擎...</span>}
+                        <span className="typing-cursor"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 阶段1: 创意输入 ---
+const IdeaInput: React.FC<{ 
+    onStart: (idea: string) => void, 
+    isLoading: boolean, 
+}> = ({ onStart, isLoading }) => {
+    const [idea, setIdea] = useState('');
 
     return (
         <div className="flex flex-col items-center justify-center h-full min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="w-full max-w-2xl px-4 relative">
-                
-                {/* 装饰背景 */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-indigo-500/5 rounded-full blur-[80px] -z-10 pointer-events-none"></div>
 
                 <div className="text-center mb-8">
@@ -148,17 +188,16 @@ const IdeaInput: React.FC<{
                         onChange={(e) => setIdea(e.target.value)}
                         placeholder="输入您的研究主题，例如：'2024年中国新能源汽车出海战略分析'..."
                         className="w-full h-32 p-4 text-lg bg-transparent border-none resize-none focus:ring-0 focus:outline-none outline-none text-slate-800 placeholder:text-slate-300 font-medium leading-relaxed"
-                        disabled={isAnalyzing}
+                        disabled={isLoading}
                     />
                     
-                    {/* 底部工具栏 */}
                     <div className="flex justify-between items-center px-4 pb-2 pt-2 border-t border-slate-50">
                         <div className="flex gap-2">
                              {['行业研究', '竞品分析', '市场趋势'].map(tag => (
                                 <button 
                                     key={tag} 
                                     onClick={() => setIdea(tag + " ")}
-                                    disabled={isAnalyzing}
+                                    disabled={isLoading}
                                     className="px-2 py-1 bg-slate-50 hover:bg-slate-100 text-slate-500 text-xs rounded-md transition-colors"
                                 >
                                     {tag}
@@ -167,41 +206,14 @@ const IdeaInput: React.FC<{
                         </div>
                         <button 
                             onClick={() => onStart(idea)}
-                            disabled={!idea.trim() || isAnalyzing}
+                            disabled={!idea.trim() || isLoading}
                             className="px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-full hover:bg-indigo-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                         >
-                            {isAnalyzing ? (
-                                <>
-                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                    <span>分析中...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <span>立即生成</span>
-                                    <ArrowRightIcon className="w-3 h-3" />
-                                </>
-                            )}
+                            <span>立即生成</span>
+                            <ArrowRightIcon className="w-3 h-3" />
                         </button>
                     </div>
                 </div>
-
-                {/* 实时思考展示区 (取代弹窗) */}
-                {isAnalyzing && (
-                    <div className="mt-6 mx-4 bg-slate-900 rounded-xl p-4 shadow-lg animate-in slide-in-from-top-2 border border-slate-800">
-                        <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold mb-2 uppercase tracking-wider">
-                            <BrainIcon className="w-3 h-3 animate-pulse" />
-                            AI Thinking Process
-                        </div>
-                        <div 
-                            ref={thoughtRef}
-                            className="font-mono text-xs text-green-400/90 leading-relaxed h-24 overflow-y-auto custom-scrollbar whitespace-pre-wrap break-all"
-                        >
-                            {thought || "正在连接 AI 模型..."}
-                            <span className="typing-cursor"></span>
-                        </div>
-                    </div>
-                )}
-
             </div>
         </div>
     );
@@ -213,20 +225,20 @@ const OutlineGenerator: React.FC<{
     topic: string;
     scenario: string;
     precedingThought: string | null; // 也就是 Step 1 的思考
+    initialSessionId: string | null; // 从 Step 1 继承的会话
     onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
-}> = ({ taskId, topic, scenario, precedingThought, onConfirm }) => {
+}> = ({ taskId, topic, scenario, precedingThought, initialSessionId, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
-    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
     const [isGenerating, setIsGenerating] = useState(true);
-    const [revisionInput, setRevisionInput] = useState('');
     
     const hasStarted = useRef(false);
     const thoughtScrollRef = useRef<HTMLDivElement>(null);
 
     // 解析流
-    const { thought: currentThought, jsonPart, hasJsonStart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
+    const { thought: currentThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
-    // 解析 JSON (大纲) - 优化版，防止乱码
+    // 解析 JSON (大纲) - 优化版
     const outlineData = useMemo(() => {
         if (!jsonPart) return null;
         try {
@@ -237,11 +249,9 @@ const OutlineGenerator: React.FC<{
             }
 
             // 2. 增强型流式正则解析
-            // 避免匹配到根对象的 title，只从 pages 数组开始匹配
             const pagesStartIndex = jsonPart.indexOf('"pages"');
             let title = '生成中...';
             
-            // 提取主标题 (只在 pages 之前找)
             const titleSection = pagesStartIndex > -1 ? jsonPart.slice(0, pagesStartIndex) : jsonPart;
             const titleMatch = titleSection.match(/"title"\s*:\s*"(?<title>(?:[^"\\]|\\.)*?)"/);
             if (titleMatch && titleMatch.groups?.title) {
@@ -250,12 +260,9 @@ const OutlineGenerator: React.FC<{
 
             const pages: { title: string, content: string }[] = [];
             
-            // 如果找到了 pages 数组的开始，尝试匹配内部对象
             if (pagesStartIndex > -1) {
                 const pagesSection = jsonPart.slice(pagesStartIndex);
-                // 更加健壮的正则，支持转义引号
                 const pageRegex = /{\s*"title"\s*:\s*"(?<title>(?:[^"\\]|\\.)*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(?<content>(?:[^"\\]|\\.)*?)"/g;
-                
                 let match;
                 while ((match = pageRegex.exec(pagesSection)) !== null) {
                     if (match.groups) {
@@ -267,10 +274,7 @@ const OutlineGenerator: React.FC<{
                 }
             }
 
-            return {
-                title: title,
-                pages: pages
-            };
+            return { title, pages };
         } catch (e) {
             return null;
         }
@@ -283,15 +287,16 @@ const OutlineGenerator: React.FC<{
         streamGenerate(
             {
                 prompt_name: 'generate_outline',
-                variables: { user_input: topic },
-                scenario
+                variables: { user_input: topic }, // 仍然传递 user_input，后端会决定是否使用或仅依靠上下文
+                scenario,
+                session_id: initialSessionId || undefined // 传递会话 ID 以保持上下文
             },
             (chunk) => setStreamContent(prev => prev + chunk),
             () => setIsGenerating(false),
             (err) => { console.error(err); setIsGenerating(false); },
             (sid) => { if(sid) setSessionId(sid); }
         );
-    }, [topic, scenario]);
+    }, [topic, scenario, initialSessionId]);
 
     // 自动滚动思考区
     useEffect(() => {
@@ -355,7 +360,6 @@ const OutlineGenerator: React.FC<{
                         </div>
                     ))}
                     
-                    {/* Loading Placeholder */}
                     {isGenerating && (!outlineData || outlineData.pages.length === 0) && (
                         <div className="flex flex-col items-center justify-center py-10 text-slate-400 gap-3">
                             <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -411,19 +415,15 @@ const ContentWriter: React.FC<{
         
         const nextPage = pages.find(p => p.status === 'pending');
         if (!nextPage) {
-            if (pages.every(p => p.status === 'done')) {
-                // 全部完成
-                // Wait a bit then auto proceed or show button
-            }
+            // 全部完成
             return;
         }
 
         const processPage = async (page: StratifyPage) => {
             processingRef.current = true;
-            setActivePageIdx(page.page_index); // Auto switch view
-            setPageThought(''); // Reset thought for new page
+            setActivePageIdx(page.page_index);
+            setPageThought('');
             
-            // Update status
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
 
             let buffer = '';
@@ -442,25 +442,14 @@ const ContentWriter: React.FC<{
                 (chunk) => {
                     buffer += chunk;
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
-                    setPageThought(thought); // 实时更新思考展示
+                    setPageThought(thought);
 
-                    // 尝试解析 JSON 内容部分
-                    // 简单的正则提取 content
-                    const contentMatch = jsonPart.match(/"content"\s*:\s*"(.*?)"/s); // 简单匹配，实际应用可能需要更强的 parser
-                    // 由于 JSON 流式传输，这里为了展示效果，如果没解析出 content，就先展示 jsonPart 的原始文本作为降级，或者等待
-                    // 实际上 parseLlmJson 更稳健，但流式需要增量解析。
-                    // 这里简化：如果 parsePageStream 能提取到 content，就更新。
-                    // 借用之前的 parsePageStream 逻辑（已包含在上面的 extract 之后）
-                    
-                    // 手动提取 content (处理转义)
                     if (jsonPart) {
                         const start = jsonPart.indexOf('"content"');
                         if (start !== -1) {
                             let valStart = jsonPart.indexOf(':', start) + 1;
                             while(jsonPart[valStart] === ' ' || jsonPart[valStart] === '\n') valStart++;
                             if (jsonPart[valStart] === '"') {
-                                // 提取直到结尾或下一个引号
-                                // 这里简化处理，直接显示清洗后的 markdown
                                 const rawContent = jsonPart.slice(valStart + 1).replace(/\\n/g, '\n').replace(/\\"/g, '"');
                                 setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, content_markdown: rawContent } : p));
                             }
@@ -486,16 +475,13 @@ const ContentWriter: React.FC<{
     const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
     const isAllDone = pages.every(p => p.status === 'done');
 
-    // Render Markdown (Simplified)
     const renderContent = (md: string) => {
         if (!md) return null;
-        // In real app use marked or remark
         return <div className="prose prose-sm max-w-none whitespace-pre-wrap">{md}</div>;
     };
 
     return (
         <div className="flex h-full gap-6">
-            {/* Left: Navigation */}
             <div className="w-64 flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                 <div className="p-4 bg-slate-50 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">目录</h3>
@@ -528,9 +514,7 @@ const ContentWriter: React.FC<{
                 </div>
             </div>
 
-            {/* Right: Editor / Reader */}
             <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
-                {/* Thinking Overlay / Split */}
                 {activePage.status === 'generating' && pageThought && (
                     <div className="bg-[#1e1e1e] text-slate-300 p-4 text-xs font-mono border-b border-slate-700 max-h-32 overflow-y-auto">
                         <span className="text-indigo-400 font-bold mr-2">$ THINKING:</span>
@@ -558,19 +542,24 @@ const ContentWriter: React.FC<{
 export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [task, setTask] = useState<StratifyTask | null>(null);
-    // Use analysisStream only for display in Step 1
     const [analysisStream, setAnalysisStream] = useState('');
     const [step1Thought, setStep1Thought] = useState<string | null>(null);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [step1SessionId, setStep1SessionId] = useState<string | null>(null);
+    
+    // Modal State for Step 1
+    const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+    
     const [scenarios, setScenarios] = useState<string[]>(['default']);
 
-    // Step 1: Start
+    // Step 1: Start -> Open Modal -> Stream -> Process
     const handleStart = async (idea: string) => {
-        setIsAnalyzing(true);
+        setIsAnalysisModalOpen(true);
         setAnalysisStream('');
         setStep1Thought(null);
+        setStep1SessionId(null);
         
-        let localBuffer = ''; // Use local variable to accumulate stream reliably
+        let localBuffer = ''; 
+        let tempSessionId: string | null = null;
 
         try {
             const newTask = await createStratifyTask(idea);
@@ -579,49 +568,82 @@ export const ReportGenerator: React.FC = () => {
             // Stream Analyze
             await streamGenerate(
                 {
-                    prompt_name: 'analyze_input',
+                    prompt_name: 'analyze_input', // New stricter prompt
                     variables: { user_input: idea },
                     scenario: 'default'
                 },
                 (chunk) => {
                     localBuffer += chunk;
-                    setAnalysisStream(prev => prev + chunk); // Update UI
+                    setAnalysisStream(prev => prev + chunk); // Update Modal
                 },
                 () => {
-                    // Force a minimum delay to let user see "Thinking" UI
+                    // Delay slightly to let user see "Thinking" effect completion
                     setTimeout(() => {
-                        setIsAnalyzing(false);
-                        // Extract final thought to pass to next step
-                        // Use the localBuffer which is guaranteed to be full
-                        const { thought } = extractThoughtAndJson(localBuffer);
-                        setStep1Thought(thought); 
-                        setStep(2);
-                    }, 2500); // 2.5s minimum delay
+                        processAnalysisResult(localBuffer, newTask, idea, tempSessionId);
+                        setIsAnalysisModalOpen(false);
+                    }, 1000); 
                 },
-                (err) => { alert('分析失败'); setIsAnalyzing(false); }
+                (err) => { alert('分析失败'); setIsAnalysisModalOpen(false); },
+                (sid) => { tempSessionId = sid; } // Capture session ID
             );
         } catch (e) {
             alert('启动失败');
-            setIsAnalyzing(false);
+            setIsAnalysisModalOpen(false);
         }
     };
 
-    // Step 2 Confirm
+    const processAnalysisResult = (buffer: string, task: StratifyTask, originalInput: string, sessionId: string | null) => {
+        const { thought, jsonPart } = extractThoughtAndJson(buffer);
+        setStep1Thought(thought);
+        setStep1SessionId(sessionId);
+
+        const parsed: any = parseLlmJson(jsonPart);
+        
+        // Use the original input as the 'topic' since the simplified JSON doesn't return data.
+        // If type is 'idea', topic is the original input.
+        // If type is 'outline', we might treat original input as the outline content, but for now we pass it as 'topic' to Step 2.
+        const updatedTask = { ...task, topic: originalInput };
+        setTask(updatedTask);
+
+        if (!parsed || !parsed.type) {
+            // Default fallback
+            setStep(2);
+            return;
+        }
+
+        // Logic based on Type
+        if (parsed.type === 'idea') {
+            setStep(2);
+        } else if (parsed.type === 'outline') {
+            // User provided an outline.
+            // We pass this raw text to Step 2. Step 2's prompt will "Refine" it instead of "Create from scratch".
+            // In the UI flow, we still go to Step 2 (Outline Generator/Review).
+            setStep(2); 
+        } else if (parsed.type === 'content') {
+            // Full content provided. 
+            // In a real app, we might parse this content into pages directly.
+            // For now, simplify to Outline step to ensure structure is captured first.
+            setStep(2);
+        } else {
+            setStep(2);
+        }
+    };
+
     const handleOutlineConfirm = (outline: StratifyOutline, sessionId: string | null) => {
         if(task) {
             const updated = { ...task, outline };
             setTask(updated);
-            // In a real app, update backend here
-            setStep(4); // Skip 3 (revise) for simplicity in this demo
+            // Pass the session ID along if it was updated in Step 2
+            setStep1SessionId(sessionId); 
+            setStep(4); 
         }
     };
 
-    // Step 4 Complete
     const handleContentComplete = (pages: StratifyPage[]) => {
          if(task) {
             const updated = { ...task, pages };
             setTask(updated);
-            setStep(6); // Skip HTML generation detail view for now, jump to finish
+            setStep(6); 
         }
     };
 
@@ -635,8 +657,7 @@ export const ReportGenerator: React.FC = () => {
                 {step === 1 && (
                     <IdeaInput 
                         onStart={handleStart} 
-                        isAnalyzing={isAnalyzing}
-                        analysisStream={analysisStream}
+                        isLoading={isAnalysisModalOpen}
                     />
                 )}
 
@@ -646,6 +667,7 @@ export const ReportGenerator: React.FC = () => {
                         topic={task.topic}
                         scenario="default"
                         precedingThought={step1Thought}
+                        initialSessionId={step1SessionId}
                         onConfirm={handleOutlineConfirm}
                     />
                 )}
@@ -655,7 +677,7 @@ export const ReportGenerator: React.FC = () => {
                         taskId={task.id}
                         outline={task.outline}
                         scenario="default"
-                        initialSessionId={null}
+                        initialSessionId={step1SessionId}
                         onComplete={handleContentComplete}
                     />
                 )}
@@ -679,6 +701,12 @@ export const ReportGenerator: React.FC = () => {
             </div>
             
             <MarkdownStyles />
+
+            {/* Global Modal for Step 1 Analysis */}
+            <AnalysisModal 
+                isOpen={isAnalysisModalOpen} 
+                streamContent={analysisStream} 
+            />
         </div>
     );
 };
