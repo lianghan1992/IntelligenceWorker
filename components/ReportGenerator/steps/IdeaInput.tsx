@@ -9,16 +9,16 @@ export const IdeaInput: React.FC<{
     const [idea, setIdea] = useState('');
 
     return (
-        <div className="flex flex-col items-center justify-center h-full min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="flex flex-col items-center justify-center h-full min-h-[400px] md:min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="w-full max-w-2xl px-4 relative">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-indigo-500/5 rounded-full blur-[80px] -z-10 pointer-events-none"></div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[500px] h-[200px] md:h-[300px] bg-indigo-500/5 rounded-full blur-[60px] md:blur-[80px] -z-10 pointer-events-none"></div>
 
-                <div className="text-center mb-8">
+                <div className="text-center mb-6 md:mb-8">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold border border-indigo-100 mb-4">
                         <SparklesIcon className="w-3 h-3" />
                         <span>AI 智能报告引擎 V2.0</span>
                     </div>
-                    <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 tracking-tight leading-tight">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight leading-tight">
                         从一个想法，<br/>到一份专业报告
                     </h1>
                 </div>
@@ -28,12 +28,12 @@ export const IdeaInput: React.FC<{
                         value={idea}
                         onChange={(e) => setIdea(e.target.value)}
                         placeholder="输入您的研究主题，例如：'2024年中国新能源汽车出海战略分析'..."
-                        className="w-full h-32 p-4 text-lg bg-transparent border-none resize-none focus:ring-0 focus:outline-none outline-none text-slate-800 placeholder:text-slate-300 font-medium leading-relaxed"
+                        className="w-full h-24 md:h-32 p-3 md:p-4 text-base md:text-lg bg-transparent border-none resize-none focus:ring-0 focus:outline-none outline-none text-slate-800 placeholder:text-slate-300 font-medium leading-relaxed"
                         disabled={isLoading}
                     />
                     
-                    <div className="flex justify-between items-center px-4 pb-2 pt-2 border-t border-slate-50">
-                        <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row justify-between items-center px-3 md:px-4 pb-2 pt-2 border-t border-slate-50 gap-3 sm:gap-0">
+                        <div className="flex gap-2 flex-wrap justify-center sm:justify-start w-full sm:w-auto">
                              {['行业研究', '竞品分析', '市场趋势'].map(tag => (
                                 <button 
                                     key={tag} 
@@ -48,7 +48,7 @@ export const IdeaInput: React.FC<{
                         <button 
                             onClick={() => onStart(idea)}
                             disabled={!idea.trim() || isLoading}
-                            className="px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-full hover:bg-indigo-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                            className="w-full sm:w-auto px-5 py-2 bg-slate-900 text-white text-xs font-bold rounded-full hover:bg-indigo-600 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                         >
                             <span>立即生成</span>
                             <ArrowRightIcon className="w-3 h-3" />

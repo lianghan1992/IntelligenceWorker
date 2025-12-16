@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckIcon, ArrowRightIcon, SparklesIcon, BrainIcon, DocumentTextIcon } from '../../icons';
+import { CheckIcon, ArrowRightIcon, SparklesIcon, BrainIcon, DocumentTextIcon, MenuIcon } from '../../icons';
 import { StratifyOutline, StratifyPage } from '../../../types';
 import { streamGenerate, parseLlmJson } from '../../../api/stratify';
 import { extractThoughtAndJson } from '../utils';
@@ -26,6 +26,9 @@ export const ContentWriter: React.FC<{
     
     // Modal State
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+    
+    // Mobile Sidebar State
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     
     // Revision State for Content
     const [revisionInput, setRevisionInput] = useState('');
@@ -202,8 +205,20 @@ export const ContentWriter: React.FC<{
                 status="AI 正在构思正文..."
             />
 
+            {/* Mobile Sidebar Backdrop */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm transition-opacity"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+
             {/* 1. Left Sidebar: Navigation */}
-            <div className="w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col z-10">
+            <div className={`
+                fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 transform
+                md:relative md:translate-x-0
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                         <DocumentTextIcon className="w-4 h-4"/> 目录概览
@@ -213,7 +228,7 @@ export const ContentWriter: React.FC<{
                     {pages.map(p => (
                         <button
                             key={p.page_index}
-                            onClick={() => setActivePageIdx(p.page_index)}
+                            onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
                             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between group ${
                                 activePageIdx === p.page_index 
                                     ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' 
@@ -247,16 +262,22 @@ export const ContentWriter: React.FC<{
                 
                 {/* Editor Area */}
                 <div className="flex-1 overflow-y-auto bg-slate-100/50 scroll-smooth relative" ref={contentScrollRef}>
-                    <div className="max-w-4xl mx-auto min-h-full py-8 px-6 md:px-10">
-                        <div className="bg-white rounded-[20px] shadow-sm border border-slate-200/60 min-h-[800px] p-10 md:p-14 relative group">
+                    <div className="max-w-4xl mx-auto min-h-full py-4 md:py-8 px-4 md:px-10">
+                        <div className="bg-white rounded-[20px] shadow-sm border border-slate-200/60 min-h-[600px] md:min-h-[800px] p-6 md:p-14 relative group">
                             
                             {/* Page Header & Actions */}
-                            <div className="mb-8 pb-6 border-b border-slate-100 flex justify-between items-start">
+                            <div className="mb-6 md:mb-8 pb-4 md:pb-6 border-b border-slate-100 flex justify-between items-start">
                                 <div>
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <button 
+                                            className="md:hidden p-1 -ml-1 text-slate-500 hover:text-indigo-600"
+                                            onClick={() => setIsSidebarOpen(true)}
+                                        >
+                                            <MenuIcon className="w-5 h-5" />
+                                        </button>
                                         PAGE {activePage.page_index}
                                     </span>
-                                    <h1 className="text-3xl font-extrabold text-slate-900 leading-tight">
+                                    <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
                                         {activePage.title}
                                     </h1>
                                 </div>
@@ -296,8 +317,8 @@ export const ContentWriter: React.FC<{
                 </div>
 
                 {/* Bottom Action Bar */}
-                <div className="flex-shrink-0 p-4 border-t border-slate-200 bg-white/80 backdrop-blur z-20 flex gap-4 items-center justify-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
-                    <div className="flex-1 max-w-2xl flex gap-3">
+                <div className="flex-shrink-0 p-4 border-t border-slate-200 bg-white/80 backdrop-blur z-20 flex flex-col md:flex-row gap-3 items-center justify-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
+                    <div className="w-full md:flex-1 max-w-2xl flex gap-3">
                         <div className="flex-1 relative">
                             <input 
                                 type="text" 
@@ -318,11 +339,11 @@ export const ContentWriter: React.FC<{
                             </button>
                         </div>
                     </div>
-                    <div className="h-8 w-px bg-slate-200 mx-2"></div>
+                    <div className="hidden md:block h-8 w-px bg-slate-200 mx-2"></div>
                     <button 
                         onClick={() => onComplete(pages)}
                         disabled={!isAllDone || isRevising || processingRef.current}
-                        className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 hover:bg-indigo-600 hover:shadow-indigo-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none transition-all flex items-center gap-2 whitespace-nowrap"
+                        className="w-full md:w-auto px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 hover:bg-indigo-600 hover:shadow-indigo-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none transition-all flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                         <span>下一步：智能排版</span>
                         <ArrowRightIcon className="w-4 h-4" />

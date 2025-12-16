@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewGridIcon, CheckIcon, ServerIcon, BrainIcon } from '../../icons';
+import { ViewGridIcon, CheckIcon, ServerIcon, BrainIcon, MenuIcon } from '../../icons';
 import { StratifyPage } from '../../../types';
 import { streamGenerate, parseLlmJson } from '../../../api/stratify';
 import { extractThoughtAndJson } from '../utils';
@@ -38,6 +38,7 @@ export const LayoutGenerator: React.FC<{
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     
     const processingRef = useRef(false);
     const completedCount = pages.filter(p => p.status === 'done').length;
@@ -138,8 +139,20 @@ export const LayoutGenerator: React.FC<{
                 status="AI 架构师正在设计..."
             />
 
+            {/* Mobile Backdrop */}
+            {isSidebarOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
+                    onClick={() => setIsSidebarOpen(false)}
+                ></div>
+            )}
+
             {/* Left Sidebar */}
-            <div className="w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col z-10">
+            <div className={`
+                fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300
+                md:relative md:translate-x-0
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="p-4 bg-slate-50/50 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                         <ViewGridIcon className="w-4 h-4 text-purple-600" />
@@ -150,7 +163,7 @@ export const LayoutGenerator: React.FC<{
                     {pages.map(p => (
                         <button
                             key={p.page_index}
-                            onClick={() => setActivePageIdx(p.page_index)}
+                            onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
                             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${
                                 activePageIdx === p.page_index 
                                     ? 'bg-purple-50 text-purple-700 shadow-sm ring-1 ring-purple-100' 
@@ -183,11 +196,19 @@ export const LayoutGenerator: React.FC<{
             {/* Right Main Area */}
             <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-100">
                 {/* Preview Window Container */}
-                <div className="flex-1 p-6 md:p-8 flex flex-col overflow-hidden">
+                <div className="flex-1 p-4 md:p-8 flex flex-col overflow-hidden">
                     <div className="bg-white flex-1 rounded-xl shadow-xl border border-slate-200 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
                         {/* Browser-like Toolbar */}
                         <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center px-4 gap-3 select-none">
-                            <div className="flex gap-1.5">
+                            {/* Mobile Menu Button */}
+                            <button 
+                                className="md:hidden text-slate-500 hover:text-indigo-600"
+                                onClick={() => setIsSidebarOpen(true)}
+                            >
+                                <MenuIcon className="w-4 h-4" />
+                            </button>
+
+                            <div className="hidden md:flex gap-1.5">
                                 <div className="w-2.5 h-2.5 rounded-full bg-red-400/80"></div>
                                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80"></div>
                                 <div className="w-2.5 h-2.5 rounded-full bg-green-400/80"></div>
