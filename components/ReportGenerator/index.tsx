@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { 
     SparklesIcon, ArrowRightIcon, CloseIcon, DocumentTextIcon, 
     CheckIcon, LightBulbIcon, BrainIcon, ViewGridIcon, 
-    ChartIcon, LockClosedIcon, PhotoIcon, PlayIcon
+    ChartIcon, LockClosedIcon, PhotoIcon, PlayIcon, 
+    PencilIcon, ServerIcon
 } from '../icons';
 import { StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -415,7 +416,7 @@ const OutlineGenerator: React.FC<{
     );
 };
 
-// --- 阶段3 & 4: 内容生成 (阅读器模式) ---
+// --- 阶段3: 内容生成 (阅读器模式) ---
 const ContentWriter: React.FC<{
     taskId: string;
     outline: StratifyOutline;
@@ -444,7 +445,8 @@ const ContentWriter: React.FC<{
         
         const nextPage = pages.find(p => p.status === 'pending');
         if (!nextPage) {
-            // 全部完成
+            // 全部完成, 触发回调（注意：这里改为传递给 Step 5 LayoutGenerator 的数据）
+            onComplete(pages);
             return;
         }
 
@@ -502,7 +504,7 @@ const ContentWriter: React.FC<{
 
         processPage(nextPage);
 
-    }, [pages, outline, initialSessionId, scenario]);
+    }, [pages, outline, initialSessionId, scenario, onComplete]);
 
     const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
     const isAllDone = pages.every(p => p.status === 'done');
@@ -517,7 +519,7 @@ const ContentWriter: React.FC<{
         <div className="flex h-full gap-6">
             <div className="w-64 flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                 <div className="p-4 bg-slate-50 border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">目录</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">内容撰写</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1">
                     {pages.map(p => (
@@ -537,20 +539,16 @@ const ContentWriter: React.FC<{
                     ))}
                 </div>
                 <div className="p-4 border-t border-slate-100">
-                    <button 
-                        onClick={() => onComplete(pages)}
-                        disabled={!isAllDone}
-                        className="w-full py-2 bg-slate-900 text-white text-xs font-bold rounded-lg disabled:opacity-50 hover:bg-indigo-600 transition-colors"
-                    >
-                        {isAllDone ? "下一步：排版" : `撰写中 (${completedCount}/${pages.length})...`}
-                    </button>
+                    <div className="w-full text-center text-xs text-slate-400">
+                        {isAllDone ? "准备排版..." : `撰写中 (${completedCount}/${pages.length})...`}
+                    </div>
                 </div>
             </div>
 
             <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
                 {activePage.status === 'generating' && displayThought && (
                     <div className="bg-[#1e1e1e] text-slate-300 p-4 text-xs font-mono border-b border-slate-700 max-h-32 overflow-y-auto">
-                        <span className="text-indigo-400 font-bold mr-2">$ THINKING:</span>
+                        <span className="text-indigo-400 font-bold mr-2">$ CONTENT THINKING:</span>
                         {displayThought}
                         <span className="typing-cursor"></span>
                     </div>
@@ -563,6 +561,178 @@ const ContentWriter: React.FC<{
                     ) : (
                         <div className="flex flex-col items-center justify-center h-40 text-slate-400">
                             {activePage.status === 'pending' ? '等待生成...' : '正在构思...'}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- 阶段5: 智能排版 (HTML 生成与预览) ---
+const LayoutGenerator: React.FC<{
+    taskId: string;
+    pages: StratifyPage[];
+    scenario: string;
+    initialSessionId: string | null;
+    onComplete: (pages: StratifyPage[]) => void;
+}> = ({ taskId, pages: initialPages, scenario, initialSessionId, onComplete }) => {
+    const [pages, setPages] = useState<StratifyPage[]>(initialPages.map(p => ({
+        ...p,
+        status: p.status === 'done' ? 'pending' : p.status // Reset status for layout phase if previously done
+    })));
+    const [activePageIdx, setActivePageIdx] = useState(1);
+    const [pageThought, setPageThought] = useState(''); 
+    const [reasoningStream, setReasoningStream] = useState('');
+    
+    const processingRef = useRef(false);
+    const completedCount = pages.filter(p => p.status === 'done').length;
+
+    // 自动触发下一页 HTML 生成
+    useEffect(() => {
+        if (processingRef.current) return;
+        
+        const nextPage = pages.find(p => p.status === 'pending');
+        if (!nextPage) {
+            // 全部排版完成
+            onComplete(pages);
+            return;
+        }
+
+        const processPage = async (page: StratifyPage) => {
+            processingRef.current = true;
+            setActivePageIdx(page.page_index);
+            setPageThought('');
+            setReasoningStream('');
+            
+            setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
+
+            let buffer = '';
+            
+            await streamGenerate(
+                {
+                    prompt_name: '05_generate_html',
+                    variables: {
+                        page_title: page.title,
+                        markdown_content: page.content_markdown || ''
+                    },
+                    session_id: initialSessionId || undefined,
+                    scenario
+                },
+                (chunk) => {
+                    buffer += chunk;
+                    // Try to parse reasoning if mixed (though usually 05_generate_html output format is cleaner in reasoning_content field)
+                    // We mainly collect the buffer to parse JSON at the end
+                },
+                () => {
+                    // On Done, extract the HTML from the JSON response
+                    const { thought, jsonPart } = extractThoughtAndJson(buffer);
+                    setPageThought(thought); // Final thought capture if any
+
+                    const parsed = parseLlmJson<{ html: string }>(jsonPart);
+                    if (parsed && parsed.html) {
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: parsed.html, status: 'done' } : p));
+                    } else {
+                        // Fallback or error handling
+                        console.warn('Failed to parse HTML from response', buffer);
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                    }
+                    processingRef.current = false;
+                },
+                (err) => {
+                    console.error(err);
+                    setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                    processingRef.current = false;
+                },
+                undefined,
+                (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning stream
+            );
+        };
+
+        processPage(nextPage);
+
+    }, [pages, initialSessionId, scenario, onComplete]);
+
+    const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
+    const displayThought = reasoningStream || pageThought;
+
+    return (
+        <div className="flex h-full gap-6">
+            <div className="w-64 flex-shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                    <ViewGridIcon className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">智能排版</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    {pages.map(p => (
+                        <button
+                            key={p.page_index}
+                            onClick={() => setActivePageIdx(p.page_index)}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between ${
+                                activePageIdx === p.page_index 
+                                    ? 'bg-purple-50 text-purple-700' 
+                                    : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                        >
+                            <span className="truncate">{p.page_index}. {p.title}</span>
+                            {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
+                            {p.status === 'done' && <CheckIcon className="w-3.5 h-3.5 text-green-500" />}
+                        </button>
+                    ))}
+                </div>
+                <div className="p-4 border-t border-slate-100">
+                    <div className="w-full text-center text-xs text-slate-400">
+                        {completedCount === pages.length ? "排版完成!" : `设计中 (${completedCount}/${pages.length})...`}
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex-1 bg-slate-900 rounded-xl border border-slate-800 shadow-lg flex flex-col overflow-hidden relative">
+                {/* Header / Thinking State */}
+                <div className="bg-[#0f172a] text-slate-300 p-3 text-xs font-mono border-b border-slate-700 flex justify-between items-center h-12 flex-shrink-0">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <PencilIcon className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="truncate text-slate-400">DESIGNING: {activePage.title}</span>
+                    </div>
+                    {activePage.status === 'generating' && (
+                        <div className="flex items-center gap-2 text-purple-400 text-[10px] animate-pulse">
+                            <ServerIcon className="w-3 h-3" />
+                            AI INFORMATION ARCHITECT ACTIVE
+                        </div>
+                    )}
+                </div>
+
+                {/* Reasoning Panel (Only when generating) */}
+                {activePage.status === 'generating' && displayThought && (
+                    <div className="bg-[#1e1e1e]/90 text-green-400 p-4 text-xs font-mono border-b border-slate-700 max-h-48 overflow-y-auto absolute top-12 left-0 right-0 z-20 backdrop-blur-sm">
+                        <span className="text-purple-400 font-bold mr-2">$ DESIGN_LOGIC:</span>
+                        <div className="whitespace-pre-wrap mt-1 opacity-90">{displayThought}</div>
+                        <span className="typing-cursor"></span>
+                    </div>
+                )}
+                
+                {/* Preview Area (Iframe) */}
+                <div className="flex-1 relative bg-white">
+                    {activePage.html_content ? (
+                        <iframe 
+                            srcDoc={activePage.html_content} 
+                            className="w-full h-full border-none" 
+                            title={`Preview ${activePage.page_index}`}
+                            sandbox="allow-scripts"
+                        />
+                    ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+                            {activePage.status === 'pending' ? (
+                                <>
+                                    <ViewGridIcon className="w-12 h-12 mb-2 opacity-20" />
+                                    <p className="text-sm">等待排版...</p>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></div>
+                                    <p className="text-sm font-medium text-slate-600">正在构建布局与视觉元素...</p>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
@@ -684,9 +854,18 @@ export const ReportGenerator: React.FC = () => {
          if(task) {
             const updated = { ...task, pages };
             setTask(updated);
-            setStep(6); 
+            // Instead of going to 6 directly, go to 5 (Layout)
+            setStep(5); 
         }
     };
+
+    const handleLayoutComplete = (pages: StratifyPage[]) => {
+        if(task) {
+           const updated = { ...task, pages };
+           setTask(updated);
+           setStep(6); 
+       }
+   };
 
     return (
         <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
@@ -720,6 +899,16 @@ export const ReportGenerator: React.FC = () => {
                         scenario="default"
                         initialSessionId={step1SessionId}
                         onComplete={handleContentComplete}
+                    />
+                )}
+
+                {step === 5 && task && task.pages && (
+                    <LayoutGenerator 
+                        taskId={task.id}
+                        pages={task.pages}
+                        scenario="default"
+                        initialSessionId={step1SessionId}
+                        onComplete={handleLayoutComplete}
                     />
                 )}
 
