@@ -10,7 +10,8 @@ import { apiFetch } from './helper';
 /**
  * 核心流式生成函数
  * 使用 fetch + ReadableStream 处理 POST SSE。
- * 兼容标准 OpenAI Chunk 格式以及 Stratify 自定义的 session_id 消息。
+ * 适配 StratifyAI 后端 "Plumber Mode" 极简协议。
+ * 协议格式: data: {"content": "...", "reasoning": "...", "session_id": "..."}
  */
 export const streamGenerate = async (
     params: GenerateStreamParams,
@@ -65,28 +66,16 @@ export const streamGenerate = async (
                             onSessionId(json.session_id);
                         }
 
-                        // 2. Handle OpenAI Compatible Chunk (Standard)
-                        // Structure: { choices: [ { delta: { content: "...", reasoning_content: "..." } } ] }
-                        if (json.choices && Array.isArray(json.choices) && json.choices.length > 0) {
-                            const delta = json.choices[0].delta;
-                            if (delta) {
-                                // Extract Reasoning (Thinking)
-                                if (delta.reasoning_content && onReasoning) {
-                                    onReasoning(delta.reasoning_content);
-                                }
-                                // Extract Content (Final Answer)
-                                if (delta.content && onData) {
-                                    onData(delta.content);
-                                }
-                            }
-                        }
-                        // 3. Fallback: Handle flat content (Legacy or Non-standard)
-                        else if (json.content && onData) {
+                        // 2. Handle Content (Simplified Pass-through)
+                        if (json.content && onData) {
                             onData(json.content);
                         }
-                        // 3.1 Fallback: Handle flat reasoning (Legacy)
-                        else if (json.reasoning_content && onReasoning) {
-                            onReasoning(json.reasoning_content);
+
+                        // 3. Handle Reasoning (Simplified Pass-through)
+                        // Backend returns "reasoning", keeping "reasoning_content" for robustness
+                        const reasoning = json.reasoning || json.reasoning_content;
+                        if (reasoning && onReasoning) {
+                            onReasoning(reasoning);
                         }
 
                     } catch (e) {
