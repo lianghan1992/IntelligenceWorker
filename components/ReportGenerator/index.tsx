@@ -568,7 +568,7 @@ export const ReportGenerator: React.FC = () => {
             // Stream Analyze
             await streamGenerate(
                 {
-                    prompt_name: 'analyze_input', // New stricter prompt
+                    prompt_name: '00_analyze_input', // Updated to match backend prompt file name
                     variables: { user_input: idea },
                     scenario: 'default'
                 },
