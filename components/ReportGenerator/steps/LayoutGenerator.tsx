@@ -73,11 +73,24 @@ export const LayoutGenerator: React.FC<{
                 },
                 (chunk) => {
                     buffer += chunk;
+                    
+                    // Real-time detection: If content starts, close the reasoning modal.
+                    // This handles models that skip reasoning and output JSON/HTML directly.
+                    const { jsonPart } = extractThoughtAndJson(buffer);
+                    
+                    // Condition 1: Valid JSON part detected
+                    if (jsonPart && jsonPart.trim().length > 5) {
+                        setIsThinkingOpen(false);
+                    }
+                    // Condition 2: Raw HTML detected (fallback)
+                    else if (buffer.includes('<!DOCTYPE html>') || buffer.includes('<html')) {
+                        setIsThinkingOpen(false);
+                    }
                 },
                 () => {
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     setPageThought(thought); 
-                    // Auto close modal on done (or ideally when json starts, but buffer is full here)
+                    // Ensure closed on completion
                     setIsThinkingOpen(false);
 
                     const htmlContent = robustExtractHtml(buffer, jsonPart);
@@ -101,12 +114,9 @@ export const LayoutGenerator: React.FC<{
                     // Update reasoning stream
                     setReasoningStream(prev => prev + chunk);
                     
-                    // Simple heuristic: if we receive chunk but no reasoning update in a while, or if chunk looks like HTML/JSON
-                    // We can try to auto-close. But here we rely on the stream 'reasoning' channel.
-                    // If buffer starts looking like json, close it.
-                    if (buffer.includes('```json') || buffer.includes('"html":')) {
-                        setIsThinkingOpen(false);
-                    }
+                    // If we receive "reasoning" channel data, keep modal open? 
+                    // No, usually logic above handles closing. 
+                    // If buffer is empty but reasoning is coming, modal stays open (correct).
                 }
             );
         };
