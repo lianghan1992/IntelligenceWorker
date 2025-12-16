@@ -112,10 +112,11 @@ const AnalysisModal: React.FC<{
     reasoningContent?: string;
 }> = ({ isOpen, streamContent, reasoningContent }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    // 实时提取思考过程
+    // 实时提取思考过程 (针对不支持 reasoning_content 的普通模型做兼容)
     const { thought: extractedThought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
     // 优先展示专门的 reasoning_content (DeepSeek R1等)，否则回退到 prompt 提取的 thought
+    // 解决“等待数十秒”的问题：只要 reasoningContent 有数据，立即显示
     const displayThought = reasoningContent || extractedThought;
 
     // 自动滚动到底部
@@ -240,13 +241,13 @@ const OutlineGenerator: React.FC<{
     const hasStarted = useRef(false);
     const thoughtScrollRef = useRef<HTMLDivElement>(null);
 
-    // 解析流
+    // 解析流 (Extract JSON part for older prompts)
     const { thought: extractedThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
     // 优先使用 reasoningStream
     const displayThought = reasoningStream || extractedThought;
 
-    // 解析 JSON (大纲) - 优化版
+    // 解析 JSON (大纲) - 优化版 (流式 JSON 解析)
     const outlineData = useMemo(() => {
         if (!jsonPart) return null;
         try {
@@ -256,8 +257,8 @@ const OutlineGenerator: React.FC<{
                 return parsed;
             }
 
-            // 2. 增强型流式正则解析
-            // 这种方式可以在 JSON 没闭合时就提取出数组中的项
+            // 2. 增强型流式正则解析 (Streaming JSON Parsing)
+            // 这种方式可以在 JSON 没闭合时就提取出数组中的项，实现 1, 2, 3 陆续生成的效果
             let title = '生成中...';
             
             // 提取标题
@@ -309,11 +310,11 @@ const OutlineGenerator: React.FC<{
                 scenario,
                 session_id: initialSessionId || undefined // 传递会话 ID 以保持上下文
             },
-            (chunk) => setStreamContent(prev => prev + chunk),
+            (chunk) => setStreamContent(prev => prev + chunk), // Content stream
             () => setIsGenerating(false),
             (err) => { console.error(err); setIsGenerating(false); },
             (sid) => { if(sid) setSessionId(sid); },
-            (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning
+            (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning stream separately
         );
     }, [topic, scenario, initialSessionId]);
 
@@ -571,7 +572,7 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [task, setTask] = useState<StratifyTask | null>(null);
     const [analysisStream, setAnalysisStream] = useState('');
-    const [analysisReasoning, setAnalysisReasoning] = useState('');
+    const [analysisReasoning, setAnalysisReasoning] = useState(''); // Separate reasoning state
     const [step1Thought, setStep1Thought] = useState<string | null>(null);
     const [step1SessionId, setStep1SessionId] = useState<string | null>(null);
     
@@ -584,7 +585,7 @@ export const ReportGenerator: React.FC = () => {
     const handleStart = async (idea: string) => {
         setIsAnalysisModalOpen(true);
         setAnalysisStream('');
-        setAnalysisReasoning('');
+        setAnalysisReasoning(''); // Reset reasoning buffer
         setStep1Thought(null);
         setStep1SessionId(null);
         
@@ -616,7 +617,7 @@ export const ReportGenerator: React.FC = () => {
                 },
                 (err) => { alert('分析失败'); setIsAnalysisModalOpen(false); },
                 (sid) => { tempSessionId = sid; }, // Capture session ID
-                (chunk) => {
+                (chunk) => { // Capture reasoning stream
                     localReasoningBuffer += chunk;
                     setAnalysisReasoning(prev => prev + chunk);
                 }

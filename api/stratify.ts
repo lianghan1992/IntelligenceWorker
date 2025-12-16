@@ -65,6 +65,7 @@ export const streamGenerate = async (
                             onSessionId(json.session_id);
                         }
 
+                        // Handle Standard Content
                         if (json.content) {
                             onData(json.content);
                         }
