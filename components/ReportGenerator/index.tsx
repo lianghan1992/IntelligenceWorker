@@ -5,14 +5,15 @@ import {
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
     ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon, PhotoIcon,
-    CodeIcon // Assuming CodeIcon exists or mapping it below
+    CodeIcon, GearIcon // Assuming CodeIcon and GearIcon exist
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
     createStratifyTask, 
     updateStratifyTask, 
     saveStratifyPages, 
-    streamGenerate, 
+    streamGenerate,
+    getScenarios 
 } from '../../api/stratify';
 
 // --- 样式注入：修复 Markdown 表格和排版 ---
@@ -150,8 +151,14 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
     );
 };
 
-// --- 阶段1: 创意输入 (保持不变) ---
-const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean }> = ({ onStart, isLoading }) => {
+// --- 阶段1: 创意输入 (Updated for Scenario Selection) ---
+const IdeaInput: React.FC<{ 
+    onStart: (idea: string) => void, 
+    isLoading: boolean,
+    scenarios: string[],
+    selectedScenario: string,
+    onSelectScenario: (scenario: string) => void
+}> = ({ onStart, isLoading, scenarios, selectedScenario, onSelectScenario }) => {
     const [idea, setIdea] = useState('');
 
     return (
@@ -182,7 +189,23 @@ const IdeaInput: React.FC<{ onStart: (idea: string) => void, isLoading: boolean 
                             disabled={isLoading}
                         />
                         <div className="flex justify-between items-center px-4 pb-2">
-                            <span className="text-xs text-slate-400 font-medium">支持中英文输入</span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-slate-400 font-medium">支持中英文输入</span>
+                                <div className="h-4 w-px bg-slate-200"></div>
+                                <div className="flex items-center gap-1.5">
+                                    <GearIcon className="w-3.5 h-3.5 text-slate-400" />
+                                    <select 
+                                        value={selectedScenario}
+                                        onChange={(e) => onSelectScenario(e.target.value)}
+                                        className="text-xs font-medium text-slate-600 bg-transparent outline-none cursor-pointer hover:text-indigo-600 transition-colors"
+                                        disabled={isLoading}
+                                    >
+                                        {scenarios.map(sc => (
+                                            <option key={sc} value={sc}>场景: {sc}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
                             <button 
                                 onClick={() => onStart(idea)}
                                 disabled={!idea.trim() || isLoading}
@@ -377,9 +400,10 @@ const OutlineGenerationModal: React.FC<{
     isOpen: boolean;
     taskId: string;
     topic: string;
+    scenario: string;
     onClose: () => void;
     onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
-}> = ({ isOpen, taskId, topic, onClose, onConfirm }) => {
+}> = ({ isOpen, taskId, topic, scenario, onClose, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [showThought, setShowThought] = useState(true);
@@ -402,7 +426,8 @@ const OutlineGenerationModal: React.FC<{
             streamGenerate(
                 {
                     prompt_name: 'generate_outline',
-                    variables: { user_input: topic }
+                    variables: { user_input: topic },
+                    scenario: scenario
                 },
                 (chunk) => {
                     setStreamContent(prev => prev + chunk);
@@ -419,7 +444,7 @@ const OutlineGenerationModal: React.FC<{
                 }
             );
         }
-    }, [isOpen, taskId, topic]);
+    }, [isOpen, taskId, topic, scenario]);
 
     // Handle Revision Request
     const handleReviseOutline = async () => {
@@ -440,7 +465,8 @@ const OutlineGenerationModal: React.FC<{
                     current_outline: currentOutlineStr, 
                     user_revision_request: currentInput 
                 },
-                session_id: sessionId || undefined // Use existing session
+                session_id: sessionId || undefined, // Use existing session
+                scenario: scenario
             },
             (chunk) => {
                 setStreamContent(prev => prev + chunk);
@@ -693,9 +719,10 @@ const OutlineGenerationModal: React.FC<{
 const ContentGenerator: React.FC<{
     taskId: string;
     outline: StratifyOutline;
+    scenario: string;
     onComplete: (pages: StratifyPage[]) => void;
     initialSessionId: string | null;
-}> = ({ taskId, outline, onComplete, initialSessionId }) => {
+}> = ({ taskId, outline, scenario, onComplete, initialSessionId }) => {
     // Local State
     const [pages, setPages] = useState<(StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean })[]>(() => 
         outline.pages.map((p, i) => ({
@@ -753,7 +780,8 @@ const ContentGenerator: React.FC<{
                                     page_summary: pageOutline.content
                                 },
                                 // CRITICAL: Pass the current session ID to maintain context
-                                session_id: currentSessionIdRef.current || undefined
+                                session_id: currentSessionIdRef.current || undefined,
+                                scenario: scenario
                             },
                             (chunk) => {
                                 buffer += chunk;
@@ -793,7 +821,7 @@ const ContentGenerator: React.FC<{
         };
 
         generateSequentially();
-    }, [outline]); 
+    }, [outline, scenario]); 
 
     // Handle Revision
     const handlePageRevise = async () => {
@@ -817,7 +845,8 @@ const ContentGenerator: React.FC<{
                         user_revision_request: request
                     },
                     // Use the session ID specific to this flow (which should be consistent)
-                    session_id: currentSessionIdRef.current || undefined
+                    session_id: currentSessionIdRef.current || undefined,
+                    scenario: scenario
                 },
                 (chunk) => {
                     buffer += chunk;
@@ -870,7 +899,7 @@ const ContentGenerator: React.FC<{
                     <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                         <span className="font-mono">{progress}%</span>
                         <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                            <div className="h-full bg-indigo-50 transition-all duration-500" style={{ width: `${progress}%` }}></div>
                         </div>
                     </div>
                 </div>
@@ -1049,8 +1078,9 @@ const ContentGenerator: React.FC<{
 const HtmlGenerator: React.FC<{
     taskId: string;
     pages: StratifyPage[]; // Passed from previous step (content generated)
+    scenario: string;
     onComplete: (finalPages: StratifyPage[]) => void;
-}> = ({ taskId, pages: initialPages, onComplete }) => {
+}> = ({ taskId, pages: initialPages, scenario, onComplete }) => {
     // Shared State for pages
     // We only need to update html_content and status. Markdown is already there.
     const [pages, setPages] = useState<StratifyPage[]>(initialPages.map(p => ({ ...p, status: 'pending', html_content: null })));
@@ -1093,7 +1123,8 @@ const HtmlGenerator: React.FC<{
                                     page_title: page.title,
                                     markdown_content: page.content_markdown || ''
                                 },
-                                session_id: undefined // Explicitly undefined for independent context
+                                session_id: undefined, // Explicitly undefined for independent context
+                                scenario: scenario
                             },
                             (chunk) => {
                                 buffer += chunk;
@@ -1136,7 +1167,7 @@ const HtmlGenerator: React.FC<{
         };
 
         generateSequentially();
-    }, [initialPages]);
+    }, [initialPages, scenario]);
 
     // Auto-scroll logic for code block
     useEffect(() => {
@@ -1164,7 +1195,7 @@ const HtmlGenerator: React.FC<{
                     <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
                         <span className="font-mono">{progress}%</span>
                         <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${progress}%` }}></div>
+                            <div className="h-full bg-indigo-50 transition-all duration-500" style={{ width: `${progress}%` }}></div>
                         </div>
                     </div>
                 </div>
@@ -1305,6 +1336,24 @@ export const ReportGenerator: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [sessionContext, setSessionContext] = useState<string | null>(null); // Store session ID
     
+    // Scenario Management
+    const [scenarios, setScenarios] = useState<string[]>(['default']);
+    const [selectedScenario, setSelectedScenario] = useState('default');
+
+    useEffect(() => {
+        const fetchScenarios = async () => {
+            try {
+                const list = await getScenarios();
+                if (list && list.length > 0) {
+                    setScenarios(list);
+                }
+            } catch (e) {
+                console.error("Failed to fetch scenarios", e);
+            }
+        };
+        fetchScenarios();
+    }, []);
+    
     // Step 1: Create Task
     const handleStart = async (topic: string) => {
         setIsLoading(true);
@@ -1359,7 +1408,13 @@ export const ReportGenerator: React.FC = () => {
 
             <div className="flex-1 relative z-10 overflow-hidden flex flex-col min-h-0">
                 {step === 1 && (
-                    <IdeaInput onStart={handleStart} isLoading={isLoading} />
+                    <IdeaInput 
+                        onStart={handleStart} 
+                        isLoading={isLoading} 
+                        scenarios={scenarios}
+                        selectedScenario={selectedScenario}
+                        onSelectScenario={setSelectedScenario}
+                    />
                 )}
 
                 {step === 4 && currentTask && currentTask.outline && (
@@ -1367,6 +1422,7 @@ export const ReportGenerator: React.FC = () => {
                         key={currentTask.id} // FORCE REMOUNT
                         taskId={currentTask.id}
                         outline={currentTask.outline}
+                        scenario={selectedScenario}
                         onComplete={handleContentComplete}
                         initialSessionId={sessionContext}
                     />
@@ -1377,6 +1433,7 @@ export const ReportGenerator: React.FC = () => {
                         key={currentTask.id} // FORCE REMOUNT
                         taskId={currentTask.id}
                         pages={currentTask.pages} // Pass generated content pages
+                        scenario={selectedScenario}
                         onComplete={handleHtmlComplete}
                     />
                 )}
@@ -1409,6 +1466,7 @@ export const ReportGenerator: React.FC = () => {
                     isOpen={step === 2 || step === 3}
                     taskId={currentTask.id}
                     topic={currentTask.topic}
+                    scenario={selectedScenario}
                     onClose={() => setStep(1)} 
                     onConfirm={handleOutlineConfirmed}
                 />

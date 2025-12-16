@@ -376,6 +376,7 @@ export interface GenerateStreamParams {
     variables: Record<string, any>;
     model_override?: string;
     session_id?: string;
+    scenario?: string; // Scenario for prompts
 }
 
 // --- Strategic Cockpit Types ---

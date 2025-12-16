@@ -82,7 +82,30 @@ export const streamGenerate = async (
     }
 };
 
-// --- 2. Persistence (CRUD) ---
+// --- 2. Scenario Management (New) ---
+
+export const getScenarios = (): Promise<string[]> =>
+    apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
+
+export const createScenario = (name: string): Promise<string> =>
+    apiFetch<string>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }) // Assuming body expects { "name": "scenario_name" }
+    });
+
+export const deleteScenario = (name: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${name}`, {
+        method: 'DELETE',
+    });
+
+export const getScenarioFiles = (scenarioName: string): Promise<string[]> =>
+    apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioName}/files`);
+
+export const getScenarioFileContent = (scenarioName: string, fileName: string): Promise<string> =>
+    apiFetch<string>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioName}/files/${fileName}`);
+
+// --- 3. Persistence (CRUD) ---
 
 export const createStratifyTask = (topic: string): Promise<StratifyTask> =>
     apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks`, {
