@@ -1,3 +1,4 @@
+
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
@@ -8,7 +9,8 @@ import { apiFetch } from './helper';
 
 /**
  * 核心流式生成函数
- * 使用 fetch + ReadableStream 处理 POST SSE，因为标准的 EventSource 不支持 POST body。
+ * 使用 fetch + ReadableStream 处理 POST SSE。
+ * 兼容标准 OpenAI Chunk 格式以及 Stratify 自定义的 session_id 消息。
  */
 export const streamGenerate = async (
     params: GenerateStreamParams,
@@ -53,31 +55,40 @@ export const streamGenerate = async (
                 if (line.startsWith('data: ')) {
                     const dataStr = line.slice(6).trim();
                     if (dataStr === '[DONE]') {
-                        // End of stream signal
                         continue;
                     }
                     try {
                         const json = JSON.parse(dataStr);
                         
-                        // 1. Handle Session ID (Custom StratifyAI Initial Message)
+                        // 1. Handle Session ID (Stratify Protocol)
                         if (json.session_id && onSessionId) {
                             onSessionId(json.session_id);
                         }
 
-                        // 2. Handle OpenAI-compatible Chunk (Pass-through from backend)
+                        // 2. Handle OpenAI Compatible Chunk (Standard)
+                        // Structure: { choices: [ { delta: { content: "...", reasoning_content: "..." } } ] }
                         if (json.choices && Array.isArray(json.choices) && json.choices.length > 0) {
                             const delta = json.choices[0].delta;
                             if (delta) {
-                                // Content
-                                if (delta.content && onData) {
-                                    onData(delta.content);
-                                }
-                                // Reasoning / Thinking Process (e.g. DeepSeek R1)
+                                // Extract Reasoning (Thinking)
                                 if (delta.reasoning_content && onReasoning) {
                                     onReasoning(delta.reasoning_content);
                                 }
+                                // Extract Content (Final Answer)
+                                if (delta.content && onData) {
+                                    onData(delta.content);
+                                }
                             }
                         }
+                        // 3. Fallback: Handle flat content (Legacy or Non-standard)
+                        else if (json.content && onData) {
+                            onData(json.content);
+                        }
+                        // 3.1 Fallback: Handle flat reasoning (Legacy)
+                        else if (json.reasoning_content && onReasoning) {
+                            onReasoning(json.reasoning_content);
+                        }
+
                     } catch (e) {
                         // Ignore parse errors for partial chunks
                     }

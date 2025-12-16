@@ -112,11 +112,10 @@ const AnalysisModal: React.FC<{
     reasoningContent?: string;
 }> = ({ isOpen, streamContent, reasoningContent }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    // 实时提取思考过程 (针对不支持 reasoning_content 的普通模型做兼容)
+    // 实时提取思考过程 (兼容普通模型 Prompt 方式)
     const { thought: extractedThought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
-    // 优先展示专门的 reasoning_content (DeepSeek R1等)，否则回退到 prompt 提取的 thought
-    // 解决“等待数十秒”的问题：只要 reasoningContent 有数据，立即显示
+    // 优先展示后端透传的 reasoning_content (DeepSeek R1 等)，否则回退到提取内容
     const displayThought = reasoningContent || extractedThought;
 
     // 自动滚动到底部
@@ -124,7 +123,7 @@ const AnalysisModal: React.FC<{
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [displayThought]);
+    }, [displayThought, isOpen]);
 
     if (!isOpen) return null;
 
@@ -241,13 +240,13 @@ const OutlineGenerator: React.FC<{
     const hasStarted = useRef(false);
     const thoughtScrollRef = useRef<HTMLDivElement>(null);
 
-    // 解析流 (Extract JSON part for older prompts)
+    // 解析流
     const { thought: extractedThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
     // 优先使用 reasoningStream
     const displayThought = reasoningStream || extractedThought;
 
-    // 解析 JSON (大纲) - 优化版 (流式 JSON 解析)
+    // 解析 JSON (大纲) - 优化版
     const outlineData = useMemo(() => {
         if (!jsonPart) return null;
         try {
@@ -257,8 +256,8 @@ const OutlineGenerator: React.FC<{
                 return parsed;
             }
 
-            // 2. 增强型流式正则解析 (Streaming JSON Parsing)
-            // 这种方式可以在 JSON 没闭合时就提取出数组中的项，实现 1, 2, 3 陆续生成的效果
+            // 2. 增强型流式正则解析
+            // 这种方式可以在 JSON 没闭合时就提取出数组中的项
             let title = '生成中...';
             
             // 提取标题
@@ -310,11 +309,11 @@ const OutlineGenerator: React.FC<{
                 scenario,
                 session_id: initialSessionId || undefined // 传递会话 ID 以保持上下文
             },
-            (chunk) => setStreamContent(prev => prev + chunk), // Content stream
+            (chunk) => setStreamContent(prev => prev + chunk), // Content chunks
             () => setIsGenerating(false),
             (err) => { console.error(err); setIsGenerating(false); },
             (sid) => { if(sid) setSessionId(sid); },
-            (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning stream separately
+            (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning stream
         );
     }, [topic, scenario, initialSessionId]);
 
@@ -492,7 +491,7 @@ const ContentWriter: React.FC<{
                     processingRef.current = false;
                 },
                 undefined,
-                (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning
+                (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning stream
             );
         };
 
@@ -572,7 +571,7 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [task, setTask] = useState<StratifyTask | null>(null);
     const [analysisStream, setAnalysisStream] = useState('');
-    const [analysisReasoning, setAnalysisReasoning] = useState(''); // Separate reasoning state
+    const [analysisReasoning, setAnalysisReasoning] = useState('');
     const [step1Thought, setStep1Thought] = useState<string | null>(null);
     const [step1SessionId, setStep1SessionId] = useState<string | null>(null);
     
@@ -585,7 +584,7 @@ export const ReportGenerator: React.FC = () => {
     const handleStart = async (idea: string) => {
         setIsAnalysisModalOpen(true);
         setAnalysisStream('');
-        setAnalysisReasoning(''); // Reset reasoning buffer
+        setAnalysisReasoning('');
         setStep1Thought(null);
         setStep1SessionId(null);
         
@@ -617,7 +616,7 @@ export const ReportGenerator: React.FC = () => {
                 },
                 (err) => { alert('分析失败'); setIsAnalysisModalOpen(false); },
                 (sid) => { tempSessionId = sid; }, // Capture session ID
-                (chunk) => { // Capture reasoning stream
+                (chunk) => {
                     localReasoningBuffer += chunk;
                     setAnalysisReasoning(prev => prev + chunk);
                 }
@@ -636,14 +635,10 @@ export const ReportGenerator: React.FC = () => {
 
         const parsed: any = parseLlmJson(jsonPart);
         
-        // Use the original input as the 'topic' since the simplified JSON doesn't return data.
-        // If type is 'idea', topic is the original input.
-        // If type is 'outline', we might treat original input as the outline content, but for now we pass it as 'topic' to Step 2.
         const updatedTask = { ...task, topic: originalInput };
         setTask(updatedTask);
 
         if (!parsed || !parsed.type) {
-            // Default fallback
             setStep(2);
             return;
         }
@@ -652,14 +647,8 @@ export const ReportGenerator: React.FC = () => {
         if (parsed.type === 'idea') {
             setStep(2);
         } else if (parsed.type === 'outline') {
-            // User provided an outline.
-            // We pass this raw text to Step 2. Step 2's prompt will "Refine" it instead of "Create from scratch".
-            // In the UI flow, we still go to Step 2 (Outline Generator/Review).
             setStep(2); 
         } else if (parsed.type === 'content') {
-            // Full content provided. 
-            // In a real app, we might parse this content into pages directly.
-            // For now, simplify to Outline step to ensure structure is captured first.
             setStep(2);
         } else {
             setStep(2);
@@ -670,7 +659,6 @@ export const ReportGenerator: React.FC = () => {
         if(task) {
             const updated = { ...task, outline };
             setTask(updated);
-            // Pass the session ID along if it was updated in Step 2
             setStep1SessionId(sessionId); 
             setStep(4); 
         }
