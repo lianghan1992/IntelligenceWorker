@@ -5,7 +5,7 @@ import {
     CloseIcon, DocumentTextIcon, CheckIcon, LightBulbIcon, BrainIcon, 
     ViewGridIcon, ChartIcon, PlayIcon, ChevronDownIcon, ChevronRightIcon,
     ClockIcon, PencilIcon, RefreshIcon, StopIcon, LockClosedIcon, PhotoIcon,
-    CodeIcon, GearIcon // Assuming CodeIcon and GearIcon exist
+    CodeIcon, GearIcon 
 } from '../icons';
 import { Slide, StratifyTask, StratifyPage, StratifyOutline } from '../../types';
 import { 
@@ -13,7 +13,8 @@ import {
     updateStratifyTask, 
     saveStratifyPages, 
     streamGenerate,
-    getScenarios 
+    getScenarios,
+    parseLlmJson
 } from '../../api/stratify';
 
 // --- 样式注入：修复 Markdown 表格和排版 ---
@@ -155,10 +156,11 @@ const ProcessFlowCards: React.FC<{ currentStep: number }> = ({ currentStep }) =>
 const IdeaInput: React.FC<{ 
     onStart: (idea: string) => void, 
     isLoading: boolean,
+    loadingText?: string,
     scenarios: string[],
     selectedScenario: string,
     onSelectScenario: (scenario: string) => void
-}> = ({ onStart, isLoading, scenarios, selectedScenario, onSelectScenario }) => {
+}> = ({ onStart, isLoading, loadingText, scenarios, selectedScenario, onSelectScenario }) => {
     const [idea, setIdea] = useState('');
 
     return (
@@ -214,7 +216,7 @@ const IdeaInput: React.FC<{
                                 {isLoading ? (
                                     <>
                                         <div className="animate-spin h-4 w-4 border-2 border-white/30 border-t-white rounded-full"></div>
-                                        <span>正在启动...</span>
+                                        <span>{loadingText || '正在启动...'}</span>
                                     </>
                                 ) : (
                                     <>
@@ -401,9 +403,10 @@ const OutlineGenerationModal: React.FC<{
     taskId: string;
     topic: string;
     scenario: string;
+    initialOutline?: StratifyOutline | null; // NEW: Accept pre-analyzed outline
     onClose: () => void;
     onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
-}> = ({ isOpen, taskId, topic, scenario, onClose, onConfirm }) => {
+}> = ({ isOpen, taskId, topic, scenario, initialOutline, onClose, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [showThought, setShowThought] = useState(true);
@@ -416,10 +419,20 @@ const OutlineGenerationModal: React.FC<{
     const contentEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Initial Stream Trigger
+    // Initial Stream Trigger OR Initial Data Load
     useEffect(() => {
         if (isOpen && !hasStartedRef.current && taskId) {
             hasStartedRef.current = true;
+            
+            // If we have an initial outline (from analyze_input), show it directly
+            if (initialOutline) {
+                // Mock stream content to populate the view through existing logic
+                // Or better: Handle initialOutline in useMemo displayData below
+                // We'll set streamContent to empty and let displayData fallback to initialOutline
+                return; 
+            }
+
+            // Otherwise, start generating
             setIsGenerating(true);
             setStreamContent('');
             
@@ -444,7 +457,7 @@ const OutlineGenerationModal: React.FC<{
                 }
             );
         }
-    }, [isOpen, taskId, topic, scenario]);
+    }, [isOpen, taskId, topic, scenario, initialOutline]);
 
     // Handle Revision Request
     const handleReviseOutline = async () => {
@@ -456,6 +469,7 @@ const OutlineGenerationModal: React.FC<{
         const currentInput = revisionInput;
         setRevisionInput('');
         
+        // Pass current valid outline to backend
         const currentOutlineStr = JSON.stringify(displayData.outline);
 
         streamGenerate(
@@ -495,8 +509,21 @@ const OutlineGenerationModal: React.FC<{
     }, [streamContent, isGenerating]);
 
     const displayData = useMemo(() => {
-        return parseIncrementalStream(streamContent);
-    }, [streamContent]);
+        // If streamContent is present (generation or revision), parse it
+        if (streamContent) {
+            return parseIncrementalStream(streamContent);
+        }
+        // If we have initial outline and no active stream, use it
+        if (initialOutline) {
+            return {
+                thought: "已根据您的输入自动解析出大纲结构。",
+                title: initialOutline.title,
+                outline: initialOutline.pages.map(p => ({ title: p.title, content: p.content })) // Summary is stored in 'content' field of outline pages
+            };
+        }
+        // Default empty
+        return { thought: null, title: null, outline: [] };
+    }, [streamContent, initialOutline]);
 
     if (!isOpen) return null;
 
@@ -720,11 +747,20 @@ const ContentGenerator: React.FC<{
     taskId: string;
     outline: StratifyOutline;
     scenario: string;
+    initialPages?: StratifyPage[] | null; // NEW: Accept pre-generated content
     onComplete: (pages: StratifyPage[]) => void;
     initialSessionId: string | null;
-}> = ({ taskId, outline, scenario, onComplete, initialSessionId }) => {
+}> = ({ taskId, outline, scenario, initialPages, onComplete, initialSessionId }) => {
     // Local State
     const [pages, setPages] = useState<(StratifyPage & { thought_process?: string; sessionId?: string; isRevising?: boolean })[]>(() => 
+        // If initialPages are provided (from analyze_input -> content type), use them directly
+        initialPages ? initialPages.map(p => ({
+            ...p,
+            status: 'done', // Mark as done immediately
+            thought_process: undefined,
+            isRevising: false
+        })) :
+        // Otherwise use outline to initialize empty pages
         outline.pages.map((p, i) => ({
             page_index: i + 1,
             title: p.title,
@@ -743,8 +779,10 @@ const ContentGenerator: React.FC<{
 
     const currentSessionIdRef = useRef<string | null>(initialSessionId);
     const hasStartedRef = useRef(false);
-    const [progress, setProgress] = useState(0);
-    const activePageData = pages[activePageIndex - 1];
+    
+    // Progress calculation changes if pre-filled
+    const [progress, setProgress] = useState(initialPages ? 100 : 0);
+    const activePageData = pages[activePageIndex - 1] || pages[0]; // Fallback to first page
 
     const updatePage = (idx: number, updates: Partial<typeof pages[0]>) => {
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, ...updates } : p));
@@ -754,6 +792,11 @@ const ContentGenerator: React.FC<{
     useEffect(() => {
         if (hasStartedRef.current) return;
         hasStartedRef.current = true;
+
+        // Skip generation if we already have content (from analyze_input)
+        if (initialPages && initialPages.length > 0) {
+            return;
+        }
 
         const generateSequentially = async () => {
             setIsGlobalBusy(true);
@@ -821,7 +864,7 @@ const ContentGenerator: React.FC<{
         };
 
         generateSequentially();
-    }, [outline, scenario]); 
+    }, [outline, scenario, initialPages]); 
 
     // Handle Revision
     const handlePageRevise = async () => {
@@ -1334,6 +1377,7 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [currentTask, setCurrentTask] = useState<StratifyTask | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingText, setLoadingText] = useState('正在启动...');
     const [sessionContext, setSessionContext] = useState<string | null>(null); // Store session ID
     
     // Scenario Management
@@ -1354,18 +1398,107 @@ export const ReportGenerator: React.FC = () => {
         fetchScenarios();
     }, []);
     
-    // Step 1: Create Task
+    // Step 1: Create Task & Analyze Input
     const handleStart = async (topic: string) => {
         setIsLoading(true);
+        setLoadingText('正在分析需求...');
         setSessionContext(null); // Reset session
+        
         try {
+            // 1. Create Task (Persistence)
             const task = await createStratifyTask(topic);
             setCurrentTask(task);
-            setStep(2); // Move to outline generation step
+
+            // 2. Perform Analysis Stream
+            let analysisBuffer = '';
+            let sessionId: string | null = null;
+
+            await streamGenerate(
+                {
+                    prompt_name: 'analyze_input', // Backend must map this to 00_analyze_input.md
+                    variables: { user_input: topic },
+                    scenario: selectedScenario
+                },
+                (chunk) => {
+                    analysisBuffer += chunk;
+                },
+                () => {
+                    // Analysis stream done, process result
+                    processAnalysisResult(analysisBuffer, task, sessionId);
+                },
+                (err) => {
+                    console.error("Analysis stream failed:", err);
+                    alert("需求分析失败，请重试");
+                    setIsLoading(false);
+                },
+                (sid) => {
+                    sessionId = sid;
+                    setSessionContext(sid);
+                }
+            );
+
         } catch (e) {
             alert("启动失败，请重试");
-        } finally {
             setIsLoading(false);
+        }
+    };
+
+    const processAnalysisResult = (rawBuffer: string, task: StratifyTask, sessionId: string | null) => {
+        setIsLoading(false);
+        
+        // Attempt to parse JSON from the stream response
+        // The LLM might wrap JSON in ```json ... ``` or return it directly.
+        const parsed: any = parseLlmJson(rawBuffer);
+
+        if (!parsed || !parsed.type) {
+            console.warn("Could not parse analysis result, defaulting to Idea flow.", rawBuffer);
+            // Fallback to normal idea flow
+            setStep(2); 
+            return;
+        }
+
+        const { type, data } = parsed;
+
+        if (type === 'idea') {
+            // Flow A: Normal idea -> generate outline
+            setStep(2);
+        } else if (type === 'outline' && data.outline) {
+            // Flow B: Outline provided -> Show Outline Confirmation (Skip generation)
+            // Need to map data.outline [{title, summary}] to StratifyOutline structure
+            const mappedOutline: StratifyOutline = {
+                title: data.topic || task.topic,
+                pages: Array.isArray(data.outline) 
+                    ? data.outline.map((p: any) => ({ title: p.title, content: p.summary || p.content })) 
+                    : []
+            };
+            
+            // Update task locally
+            setCurrentTask(prev => prev ? { ...prev, outline: mappedOutline } : null);
+            setStep(2); 
+        } else if (type === 'content' && data.pages) {
+            // Flow C: Content provided -> Show Content Generator (Skip generation)
+            // Need to map data.pages [{title, content}] to StratifyPage structure
+            const mappedPages: StratifyPage[] = Array.isArray(data.pages) 
+                ? data.pages.map((p: any, i: number) => ({
+                    page_index: i + 1,
+                    title: p.title,
+                    content_markdown: p.content,
+                    html_content: null,
+                    status: 'done' // Mark as done since we have content
+                }))
+                : [];
+            
+            const mappedOutline: StratifyOutline = {
+                title: data.topic || task.topic,
+                pages: mappedPages.map(p => ({ title: p.title, content: '已生成内容' }))
+            };
+
+            // Update task
+            setCurrentTask(prev => prev ? { ...prev, outline: mappedOutline, pages: mappedPages } : null);
+            setStep(4); // Jump to Content Review
+        } else {
+            // Fallback
+            setStep(2);
         }
     };
 
@@ -1411,9 +1544,25 @@ export const ReportGenerator: React.FC = () => {
                     <IdeaInput 
                         onStart={handleStart} 
                         isLoading={isLoading} 
+                        loadingText={loadingText}
                         scenarios={scenarios}
                         selectedScenario={selectedScenario}
                         onSelectScenario={setSelectedScenario}
+                    />
+                )}
+
+                {/* Outline Modal (Step 2/3) */}
+                {/* Note: In Flow B (type=outline), currentTask.outline is set before rendering this. */}
+                {currentTask && (step === 2 || step === 3) && (
+                    <OutlineGenerationModal 
+                        key={currentTask.id} // FORCE REMOUNT on task ID change
+                        isOpen={true}
+                        taskId={currentTask.id}
+                        topic={currentTask.topic}
+                        scenario={selectedScenario}
+                        initialOutline={currentTask.outline} // Pass pre-analyzed outline if exists
+                        onClose={() => setStep(1)} 
+                        onConfirm={handleOutlineConfirmed}
                     />
                 )}
 
@@ -1423,6 +1572,7 @@ export const ReportGenerator: React.FC = () => {
                         taskId={currentTask.id}
                         outline={currentTask.outline}
                         scenario={selectedScenario}
+                        initialPages={currentTask.pages} // Pass pre-analyzed content pages if exists
                         onComplete={handleContentComplete}
                         initialSessionId={sessionContext}
                     />
@@ -1458,19 +1608,6 @@ export const ReportGenerator: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {/* Outline Modal (Controlled) */}
-            {currentTask && (
-                <OutlineGenerationModal 
-                    key={currentTask.id} // FORCE REMOUNT on task ID change
-                    isOpen={step === 2 || step === 3}
-                    taskId={currentTask.id}
-                    topic={currentTask.topic}
-                    scenario={selectedScenario}
-                    onClose={() => setStep(1)} 
-                    onConfirm={handleOutlineConfirmed}
-                />
-            )}
         </div>
     );
 };
