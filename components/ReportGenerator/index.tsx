@@ -182,7 +182,7 @@ const IdeaInput: React.FC<{
                             value={idea}
                             onChange={(e) => setIdea(e.target.value)}
                             placeholder="例如：‘2024年中国新能源汽车出海战略分析’..."
-                            className="w-full h-32 p-5 text-base bg-slate-50/50 rounded-xl border-none resize-none focus:ring-0 focus:bg-white transition-colors text-slate-800 placeholder:text-slate-300 font-medium"
+                            className="w-full h-32 p-5 text-base bg-slate-50/50 rounded-xl resize-none border-0 outline-none focus:ring-0 focus:outline-none focus:bg-white transition-colors text-slate-800 placeholder:text-slate-300 font-medium"
                             disabled={isLoading}
                         />
                         <div className="flex justify-between items-center px-4 pb-2 mt-2">
@@ -389,59 +389,6 @@ const parseHtmlStream = (text: string) => {
     return html;
 };
 
-// --- NEW: Analysis Modal (The "Thinking" Block for Step 1) ---
-const AnalysisModal: React.FC<{
-    isOpen: boolean;
-    streamContent: string;
-}> = ({ isOpen, streamContent }) => {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    
-    // Extract thought from stream content using the unified parser
-    const { thought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
-
-    // Display logic:
-    // 1. If we have explicit thought text, show it.
-    // 2. If we only have raw JSON (no thought detected) but stream exists, we show the raw stream 
-    //    so the user sees *something* happening (like a terminal log), rather than an empty box.
-    // 3. If stream is empty, show "Initializing".
-    let displayContent = thought;
-    if (!displayContent && streamContent) {
-        displayContent = streamContent; // Fallback to raw stream if no thought separation found
-    }
-
-    // Auto-scroll
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [displayContent]);
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[60vh]">
-                <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center gap-3">
-                    <div className="relative">
-                         <div className="absolute inset-0 bg-indigo-500 rounded-full blur animate-pulse"></div>
-                         <BrainIcon className="w-6 h-6 text-indigo-400 relative z-10" />
-                    </div>
-                    <h3 className="font-bold text-slate-100 tracking-wide text-lg">AI 深度分析需求中...</h3>
-                </div>
-                <div 
-                    ref={scrollRef}
-                    className="flex-1 p-6 font-mono text-sm text-green-400 overflow-y-auto bg-black/50 custom-scrollbar-dark leading-relaxed"
-                >
-                    <div className="whitespace-pre-wrap">
-                        {displayContent || <span className="text-slate-600 italic">正在连接模型...</span>}
-                        <span className="typing-cursor"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 // --- 阶段2 & 3: 智能大纲生成模态框 (Visual Upgrade) ---
 const OutlineGenerationModal: React.FC<{ 
     isOpen: boolean;
@@ -449,9 +396,10 @@ const OutlineGenerationModal: React.FC<{
     topic: string;
     scenario: string;
     initialOutline?: StratifyOutline | null; // NEW: Accept pre-analyzed outline
+    precedingThought?: string | null; // NEW: Accept thought from step 1
     onClose: () => void;
     onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
-}> = ({ isOpen, taskId, topic, scenario, initialOutline, onClose, onConfirm }) => {
+}> = ({ isOpen, taskId, topic, scenario, initialOutline, precedingThought, onClose, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [showThought, setShowThought] = useState(true);
@@ -570,6 +518,24 @@ const OutlineGenerationModal: React.FC<{
         return { thought: null, title: null, outline: [] };
     }, [streamContent, initialOutline]);
 
+    // Combine previous thought (from Step 1) with current thought
+    const combinedThoughtDisplay = useMemo(() => {
+        const currentThought = displayData.thought || '';
+        if (precedingThought && currentThought) {
+            return (
+                <>
+                    <div className="text-emerald-500/80 mb-4 pb-4 border-b border-white/10">
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-2 opacity-50">阶段一：需求分析</div>
+                        {precedingThought}
+                    </div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider mb-2 opacity-50 text-emerald-500/80">阶段二：大纲构建</div>
+                    {currentThought}
+                </>
+            );
+        }
+        return currentThought || precedingThought || '';
+    }, [displayData.thought, precedingThought]);
+
     if (!isOpen) return null;
 
     return (
@@ -622,11 +588,10 @@ const OutlineGenerationModal: React.FC<{
                     <div className="animate-in slide-in-from-top-4 duration-700">
                         <div className={`transition-all duration-500 ease-in-out overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-[#1e1e1e] ${showThought ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
                             <div className="p-4 font-mono text-xs sm:text-sm text-green-400/90 leading-relaxed overflow-y-auto max-h-[400px] custom-scrollbar-dark">
-                                {displayData.thought || streamContent ? (
+                                {combinedThoughtDisplay ? (
                                     <div className="whitespace-pre-wrap">
                                         <span className="text-gray-500 mr-2">$</span>
-                                        {displayData.thought || streamContent} 
-                                        {/* Show streamContent if thought is null, to ensure terminal isn't empty during parsing */}
+                                        {combinedThoughtDisplay}
                                         {isGenerating && <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>}
                                     </div>
                                 ) : (
@@ -1427,8 +1392,8 @@ export const ReportGenerator: React.FC = () => {
     const [sessionContext, setSessionContext] = useState<string | null>(null); // Store session ID
     
     // Analysis Stream State
-    const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
-    const [analysisStream, setAnalysisStream] = useState('');
+    // We removed the Modal, but we capture the thought from step 1 here to pass to step 2
+    const [step1Thought, setStep1Thought] = useState<string | null>(null);
 
     // Scenario Management
     const [scenarios, setScenarios] = useState<string[]>(['default']);
@@ -1453,8 +1418,7 @@ export const ReportGenerator: React.FC = () => {
         setIsLoading(true);
         setLoadingText('正在分析需求...');
         setSessionContext(null); // Reset session
-        setIsAnalysisOpen(true); // Open the Analysis Modal
-        setAnalysisStream(''); // Clear previous stream
+        setStep1Thought(null);
         
         try {
             // 1. Create Task (Persistence)
@@ -1473,20 +1437,16 @@ export const ReportGenerator: React.FC = () => {
                 },
                 (chunk) => {
                     analysisBuffer += chunk;
-                    setAnalysisStream(prev => prev + chunk); // Update UI
+                    // We don't update UI stream anymore since modal is removed
                 },
                 () => {
                     // Analysis stream done, process result
-                    // Use timeout to let the user see the result briefly
-                    setTimeout(() => {
-                        setIsAnalysisOpen(false); // Close Modal
-                        processAnalysisResult(analysisBuffer, task, sessionId);
-                    }, 1500);
+                    // No modal to close
+                    processAnalysisResult(analysisBuffer, task, sessionId);
                 },
                 (err) => {
                     console.error("Analysis stream failed:", err);
                     alert("需求分析失败，请重试");
-                    setIsAnalysisOpen(false);
                     setIsLoading(false);
                 },
                 (sid) => {
@@ -1498,7 +1458,6 @@ export const ReportGenerator: React.FC = () => {
         } catch (e) {
             alert("启动失败，请重试");
             setIsLoading(false);
-            setIsAnalysisOpen(false);
         }
     };
 
@@ -1507,7 +1466,12 @@ export const ReportGenerator: React.FC = () => {
         
         // Attempt to parse JSON from the stream response
         // Use the new helper to robustly extract thought vs JSON
-        const { jsonPart } = extractThoughtAndJson(rawBuffer);
+        const { thought, jsonPart } = extractThoughtAndJson(rawBuffer);
+        
+        // Capture Step 1 thought for Step 2 display
+        if (thought) {
+            setStep1Thought(thought);
+        }
         
         // Try to parse clean JSON first (if the model followed "Direct JSON")
         // If not, try to extract from code blocks (if the model was verbose) via parseLlmJson helper
@@ -1537,11 +1501,6 @@ export const ReportGenerator: React.FC = () => {
         // Standard mapping based on prompt requirements
         if (normalizedType === 'summary' || normalizedType === 'idea') {
             // Flow A: Normal idea -> generate outline
-            // Map the enhanced description back if available
-            if (data && data.description) {
-                // Update task locally to use the refined description for outline gen?
-                // For now, we stick to user input for prompt var, but maybe use this context?
-            }
             setStep(2);
         } else if (normalizedType === 'outline' && data.outline) {
             // Flow B: Outline provided directly -> Show Outline Confirmation (Skip generation)
@@ -1611,6 +1570,7 @@ export const ReportGenerator: React.FC = () => {
         setStep(1);
         setCurrentTask(null);
         setSessionContext(null);
+        setStep1Thought(null);
     };
 
     return (
@@ -1640,6 +1600,7 @@ export const ReportGenerator: React.FC = () => {
                         topic={currentTask.topic}
                         scenario={selectedScenario}
                         initialOutline={currentTask.outline} // Pass pre-analyzed outline if exists
+                        precedingThought={step1Thought} // Pass Step 1 Thought
                         onClose={() => setStep(1)} 
                         onConfirm={handleOutlineConfirmed}
                     />
@@ -1688,11 +1649,7 @@ export const ReportGenerator: React.FC = () => {
                 )}
             </div>
 
-            {/* Analysis Modal - Shows during Step 1 Processing */}
-            <AnalysisModal 
-                isOpen={isAnalysisOpen}
-                streamContent={analysisStream}
-            />
+            {/* Analysis Modal Removed - No longer rendering AnalysisModal */}
         </div>
     );
 };
