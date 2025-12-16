@@ -261,14 +261,14 @@
 
 ### **5. Markdown内容如下**
 
-{markdown_content}
+{{ markdown_content }}
 
 # 输出格式要求
 请直接返回一个标准的JSON对象。
 
 JSON对象结构如下：
 ```json
-{{
+{
   "html": "<!DOCTYPE html>..."
-}}
+}
 ```

@@ -108,6 +108,7 @@ export const getScenarioFileContent = (scenarioName: string, fileName: string): 
 // --- 3. Persistence (CRUD) ---
 
 export const createStratifyTask = async (topic: string): Promise<StratifyTask> => {
+    // FIX: Backend expects 'user_input', not 'topic'
     const response = await apiFetch<any>(`${STRATIFY_SERVICE_PATH}/tasks`, {
         method: 'POST',
         body: JSON.stringify({ user_input: topic }),
@@ -137,8 +138,14 @@ export const saveStratifyPages = (taskId: string, pages: StratifyPage[]): Promis
 // 辅助函数：清洗 LLM 返回的 JSON 字符串
 export const parseLlmJson = <T>(text: string): T | null => {
     try {
+        // 0. Try to split by Separator first if present (Frontend helper handles this mostly, but good to have here)
+        let cleanText = text;
+        if (text.includes("---FINAL_JSON_OUTPUT---")) {
+            cleanText = text.split("---FINAL_JSON_OUTPUT---")[1].trim();
+        }
+
         // 1. Try direct parse
-        return JSON.parse(text);
+        return JSON.parse(cleanText);
     } catch (e) {
         // 2. Try to extract from markdown code blocks ```json ... ```
         const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
@@ -146,7 +153,7 @@ export const parseLlmJson = <T>(text: string): T | null => {
             try {
                 return JSON.parse(jsonMatch[1]);
             } catch (e2) {
-                console.error("Failed to parse extracted JSON", e2);
+                // ignore
             }
         }
         // 3. Try to extract from generic code blocks ``` ... ```
