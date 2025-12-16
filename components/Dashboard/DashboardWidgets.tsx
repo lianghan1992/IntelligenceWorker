@@ -120,8 +120,7 @@ export const DashboardWidgets: React.FC = () => {
                     articlesToday: articlesRes.count || 0,
                     kbTotal: Array.isArray(techItems) ? techItems.length : 0,
                     // Ensure we access the correct property and handle potential undefined
-                    // Update: Use 'total' instead of 'completed' to match Deep Insight page view
-                    docsProcessed: (deepRes && typeof deepRes.total === 'number') ? deepRes.total : 0,
+                    docsProcessed: (deepRes && typeof deepRes.completed === 'number') ? deepRes.completed : 0,
                     upcomingEvents: eventsRes.total || 0
                 });
 
@@ -163,7 +162,7 @@ export const DashboardWidgets: React.FC = () => {
                 title="深度洞察"
                 value={stats.docsProcessed}
                 unit="份"
-                description="平台收录的行业研报"
+                description="已完成解析的行业研报"
                 gradient="from-purple-500 to-pink-500"
                 textColor="text-purple-600"
                 isLoading={isLoading}
