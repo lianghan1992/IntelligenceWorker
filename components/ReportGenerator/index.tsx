@@ -109,17 +109,21 @@ const MinimalStepper: React.FC<{ currentStep: number }> = ({ currentStep }) => {
 const AnalysisModal: React.FC<{
     isOpen: boolean;
     streamContent: string;
-}> = ({ isOpen, streamContent }) => {
+    reasoningContent?: string;
+}> = ({ isOpen, streamContent, reasoningContent }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     // 实时提取思考过程
-    const { thought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
+    const { thought: extractedThought } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
+    
+    // 优先展示专门的 reasoning_content (DeepSeek R1等)，否则回退到 prompt 提取的 thought
+    const displayThought = reasoningContent || extractedThought;
 
     // 自动滚动到底部
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [thought]);
+    }, [displayThought]);
 
     if (!isOpen) return null;
 
@@ -151,7 +155,7 @@ const AnalysisModal: React.FC<{
                 >
                     <div className="whitespace-pre-wrap">
                         <span className="text-slate-500 mr-2">$</span>
-                        {thought || <span className="text-slate-600 italic">正在连接推理引擎...</span>}
+                        {displayThought || <span className="text-slate-600 italic">正在连接推理引擎...</span>}
                         <span className="typing-cursor"></span>
                     </div>
                 </div>
@@ -229,6 +233,7 @@ const OutlineGenerator: React.FC<{
     onConfirm: (outline: StratifyOutline, sessionId: string | null) => void;
 }> = ({ taskId, topic, scenario, precedingThought, initialSessionId, onConfirm }) => {
     const [streamContent, setStreamContent] = useState('');
+    const [reasoningStream, setReasoningStream] = useState('');
     const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
     const [isGenerating, setIsGenerating] = useState(true);
     
@@ -236,40 +241,53 @@ const OutlineGenerator: React.FC<{
     const thoughtScrollRef = useRef<HTMLDivElement>(null);
 
     // 解析流
-    const { thought: currentThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
+    const { thought: extractedThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     
+    // 优先使用 reasoningStream
+    const displayThought = reasoningStream || extractedThought;
+
     // 解析 JSON (大纲) - 优化版
     const outlineData = useMemo(() => {
         if (!jsonPart) return null;
         try {
-            // 1. 尝试直接解析完整 JSON
+            // 1. 尝试直接解析完整 JSON (当生成完成时)
             const parsed = parseLlmJson<{title: string, pages: any[]}>(jsonPart);
             if (parsed && parsed.title && Array.isArray(parsed.pages)) {
                 return parsed;
             }
 
             // 2. 增强型流式正则解析
-            const pagesStartIndex = jsonPart.indexOf('"pages"');
+            // 这种方式可以在 JSON 没闭合时就提取出数组中的项
             let title = '生成中...';
             
-            const titleSection = pagesStartIndex > -1 ? jsonPart.slice(0, pagesStartIndex) : jsonPart;
-            const titleMatch = titleSection.match(/"title"\s*:\s*"(?<title>(?:[^"\\]|\\.)*?)"/);
+            // 提取标题
+            const titleMatch = jsonPart.match(/"title"\s*:\s*"(?<title>(?:[^"\\]|\\.)*?)"/);
             if (titleMatch && titleMatch.groups?.title) {
                 title = titleMatch.groups.title;
             }
 
             const pages: { title: string, content: string }[] = [];
             
+            // 提取 pages 数组
+            const pagesStartIndex = jsonPart.indexOf('"pages"');
             if (pagesStartIndex > -1) {
                 const pagesSection = jsonPart.slice(pagesStartIndex);
-                const pageRegex = /{\s*"title"\s*:\s*"(?<title>(?:[^"\\]|\\.)*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(?<content>(?:[^"\\]|\\.)*?)"/g;
+                // 匹配完整的对象结构 { ... }
+                // 允许 title 和 content 顺序颠倒，允许 content 字段名为 content 或 summary
+                // 注意：这个正则假设 LLM 输出的 JSON 格式相对标准
+                const pageRegex = /{\s*(?:"title"\s*:\s*"(?<t1>(?:[^"\\]|\\.)*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(?<c1>(?:[^"\\]|\\.)*?)"|"(?:content|summary)"\s*:\s*"(?<c2>(?:[^"\\]|\\.)*?)"\s*,\s*"title"\s*:\s*"(?<t2>(?:[^"\\]|\\.)*?)")\s*}/g;
+                
                 let match;
                 while ((match = pageRegex.exec(pagesSection)) !== null) {
                     if (match.groups) {
-                        pages.push({ 
-                            title: match.groups.title.replace(/\\"/g, '"'), 
-                            content: match.groups.content.replace(/\\"/g, '"') 
-                        });
+                        const t = match.groups.t1 || match.groups.t2;
+                        const c = match.groups.c1 || match.groups.c2;
+                        if (t && c) {
+                            pages.push({ 
+                                title: t.replace(/\\"/g, '"'), 
+                                content: c.replace(/\\"/g, '"') 
+                            });
+                        }
                     }
                 }
             }
@@ -294,7 +312,8 @@ const OutlineGenerator: React.FC<{
             (chunk) => setStreamContent(prev => prev + chunk),
             () => setIsGenerating(false),
             (err) => { console.error(err); setIsGenerating(false); },
-            (sid) => { if(sid) setSessionId(sid); }
+            (sid) => { if(sid) setSessionId(sid); },
+            (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning
         );
     }, [topic, scenario, initialSessionId]);
 
@@ -303,7 +322,7 @@ const OutlineGenerator: React.FC<{
         if (thoughtScrollRef.current) {
             thoughtScrollRef.current.scrollTop = thoughtScrollRef.current.scrollHeight;
         }
-    }, [currentThought]);
+    }, [displayThought]);
 
     const handleConfirm = () => {
         if (outlineData && outlineData.pages.length > 0) {
@@ -331,7 +350,7 @@ const OutlineGenerator: React.FC<{
                     )}
                     <div className="text-green-400 mb-1">// Phase 2: Outline Construction</div>
                     <div className="whitespace-pre-wrap">
-                        {currentThought || "AI 正在思考大纲结构..."}
+                        {displayThought || "AI 正在思考大纲结构..."}
                         {isGenerating && <span className="typing-cursor"></span>}
                     </div>
                 </div>
@@ -360,10 +379,14 @@ const OutlineGenerator: React.FC<{
                         </div>
                     ))}
                     
-                    {isGenerating && (!outlineData || outlineData.pages.length === 0) && (
-                        <div className="flex flex-col items-center justify-center py-10 text-slate-400 gap-3">
-                            <div className="w-6 h-6 border-2 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
-                            <p className="text-xs">正在构建逻辑结构...</p>
+                    {isGenerating && (
+                        <div className="flex flex-col items-center justify-center py-6 text-slate-400 gap-3 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-75"></div>
+                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-150"></div>
+                            </div>
+                            <p className="text-xs">正在构建第 {outlineData?.pages.length ? outlineData.pages.length + 1 : 1} 章节...</p>
                         </div>
                     )}
                 </div>
@@ -403,7 +426,8 @@ const ContentWriter: React.FC<{
         status: 'pending'
     })));
     const [activePageIdx, setActivePageIdx] = useState(1);
-    const [pageThought, setPageThought] = useState(''); // 当前页的实时思考
+    const [pageThought, setPageThought] = useState(''); // extracted thought
+    const [reasoningStream, setReasoningStream] = useState(''); // raw reasoning stream
     
     // 队列控制
     const processingRef = useRef(false);
@@ -423,6 +447,7 @@ const ContentWriter: React.FC<{
             processingRef.current = true;
             setActivePageIdx(page.page_index);
             setPageThought('');
+            setReasoningStream('');
             
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
 
@@ -464,7 +489,9 @@ const ContentWriter: React.FC<{
                     console.error(err);
                     setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     processingRef.current = false;
-                }
+                },
+                undefined,
+                (chunk) => setReasoningStream(prev => prev + chunk) // Capture reasoning
             );
         };
 
@@ -474,6 +501,7 @@ const ContentWriter: React.FC<{
 
     const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
     const isAllDone = pages.every(p => p.status === 'done');
+    const displayThought = reasoningStream || pageThought;
 
     const renderContent = (md: string) => {
         if (!md) return null;
@@ -515,10 +543,10 @@ const ContentWriter: React.FC<{
             </div>
 
             <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden relative">
-                {activePage.status === 'generating' && pageThought && (
+                {activePage.status === 'generating' && displayThought && (
                     <div className="bg-[#1e1e1e] text-slate-300 p-4 text-xs font-mono border-b border-slate-700 max-h-32 overflow-y-auto">
                         <span className="text-indigo-400 font-bold mr-2">$ THINKING:</span>
-                        {pageThought}
+                        {displayThought}
                         <span className="typing-cursor"></span>
                     </div>
                 )}
@@ -543,6 +571,7 @@ export const ReportGenerator: React.FC = () => {
     const [step, setStep] = useState(1);
     const [task, setTask] = useState<StratifyTask | null>(null);
     const [analysisStream, setAnalysisStream] = useState('');
+    const [analysisReasoning, setAnalysisReasoning] = useState('');
     const [step1Thought, setStep1Thought] = useState<string | null>(null);
     const [step1SessionId, setStep1SessionId] = useState<string | null>(null);
     
@@ -555,10 +584,12 @@ export const ReportGenerator: React.FC = () => {
     const handleStart = async (idea: string) => {
         setIsAnalysisModalOpen(true);
         setAnalysisStream('');
+        setAnalysisReasoning('');
         setStep1Thought(null);
         setStep1SessionId(null);
         
         let localBuffer = ''; 
+        let localReasoningBuffer = '';
         let tempSessionId: string | null = null;
 
         try {
@@ -579,12 +610,16 @@ export const ReportGenerator: React.FC = () => {
                 () => {
                     // Delay slightly to let user see "Thinking" effect completion
                     setTimeout(() => {
-                        processAnalysisResult(localBuffer, newTask, idea, tempSessionId);
+                        processAnalysisResult(localBuffer, localReasoningBuffer, newTask, idea, tempSessionId);
                         setIsAnalysisModalOpen(false);
                     }, 1000); 
                 },
                 (err) => { alert('分析失败'); setIsAnalysisModalOpen(false); },
-                (sid) => { tempSessionId = sid; } // Capture session ID
+                (sid) => { tempSessionId = sid; }, // Capture session ID
+                (chunk) => {
+                    localReasoningBuffer += chunk;
+                    setAnalysisReasoning(prev => prev + chunk);
+                }
             );
         } catch (e) {
             alert('启动失败');
@@ -592,9 +627,10 @@ export const ReportGenerator: React.FC = () => {
         }
     };
 
-    const processAnalysisResult = (buffer: string, task: StratifyTask, originalInput: string, sessionId: string | null) => {
+    const processAnalysisResult = (buffer: string, reasoningBuffer: string, task: StratifyTask, originalInput: string, sessionId: string | null) => {
         const { thought, jsonPart } = extractThoughtAndJson(buffer);
-        setStep1Thought(thought);
+        // Use separate reasoning if available, else fall back to extracted thought
+        setStep1Thought(reasoningBuffer || thought);
         setStep1SessionId(sessionId);
 
         const parsed: any = parseLlmJson(jsonPart);
@@ -706,6 +742,7 @@ export const ReportGenerator: React.FC = () => {
             <AnalysisModal 
                 isOpen={isAnalysisModalOpen} 
                 streamContent={analysisStream} 
+                reasoningContent={analysisReasoning}
             />
         </div>
     );

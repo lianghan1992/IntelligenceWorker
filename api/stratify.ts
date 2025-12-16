@@ -16,7 +16,8 @@ export const streamGenerate = async (
     onData: (text: string) => void,
     onDone?: () => void,
     onError?: (err: any) => void,
-    onSessionId?: (sessionId: string) => void
+    onSessionId?: (sessionId: string) => void,
+    onReasoning?: (text: string) => void
 ) => {
     const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
@@ -66,6 +67,11 @@ export const streamGenerate = async (
 
                         if (json.content) {
                             onData(json.content);
+                        }
+
+                        // Handle Reasoning Content (Thinking Process)
+                        if (json.reasoning_content && onReasoning) {
+                            onReasoning(json.reasoning_content);
                         }
                     } catch (e) {
                         // Ignore parse errors for partial chunks
