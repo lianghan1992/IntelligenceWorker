@@ -107,11 +107,17 @@ export const getScenarioFileContent = (scenarioName: string, fileName: string): 
 
 // --- 3. Persistence (CRUD) ---
 
-export const createStratifyTask = (topic: string): Promise<StratifyTask> =>
-    apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks`, {
+export const createStratifyTask = async (topic: string): Promise<StratifyTask> => {
+    const response = await apiFetch<any>(`${STRATIFY_SERVICE_PATH}/tasks`, {
         method: 'POST',
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ user_input: topic }),
     });
+    // Map backend response (input_text) to frontend model (topic)
+    return {
+        ...response,
+        topic: response.input_text || topic
+    };
+};
 
 export const getStratifyTask = (taskId: string): Promise<StratifyTask> =>
     apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks/${taskId}`);
