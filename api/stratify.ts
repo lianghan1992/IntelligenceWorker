@@ -24,6 +24,8 @@ export const streamGenerate = async (
     const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
+        'Accept': 'text/event-stream', // Explicitly request stream
+        'Cache-Control': 'no-cache',   // Prevent caching
     };
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
