@@ -385,6 +385,29 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         />
                     </div>
 
+                    {/* Right Tool Panel (Squeeze Layout) */}
+                    <div 
+                        className={`
+                            bg-white md:rounded-r-[20px] overflow-hidden flex flex-col transition-all duration-300 ease-in-out border-l border-slate-200/60 shadow-sm z-30 flex-shrink-0
+                            ${activeTool ? 'w-[400px] md:w-[450px]' : 'w-0 border-0'}
+                        `}
+                    >
+                        {currentUser && activeTool === 'copilot' && (
+                            <CopilotPanel 
+                                user={currentUser} 
+                                isOpen={true}
+                                onClose={() => setActiveTool(null)} 
+                            />
+                        )}
+                        {currentUser && activeTool === 'vector' && (
+                            <VectorSearchPanel 
+                                isOpen={true}
+                                onClose={() => setActiveTool(null)}
+                                onSelectResult={handleVectorResultSelect}
+                            />
+                        )}
+                    </div>
+
                     {/* Right Tool Rail - Widened */}
                     <div className="hidden md:flex flex-col w-20 bg-white border-l border-slate-200/60 md:rounded-r-[20px] items-center py-6 gap-6 z-40 shadow-sm flex-shrink-0">
                         {/* Tool 1: AI Retrieval (Copilot) */}
@@ -410,24 +433,6 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                             </div>
                             <span className="text-[11px] font-bold text-center">向量检索</span>
                         </button>
-                    </div>
-
-                    {/* Tool Panels - Absolute Positioned within Main Content Area */}
-                    <div className={`absolute inset-y-0 right-20 left-0 z-30 pointer-events-none overflow-hidden rounded-r-[20px]`}>
-                        {currentUser && (
-                            <>
-                                <CopilotPanel 
-                                    user={currentUser} 
-                                    isOpen={activeTool === 'copilot'} 
-                                    onClose={() => setActiveTool(null)} 
-                                />
-                                <VectorSearchPanel 
-                                    isOpen={activeTool === 'vector'} 
-                                    onClose={() => setActiveTool(null)}
-                                    onSelectResult={handleVectorResultSelect}
-                                />
-                            </>
-                        )}
                     </div>
 
                     {/* Intro Overlay */}
