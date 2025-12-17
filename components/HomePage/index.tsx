@@ -490,7 +490,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             <section className="relative pt-32 pb-16 sm:pt-40 sm:pb-24 overflow-visible z-10">
                 <HeroParticleConvergence />
                 <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+                    
+                    {/* NEW: Logo Section */}
                     <ScrollReveal>
+                        <div className="flex justify-center mb-6">
+                            <div className="w-24 h-24 rounded-3xl bg-white/50 backdrop-blur-md border border-white/60 shadow-xl shadow-indigo-500/10 flex items-center justify-center p-5 transform hover:scale-105 transition-transform duration-500">
+                                <LogoIcon className="w-full h-full" />
+                            </div>
+                        </div>
+                    </ScrollReveal>
+
+                    <ScrollReveal delay={50}>
                         <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-indigo-100 bg-white/80 backdrop-blur-sm px-4 py-1.5 shadow-sm ring-1 ring-indigo-50">
                             <span className="flex h-2 w-2 mr-2 relative">
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping"></span>
@@ -536,7 +546,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                                 观看演示
                             </button>
                         </div>
-                        <p className="mt-4 text-xs sm:text-sm text-slate-400">无需信用卡 · 免费试用核心功能</p>
                     </ScrollReveal>
                 </div>
             </section>
