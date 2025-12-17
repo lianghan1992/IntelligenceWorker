@@ -61,18 +61,15 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClos
     };
 
     return (
-        <>
-            {/* Backdrop */}
+        <div className={`absolute inset-0 z-30 flex justify-end transition-all duration-300 pointer-events-none ${isOpen ? 'bg-black/20 backdrop-blur-sm pointer-events-auto' : 'bg-transparent'}`} onClick={onClose}>
+            {/* Right Drawer - Positioned relative to this absolute container */}
             <div 
-                className={`fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                onClick={onClose}
-            ></div>
-
-            {/* Right Drawer */}
-            <div className={`
-                fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-slate-50 shadow-2xl border-l border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col
-                ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-            `}>
+                className={`
+                    w-full sm:w-[400px] h-full bg-slate-50 shadow-2xl border-l border-slate-200 flex flex-col transform transition-transform duration-300 ease-in-out pointer-events-auto
+                    ${isOpen ? 'translate-x-0' : 'translate-x-full'}
+                `}
+                onClick={(e) => e.stopPropagation()} // Prevent close on drawer click
+            >
                 {/* Header */}
                 <div className="px-5 py-4 bg-white border-b border-slate-200 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2">
@@ -114,6 +111,6 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClos
                     )}
                 </div>
             </div>
-        </>
+        </div>
     );
 };

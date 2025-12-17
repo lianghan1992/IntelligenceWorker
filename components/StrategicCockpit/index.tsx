@@ -8,7 +8,7 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
-import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon } from '../icons';
+import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon } from '../icons';
 import { CopilotPanel } from './AICopilot/CopilotPanel';
 import { getMe } from '../../api/auth';
 
@@ -262,8 +262,9 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                  <main className="flex-1 flex gap-0 md:gap-4 min-w-0 relative w-full md:static transition-all duration-500">
                     
                     {/* List View (Middle Column) */}
+                    {/* Width adjusted to accommodate the right tool rail */}
                     <div className={`
-                        w-full md:w-[340px] lg:w-[380px] xl:w-[400px] flex-shrink-0 flex flex-col bg-white md:rounded-[20px] shadow-xl md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-r md:border border-slate-200/60 overflow-hidden
+                        w-full md:w-[320px] lg:w-[340px] xl:w-[360px] flex-shrink-0 flex flex-col bg-white md:rounded-[20px] shadow-xl md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-r md:border border-slate-200/60 overflow-hidden
                         absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
@@ -283,8 +284,6 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                             onSearch={handleSearch}
                             onBackToNav={backToNav}
-                            // Copilot Trigger
-                            onToggleCopilot={() => setIsCopilotOpen(true)}
                         />
                     </div>
                     
@@ -303,17 +302,34 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                             selectedArticle={selectedArticle}
                         />
                     </div>
+
+                    {/* Right Tool Rail */}
+                    <div className="hidden md:flex flex-col w-14 bg-white border-l border-slate-200/60 md:rounded-r-[20px] items-center py-4 gap-4 z-40 shadow-sm flex-shrink-0">
+                        <button 
+                            onClick={() => setIsCopilotOpen(!isCopilotOpen)}
+                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${isCopilotOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                            title="AI 助手"
+                        >
+                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isCopilotOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
+                                <SparklesIcon className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-bold">AI助手</span>
+                        </button>
+                    </div>
+
+                    {/* Copilot Panel - Absolute Positioned within Main Content Area */}
+                    <div className={`absolute inset-y-0 right-14 left-0 z-30 pointer-events-none overflow-hidden rounded-r-[20px]`}>
+                        {currentUser && (
+                            <CopilotPanel 
+                                user={currentUser} 
+                                isOpen={isCopilotOpen} 
+                                onClose={() => setIsCopilotOpen(false)} 
+                            />
+                        )}
+                    </div>
+
                 </main>
             </div>
-
-            {/* Copilot Drawer */}
-            {currentUser && (
-                <CopilotPanel 
-                    user={currentUser} 
-                    isOpen={isCopilotOpen} 
-                    onClose={() => setIsCopilotOpen(false)} 
-                />
-            )}
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`
