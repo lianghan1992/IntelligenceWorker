@@ -223,13 +223,24 @@ export const CompetitivenessDashboard: React.FC = () => {
     const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Load Metadata
+    // Load Metadata and set defaults
     useEffect(() => {
         Promise.all([getBrands(), getDimensions()]).then(([b, d]) => {
             setBrands(b);
             setDimensions(d);
-            // Default select top 3 brands if available
-            setSelectedBrands(b.slice(0, 4));
+            
+            // Calculate default number of brands based on screen width
+            const width = window.innerWidth;
+            let count = 4;
+            if (width >= 1920) count = 6;
+            else if (width >= 1536) count = 5; // 2XL
+            else if (width >= 1280) count = 4; // XL
+            else if (width >= 1024) count = 3; // LG
+            else if (width >= 768) count = 2;  // MD
+            else count = 2; // SM/Mobile (horizontal scroll)
+
+            // Default select top N brands
+            setSelectedBrands(b.slice(0, count));
         });
     }, []);
 
