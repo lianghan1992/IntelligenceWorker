@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { login, register } from '../../api';
 import { User } from '../../types';
@@ -72,10 +73,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
 
                 <div className="p-8">
                     <div className="flex flex-col items-center justify-center gap-3 mb-8">
-                        <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center">
-                            <LogoIcon className="w-10 h-10 text-indigo-600"/>
+                        <div className="w-16 h-16 rounded-xl flex items-center justify-center">
+                            <LogoIcon className="w-14 h-14"/>
                         </div>
-                        <span className="font-extrabold text-2xl text-slate-900 tracking-tight">Auto Insight</span>
+                        <div className="flex items-center text-2xl tracking-tight">
+                             <span className="font-extrabold text-blue-600">Auto</span>
+                             <span className="font-semibold text-purple-600">Insight</span>
+                        </div>
                         <p className="text-slate-500 text-sm">AI 驱动的汽车行业情报平台</p>
                     </div>
 

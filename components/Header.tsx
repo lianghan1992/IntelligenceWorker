@@ -72,10 +72,10 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                     <div className="flex items-center gap-4 lg:gap-8 overflow-hidden flex-1">
                         <div className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0 pr-4" onClick={() => onNavigate('cockpit')}>
                             <div className="relative flex items-center justify-center w-9 h-9">
-                                <LogoIcon className="w-9 h-9 text-indigo-600 transition-transform duration-300 group-hover:rotate-12 filter drop-shadow-sm" />
+                                <LogoIcon className="w-9 h-9 transition-transform duration-300 group-hover:rotate-12 filter drop-shadow-sm" />
                             </div>
-                            <span className="font-black text-xl tracking-tighter text-slate-900 hidden sm:block whitespace-nowrap">
-                                Auto<span className="text-indigo-600">Insight</span>
+                            <span className="text-xl tracking-tighter hidden sm:block whitespace-nowrap">
+                                <span className="font-extrabold text-blue-600">Auto</span><span className="font-semibold text-purple-600">Insight</span>
                             </span>
                         </div>
                         

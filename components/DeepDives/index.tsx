@@ -3,13 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
     getDeepInsightTasks, 
-    getDeepInsightCategories, 
-    getDeepInsightTasksStats
+    getDeepInsightCategories
 } from '../../api';
 import { 
-    SearchIcon, RefreshIcon, ArrowRightIcon, SparklesIcon,
-    ChartIcon, LightningBoltIcon, ClockIcon, ViewGridIcon,
-    DocumentTextIcon, CalendarIcon, FilterIcon
+    SearchIcon, RefreshIcon, ArrowRightIcon, 
+    ViewGridIcon, DocumentTextIcon, CalendarIcon
 } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
 
@@ -154,7 +152,6 @@ export const DeepDives: React.FC = () => {
     // Data State
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
     const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
-    const [stats, setStats] = useState<{ total: number; completed: number; failed: number; processing: number; pending: number } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     
     // UI State
@@ -165,15 +162,13 @@ export const DeepDives: React.FC = () => {
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [cats, tasksRes, statsRes] = await Promise.all([
+            const [cats, tasksRes] = await Promise.all([
                 getDeepInsightCategories().catch(() => []),
-                getDeepInsightTasks({ limit: 100, page: 1 }).catch(() => ({ items: [], total: 0 })),
-                getDeepInsightTasksStats().catch(() => ({ total: 0, completed: 0, processing: 0, pending: 0, failed: 0 }))
+                getDeepInsightTasks({ limit: 100, page: 1 }).catch(() => ({ items: [], total: 0 }))
             ]);
             setCategories(cats);
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
             setTasks(items);
-            setStats(statsRes);
         } catch (error) {
             console.error("Failed to load Deep Insight data", error);
         } finally {
@@ -252,46 +247,6 @@ export const DeepDives: React.FC = () => {
             {/* Main Content */}
             <div className="relative z-10 w-full max-w-[1600px] mx-auto px-4 md:px-8 pt-6 space-y-8">
                 
-                {/* Stats Overview */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                        <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
-                            <ChartIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">知识库总量</p>
-                            <p className="text-2xl font-extrabold text-slate-800">{stats?.total || 0}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                            <LightningBoltIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">解析完成</p>
-                            <p className="text-2xl font-extrabold text-slate-800">{stats?.completed || 0}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                        <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
-                            <SparklesIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">正在处理</p>
-                            <p className="text-2xl font-extrabold text-slate-800">{stats?.processing || 0}</p>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                        <div className="p-3 bg-rose-50 text-rose-600 rounded-lg">
-                            <ClockIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <p className="text-xs text-slate-400 font-bold uppercase">待处理</p>
-                            <p className="text-2xl font-extrabold text-slate-800">{stats?.pending || 0}</p>
-                        </div>
-                    </div>
-                </div>
-
                 {/* Grid */}
                 <section>
                     {isLoading ? (

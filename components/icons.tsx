@@ -54,13 +54,21 @@ export const GearIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 export const LogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <Icon {...props} viewBox="0 0 24 24" fill="none">
-        <path d="M7.5 15L5.5 20H9.5L10.5 17.5H13.5L14.5 20H18.5L16.5 15Z" fill="currentColor" />
-        <circle cx="10" cy="13.5" r="0.9" fill="currentColor" />
-        <circle cx="14" cy="13.5" r="0.9" fill="currentColor" />
-        <circle cx="11" cy="10.5" r="0.7" fill="currentColor" />
-        <circle cx="13" cy="10.5" r="0.7" fill="currentColor" />
-        <circle cx="12" cy="7" r="0.6" fill="currentColor" />
+    <Icon {...props} viewBox="0 0 100 100" fill="none">
+        <defs>
+            <linearGradient id="ai-logo-beam" x1="50" y1="0" x2="50" y2="100" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#7C3AED" stopOpacity="1"/>
+                <stop offset="60%" stopColor="#8B5CF6" stopOpacity="0.7"/>
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0"/>
+            </linearGradient>
+            <linearGradient id="ai-logo-line" x1="50" y1="20" x2="50" y2="95" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor="#2563EB"/>
+                <stop offset="100%" stopColor="#1D4ED8"/>
+            </linearGradient>
+        </defs>
+        <path d="M50 5 L 15 95 L 42 95 L 50 18 Z" fill="url(#ai-logo-beam)" />
+        <path d="M50 5 L 85 95 L 58 95 L 50 18 Z" fill="url(#ai-logo-beam)" />
+        <path d="M49.95 25 L 50.05 25 L 52 95 L 48 95 Z" fill="url(#ai-logo-line)" />
     </Icon>
 );
 

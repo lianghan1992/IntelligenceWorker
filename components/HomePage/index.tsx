@@ -608,8 +608,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             {/* Footer */}
             <footer className="bg-white py-12 text-center border-t border-slate-200 relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-4 text-slate-400">
-                    <LogoIcon className="w-6 h-6 text-slate-400"/>
-                    <span className="font-bold text-lg text-slate-500">Auto Insight</span>
+                    <LogoIcon className="w-8 h-8" />
+                    <div className="flex items-center text-lg ml-2">
+                        <span className="font-extrabold text-blue-600">Auto</span>
+                        <span className="font-semibold text-purple-600">Insight</span>
+                    </div>
                 </div>
                 <p className="text-sm text-slate-400">
                     &copy; 2024 Automotive Intelligence Platform. All rights reserved.

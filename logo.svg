@@ -1,32 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 24 24" fill="none">
-  <defs>
-    <linearGradient id="ai-gradient" x1="4" y1="20" x2="20" y2="4" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#4338ca" /> <!-- Indigo 700 -->
-      <stop offset="50%" stop-color="#4f46e5" /> <!-- Indigo 600 -->
-      <stop offset="100%" stop-color="#7c3aed" /> <!-- Violet 600 -->
-    </linearGradient>
-  </defs>
-  
-  <!-- 
-    iOS PWA ICON BACKGROUND 
-    iOS does not support transparent icons (it turns them black).
-    We add a white background here so it looks like a proper App Icon.
-  -->
-  <rect width="24" height="24" fill="#ffffff" />
 
-  <!-- Solid Base (Foundation) -->
-  <path d="M7.5 15 L5.5 20 H9.5 L10.5 17.5 H13.5 L14.5 20 H18.5 L16.5 15 Z" fill="url(#ai-gradient)" />
-  
-  <!-- Transition Zone (Dense Particles) -->
-  <circle cx="10" cy="13.5" r="0.9" fill="url(#ai-gradient)" />
-  <circle cx="14" cy="13.5" r="0.9" fill="url(#ai-gradient)" />
-  
-  <!-- Core Processing (Medium Particles) -->
-  <circle cx="11" cy="10.5" r="0.7" fill="url(#ai-gradient)" />
-  <circle cx="13" cy="10.5" r="0.7" fill="url(#ai-gradient)" />
-  
-  <!-- The Insight (Singularity Tip) -->
-  <circle cx="12" cy="7" r="0.6" fill="url(#ai-gradient)" />
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="beamGrad2" x1="50" y1="0" x2="50" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/>
+            <stop offset="60%" stop-color="#8B5CF6" stop-opacity="0.7"/> 
+            <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/> 
+        </linearGradient>
 
-  <!-- The "I" Beam (Negative Space Visual Guide - Optional, implied by structure) -->
+        <linearGradient id="lineGrad2" x1="50" y1="20" x2="50" y2="95" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#2563EB"/>
+            <stop offset="100%" stop-color="#1D4ED8"/>
+        </linearGradient>
+    </defs>
+
+    <path d="M50 5 L 15 95 L 42 95 L 50 18 Z" fill="url(#beamGrad2)" />
+    <path d="M50 5 L 85 95 L 58 95 L 50 18 Z" fill="url(#beamGrad2)" />
+    <path d="M49.95 25 L 50.05 25 L 52 95 L 48 95 Z" fill="url(#lineGrad2)" />
 </svg>
