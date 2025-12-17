@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { InfoItem } from '../../types';
 import { RssIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, MenuIcon, ViewGridIcon, SearchIcon, CloseIcon, SparklesIcon } from '../icons';
@@ -73,7 +72,8 @@ interface IntelligenceCenterProps {
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
     onSearch?: (query: string) => void; 
-    onBackToNav?: () => void; 
+    onBackToNav?: () => void;
+    onToggleCopilot?: () => void; 
 }
 
 export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
@@ -90,7 +90,8 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
     isSidebarOpen = true,
     onToggleSidebar,
     onSearch,
-    onBackToNav
+    onBackToNav,
+    onToggleCopilot
 }) => {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchValue, setSearchValue] = useState('');
@@ -153,14 +154,27 @@ export const IntelligenceCenter: React.FC<IntelligenceCenterProps> = ({
                         </div>
                     </div>
 
-                    {/* Search Trigger Button */}
-                    <button 
-                        onClick={() => setIsSearchOpen(true)}
-                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
-                        title="搜索"
-                    >
-                        <SearchIcon className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {/* Search Trigger Button */}
+                        <button 
+                            onClick={() => setIsSearchOpen(true)}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                            title="搜索"
+                        >
+                            <SearchIcon className="w-5 h-5" />
+                        </button>
+                        
+                        {/* Copilot Toggle Button */}
+                        {onToggleCopilot && (
+                            <button 
+                                onClick={onToggleCopilot}
+                                className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-all"
+                                title="AI 助手"
+                            >
+                                <SparklesIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Expanded Search Bar */}

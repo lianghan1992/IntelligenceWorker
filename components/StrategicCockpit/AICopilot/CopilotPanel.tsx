@@ -1,49 +1,43 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createIntelLlmTask, getIntelLlmTasks } from '../../../api/intelligence';
 import { IntelLlmTask, User } from '../../../types';
-import { ChatInput } from './ChatInput';
-import { TaskMessageBubble } from './TaskMessageBubble';
-import { SparklesIcon, RefreshIcon } from '../../icons';
+import { TaskCreationForm } from './TaskCreationForm';
+import { TaskItem } from './TaskItem';
+import { RefreshIcon, CloseIcon, SparklesIcon } from '../../icons';
 
 interface CopilotPanelProps {
     user: User;
+    isOpen: boolean;
+    onClose: () => void;
 }
 
-export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user }) => {
+export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClose }) => {
     const [tasks, setTasks] = useState<IntelLlmTask[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState(false);
-    const listRef = useRef<HTMLDivElement>(null);
 
-    // Initial Load
+    // Initial Load & Polling
     useEffect(() => {
-        fetchTasks();
-        // Polling for updates
-        const interval = setInterval(fetchTasks, 5000);
-        return () => clearInterval(interval);
-    }, []);
-
-    // Scroll to bottom on new tasks
-    useEffect(() => {
-        if (listRef.current) {
-            listRef.current.scrollTop = listRef.current.scrollHeight;
+        if (isOpen) {
+            fetchTasks();
+            const interval = setInterval(fetchTasks, 5000);
+            return () => clearInterval(interval);
         }
-    }, [tasks.length]);
+    }, [isOpen]);
 
     const fetchTasks = async () => {
-        // Silent fetch
         try {
             const res = await getIntelLlmTasks({ page: 1, page_size: 20 });
-            // Sort by creation time ascending for chat-like flow
-            const sorted = (res.items || []).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            // Sort by creation time descending (newest first) for Task List style
+            const sorted = (res.items || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
             setTasks(sorted);
         } catch (e) {
             console.error("Failed to fetch copilot tasks", e);
         }
     };
 
-    const handleSend = async (message: string, config: { startMonth: string; endMonth: string; needSummary: boolean }) => {
+    const handleCreate = async (description: string, config: { startMonth: string; endMonth: string; needSummary: boolean }) => {
         if (!user) return;
         setIsSending(true);
         try {
@@ -52,7 +46,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user }) => {
 
             await createIntelLlmTask({
                 user_uuid: user.id,
-                description: message,
+                description,
                 time_range: timeRange,
                 need_summary: config.needSummary
             });
@@ -60,53 +54,66 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user }) => {
             // Immediate refresh
             await fetchTasks();
         } catch (e) {
-            alert('发送失败，请检查网络');
+            alert('任务创建失败，请检查网络');
         } finally {
             setIsSending(false);
         }
     };
 
     return (
-        <div className="flex flex-col h-full bg-white relative">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0 bg-white/80 backdrop-blur-sm z-10">
-                <div className="flex items-center gap-2">
-                    <SparklesIcon className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm font-bold text-gray-800">AI 智能副驾驶</span>
-                </div>
-                <button onClick={fetchTasks} className="p-1.5 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
-                    <RefreshIcon className="w-3.5 h-3.5" />
-                </button>
-            </div>
-
-            {/* Message List */}
+        <>
+            {/* Backdrop */}
             <div 
-                ref={listRef}
-                className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2"
-            >
-                {tasks.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
-                        <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center mb-4">
-                            <SparklesIcon className="w-8 h-8 text-indigo-400" />
-                        </div>
-                        <h3 className="font-bold text-gray-700 mb-2">我是您的情报助手</h3>
-                        <p className="text-xs text-gray-500 max-w-[200px]">
-                            您可以让我帮您搜集特定话题、分析竞品动态或生成行业综述。
-                        </p>
-                        <div className="mt-6 flex flex-col gap-2 text-xs text-indigo-600">
-                            <span className="bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">“分析小米汽车本周的座舱更新”</span>
-                            <span className="bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">“总结 2024 年固态电池技术进展”</span>
-                        </div>
-                    </div>
-                ) : (
-                    tasks.map(task => (
-                        <TaskMessageBubble key={task.uuid} task={task} />
-                    ))
-                )}
-            </div>
+                className={`fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={onClose}
+            ></div>
 
-            {/* Input Area */}
-            <ChatInput onSend={handleSend} isLoading={isSending} />
-        </div>
+            {/* Right Drawer */}
+            <div className={`
+                fixed inset-y-0 right-0 z-50 w-full sm:w-[400px] bg-slate-50 shadow-2xl border-l border-slate-200 transform transition-transform duration-300 ease-in-out flex flex-col
+                ${isOpen ? 'translate-x-0' : 'translate-x-full'}
+            `}>
+                {/* Header */}
+                <div className="px-5 py-4 bg-white border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
+                            <SparklesIcon className="w-5 h-5" />
+                        </div>
+                        <span className="text-lg font-bold text-slate-800">AI 任务助理</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={fetchTasks} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-indigo-600 transition-colors" title="刷新任务">
+                            <RefreshIcon className="w-4 h-4" />
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <CloseIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Create Form Section */}
+                <div className="flex-shrink-0 z-10 shadow-sm relative">
+                    <TaskCreationForm onCreate={handleCreate} isLoading={isSending} />
+                </div>
+
+                {/* Task List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-50">
+                    <div className="flex items-center justify-between px-1 mb-2">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">历史任务 ({tasks.length})</h4>
+                    </div>
+                    
+                    {tasks.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <SparklesIcon className="w-10 h-10 mb-3 opacity-20" />
+                            <p className="text-sm">暂无任务，快去创建一个吧</p>
+                        </div>
+                    ) : (
+                        tasks.map(task => (
+                            <TaskItem key={task.uuid} task={task} />
+                        ))
+                    )}
+                </div>
+            </div>
+        </>
     );
 };

@@ -19,13 +19,13 @@ interface StrategicCockpitProps {
 }
 
 export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
-    // Mode State: Compass (Navigation) vs Copilot (AI Chat)
-    const [sidebarMode, setSidebarMode] = useState<'compass' | 'copilot'>('compass');
-
     // Left navigation state
     const [selectedLook, setSelectedLook] = useState('all');
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
+    // Copilot Drawer State
+    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+
     // Active query state for API calls
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
         type: 'sublook', 
@@ -226,80 +226,35 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
                     ${isSidebarOpen ? 'md:w-[280px] lg:w-[300px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0 md:border-0'}
                 `}>
-                    {/* Header with Mode Switcher */}
                     <div className="px-4 pt-4 pb-2">
                         <div className="md:hidden flex items-center justify-between mb-4 px-2">
                              <h2 className="text-xl font-extrabold text-slate-800">AI情报洞察</h2>
                         </div>
-                        
-                        {/* Segmented Control */}
-                        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 mb-2">
-                            <button 
-                                onClick={() => setSidebarMode('compass')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
-                                    sidebarMode === 'compass' 
-                                        ? 'bg-white text-indigo-600 shadow-sm' 
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                <RssIcon className="w-3.5 h-3.5" />
-                                罗盘导航
-                            </button>
-                            <button 
-                                onClick={() => setSidebarMode('copilot')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
-                                    sidebarMode === 'copilot' 
-                                        ? 'bg-white text-purple-600 shadow-sm' 
-                                        : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                <SparklesIcon className="w-3.5 h-3.5" />
-                                AI 助手
-                            </button>
-                        </div>
                     </div>
 
                     {/* Content Area */}
-                    <div className="flex-1 overflow-hidden relative">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4 md:px-4">
+                        <div className="flex items-center justify-between px-4 mb-3 mt-2">
+                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">分类浏览</h2>
+                        </div>
                         
-                        {/* Compass View */}
-                        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${sidebarMode === 'compass' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4 md:px-4">
-                                <div className="flex items-center justify-between px-4 mb-3 mt-2">
-                                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">分类浏览</h2>
-                                </div>
-                                
-                                <StrategicCompass
-                                    categories={lookCategories}
-                                    selectedLook={selectedLook}
-                                    setSelectedLook={setSelectedLook}
-                                    selectedSubLook={selectedSubLook}
-                                    setSelectedSubLook={setSelectedSubLook}
-                                    onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
-                                    activeQuery={activeQuery}
-                                />
-                                <div className="my-4 border-t border-slate-100 mx-4"></div>
-                                <FocusPoints 
-                                    onManageClick={() => setIsFocusPointModalOpen(true)}
-                                    pois={pois}
-                                    isLoading={isLoadingPois}
-                                    onPoiClick={(value, label) => handleNavChange('poi', value, label)}
-                                    activeQuery={activeQuery}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Copilot View */}
-                        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${sidebarMode === 'copilot' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-                            {currentUser ? (
-                                <CopilotPanel user={currentUser} />
-                            ) : (
-                                <div className="flex-1 flex items-center justify-center text-slate-400 p-6 text-center text-sm">
-                                    请先登录以使用 AI 助手
-                                </div>
-                            )}
-                        </div>
-
+                        <StrategicCompass
+                            categories={lookCategories}
+                            selectedLook={selectedLook}
+                            setSelectedLook={setSelectedLook}
+                            selectedSubLook={selectedSubLook}
+                            setSelectedSubLook={setSelectedSubLook}
+                            onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
+                            activeQuery={activeQuery}
+                        />
+                        <div className="my-4 border-t border-slate-100 mx-4"></div>
+                        <FocusPoints 
+                            onManageClick={() => setIsFocusPointModalOpen(true)}
+                            pois={pois}
+                            isLoading={isLoadingPois}
+                            onPoiClick={(value, label) => handleNavChange('poi', value, label)}
+                            activeQuery={activeQuery}
+                        />
                     </div>
                 </aside>
 
@@ -328,6 +283,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                             onSearch={handleSearch}
                             onBackToNav={backToNav}
+                            // Copilot Trigger
+                            onToggleCopilot={() => setIsCopilotOpen(true)}
                         />
                     </div>
                     
@@ -348,6 +305,15 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     </div>
                 </main>
             </div>
+
+            {/* Copilot Drawer */}
+            {currentUser && (
+                <CopilotPanel 
+                    user={currentUser} 
+                    isOpen={isCopilotOpen} 
+                    onClose={() => setIsCopilotOpen(false)} 
+                />
+            )}
 
             {isFocusPointModalOpen && <FocusPointManagerModal onClose={handleModalClose} />}
              <style>{`
