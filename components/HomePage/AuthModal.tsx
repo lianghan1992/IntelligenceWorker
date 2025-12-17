@@ -77,8 +77,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLoginSuccess, onClose })
                             <LogoIcon className="w-14 h-14"/>
                         </div>
                         <div className="flex items-center text-2xl tracking-tight">
-                             <span className="font-extrabold text-blue-600">Auto</span>
-                             <span className="font-semibold text-purple-600">Insight</span>
+                             <span className="font-extrabold text-[#2563EB]">Auto</span>
+                             <span className="font-semibold text-[#7C3AED]">Insight</span>
                         </div>
                         <p className="text-slate-500 text-sm">AI 驱动的汽车行业情报平台</p>
                     </div>

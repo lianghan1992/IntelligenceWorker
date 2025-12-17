@@ -610,8 +610,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
                 <div className="flex items-center justify-center gap-2 mb-4 text-slate-400">
                     <LogoIcon className="w-8 h-8" />
                     <div className="flex items-center text-lg ml-2">
-                        <span className="font-extrabold text-blue-600">Auto</span>
-                        <span className="font-semibold text-purple-600">Insight</span>
+                        <span className="font-extrabold text-[#2563EB]">Auto</span>
+                        <span className="font-semibold text-[#7C3AED]">Insight</span>
                     </div>
                 </div>
                 <p className="text-sm text-slate-400">

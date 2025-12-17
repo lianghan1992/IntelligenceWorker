@@ -75,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                 <LogoIcon className="w-9 h-9 transition-transform duration-300 group-hover:rotate-12 filter drop-shadow-sm" />
                             </div>
                             <span className="text-xl tracking-tighter hidden sm:block whitespace-nowrap">
-                                <span className="font-extrabold text-blue-600">Auto</span><span className="font-semibold text-purple-600">Insight</span>
+                                <span className="font-extrabold text-[#2563EB]">Auto</span><span className="font-semibold text-[#7C3AED]">Insight</span>
                             </span>
                         </div>
                         
