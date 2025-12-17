@@ -8,10 +8,58 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
-import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon, PuzzleIcon } from '../icons';
+import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon, PuzzleIcon, CheckCircleIcon, ArrowRightIcon } from '../icons';
 import { CopilotPanel } from './AICopilot/CopilotPanel';
 import { VectorSearchPanel } from './VectorSearchPanel';
 import { getMe } from '../../api/auth';
+
+// --- Intro Overlay Component ---
+const IntroOverlay: React.FC<{
+    type: 'copilot' | 'vector';
+    onClose: () => void;
+}> = ({ type, onClose }) => {
+    const config = type === 'copilot' ? {
+        title: "构建您的专属情报“核武库”",
+        desc: "这不是简单的搜索，而是为您打造的情报加工厂。AI 将以上帝视角审视海量资讯，精准捕获高关联情报，并一键生成结构化综述。导出后，它将成为您私有 AI 最纯净、最丰富的情报原矿！",
+        gradient: "from-indigo-600 to-purple-600",
+        icon: SparklesIcon,
+        btnColor: "bg-indigo-600 hover:bg-indigo-700"
+    } : {
+        title: "注入高能“数据燃料”",
+        desc: "打破文章壁垒，直接穿透至知识的最小原子。通过高维向量技术，毫秒级定位您急需的关键片段。过滤噪声，聚焦核心，为您的每一次 AI 交互提供最精准的事实支撑！",
+        gradient: "from-emerald-500 to-teal-600",
+        icon: PuzzleIcon,
+        btnColor: "bg-emerald-600 hover:bg-emerald-700"
+    };
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative">
+                <div className={`h-2 w-full bg-gradient-to-r ${config.gradient}`}></div>
+                <div className="p-8 text-center">
+                    <div className={`w-20 h-20 mx-auto bg-gradient-to-br ${config.gradient} rounded-full flex items-center justify-center shadow-lg mb-6`}>
+                        <config.icon className="w-10 h-10 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">
+                        {config.title}
+                    </h2>
+                    <p className="text-slate-600 leading-relaxed mb-8 font-medium">
+                        {config.desc}
+                    </p>
+                    <button 
+                        onClick={onClose}
+                        className={`w-full py-3.5 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 ${config.btnColor}`}
+                    >
+                        <span>开始体验</span>
+                        <ArrowRightIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-gradient-to-br from-white/0 to-white/10 rounded-full blur-2xl pointer-events-none"></div>
+            </div>
+        </div>
+    );
+};
 
 // --- Main Component ---
 interface StrategicCockpitProps {
@@ -26,6 +74,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     
     // Tools Panel State: 'copilot' (AI Retrieval) | 'vector' (Vector Search) | null
     const [activeTool, setActiveTool] = useState<'copilot' | 'vector' | null>(null);
+    const [introType, setIntroType] = useState<'copilot' | 'vector' | null>(null);
 
     // Active query state for API calls
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
@@ -216,12 +265,36 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         setMobileView('list');
     };
 
+    // Tool Toggling with Intro Logic
     const toggleTool = (tool: 'copilot' | 'vector') => {
         if (activeTool === tool) {
             setActiveTool(null);
-        } else {
-            setActiveTool(tool);
+            return;
         }
+
+        const storageKey = tool === 'copilot' ? 'hasSeenIntro_ai' : 'hasSeenIntro_vector';
+        const hasSeen = localStorage.getItem(storageKey);
+
+        if (hasSeen) {
+            setActiveTool(tool);
+        } else {
+            setIntroType(tool);
+        }
+    };
+
+    const handleIntroDismiss = () => {
+        if (!introType) return;
+        const storageKey = introType === 'copilot' ? 'hasSeenIntro_ai' : 'hasSeenIntro_vector';
+        localStorage.setItem(storageKey, 'true');
+        setActiveTool(introType);
+        setIntroType(null);
+    };
+
+    // Callback when clicking a result in Vector Search Panel
+    const handleVectorResultSelect = (item: InfoItem) => {
+        setSelectedArticle(item);
+        setMobileView('detail');
+        setActiveTool(null); // Close the panel to show the article
     };
 
     return (
@@ -271,7 +344,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                  <main className="flex-1 flex gap-0 md:gap-4 min-w-0 relative w-full md:static transition-all duration-500">
                     
                     {/* List View (Middle Column) */}
-                    {/* Width adjusted to accommodate the right tool rail */}
+                    {/* Width adjusted to accommodate the larger right tool rail */}
                     <div className={`
                         w-full md:w-[320px] lg:w-[340px] xl:w-[360px] flex-shrink-0 flex flex-col bg-white md:rounded-[20px] shadow-xl md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] border-r md:border border-slate-200/60 overflow-hidden
                         absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
@@ -312,35 +385,35 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         />
                     </div>
 
-                    {/* Right Tool Rail */}
-                    <div className="hidden md:flex flex-col w-14 bg-white border-l border-slate-200/60 md:rounded-r-[20px] items-center py-4 gap-4 z-40 shadow-sm flex-shrink-0">
+                    {/* Right Tool Rail - Widened */}
+                    <div className="hidden md:flex flex-col w-20 bg-white border-l border-slate-200/60 md:rounded-r-[20px] items-center py-6 gap-6 z-40 shadow-sm flex-shrink-0">
                         {/* Tool 1: AI Retrieval (Copilot) */}
                         <button 
                             onClick={() => toggleTool('copilot')}
-                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${activeTool === 'copilot' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                            className={`flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-200 group w-full ${activeTool === 'copilot' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
                             title="AI 智能检索"
                         >
-                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${activeTool === 'copilot' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
-                                <SparklesIcon className="w-5 h-5" />
+                            <div className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${activeTool === 'copilot' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
+                                <SparklesIcon className="w-6 h-6" />
                             </div>
-                            <span className="text-[10px] font-bold">AI检索</span>
+                            <span className="text-[11px] font-bold text-center">AI 检索</span>
                         </button>
 
                         {/* Tool 2: Vector Search */}
                         <button 
                             onClick={() => toggleTool('vector')}
-                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${activeTool === 'vector' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-50'}`}
+                            className={`flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-200 group w-full ${activeTool === 'vector' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-50'}`}
                             title="向量检索"
                         >
-                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${activeTool === 'vector' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'}`}>
-                                <PuzzleIcon className="w-5 h-5" />
+                            <div className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${activeTool === 'vector' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'}`}>
+                                <PuzzleIcon className="w-6 h-6" />
                             </div>
-                            <span className="text-[10px] font-bold">向量检索</span>
+                            <span className="text-[11px] font-bold text-center">向量检索</span>
                         </button>
                     </div>
 
                     {/* Tool Panels - Absolute Positioned within Main Content Area */}
-                    <div className={`absolute inset-y-0 right-14 left-0 z-30 pointer-events-none overflow-hidden rounded-r-[20px]`}>
+                    <div className={`absolute inset-y-0 right-20 left-0 z-30 pointer-events-none overflow-hidden rounded-r-[20px]`}>
                         {currentUser && (
                             <>
                                 <CopilotPanel 
@@ -351,10 +424,16 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                                 <VectorSearchPanel 
                                     isOpen={activeTool === 'vector'} 
                                     onClose={() => setActiveTool(null)}
+                                    onSelectResult={handleVectorResultSelect}
                                 />
                             </>
                         )}
                     </div>
+
+                    {/* Intro Overlay */}
+                    {introType && (
+                        <IntroOverlay type={introType} onClose={handleIntroDismiss} />
+                    )}
 
                 </main>
             </div>

@@ -2,19 +2,21 @@
 import React, { useState, useRef } from 'react';
 import { searchSemanticSegments } from '../../api/intelligence';
 import { InfoItem } from '../../types';
-import { SearchIcon, CloseIcon, CalendarIcon, PuzzleIcon, DatabaseIcon } from '../icons';
+import { SearchIcon, CloseIcon, CalendarIcon, PuzzleIcon, DatabaseIcon, DownloadIcon } from '../icons';
 
 interface VectorSearchPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onSelectResult?: (item: InfoItem) => void;
 }
 
-export const VectorSearchPanel: React.FC<VectorSearchPanelProps> = ({ isOpen, onClose }) => {
+export const VectorSearchPanel: React.FC<VectorSearchPanelProps> = ({ isOpen, onClose, onSelectResult }) => {
     const [query, setQuery] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [results, setResults] = useState<InfoItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
 
     const handleSearch = async () => {
@@ -46,6 +48,35 @@ export const VectorSearchPanel: React.FC<VectorSearchPanelProps> = ({ isOpen, on
         }
     };
 
+    const handleExportMarkdown = () => {
+        if (results.length === 0) return;
+        setIsExporting(true);
+        try {
+            let markdownContent = `# 向量检索结果\n\n**检索关键词**: ${query}\n**时间范围**: ${startDate || '不限'} 至 ${endDate || '不限'}\n\n---\n\n`;
+            
+            results.forEach((item, index) => {
+                const dateStr = item.publish_date ? new Date(item.publish_date).toLocaleDateString() : '未知日期';
+                markdownContent += `### ${index + 1}. ${item.title}\n\n`;
+                markdownContent += `> **来源**: ${item.source_name} | **日期**: ${dateStr} | **相似度**: ${((item.similarity || 0) * 100).toFixed(1)}%\n\n`;
+                markdownContent += `${item.content}\n\n---\n\n`;
+            });
+
+            const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vector_search_${new Date().toISOString().slice(0, 10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert("导出失败");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <div className={`absolute inset-0 z-30 flex justify-end transition-all duration-300 pointer-events-none ${isOpen ? 'bg-black/20 backdrop-blur-sm pointer-events-auto' : 'bg-transparent'}`} onClick={onClose}>
             <div 
@@ -66,9 +97,21 @@ export const VectorSearchPanel: React.FC<VectorSearchPanelProps> = ({ isOpen, on
                             <span className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">Semantic Vector Search</span>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-                        <CloseIcon className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {results.length > 0 && (
+                            <button 
+                                onClick={handleExportMarkdown}
+                                disabled={isExporting}
+                                className="p-2 hover:bg-emerald-50 rounded-full text-emerald-600 transition-colors" 
+                                title="导出为 Markdown"
+                            >
+                                <DownloadIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                            <CloseIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Search Inputs */}
@@ -128,7 +171,11 @@ export const VectorSearchPanel: React.FC<VectorSearchPanelProps> = ({ isOpen, on
                         </div>
                     ) : (
                         results.map((item, idx) => (
-                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                            <div 
+                                key={idx} 
+                                onClick={() => onSelectResult && onSelectResult(item)}
+                                className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group cursor-pointer"
+                            >
                                 <div className="flex justify-between items-start mb-2 gap-2">
                                     <h4 className="font-bold text-slate-800 text-sm line-clamp-1 group-hover:text-emerald-700 transition-colors" title={item.title}>
                                         {item.title}
