@@ -8,8 +8,9 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
-import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon } from '../icons';
+import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon, PuzzleIcon } from '../icons';
 import { CopilotPanel } from './AICopilot/CopilotPanel';
+import { VectorSearchPanel } from './VectorSearchPanel';
 import { getMe } from '../../api/auth';
 
 // --- Main Component ---
@@ -23,8 +24,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     const [selectedLook, setSelectedLook] = useState('all');
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
-    // Copilot Drawer State
-    const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+    // Tools Panel State: 'copilot' (AI Retrieval) | 'vector' (Vector Search) | null
+    const [activeTool, setActiveTool] = useState<'copilot' | 'vector' | null>(null);
 
     // Active query state for API calls
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
@@ -215,6 +216,14 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         setMobileView('list');
     };
 
+    const toggleTool = (tool: 'copilot' | 'vector') => {
+        if (activeTool === tool) {
+            setActiveTool(null);
+        } else {
+            setActiveTool(tool);
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-[#f8fafc] md:p-4 overflow-hidden relative font-sans">
             <div className="flex-1 flex gap-0 md:gap-4 min-h-0 overflow-hidden relative md:static">
@@ -305,26 +314,45 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
                     {/* Right Tool Rail */}
                     <div className="hidden md:flex flex-col w-14 bg-white border-l border-slate-200/60 md:rounded-r-[20px] items-center py-4 gap-4 z-40 shadow-sm flex-shrink-0">
+                        {/* Tool 1: AI Retrieval (Copilot) */}
                         <button 
-                            onClick={() => setIsCopilotOpen(!isCopilotOpen)}
-                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${isCopilotOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
-                            title="AI 助手"
+                            onClick={() => toggleTool('copilot')}
+                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${activeTool === 'copilot' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:text-indigo-600 hover:bg-slate-50'}`}
+                            title="AI 智能检索"
                         >
-                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isCopilotOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
+                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${activeTool === 'copilot' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
                                 <SparklesIcon className="w-5 h-5" />
                             </div>
-                            <span className="text-[10px] font-bold">AI助手</span>
+                            <span className="text-[10px] font-bold">AI检索</span>
+                        </button>
+
+                        {/* Tool 2: Vector Search */}
+                        <button 
+                            onClick={() => toggleTool('vector')}
+                            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all duration-200 group ${activeTool === 'vector' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-50'}`}
+                            title="向量检索"
+                        >
+                            <div className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${activeTool === 'vector' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-emerald-100 group-hover:text-emerald-600'}`}>
+                                <PuzzleIcon className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-bold">向量检索</span>
                         </button>
                     </div>
 
-                    {/* Copilot Panel - Absolute Positioned within Main Content Area */}
+                    {/* Tool Panels - Absolute Positioned within Main Content Area */}
                     <div className={`absolute inset-y-0 right-14 left-0 z-30 pointer-events-none overflow-hidden rounded-r-[20px]`}>
                         {currentUser && (
-                            <CopilotPanel 
-                                user={currentUser} 
-                                isOpen={isCopilotOpen} 
-                                onClose={() => setIsCopilotOpen(false)} 
-                            />
+                            <>
+                                <CopilotPanel 
+                                    user={currentUser} 
+                                    isOpen={activeTool === 'copilot'} 
+                                    onClose={() => setActiveTool(null)} 
+                                />
+                                <VectorSearchPanel 
+                                    isOpen={activeTool === 'vector'} 
+                                    onClose={() => setActiveTool(null)}
+                                />
+                            </>
                         )}
                     </div>
 

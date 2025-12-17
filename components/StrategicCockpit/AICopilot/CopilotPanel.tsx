@@ -76,7 +76,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClos
                         <div className="p-1.5 bg-indigo-100 text-indigo-600 rounded-lg">
                             <SparklesIcon className="w-5 h-5" />
                         </div>
-                        <span className="text-lg font-bold text-slate-800">AI 任务助理</span>
+                        <span className="text-lg font-bold text-slate-800">AI 智能检索</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <button onClick={fetchTasks} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-indigo-600 transition-colors" title="刷新任务">
