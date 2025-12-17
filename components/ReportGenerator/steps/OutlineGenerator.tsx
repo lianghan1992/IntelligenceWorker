@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BrainIcon, CheckIcon, RefreshIcon, DocumentTextIcon } from '../../icons';
+import { BrainIcon, CheckIcon, RefreshIcon } from '../../icons';
 import { StratifyOutline } from '../../../types';
 import { streamGenerate, parseLlmJson } from '../../../api/stratify';
 import { extractThoughtAndJson } from '../utils';
+import { ReasoningModal } from '../ui/ReasoningModal';
 
 export const OutlineGenerator: React.FC<{
     taskId: string;
@@ -20,8 +21,10 @@ export const OutlineGenerator: React.FC<{
     const [revisionInput, setRevisionInput] = useState('');
     const [isRevising, setIsRevising] = useState(false);
     
+    // Modal State
+    const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+    
     const hasStarted = useRef(false);
-    const thoughtBottomRef = useRef<HTMLDivElement>(null);
 
     const { thought: extractedThought, jsonPart } = useMemo(() => extractThoughtAndJson(streamContent), [streamContent]);
     const displayThought = reasoningStream || extractedThought;
@@ -65,6 +68,7 @@ export const OutlineGenerator: React.FC<{
         setIsGenerating(true);
         setStreamContent(''); 
         setReasoningStream('');
+        setIsThinkingOpen(true); // Open modal on start
         
         streamGenerate(
             {
@@ -73,9 +77,29 @@ export const OutlineGenerator: React.FC<{
                 scenario,
                 session_id: activeSessionId || undefined 
             },
-            (chunk) => setStreamContent(prev => prev + chunk),
-            () => { setIsGenerating(false); setIsRevising(false); },
-            (err) => { console.error(err); setIsGenerating(false); setIsRevising(false); },
+            (chunk) => {
+                setStreamContent(prev => {
+                    const next = prev + chunk;
+                    // Auto-close reasoning modal when content starts appearing significantly
+                    // This implies thinking is "done" enough to show results
+                    const { jsonPart } = extractThoughtAndJson(next);
+                    if (jsonPart && jsonPart.length > 20) { 
+                        setIsThinkingOpen(false);
+                    }
+                    return next;
+                });
+            },
+            () => { 
+                setIsGenerating(false); 
+                setIsRevising(false); 
+                setIsThinkingOpen(false); // Ensure closed on finish
+            },
+            (err) => { 
+                console.error(err); 
+                setIsGenerating(false); 
+                setIsRevising(false); 
+                setIsThinkingOpen(false);
+            },
             (sid) => { if(sid && !sessionId) setSessionId(sid); },
             (chunk) => setReasoningStream(prev => prev + chunk)
         );
@@ -88,10 +112,6 @@ export const OutlineGenerator: React.FC<{
         setRevisionInput('');
     };
 
-    useEffect(() => {
-        if (thoughtBottomRef.current) thoughtBottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }, [displayThought]);
-
     const handleConfirm = () => {
         if (outlineData && outlineData.pages.length > 0) {
             onConfirm(outlineData, sessionId);
@@ -99,9 +119,15 @@ export const OutlineGenerator: React.FC<{
     };
 
     return (
-        <div className="h-full flex flex-col md:flex-row gap-6 p-4 md:p-8 max-w-7xl mx-auto w-full">
+        <div className="h-full flex flex-col p-4 md:p-8 max-w-5xl mx-auto w-full">
+            <ReasoningModal 
+                isOpen={isThinkingOpen} 
+                onClose={() => setIsThinkingOpen(false)} 
+                content={displayThought}
+                status="AI 正在规划大纲..."
+            />
             
-            {/* Left: Interactive Document Outline */}
+            {/* Main Content Area */}
             <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden relative">
                 
                 {/* Header */}
@@ -112,12 +138,21 @@ export const OutlineGenerator: React.FC<{
                         </h2>
                         <div className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wider">Generated Structure</div>
                     </div>
-                    {isGenerating && (
-                        <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-xs font-bold animate-pulse">
-                            <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
-                            生成中
-                        </div>
-                    )}
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setIsThinkingOpen(true)}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                            title="查看思考过程"
+                        >
+                            <BrainIcon className="w-5 h-5" />
+                        </button>
+                        {isGenerating && (
+                            <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-xs font-bold animate-pulse">
+                                <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                                生成中
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* List Content */}
@@ -173,21 +208,6 @@ export const OutlineGenerator: React.FC<{
                             确认并生成
                         </button>
                     </div>
-                </div>
-            </div>
-
-            {/* Right: Thought Process (Collapsible/Optional on Mobile) */}
-            <div className="w-full md:w-80 flex-shrink-0 flex flex-col bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-800 overflow-hidden h-[300px] md:h-auto">
-                <div className="px-5 py-4 border-b border-slate-800 bg-slate-900/50 flex items-center gap-2">
-                    <BrainIcon className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Reasoning</span>
-                </div>
-                <div className="flex-1 p-5 overflow-y-auto custom-scrollbar-dark font-mono text-xs text-slate-300 leading-relaxed bg-[#0f172a]">
-                    <div className="whitespace-pre-wrap">
-                        {displayThought ? displayThought : <span className="opacity-30 italic">等待推理信号...</span>}
-                        {isGenerating && <span className="typing-cursor ml-1"></span>}
-                    </div>
-                    <div ref={thoughtBottomRef} />
                 </div>
             </div>
         </div>
