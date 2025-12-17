@@ -8,58 +8,11 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
-import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon, PuzzleIcon, CheckCircleIcon, ArrowRightIcon } from '../icons';
+import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon, BrainIcon, PuzzleIcon, CheckCircleIcon, ArrowRightIcon, CloseIcon } from '../icons';
 import { CopilotPanel } from './AICopilot/CopilotPanel';
 import { VectorSearchPanel } from './VectorSearchPanel';
 import { getMe } from '../../api/auth';
-
-// --- Intro Overlay Component ---
-const IntroOverlay: React.FC<{
-    type: 'copilot' | 'vector';
-    onClose: () => void;
-}> = ({ type, onClose }) => {
-    const config = type === 'copilot' ? {
-        title: "构建您的专属情报“核武库”",
-        desc: "这不是简单的搜索，而是为您打造的情报加工厂。AI 将以上帝视角审视海量资讯，精准捕获高关联情报，并一键生成结构化综述。导出后，它将成为您私有 AI 最纯净、最丰富的情报原矿！",
-        gradient: "from-indigo-600 to-purple-600",
-        icon: SparklesIcon,
-        btnColor: "bg-indigo-600 hover:bg-indigo-700"
-    } : {
-        title: "注入高能“数据燃料”",
-        desc: "打破文章壁垒，直接穿透至知识的最小原子。通过高维向量技术，毫秒级定位您急需的关键片段。过滤噪声，聚焦核心，为您的每一次 AI 交互提供最精准的事实支撑！",
-        gradient: "from-emerald-500 to-teal-600",
-        icon: PuzzleIcon,
-        btnColor: "bg-emerald-600 hover:bg-emerald-700"
-    };
-
-    return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative">
-                <div className={`h-2 w-full bg-gradient-to-r ${config.gradient}`}></div>
-                <div className="p-8 text-center">
-                    <div className={`w-20 h-20 mx-auto bg-gradient-to-br ${config.gradient} rounded-full flex items-center justify-center shadow-lg mb-6`}>
-                        <config.icon className="w-10 h-10 text-white" />
-                    </div>
-                    <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">
-                        {config.title}
-                    </h2>
-                    <p className="text-slate-600 leading-relaxed mb-8 font-medium">
-                        {config.desc}
-                    </p>
-                    <button 
-                        onClick={onClose}
-                        className={`w-full py-3.5 rounded-xl text-white font-bold text-lg shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 ${config.btnColor}`}
-                    >
-                        <span>开始体验</span>
-                        <ArrowRightIcon className="w-5 h-5" />
-                    </button>
-                </div>
-                {/* Decorative Elements */}
-                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-gradient-to-br from-white/0 to-white/10 rounded-full blur-2xl pointer-events-none"></div>
-            </div>
-        </div>
-    );
-};
+import { ToolsIntro } from './ToolsIntro'; // Import the new magnificent intro
 
 // --- Main Component ---
 interface StrategicCockpitProps {
@@ -406,10 +359,24 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     {/* Right Tool Panel (Squeeze Layout) */}
                     <div 
                         className={`
-                            bg-white md:rounded-r-[20px] overflow-hidden flex flex-col transition-all duration-300 ease-in-out border-l border-slate-200/60 shadow-sm z-40 flex-shrink-0
-                            ${activeTool ? 'absolute inset-0 md:static w-full md:w-[400px] lg:w-[450px]' : 'w-0 border-0'}
+                            bg-white md:rounded-r-[20px] overflow-hidden flex flex-col transition-all duration-300 ease-in-out md:border-l border-slate-200/60 shadow-sm
+                            ${activeTool 
+                                ? 'fixed inset-0 z-50 md:static md:z-auto md:w-[400px] lg:w-[450px]' 
+                                : 'w-0 border-0 overflow-hidden'
+                            }
                         `}
                     >
+                        {/* Mobile Header for Tool Panel */}
+                        <div className="md:hidden flex justify-between items-center p-4 border-b bg-white">
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                {activeTool === 'copilot' ? <SparklesIcon className="w-5 h-5 text-indigo-600"/> : <PuzzleIcon className="w-5 h-5 text-emerald-600"/>}
+                                {activeTool === 'copilot' ? 'AI 智能分析助手' : '高维向量检索'}
+                            </h3>
+                            <button onClick={() => setActiveTool(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
                         {currentUser && activeTool === 'copilot' && (
                             <CopilotPanel 
                                 user={currentUser} 
@@ -455,7 +422,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
                     {/* Intro Overlay */}
                     {introType && (
-                        <IntroOverlay type={introType} onClose={handleIntroDismiss} />
+                        <ToolsIntro type={introType} onClose={handleIntroDismiss} />
                     )}
 
                 </main>

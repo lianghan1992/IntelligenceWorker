@@ -10,20 +10,20 @@ import {
     SpiderTaskTriggerResponse,
     PaginatedResponse,
     PendingArticle,
+    PendingArticlePublic,
     IntelligencePointPublic,
     IntelligenceSourcePublic,
     ArticlePublic,
     SpiderTask,
     SpiderTaskCounts,
     SpiderTaskTypeCounts,
-    PendingArticlePublic,
-    IntelligenceTaskPublic,
     SpiderProxy,
     SemanticSearchRequest,
     SemanticSearchResponse,
     InfoItem,
     CreateIntelLlmTaskRequest,
-    IntelLlmTask
+    IntelLlmTask,
+    IntelligenceTaskPublic
 } from '../types';
 
 // --- Service Status & Stats ---
