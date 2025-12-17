@@ -174,6 +174,30 @@ export const saveStratifyPages = (taskId: string, pages: StratifyPage[]): Promis
         body: JSON.stringify(pages),
     });
 
+// --- 4. Export ---
+
+export const generatePdf = async (htmlContent: string, filename?: string): Promise<Blob> => {
+    const url = `${STRATIFY_SERVICE_PATH}/generate/pdf`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers({
+        'Content-Type': 'application/json'
+    });
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ html_content: htmlContent, filename }),
+    });
+
+    if (!response.ok) {
+        throw new Error('PDF 生成失败');
+    }
+    return response.blob();
+};
+
 // 辅助函数：清洗 LLM 返回的 JSON 字符串
 export const parseLlmJson = <T>(text: string): T | null => {
     try {

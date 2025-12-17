@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewGridIcon, CheckIcon, ServerIcon, BrainIcon, MenuIcon } from '../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, MenuIcon } from '../../icons';
 import { StratifyPage } from '../../../types';
 import { streamGenerate, parseLlmJson } from '../../../api/stratify';
 import { extractThoughtAndJson } from '../utils';
@@ -75,15 +75,10 @@ export const LayoutGenerator: React.FC<{
                 (chunk) => {
                     buffer += chunk;
                     
-                    // Real-time detection: If content starts, close the reasoning modal.
-                    // This handles models that skip reasoning and output JSON/HTML directly.
                     const { jsonPart } = extractThoughtAndJson(buffer);
-                    
-                    // Condition 1: Valid JSON part detected
                     if (jsonPart && jsonPart.trim().length > 5) {
                         setIsThinkingOpen(false);
                     }
-                    // Condition 2: Raw HTML detected (fallback)
                     else if (buffer.includes('<!DOCTYPE html>') || buffer.includes('<html')) {
                         setIsThinkingOpen(false);
                     }
@@ -91,7 +86,6 @@ export const LayoutGenerator: React.FC<{
                 () => {
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     setPageThought(thought); 
-                    // Ensure closed on completion
                     setIsThinkingOpen(false);
 
                     const htmlContent = robustExtractHtml(buffer, jsonPart);
@@ -112,12 +106,7 @@ export const LayoutGenerator: React.FC<{
                 },
                 undefined,
                 (chunk) => {
-                    // Update reasoning stream
                     setReasoningStream(prev => prev + chunk);
-                    
-                    // If we receive "reasoning" channel data, keep modal open? 
-                    // No, usually logic above handles closing. 
-                    // If buffer is empty but reasoning is coming, modal stays open (correct).
                 }
             );
         };
@@ -149,22 +138,22 @@ export const LayoutGenerator: React.FC<{
 
             {/* Left Sidebar */}
             <div className={`
-                fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300
+                fixed inset-y-0 left-0 z-30 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-xl md:shadow-none
                 md:relative md:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-4 bg-slate-50/50 border-b border-slate-100">
+                <div className="p-5 bg-white border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                         <ViewGridIcon className="w-4 h-4 text-purple-600" />
                         页面结构
                     </h3>
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
                     {pages.map(p => (
                         <button
                             key={p.page_index}
                             onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${
+                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${
                                 activePageIdx === p.page_index 
                                     ? 'bg-purple-50 text-purple-700 shadow-sm ring-1 ring-purple-100' 
                                     : 'text-slate-600 hover:bg-slate-50'
@@ -172,19 +161,19 @@ export const LayoutGenerator: React.FC<{
                         >
                             <span className="truncate flex-1">{p.page_index}. {p.title}</span>
                             {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
-                            {p.status === 'done' && <CheckIcon className="w-3.5 h-3.5 text-green-500" />}
+                            {p.status === 'done' && <CheckIcon className="w-4 h-4 text-green-500" />}
                             {p.status === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
                         </button>
                     ))}
                 </div>
-                <div className="p-4 border-t border-slate-100 bg-slate-50/30">
-                    <div className="w-full text-center text-xs text-slate-400 mb-3">
+                <div className="p-5 border-t border-slate-100 bg-slate-50/50">
+                    <div className="w-full text-center text-xs text-slate-400 mb-3 font-medium">
                         {completedCount === pages.length ? "排版完成" : `正在设计 (${completedCount}/${pages.length})...`}
                     </div>
                     {isAllLayoutDone && (
                         <button 
                             onClick={() => onComplete(pages)}
-                            className="w-full py-2.5 bg-green-600 text-white font-bold rounded-xl text-sm shadow-md hover:bg-green-700 hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-green-600 text-white font-bold rounded-xl text-sm shadow-md hover:bg-green-700 hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
                         >
                             <CheckIcon className="w-4 h-4" />
                             生成最终报告
@@ -194,42 +183,46 @@ export const LayoutGenerator: React.FC<{
             </div>
 
             {/* Right Main Area */}
-            <div className="flex-1 flex flex-col relative overflow-hidden bg-slate-100">
+            <div className="flex-1 flex flex-col relative overflow-hidden bg-[#eef2f6]">
                 {/* Preview Window Container */}
-                <div className="flex-1 p-4 md:p-8 flex flex-col overflow-hidden">
-                    <div className="bg-white flex-1 rounded-xl shadow-xl border border-slate-200 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
+                <div className="flex-1 p-4 md:p-10 flex flex-col overflow-hidden items-center justify-center">
+                    
+                    <div className="w-full max-w-[1400px] h-full bg-white rounded-2xl shadow-2xl border border-slate-300/60 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
+                        
                         {/* Browser-like Toolbar */}
-                        <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center px-4 gap-3 select-none">
+                        <div className="h-12 bg-slate-100 border-b border-slate-200 flex items-center px-5 gap-4 select-none">
                             {/* Mobile Menu Button */}
                             <button 
                                 className="md:hidden text-slate-500 hover:text-indigo-600"
                                 onClick={() => setIsSidebarOpen(true)}
                             >
-                                <MenuIcon className="w-4 h-4" />
+                                <MenuIcon className="w-5 h-5" />
                             </button>
 
-                            <div className="hidden md:flex gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-full bg-red-400/80"></div>
-                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80"></div>
-                                <div className="w-2.5 h-2.5 rounded-full bg-green-400/80"></div>
+                            <div className="hidden md:flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]"></div>
+                                <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]"></div>
+                                <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]"></div>
                             </div>
+                            
                             <div className="flex-1 flex justify-center">
-                                <div className="bg-white border border-slate-200 text-[10px] text-slate-400 px-3 py-1 rounded-md flex items-center gap-2 w-full max-w-[400px] justify-center shadow-sm">
-                                    <span className={`w-2 h-2 rounded-full ${activePage.status === 'generating' ? 'bg-purple-500 animate-pulse' : 'bg-slate-300'}`}></span>
-                                    {activePage.status === 'generating' ? 'designing_layout...' : 'preview.html'}
+                                <div className="bg-white border border-slate-200 text-xs text-slate-500 font-medium px-4 py-1.5 rounded-lg flex items-center gap-2 w-full max-w-md justify-center shadow-sm">
+                                    <span className={`w-2 h-2 rounded-full ${activePage.status === 'generating' ? 'bg-purple-500 animate-pulse' : 'bg-green-500'}`}></span>
+                                    {activePage.status === 'generating' ? 'designing_layout...' : `preview_page_${activePage.page_index}.html`}
                                 </div>
                             </div>
+                            
                             <button 
                                 onClick={() => setIsThinkingOpen(true)}
-                                className="text-slate-400 hover:text-purple-600 transition-colors p-1 hover:bg-slate-200 rounded"
+                                className="text-slate-400 hover:text-purple-600 transition-colors p-2 hover:bg-white rounded-lg"
                                 title="查看设计思路"
                             >
-                                <BrainIcon className="w-4 h-4" />
+                                <BrainIcon className="w-5 h-5" />
                             </button>
                         </div>
 
                         {/* Preview Iframe */}
-                        <div className="flex-1 relative bg-white">
+                        <div className="flex-1 relative bg-white overflow-hidden">
                             {activePage.html_content ? (
                                 <iframe 
                                     srcDoc={activePage.html_content} 
@@ -238,17 +231,19 @@ export const LayoutGenerator: React.FC<{
                                     sandbox="allow-scripts"
                                 />
                             ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/30 text-slate-400">
                                     {activePage.status === 'pending' ? (
                                         <>
-                                            <ViewGridIcon className="w-16 h-16 mb-4 opacity-10" />
-                                            <p className="text-sm font-medium">等待排版引擎启动...</p>
+                                            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                                                <ViewGridIcon className="w-10 h-10 opacity-20" />
+                                            </div>
+                                            <p className="text-base font-medium">等待排版引擎启动...</p>
                                         </>
                                     ) : activePage.status === 'generating' ? (
                                         <div className="text-center">
-                                            <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-6 mx-auto"></div>
-                                            <p className="text-sm font-bold text-slate-600 mb-1">AI 架构师正在设计</p>
-                                            <p className="text-xs text-slate-400">构建布局 • 生成矢量图形 • 优化排版</p>
+                                            <div className="w-16 h-16 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8 mx-auto"></div>
+                                            <h3 className="text-xl font-bold text-slate-700 mb-2">AI 架构师正在设计</h3>
+                                            <p className="text-sm text-slate-500">构建布局 • 生成矢量图形 • 优化排版</p>
                                         </div>
                                     ) : (
                                         <div className="text-center text-red-400">

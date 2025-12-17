@@ -192,7 +192,7 @@ export const ContentWriter: React.FC<{
 
     const renderContent = (md: string) => {
         if (!md) return null;
-        return <div className="prose prose-slate max-w-none whitespace-pre-wrap leading-relaxed">{md}</div>;
+        return <div className="prose prose-slate prose-lg max-w-none whitespace-pre-wrap leading-relaxed">{md}</div>;
     };
 
     return (
@@ -202,7 +202,7 @@ export const ContentWriter: React.FC<{
                 isOpen={isThinkingOpen} 
                 onClose={() => setIsThinkingOpen(false)} 
                 content={displayThought}
-                status="AI 正在构思正文..."
+                status="AI 正在深度思考..."
             />
 
             {/* Mobile Sidebar Backdrop */}
@@ -213,141 +213,148 @@ export const ContentWriter: React.FC<{
                 ></div>
             )}
 
-            {/* 1. Left Sidebar: Navigation */}
+            {/* 1. Left Sidebar: Navigation (Mac-style) */}
             <div className={`
-                fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 transform
+                fixed inset-y-0 left-0 z-30 w-72 bg-gray-50/80 backdrop-blur-xl border-r border-slate-200 flex flex-col transition-transform duration-300 transform
                 md:relative md:translate-x-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             `}>
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <DocumentTextIcon className="w-4 h-4"/> 目录概览
+                <div className="p-5 border-b border-slate-200/60">
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <DocumentTextIcon className="w-4 h-4"/> 章节导航
                     </h3>
                 </div>
+                
                 <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
                     {pages.map(p => (
                         <button
                             key={p.page_index}
                             onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between group ${
+                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-between group ${
                                 activePageIdx === p.page_index 
-                                    ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' 
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                    ? 'bg-white text-indigo-700 shadow-md shadow-indigo-100 ring-1 ring-indigo-50' 
+                                    : 'text-slate-600 hover:bg-white/60 hover:text-slate-900'
                             }`}
                         >
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${activePageIdx === p.page_index ? 'bg-indigo-200 text-indigo-800' : 'bg-slate-100 text-slate-500'}`}>
+                            <div className="flex items-center gap-3 min-w-0">
+                                <span className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold ${activePageIdx === p.page_index ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500'}`}>
                                     {p.page_index}
                                 </span>
                                 <span className="truncate">{p.title}</span>
                             </div>
                             {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>}
-                            {p.status === 'done' && <CheckIcon className="w-3.5 h-3.5 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                            {p.status === 'done' && <CheckIcon className="w-4 h-4 text-green-500 opacity-0 group-hover:opacity-100 transition-opacity" />}
                         </button>
                     ))}
                 </div>
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                    <div className="w-full flex justify-between items-center text-xs text-slate-500 mb-2">
-                        <span>完成度</span>
-                        <span className="font-bold">{completedCount}/{pages.length}</span>
+                
+                <div className="p-5 border-t border-slate-200/60">
+                    <div className="w-full flex justify-between items-center text-xs text-slate-500 mb-2 font-medium">
+                        <span>生成进度</span>
+                        <span>{completedCount} / {pages.length}</span>
                     </div>
-                    <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                        <div className="h-full bg-green-500 transition-all duration-500" style={{width: `${(completedCount/pages.length)*100}%`}}></div>
+                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 transition-all duration-700 ease-out" style={{width: `${(completedCount/pages.length)*100}%`}}></div>
                     </div>
                 </div>
             </div>
 
             {/* 2. Main Content Editor */}
-            <div className="flex-1 flex flex-col min-w-0 relative h-full">
+            <div className="flex-1 flex flex-col min-w-0 relative h-full bg-white">
                 
                 {/* Editor Area */}
-                <div className="flex-1 overflow-y-auto bg-slate-100/50 scroll-smooth relative" ref={contentScrollRef}>
-                    <div className="max-w-4xl mx-auto min-h-full py-4 md:py-8 px-4 md:px-10">
-                        <div className="bg-white rounded-[20px] shadow-sm border border-slate-200/60 min-h-[600px] md:min-h-[800px] p-6 md:p-14 relative group">
-                            
-                            {/* Page Header & Actions */}
-                            <div className="mb-6 md:mb-8 pb-4 md:pb-6 border-b border-slate-100 flex justify-between items-start">
-                                <div>
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                        <button 
-                                            className="md:hidden p-1 -ml-1 text-slate-500 hover:text-indigo-600"
-                                            onClick={() => setIsSidebarOpen(true)}
-                                        >
-                                            <MenuIcon className="w-5 h-5" />
-                                        </button>
-                                        PAGE {activePage.page_index}
-                                    </span>
-                                    <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-tight">
-                                        {activePage.title}
-                                    </h1>
-                                </div>
-                                <button 
-                                    onClick={() => setIsThinkingOpen(true)}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
-                                    title="查看思考过程"
-                                >
-                                    <BrainIcon className="w-5 h-5" />
-                                </button>
+                <div className="flex-1 overflow-y-auto scroll-smooth relative" ref={contentScrollRef}>
+                    <div className="max-w-4xl mx-auto min-h-full py-8 px-6 md:px-12 md:py-12">
+                        
+                        {/* Page Header */}
+                        <div className="mb-10 pb-6 border-b border-slate-100 flex justify-between items-start sticky top-0 bg-white/95 backdrop-blur-sm z-10 pt-4">
+                            <div>
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <button 
+                                        className="md:hidden p-1 -ml-1 text-slate-500 hover:text-indigo-600"
+                                        onClick={() => setIsSidebarOpen(true)}
+                                    >
+                                        <MenuIcon className="w-5 h-5" />
+                                    </button>
+                                    SECTION {activePage.page_index}
+                                </span>
+                                <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight">
+                                    {activePage.title}
+                                </h1>
                             </div>
+                            <button 
+                                onClick={() => setIsThinkingOpen(true)}
+                                className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
+                                title="查看思考过程"
+                            >
+                                <BrainIcon className="w-6 h-6" />
+                            </button>
+                        </div>
 
-                            {/* Main Content */}
-                            <div className="min-h-[400px]">
-                                {activePage.content_markdown ? (
-                                    <div className="animate-in fade-in duration-700">
-                                        {renderContent(activePage.content_markdown)}
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-                                        {activePage.status === 'pending' ? (
-                                            <>
-                                                <SparklesIcon className="w-10 h-10 mb-3 opacity-20" />
-                                                <p className="text-sm font-medium">等待生成...</p>
-                                            </>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="w-8 h-8 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
-                                                <p className="text-sm font-medium text-indigo-600 animate-pulse">AI 正在构思正文...</p>
+                        {/* Content Body */}
+                        <div className="min-h-[500px] animate-in fade-in duration-500">
+                            {activePage.content_markdown ? (
+                                renderContent(activePage.content_markdown)
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-96 text-slate-400 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
+                                    {activePage.status === 'pending' ? (
+                                        <>
+                                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                                                <SparklesIcon className="w-8 h-8 opacity-20" />
                                             </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                                            <p className="text-sm font-medium">等待生成...</p>
+                                        </>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="relative">
+                                                <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin"></div>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                            <p className="text-sm font-bold text-indigo-600 animate-pulse">AI 正在撰写...</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Bottom Action Bar */}
-                <div className="flex-shrink-0 p-4 border-t border-slate-200 bg-white/80 backdrop-blur z-20 flex flex-col md:flex-row gap-3 items-center justify-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)]">
-                    <div className="w-full md:flex-1 max-w-2xl flex gap-3">
-                        <div className="flex-1 relative">
+                {/* Bottom Action Bar (Floating) */}
+                <div className="absolute bottom-6 left-6 right-6 z-20">
+                    <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-indigo-500/10 rounded-2xl p-3 flex flex-col md:flex-row gap-3 items-center max-w-4xl mx-auto ring-1 ring-slate-100">
+                        <div className="w-full md:flex-1 relative">
                             <input 
                                 type="text" 
                                 value={revisionInput}
                                 onChange={(e) => setRevisionInput(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && !activePage.status.includes('generating') && handleRevisePage()}
-                                placeholder="输入修改意见（例如：增加更多数据支持、语气更正式一些...）"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all shadow-inner"
+                                placeholder="输入修改指令 (e.g. '让语气更正式一点', '增加数据支撑')"
+                                className="w-full bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-xl pl-4 pr-12 py-3 text-sm transition-all outline-none"
                                 disabled={activePage.status === 'generating'}
                             />
                             <button 
                                 onClick={handleRevisePage}
                                 disabled={activePage.status === 'generating' || !revisionInput.trim()}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 disabled:opacity-50 disabled:bg-transparent transition-all"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 rounded-lg text-indigo-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 disabled:opacity-50 disabled:bg-transparent transition-all shadow-sm"
                                 title="提交修改"
                             >
                                 <ArrowRightIcon className="w-4 h-4" />
                             </button>
                         </div>
+                        
+                        <div className="hidden md:block h-8 w-px bg-slate-200 mx-2"></div>
+                        
+                        <button 
+                            onClick={() => onComplete(pages)}
+                            disabled={!isAllDone || isRevising || processingRef.current}
+                            className="w-full md:w-auto px-8 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-500/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+                        >
+                            <span>排版设计</span>
+                            <ArrowRightIcon className="w-4 h-4" />
+                        </button>
                     </div>
-                    <div className="hidden md:block h-8 w-px bg-slate-200 mx-2"></div>
-                    <button 
-                        onClick={() => onComplete(pages)}
-                        disabled={!isAllDone || isRevising || processingRef.current}
-                        className="w-full md:w-auto px-6 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg shadow-slate-200 hover:bg-indigo-600 hover:shadow-indigo-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none disabled:shadow-none transition-all flex items-center justify-center gap-2 whitespace-nowrap"
-                    >
-                        <span>下一步：智能排版</span>
-                        <ArrowRightIcon className="w-4 h-4" />
-                    </button>
                 </div>
             </div>
         </div>
