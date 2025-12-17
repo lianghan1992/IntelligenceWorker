@@ -338,6 +338,24 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                             activeQuery={activeQuery}
                         />
                     </div>
+
+                    {/* Mobile Tools Access (New) */}
+                    <div className="md:hidden p-4 border-t border-slate-100 grid grid-cols-2 gap-3 bg-white">
+                         <button 
+                            onClick={() => toggleTool('copilot')}
+                            className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-colors ${activeTool === 'copilot' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-slate-100 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            <SparklesIcon className="w-5 h-5" />
+                            <span className="text-sm font-bold">AI 助手</span>
+                        </button>
+                        <button 
+                            onClick={() => toggleTool('vector')}
+                            className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-colors ${activeTool === 'vector' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'border-slate-100 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                            <PuzzleIcon className="w-5 h-5" />
+                            <span className="text-sm font-bold">向量检索</span>
+                        </button>
+                    </div>
                 </aside>
 
                 {/* Main Content Area */}
@@ -388,8 +406,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     {/* Right Tool Panel (Squeeze Layout) */}
                     <div 
                         className={`
-                            bg-white md:rounded-r-[20px] overflow-hidden flex flex-col transition-all duration-300 ease-in-out border-l border-slate-200/60 shadow-sm z-30 flex-shrink-0
-                            ${activeTool ? 'w-[400px] md:w-[450px]' : 'w-0 border-0'}
+                            bg-white md:rounded-r-[20px] overflow-hidden flex flex-col transition-all duration-300 ease-in-out border-l border-slate-200/60 shadow-sm z-40 flex-shrink-0
+                            ${activeTool ? 'absolute inset-0 md:static w-full md:w-[400px] lg:w-[450px]' : 'w-0 border-0'}
                         `}
                     >
                         {currentUser && activeTool === 'copilot' && (

@@ -237,7 +237,8 @@ export const getSpiderArticles = async (params?: any): Promise<PaginatedResponse
         publish_time: a.publish_date, // Map to old name for compatibility if needed
         collected_at: a.created_at || a.collected_at,
         source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown'
+        point_name: a.point_name || 'Unknown',
+        original_url: a.url || a.original_url // Fix: Map backend 'url' to 'original_url'
     }));
 
     return {
@@ -258,7 +259,8 @@ export const getArticlesByTags = async (params: { tags: string[], page?: number,
         publish_time: a.publish_date,
         collected_at: a.created_at || a.collected_at,
         source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown'
+        point_name: a.point_name || 'Unknown',
+        original_url: a.url || a.original_url // Fix: Map backend 'url' to 'original_url'
     }));
 
     return {
@@ -274,7 +276,8 @@ export const getSpiderArticleDetail = async (uuid: string): Promise<SpiderArticl
         ...res,
         id: res.uuid,
         publish_time: res.publish_date,
-        collected_at: res.created_at || res.collected_at
+        collected_at: res.created_at || res.collected_at,
+        original_url: res.url || res.original_url // Fix: Map backend 'url' to 'original_url'
     };
 };
 
