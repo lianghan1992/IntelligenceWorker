@@ -24,7 +24,6 @@ interface HeaderProps {
 }
 
 const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
-    { view: 'dashboard', label: '我的工作台', icon: HomeIcon },
     { view: 'cockpit', label: 'AI情报洞察', icon: EyeIcon },
     { view: 'techboard', label: '竞争力看板', icon: ChartIcon },
     { view: 'dives', label: '深度洞察', icon: DiveIcon },
@@ -71,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                 <div className="flex items-center justify-between h-16 sm:h-18">
                     {/* Logo and Desktop Nav */}
                     <div className="flex items-center gap-4 lg:gap-8 overflow-hidden flex-1">
-                        <div className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0 pr-4" onClick={() => onNavigate('dashboard')}>
+                        <div className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0 pr-4" onClick={() => onNavigate('cockpit')}>
                             <div className="relative flex items-center justify-center w-9 h-9">
                                 <LogoIcon className="w-9 h-9 text-indigo-600 transition-transform duration-300 group-hover:rotate-12 filter drop-shadow-sm" />
                             </div>

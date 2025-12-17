@@ -8,7 +8,6 @@ import { User, View, SystemSource } from './types';
 import { getUserSubscribedSources, getMe } from './api';
 
 // Lazy load components with named export adaptation
-const Dashboard = React.lazy(() => import('./components/Dashboard/index').then(module => ({ default: module.Dashboard })));
 const StrategicCockpit = React.lazy(() => import('./components/StrategicCockpit/index').then(module => ({ default: module.StrategicCockpit })));
 const CompetitivenessDashboard = React.lazy(() => import('./components/CompetitivenessDashboard/index').then(module => ({ default: module.CompetitivenessDashboard })));
 const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(module => ({ default: module.DeepDives })));
@@ -31,7 +30,7 @@ const PageLoader = () => (
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<View>('dashboard');
+  const [view, setView] = useState<View>('cockpit'); // Default view updated to 'cockpit'
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
@@ -60,13 +59,13 @@ const App: React.FC = () => {
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
     setShowAuthModal(false);
-    setView('dashboard');
+    setView('cockpit'); // Navigate to cockpit after login
   }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('accessToken');
     setUser(null);
-    setView('dashboard');
+    setView('cockpit');
   }, []);
 
   const loadInitialData = useCallback(async () => {
@@ -130,8 +129,6 @@ const App: React.FC = () => {
     }
 
     switch (view) {
-      case 'dashboard':
-        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} user={user} />;
       case 'techboard':
@@ -145,7 +142,7 @@ const App: React.FC = () => {
       case 'admin':
         return <AdminPage />;
       default:
-        return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
     }
   };
 

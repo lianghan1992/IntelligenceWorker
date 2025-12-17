@@ -27,6 +27,7 @@ const Spinner: React.FC = () => (
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
+    const [articleUrl, setArticleUrl] = useState<string>('');
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -39,6 +40,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         let active = true;
         setHtmlContent(null);
         setFullContent('');
+        setArticleUrl(selectedArticle.original_url || ''); // Init from prop
         setIsReconstructing(false);
 
         const loadData = async () => {
@@ -50,6 +52,11 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                     if (active && htmlRes && htmlRes.html_content) {
                         setHtmlContent(htmlRes.html_content);
                     }
+                    // Also try to fetch detail for URL if missing
+                    if (!selectedArticle.original_url) {
+                         const detail = await getSpiderArticleDetail(selectedArticle.id);
+                         if (active && detail.original_url) setArticleUrl(detail.original_url);
+                    }
                 } catch (error) {
                     console.error("Failed to load HTML", error);
                 } finally {
@@ -60,8 +67,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                 setIsContentLoading(true);
                 try {
                     const detail = await getSpiderArticleDetail(selectedArticle.id);
-                    if (active && detail.content) {
-                        setFullContent(detail.content);
+                    if (active) {
+                        if (detail.content) setFullContent(detail.content);
+                        if (detail.original_url) setArticleUrl(detail.original_url);
                     } else if (active) {
                         // If detail content is empty, use summary/content from list item if available
                         setFullContent(selectedArticle.content || '暂无正文内容');
@@ -175,16 +183,28 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                             </button>
                         )}
                         <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                        <a 
-                            href={selectedArticle.original_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors text-xs font-bold"
-                            title="阅读原文"
-                        >
-                            <ExternalLinkIcon className="w-3.5 h-3.5" />
-                            阅读原文
-                        </a>
+                        
+                        {articleUrl ? (
+                            <a 
+                                href={articleUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors text-xs font-bold"
+                                title="阅读原文"
+                            >
+                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                阅读原文
+                            </a>
+                        ) : (
+                            <button 
+                                disabled
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-300 bg-slate-50 rounded-lg text-xs font-bold cursor-not-allowed"
+                                title="链接不可用"
+                            >
+                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                暂无链接
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -211,14 +231,16 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                     {isDownloading ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
                                 </button>
                             )}
-                            <a 
-                                href={selectedArticle.original_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="p-1.5 text-slate-600 bg-slate-100 rounded-lg"
-                            >
-                                <ArrowRightIcon className="w-4 h-4" />
-                            </a>
+                            {articleUrl && (
+                                <a 
+                                    href={articleUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="p-1.5 text-slate-600 bg-slate-100 rounded-lg"
+                                >
+                                    <ArrowRightIcon className="w-4 h-4" />
+                                </a>
+                            )}
                         </div>
                     </div>
                     <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">
