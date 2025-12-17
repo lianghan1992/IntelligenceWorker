@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ArrowRightIcon, DocumentTextIcon } from '../../icons';
 
 // Simple Upload Icon component since it might not be in the shared icons yet
@@ -11,6 +11,115 @@ const FileUploadIcon = ({ className }: { className?: string }) => (
         <path d="M9 15l3-3 3 3" />
     </svg>
 );
+
+const ParticleFlow = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animationFrameId: number;
+        let particles: Particle[] = [];
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        const resize = () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        };
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            x: number;
+            y: number;
+            size: number;
+            speedX: number;
+            speedY: number;
+            color: string;
+            alpha: number;
+
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = Math.random() * 0.5 - 0.25;
+                this.speedY = Math.random() * 0.5 - 0.25;
+                this.alpha = Math.random() * 0.5 + 0.1;
+                const colors = ['148, 163, 184', '99, 102, 241', '59, 130, 246']; // Slate-400, Indigo-500, Blue-500
+                this.color = colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                
+                // Wrap around screen
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+            }
+
+            draw() {
+                if (!ctx) return;
+                ctx.fillStyle = `rgba(${this.color}, ${this.alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        const init = () => {
+            particles = [];
+            for (let i = 0; i < 80; i++) {
+                particles.push(new Particle());
+            }
+        };
+        init();
+
+        const animate = () => {
+            if (!ctx) return;
+            ctx.clearRect(0, 0, width, height);
+            
+            // Draw connections
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 120) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(99, 102, 241, ${0.05 * (1 - distance / 120)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            animationFrameId = requestAnimationFrame(animate);
+        };
+        animate();
+
+        return () => {
+            window.removeEventListener('resize', resize);
+            cancelAnimationFrame(animationFrameId);
+        };
+    }, []);
+
+    return <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none opacity-50" />;
+};
 
 export const IdeaInput: React.FC<{ 
     onStart: (idea: string) => void, 
@@ -35,8 +144,11 @@ export const IdeaInput: React.FC<{
     };
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center min-h-[600px] bg-[#f2f4f7] px-4 font-sans">
-            <div className="w-full max-w-[1000px] flex flex-col gap-8">
+        <div className="flex-1 flex flex-col items-center justify-start pt-20 md:pt-32 min-h-screen bg-[#f2f4f7] px-4 font-sans relative overflow-hidden">
+            
+            <ParticleFlow />
+
+            <div className="w-full max-w-[1000px] flex flex-col gap-8 relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* Header Section */}
                 <div className="text-center space-y-4">
                     <h1 className="text-5xl font-black text-slate-900 tracking-tight">
@@ -60,7 +172,7 @@ export const IdeaInput: React.FC<{
                 </div>
 
                 {/* Input Area */}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-2 transition-all duration-300 focus-within:ring-4 focus-within:ring-blue-50 focus-within:border-blue-200">
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-sm border border-slate-200 p-2 transition-all duration-300 focus-within:ring-4 focus-within:ring-blue-50 focus-within:border-blue-200">
                     <textarea
                         ref={textareaRef}
                         value={idea}

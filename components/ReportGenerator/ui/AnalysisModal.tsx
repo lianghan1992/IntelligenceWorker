@@ -63,12 +63,9 @@ export const AnalysisModal: React.FC<{
                         <TypeBadge icon={DocumentTextIcon} label="Content" color="bg-pink-50 text-pink-600 border-pink-100" active />
                     </div>
 
-                    {/* Reasoning Log (Subtle) */}
+                    {/* Reasoning Log (Subtle) - Removed Header Label */}
                     <div className="w-full bg-slate-50 rounded-xl border border-slate-100 p-3 text-left overflow-hidden relative group">
-                        <div className="absolute top-0 left-0 px-3 py-1 bg-slate-100 text-[10px] font-bold text-slate-400 rounded-br-lg border-b border-r border-slate-200">
-                            AI REASONING LOG
-                        </div>
-                        <div className="h-16 overflow-y-auto custom-scrollbar pt-6 px-1">
+                        <div className="h-16 overflow-y-auto custom-scrollbar px-1">
                             <p className="text-xs font-mono text-slate-500 leading-relaxed whitespace-pre-wrap break-all opacity-80">
                                 {displayThought || "Initializing context window..."}
                                 <span className="inline-block w-1.5 h-3 bg-indigo-400 ml-1 align-middle animate-pulse"></span>
