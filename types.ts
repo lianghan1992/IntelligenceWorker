@@ -11,7 +11,7 @@ export interface User {
     poi_count?: number;
 }
 
-export type View = 'dashboard' | 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
 
 export interface SystemSource {
     id: string;

@@ -31,7 +31,6 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [isReconstructing, setIsReconstructing] = useState(false);
 
     // Fetch Content logic
     useEffect(() => {
@@ -39,46 +38,39 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         
         let active = true;
         setHtmlContent(null);
-        setFullContent('');
+        setFullContent(selectedArticle.content || '');
         setArticleUrl(selectedArticle.original_url || ''); // Init from prop
-        setIsReconstructing(false);
-
+        
         const loadData = async () => {
+            // Always fetch detail if URL is missing or content is too short (likely summary from list)
+            const needsDetail = !selectedArticle.original_url || !selectedArticle.content || selectedArticle.content.length < 100;
+
+            if (needsDetail) {
+                if (!selectedArticle.is_atomized) setIsContentLoading(true);
+                try {
+                    const detail = await getSpiderArticleDetail(selectedArticle.id);
+                    if (active) {
+                        if (detail.original_url) setArticleUrl(detail.original_url);
+                        if (detail.content) setFullContent(detail.content);
+                    }
+                } catch(e) {
+                    console.error("Failed to fetch article detail", e);
+                } finally {
+                    if (active) setIsContentLoading(false);
+                }
+            }
+
             if (selectedArticle.is_atomized) {
-                // If atomized, fetch HTML
                 setIsHtmlLoading(true);
                 try {
                     const htmlRes = await getArticleHtml(selectedArticle.id);
                     if (active && htmlRes && htmlRes.html_content) {
                         setHtmlContent(htmlRes.html_content);
                     }
-                    // Also try to fetch detail for URL if missing
-                    if (!selectedArticle.original_url) {
-                         const detail = await getSpiderArticleDetail(selectedArticle.id);
-                         if (active && detail.original_url) setArticleUrl(detail.original_url);
-                    }
                 } catch (error) {
                     console.error("Failed to load HTML", error);
                 } finally {
                     if (active) setIsHtmlLoading(false);
-                }
-            } else {
-                // If not atomized, fetch full text details
-                setIsContentLoading(true);
-                try {
-                    const detail = await getSpiderArticleDetail(selectedArticle.id);
-                    if (active) {
-                        if (detail.content) setFullContent(detail.content);
-                        if (detail.original_url) setArticleUrl(detail.original_url);
-                    } else if (active) {
-                        // If detail content is empty, use summary/content from list item if available
-                        setFullContent(selectedArticle.content || '暂无正文内容');
-                    }
-                } catch (err) {
-                    console.warn("Failed to fetch full article detail", err);
-                    if (active) setFullContent(selectedArticle.content || '加载失败');
-                } finally {
-                    if (active) setIsContentLoading(false);
                 }
             }
         };
