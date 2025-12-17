@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { SystemSource, InfoItem, ApiPoi } from '../../types';
+import { SystemSource, InfoItem, ApiPoi, User } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
 import { FocusPoints } from './FocusPoints';
@@ -8,16 +8,25 @@ import { FocusPointManagerModal } from '../Dashboard/FocusPointManagerModal';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { getUserPois, searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
-import { ChevronLeftIcon, MenuIcon, ViewGridIcon } from '../icons';
+import { ChevronLeftIcon, MenuIcon, ViewGridIcon, SparklesIcon, RssIcon } from '../icons';
+import { CopilotPanel } from './AICopilot/CopilotPanel';
+import { getMe } from '../../api/auth';
 
 // --- Main Component ---
-export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ subscriptions }) => {
+interface StrategicCockpitProps {
+    subscriptions: SystemSource[];
+    user?: User; // Make optional initially to be compatible, but logic will rely on it
+}
+
+export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
+    // Mode State: Compass (Navigation) vs Copilot (AI Chat)
+    const [sidebarMode, setSidebarMode] = useState<'compass' | 'copilot'>('compass');
+
     // Left navigation state
     const [selectedLook, setSelectedLook] = useState('all');
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
     
     // Active query state for API calls
-    // type can be 'sublook', 'poi', or 'search'
     const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
         type: 'sublook', 
         value: '*', 
@@ -38,38 +47,37 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     // Detail view state
     const [selectedArticle, setSelectedArticle] = useState<InfoItem | null>(null);
-    // Use ref to track selectedArticle inside callbacks without triggering re-creation
     const selectedArticleRef = useRef<InfoItem | null>(null);
     
     // Focus points state
     const [isFocusPointModalOpen, setIsFocusPointModalOpen] = useState(false);
     const [pois, setPois] = useState<ApiPoi[]>([]);
     const [isLoadingPois, setIsLoadingPois] = useState(true);
+    
+    // Internal user state if not passed prop (fallback)
+    const [internalUser, setInternalUser] = useState<User | null>(null);
+    const currentUser = user || internalUser;
+
+    useEffect(() => {
+        if (!user) {
+            getMe().then(setInternalUser).catch(console.error);
+        }
+    }, [user]);
 
     useEffect(() => {
         selectedArticleRef.current = selectedArticle;
     }, [selectedArticle]);
 
-    const subscribedSourceNames = useMemo(() => {
-        if (!subscriptions) return [];
-        return Array.from(new Set(subscriptions.map(sub => sub.source_name)));
-    }, [subscriptions]);
-    
     // Responsive Logic: Auto-collapse sidebar on smaller screens when an article is selected
     useEffect(() => {
         const handleResize = () => {
-            // If screen is extra large (> 1536px), keep sidebar open by default
             if (window.innerWidth >= 1536) {
                 setIsSidebarOpen(true);
             } else if (selectedArticle && window.innerWidth < 1280) {
-                // On smaller laptops, if reading an article, collapse sidebar to focus
                 setIsSidebarOpen(false);
             }
         };
-
-        // Initial check
         handleResize();
-
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [selectedArticle]);
@@ -91,18 +99,13 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             const limit = 20;
             let response;
 
-            // Determine whether to use standard article list, tag based list, or semantic segment search
-            // If it's a sublook under Industry or Customer, use the new Tag API
             if (queryType === 'sublook' && (lookType === 'industry' || lookType === 'customer')) {
-                // Use the new getArticlesByTags API
-                // queryLabel is the sub-category label (e.g., "新技术"), which corresponds to the tag
                 const tagResponse = await getArticlesByTags({
                     tags: [queryLabel],
                     page,
                     page_size: limit
                 });
                 
-                // Map response to InfoItem interface (SpiderArticle compatible)
                 response = {
                     items: tagResponse.items as unknown as InfoItem[],
                     total: tagResponse.total,
@@ -110,7 +113,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                     totalPages: tagResponse.totalPages
                 };
             }
-            // If query is '*' (All Intelligence), use standard list
             else if (queryValue === '*') {
                 const params: any = {
                     page,
@@ -118,8 +120,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                 };
                 response = await searchArticlesFiltered(params);
             } else {
-                // Use semantic search for POIs, or manual search, or other categories
-                // Adjusted similarity_threshold to 0.35 as requested
                 response = await searchSemanticSegments({
                     query_text: queryValue,
                     page,
@@ -133,8 +133,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
             setArticles(response.items || []);
             setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
             
-            // On desktop: Auto-select first article only on initial load if none selected
-            // Use Ref to check current selection to avoid dependency cycle
             if (window.innerWidth >= 768) {
                 if (page === 1 && response.items && response.items.length > 0 && !selectedArticleRef.current) {
                     setSelectedArticle(response.items[0]);
@@ -152,16 +150,14 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
 
     useEffect(() => {
-        // Trigger fetch when activeQuery or selectedLook changes
         fetchArticles(activeQuery.value, selectedLook, activeQuery.type, activeQuery.label, 1);
     }, [activeQuery, selectedLook, fetchArticles]);
 
     const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
         setActiveQuery({ type, value, label });
         setSelectedArticle(null); 
-        setMobileView('list'); // Navigate to list on mobile
+        setMobileView('list');
         
-        // On laptops/tablets, keep sidebar open when selecting category to allow browsing
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
              setIsSidebarOpen(true);
         }
@@ -180,9 +176,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
 
     const handleArticleSelect = (article: InfoItem) => {
         setSelectedArticle(article);
-        setMobileView('detail'); // Navigate to detail on mobile
-        
-        // Auto-collapse sidebar on laptops for better reading experience
+        setMobileView('detail');
         if (window.innerWidth >= 768 && window.innerWidth < 1536) {
             setIsSidebarOpen(false);
         }
@@ -225,41 +219,87 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
         <div className="h-full flex flex-col bg-[#f8fafc] md:p-4 overflow-hidden relative font-sans">
             <div className="flex-1 flex gap-0 md:gap-4 min-h-0 overflow-hidden relative md:static">
                 
-                {/* Left Sidebar - Navigation Drawer (Responsive) */}
+                {/* Left Sidebar - Navigation Drawer */}
                 <aside className={`
                     flex-shrink-0 flex flex-col bg-slate-50/90 backdrop-blur-xl md:bg-white md:rounded-[20px] md:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] md:border border-slate-200/60
-                    absolute inset-0 z-20 md:static md:z-auto transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)]
+                    absolute inset-0 z-20 md:static md:z-auto transition-all duration-500 ease-[cubic-bezier(0.25,0.8,0.25,1)] overflow-hidden
                     ${mobileView === 'nav' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-                    ${isSidebarOpen ? 'md:w-[260px] lg:w-[280px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0 md:border-0'}
+                    ${isSidebarOpen ? 'md:w-[280px] lg:w-[300px] md:opacity-100' : 'md:w-0 md:opacity-0 md:overflow-hidden md:p-0 md:border-0'}
                 `}>
-                    {/* Mobile Header for Nav */}
-                    <div className="md:hidden px-6 pt-6 pb-2 flex items-center justify-between">
-                         <h2 className="text-xl font-extrabold text-slate-800">AI情报洞察</h2>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-4 md:px-4">
-                        <div className="flex items-center justify-between px-4 mb-4">
-                            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">情报罗盘</h2>
-                            {/* Close button for mobile is handled by navigation logic, strictly decoration here or desktop toggle */}
+                    {/* Header with Mode Switcher */}
+                    <div className="px-4 pt-4 pb-2">
+                        <div className="md:hidden flex items-center justify-between mb-4 px-2">
+                             <h2 className="text-xl font-extrabold text-slate-800">AI情报洞察</h2>
                         </div>
                         
-                        <StrategicCompass
-                            categories={lookCategories}
-                            selectedLook={selectedLook}
-                            setSelectedLook={setSelectedLook}
-                            selectedSubLook={selectedSubLook}
-                            setSelectedSubLook={setSelectedSubLook}
-                            onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
-                            activeQuery={activeQuery}
-                        />
-                        <div className="my-4 border-t border-slate-100 mx-4"></div>
-                        <FocusPoints 
-                            onManageClick={() => setIsFocusPointModalOpen(true)}
-                            pois={pois}
-                            isLoading={isLoadingPois}
-                            onPoiClick={(value, label) => handleNavChange('poi', value, label)}
-                            activeQuery={activeQuery}
-                        />
+                        {/* Segmented Control */}
+                        <div className="bg-slate-100 p-1 rounded-xl flex gap-1 mb-2">
+                            <button 
+                                onClick={() => setSidebarMode('compass')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    sidebarMode === 'compass' 
+                                        ? 'bg-white text-indigo-600 shadow-sm' 
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <RssIcon className="w-3.5 h-3.5" />
+                                罗盘导航
+                            </button>
+                            <button 
+                                onClick={() => setSidebarMode('copilot')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold transition-all ${
+                                    sidebarMode === 'copilot' 
+                                        ? 'bg-white text-purple-600 shadow-sm' 
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <SparklesIcon className="w-3.5 h-3.5" />
+                                AI 助手
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Content Area */}
+                    <div className="flex-1 overflow-hidden relative">
+                        
+                        {/* Compass View */}
+                        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${sidebarMode === 'compass' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-4 md:px-4">
+                                <div className="flex items-center justify-between px-4 mb-3 mt-2">
+                                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">分类浏览</h2>
+                                </div>
+                                
+                                <StrategicCompass
+                                    categories={lookCategories}
+                                    selectedLook={selectedLook}
+                                    setSelectedLook={setSelectedLook}
+                                    selectedSubLook={selectedSubLook}
+                                    setSelectedSubLook={setSelectedSubLook}
+                                    onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
+                                    activeQuery={activeQuery}
+                                />
+                                <div className="my-4 border-t border-slate-100 mx-4"></div>
+                                <FocusPoints 
+                                    onManageClick={() => setIsFocusPointModalOpen(true)}
+                                    pois={pois}
+                                    isLoading={isLoadingPois}
+                                    onPoiClick={(value, label) => handleNavChange('poi', value, label)}
+                                    activeQuery={activeQuery}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Copilot View */}
+                        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${sidebarMode === 'copilot' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+                            {currentUser ? (
+                                <CopilotPanel user={currentUser} />
+                            ) : (
+                                <div className="flex-1 flex items-center justify-center text-slate-400 p-6 text-center text-sm">
+                                    请先登录以使用 AI 助手
+                                </div>
+                            )}
+                        </div>
+
                     </div>
                 </aside>
 
@@ -272,11 +312,6 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                         absolute inset-0 z-20 md:static md:z-auto transition-transform duration-300 ease-out
                         ${mobileView === 'list' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                     `}>
-                        {/* Mobile Header for List */}
-                        <div className="md:hidden flex-shrink-0 z-10">
-                             {/* The mobile header is now integrated into IntelligenceCenter to handle search state */}
-                        </div>
-
                         <IntelligenceCenter
                             title={activeQuery.label}
                             articles={articles}
@@ -292,7 +327,7 @@ export const StrategicCockpit: React.FC<{ subscriptions: SystemSource[] }> = ({ 
                             isSidebarOpen={isSidebarOpen}
                             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                             onSearch={handleSearch}
-                            onBackToNav={backToNav} // Pass back handler for mobile
+                            onBackToNav={backToNav}
                         />
                     </div>
                     

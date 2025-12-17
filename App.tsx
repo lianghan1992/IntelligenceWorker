@@ -133,7 +133,7 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
       case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
