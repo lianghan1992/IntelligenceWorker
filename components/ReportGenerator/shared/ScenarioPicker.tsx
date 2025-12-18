@@ -2,135 +2,125 @@
 import React from 'react';
 import { Scenario } from '../../../types';
 import { isScenarioSupported } from '../scenarios/registry';
+import { SparklesIcon, ChevronRightIcon, LockClosedIcon, ViewGridIcon } from '../../icons';
 
-// 动画背景组件映射
-const BG_EFFECTS = [
-    // 1. Matrix Grid (Code)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#0f172a] animate-grid-move" style={{
-            backgroundImage: 'linear-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(56, 189, 248, 0.08) 1px, transparent 1px)',
-            backgroundSize: '30px 30px'
-        }}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(56,189,248,0.15),transparent_70%)]"></div>
-        </div>
-    ),
-    // 2. Aurora Fluid (Creative)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#1e1b4b] overflow-hidden">
-            <div className="absolute -top-[20%] -left-[10%] w-[180px] h-[180px] bg-indigo-500 rounded-full blur-[40px] opacity-40 animate-float-blob"></div>
-            <div className="absolute -bottom-[20%] -right-[10%] w-[220px] h-[220px] bg-fuchsia-500 rounded-full blur-[40px] opacity-40 animate-float-blob-delay"></div>
-        </div>
-    ),
-    // 3. Scanner (Data)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#022c22] overflow-hidden" style={{
-            backgroundImage: 'radial-gradient(#10b981 0.8px, transparent 0.8px)',
-            backgroundSize: '15px 15px'
-        }}>
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#10b98122] to-transparent animate-scan-y"></div>
-        </div>
-    ),
-    // 4. Prism Rotate (Visual)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#18181b] overflow-hidden">
-            <div className="absolute top-1/2 left-1/2 w-[160%] h-[160%] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_0deg,#f472b6,#3b82f6,#f472b6)] blur-[50px] opacity-30 animate-spin-slow"></div>
-        </div>
-    ),
-    // 5. Deep Breath (Research)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#082f49] flex items-center justify-center overflow-hidden">
-            <div className="absolute border border-white/5 rounded-full animate-ripple" style={{ width: '80px', height: '80px' }}></div>
-            <div className="absolute border border-white/5 rounded-full animate-ripple delay-1000" style={{ width: '80px', height: '80px' }}></div>
-            <div className="absolute border border-white/5 rounded-full animate-ripple delay-2000" style={{ width: '80px', height: '80px' }}></div>
-        </div>
-    ),
-    // 6. Network Network (Trans)
-    () => (
-        <div className="absolute inset-0 z-0 bg-[#451a03] overflow-hidden">
-            <div className="absolute w-[90px] h-[90px] top-[20%] left-[25%] bg-[radial-gradient(circle,#fbbf24_0%,transparent_70%)] opacity-30 animate-move-orb"></div>
-            <div className="absolute w-[70px] h-[70px] bottom-[20%] right-[25%] bg-[radial-gradient(circle,#f59e0b_0%,transparent_70%)] opacity-30 animate-move-orb-delay"></div>
-        </div>
-    )
+// 方案色系与动态特效配置
+const COLOR_SCHEMES = [
+    {
+        id: 'indigo',
+        bg: 'from-indigo-500 to-blue-600',
+        iconCol: 'text-indigo-600',
+        light: 'bg-indigo-400/20',
+        anim: 'animate-flow-diagonal'
+    },
+    {
+        id: 'emerald',
+        bg: 'from-emerald-500 to-teal-600',
+        iconCol: 'text-emerald-600',
+        light: 'bg-emerald-400/20',
+        anim: 'animate-pulse-slow'
+    },
+    {
+        id: 'violet',
+        bg: 'from-violet-500 to-purple-600',
+        iconCol: 'text-violet-600',
+        light: 'bg-violet-400/20',
+        anim: 'animate-float-subtle'
+    },
+    {
+        id: 'amber',
+        bg: 'from-orange-400 to-rose-500',
+        iconCol: 'text-orange-600',
+        light: 'bg-orange-300/20',
+        anim: 'animate-wave-subtle'
+    }
 ];
-
-const ICONS = ['</>', '✎', '📊', '🎨', '🔍', '文'];
 
 export const ScenarioPicker: React.FC<{
     scenarios: Scenario[];
     onSelect: (name: string) => void;
 }> = ({ scenarios, onSelect }) => {
     return (
-        <div className="flex-1 overflow-y-auto p-8 md:p-20 flex flex-col items-center custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-8 md:p-16 flex flex-col items-center custom-scrollbar bg-white">
             <style>{`
-                @keyframes grid-move { from { background-position: 0 0; } to { background-position: 30px 30px; } }
-                .animate-grid-move { animation: grid-move 25s linear infinite; }
-                @keyframes float-blob { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(15px,25px) scale(1.1); } }
-                .animate-float-blob { animation: float-blob 10s infinite alternate ease-in-out; }
-                .animate-float-blob-delay { animation: float-blob 10s infinite alternate-reverse ease-in-out; }
-                @keyframes scan-y { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
-                .animate-scan-y { animation: scan-y 3.5s linear infinite; }
-                @keyframes spin-slow { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
-                .animate-spin-slow { animation: spin-slow 18s linear infinite; }
-                @keyframes ripple { 0% { transform: scale(1); opacity: 0.6; border-color: rgba(255, 255, 255, 0.1); } 100% { transform: scale(3.5); opacity: 0; border-color: rgba(255, 255, 255, 0); } }
-                .animate-ripple { animation: ripple 5s infinite linear; }
-                @keyframes move-orb { 0% { transform: translate(0,0); } 100% { transform: translate(25px,-15px); } }
-                .animate-move-orb { animation: move-orb 7s infinite alternate ease-in-out; }
-                .animate-move-orb-delay { animation: move-orb 7s infinite alternate-reverse ease-in-out; }
+                @keyframes flow-diag { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
+                .animate-flow-diagonal { background-size: 200% 200%; animation: flow-diag 8s linear infinite; }
                 
-                @keyframes popIn { 
-                    from { opacity: 0; transform: scale(0.92) translateY(15px); } 
-                    to { opacity: 1; transform: scale(1) translateY(0); } 
-                }
-                .card-pop-in { animation: popIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; opacity: 0; }
+                @keyframes float-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+                .animate-float-subtle { animation: float-subtle 4s ease-in-out infinite; }
+                
+                .animate-pulse-slow { animation: pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+                
+                @keyframes wave-subtle { 0% { border-radius: 24px 24px 24px 24px; } 50% { border-radius: 40px 20px 40px 20px; } 100% { border-radius: 24px 24px 24px 24px; } }
+                .animate-wave-subtle { animation: wave-subtle 5s ease-in-out infinite; }
+
+                .card-glass { background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%); }
             `}</style>
 
-            <div className="max-w-[1100px] w-full">
-                <header className="mb-14">
-                    <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-4">选择创作场景</h2>
-                    <p className="text-slate-500 text-sm font-medium tracking-wide">基于行业专家逻辑链条构建的 AI 创作流水线。</p>
+            <div className="max-w-[1200px] w-full">
+                <header className="mb-12 text-center">
+                    <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-3">选择 Agent 场景</h2>
+                    <p className="text-slate-500 text-sm font-medium">请选择预设的专家提示词流水线，开始您的智能创作。</p>
                 </header>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {scenarios.map((s, idx) => {
                         const supported = isScenarioSupported(s.name);
-                        const BgEffect = BG_EFFECTS[idx % BG_EFFECTS.length];
-                        const icon = ICONS[idx % ICONS.length];
+                        const scheme = COLOR_SCHEMES[idx % COLOR_SCHEMES.length];
 
                         return (
                             <div 
                                 key={s.name}
                                 onClick={() => supported && onSelect(s.name)}
-                                className={`card-pop-in group relative h-[200px] rounded-[24px] border border-slate-200 overflow-hidden transition-all duration-500 ${
+                                className={`group relative h-[150px] rounded-[24px] overflow-hidden transition-all duration-500 shadow-lg ${
                                     supported 
-                                    ? 'cursor-pointer hover:scale-[1.02] hover:border-indigo-400 hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)]' 
-                                    : 'cursor-not-allowed grayscale opacity-30'
+                                    ? 'cursor-pointer hover:scale-[1.04] hover:shadow-2xl active:scale-95' 
+                                    : 'cursor-not-allowed grayscale opacity-40'
                                 }`}
-                                style={{ animationDelay: `${idx * 0.08}s` }}
                             >
-                                {/* 核心动态特效背景 */}
-                                <BgEffect />
+                                {/* 动态渐变背景层 */}
+                                <div className={`absolute inset-0 bg-gradient-to-br ${scheme.bg} ${scheme.anim}`}></div>
+                                
+                                {/* 辅助装饰光斑 */}
+                                <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                                <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-black/10 rounded-full blur-3xl"></div>
 
-                                {/* 深度遮罩层：确保在白色页面上内容的清晰度 */}
-                                <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/5 to-black/80 backdrop-blur-[1px] transition-opacity duration-500 group-hover:opacity-60"></div>
+                                {/* 毛玻璃蒙层：让文字在彩色背景上呼吸 */}
+                                <div className="absolute inset-0 card-glass backdrop-blur-[1px]"></div>
 
-                                {/* 内容渲染层 */}
-                                <div className="relative z-[2] p-6 h-full flex flex-col justify-between">
-                                    <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-lg font-bold text-white shadow-inner group-hover:scale-110 group-hover:bg-white/20 transition-all">
-                                        {icon}
-                                    </div>
-                                    
-                                    <div className="space-y-1.5">
-                                        <h3 className="text-lg font-bold text-white tracking-tight drop-shadow-lg">
+                                {/* 内容渲染 */}
+                                <div className="relative z-10 p-5 h-full flex flex-col justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-white/95 shadow-sm flex items-center justify-center flex-shrink-0 transition-transform group-hover:rotate-12">
+                                            <ViewGridIcon className={`w-4 h-4 ${scheme.id === 'amber' ? 'text-orange-500' : scheme.iconCol}`} />
+                                        </div>
+                                        <h3 className="font-extrabold text-white text-base tracking-tight leading-none drop-shadow-sm">
                                             {s.title || s.name}
                                         </h3>
-                                        <p className="text-[11px] text-white/60 line-clamp-2 leading-relaxed font-medium transition-colors group-hover:text-white/80">
-                                            {s.description || '基于行业专家逻辑链条构建的智能创作流水线。'}
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <p className="text-[11px] text-white/80 line-clamp-2 leading-relaxed font-medium">
+                                            {s.description || '基于行业专家逻辑链条构建的智能创作流水线，一键产出高价值研报。'}
                                         </p>
+                                        
+                                        <div className="flex items-center justify-between">
+                                            {supported ? (
+                                                <div className="flex items-center gap-1 text-[10px] font-black text-white/90 uppercase tracking-widest">
+                                                    Start Workflow <ChevronRightIcon className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-1 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                                                    <LockClosedIcon className="w-3 h-3" /> Locked
+                                                </div>
+                                            )}
+                                            <SparklesIcon className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-all group-hover:rotate-[30deg]" />
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* 悬停效果底边 */}
-                                <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-white/40 group-hover:w-full transition-all duration-700"></div>
+                                {/* 底部细边框高亮 */}
+                                <div className="absolute bottom-0 left-0 h-[3px] w-0 bg-white/60 group-hover:w-full transition-all duration-700"></div>
                             </div>
                         );
                     })}

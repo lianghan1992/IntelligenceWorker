@@ -77,7 +77,7 @@ export const ReportGenerator: React.FC = () => {
     const renderScenarioWorkflow = () => {
         if (!task) return null;
         const ScenarioComponent = SCENARIO_REGISTRY[selectedScenario];
-        if (!ScenarioComponent) return <div className="p-20 text-center">未找到场景实现</div>;
+        if (!ScenarioComponent) return <div className="p-20 text-center text-slate-500 font-bold">未找到场景实现</div>;
 
         return (
             <ScenarioComponent 
