@@ -21,7 +21,7 @@ export interface SystemSource {
     articles_count?: number;
 }
 
-export interface Subscription { // Alias used in IntelligencePointManager
+export interface Subscription {
     id: string;
     source_id?: string;
     source_name: string;
@@ -38,7 +38,58 @@ export interface PlanDetails {
     premium: { name: string; price: number };
 }
 
-// --- Mock Data Types ---
+// --- Report Generator / Stratify Types (Plumber Mode) ---
+
+export interface Scenario {
+    name: string;
+    description: string | null;
+}
+
+export interface TaskPhase {
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    content: string | null;
+}
+
+export interface StratifyTask {
+    id: string;
+    scenario_name: string;
+    session_id: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    input_text: string;
+    created_at: string;
+    topic?: string; // Frontend alias for input_text
+    outline?: StratifyOutline | null;
+    pages?: StratifyPage[];
+    result?: {
+        phases: Record<string, TaskPhase>;
+    };
+}
+
+export interface StratifyOutline {
+    title: string;
+    pages: { title: string; content: string }[];
+}
+
+export interface StratifyPage {
+    page_index: number;
+    title: string;
+    content_markdown: string | null;
+    html_content: string | null;
+    status: 'pending' | 'generating' | 'done' | 'failed';
+}
+
+export interface GenerateStreamParams {
+    prompt_name: string;
+    variables: Record<string, any>;
+    scenario?: string;
+    model_override?: string;
+    session_id?: string;
+    task_id?: string;
+    phase_name?: string;
+    attachments?: { type: 'image' | 'file'; url: string }[];
+}
+
+// --- Deep Insight & Other types remain unchanged ---
 export interface DeepDive {
     id: string;
     title: string;
@@ -53,7 +104,6 @@ export interface RecommendedSubscription {
     description: string;
 }
 
-// --- Livestream Types ---
 export interface LivestreamTask {
     id: string;
     task_name: string;
@@ -74,16 +124,15 @@ export interface LivestreamPrompt {
     content: string;
 }
 
-// --- Intelligence Types ---
 export interface IntelligencePointPublic {
     id: string;
     uuid: string;
     source_uuid: string;
     source_name?: string;
     name: string;
-    point_name?: string; // Alias
+    point_name?: string;
     url: string;
-    point_url?: string; // Alias
+    point_url?: string;
     cron_schedule: string;
     is_active: boolean;
     created_at: string;
@@ -91,8 +140,8 @@ export interface IntelligencePointPublic {
     initial_pages?: number;
     list_hint?: string;
     list_filters?: string[];
-    extra_hint?: string; // Alias for list_hint
-    url_filters?: string[]; // Alias for list_filters
+    extra_hint?: string;
+    url_filters?: string[];
     max_depth?: number;
     status?: string;
     last_crawled_at?: string;
@@ -104,12 +153,12 @@ export interface IntelligenceSourcePublic {
     id: string;
     uuid: string;
     name: string;
-    source_name?: string; // Alias
+    source_name?: string;
     main_url: string;
     total_points: number;
-    points_count?: number; // Alias
+    points_count?: number;
     total_articles: number;
-    articles_count?: number; // Alias
+    articles_count?: number;
     created_at: string;
     updated_at: string;
     points?: IntelligencePointPublic[];
@@ -129,9 +178,7 @@ export interface InfoItem {
     tags?: string;
 }
 
-export interface ArticlePublic extends InfoItem {
-    // Extends InfoItem
-}
+export interface ArticlePublic extends InfoItem {}
 
 export interface UserListItem {
     id: string;
@@ -172,7 +219,6 @@ export interface ApiPoi {
     related_count?: number;
 }
 
-// Spider / Intelligence specific types
 export type SpiderSource = IntelligenceSourcePublic;
 export type SpiderPoint = IntelligencePointPublic;
 
@@ -291,7 +337,6 @@ export interface IntelLlmTask {
     prompt_text?: string;
 }
 
-// --- Deep Insight Types ---
 export interface DeepInsightCategory {
     id: string;
     name: string;
@@ -323,7 +368,6 @@ export interface DeepInsightPagesResponse {
     total: number;
 }
 
-// --- Report Generator / Stratify Types ---
 export interface Slide {
     id: string;
     title: string;
@@ -343,46 +387,13 @@ export interface SearchChunkResult {
 
 export type StratifyTaskStatus = 'created' | 'outline_generated' | 'content_generating' | 'completed' | 'failed';
 
-export interface StratifyTask {
-    id: string;
-    topic: string;
-    status: StratifyTaskStatus;
-    current_step: string;
-    created_at: string;
-    outline?: StratifyOutline | null;
-    pages?: StratifyPage[];
-}
-
-export interface StratifyOutline {
-    title: string;
-    pages: { title: string; content: string }[];
-}
-
-export interface StratifyPage {
-    page_index: number;
-    title: string;
-    content_markdown: string | null;
-    html_content: string | null;
-    status: 'pending' | 'generating' | 'done' | 'failed';
-}
-
 export interface StratifyStreamChunk {
     content?: string;
     session_id?: string;
 }
 
-export interface GenerateStreamParams {
-    prompt_name: string;
-    variables: Record<string, any>;
-    model_override?: string;
-    session_id?: string;
-    scenario?: string; // Scenario for prompts
-}
-
-// --- Strategic Cockpit Types ---
 export type StrategicLookKey = 'industry' | 'customer' | 'competitor' | 'self';
 
-// --- Tech Dashboard & Competitiveness Types ---
 export interface TechDimensionCategory {
     key: string;
     label: string;
@@ -487,7 +498,6 @@ export interface MarketAnalysisFinding {
     updated_at: string;
 }
 
-// --- Document Processing Types ---
 export interface DocumentTask {
     id: string;
     original_filename: string;
@@ -506,7 +516,6 @@ export interface PaginatedDocumentsResponse {
     totalPages: number;
 }
 
-// --- LLM Sorting Types ---
 export interface LlmSearchRequest {
     query_text: string;
 }
@@ -519,7 +528,6 @@ export interface LlmSearchTaskItem {
     matched_count: number;
 }
 
-// --- Generic Crawler Types ---
 export interface GenericPoint extends IntelligencePointPublic {}
 
 export interface GenericTask {
