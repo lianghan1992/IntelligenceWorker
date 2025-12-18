@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { BrainIcon, DocumentTextIcon, PuzzleIcon, ArrowRightIcon, TrashIcon, SparklesIcon, CodeIcon } from '../../icons';
+import { BrainIcon, DocumentTextIcon, PuzzleIcon, ArrowRightIcon, TrashIcon, SparklesIcon, CodeIcon } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { uploadStratifyFile } from '../../../../../api/stratify';
 
@@ -196,7 +196,7 @@ export const InputCollector: React.FC<{
                         disabled={!targetTech.trim() || isUploading}
                         className="group relative px-16 py-4 bg-slate-900 text-white font-black text-lg rounded-2xl shadow-2xl shadow-indigo-500/10 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3.5 overflow-hidden"
                     >
-                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
                         <SparklesIcon className="w-5 h-5 text-indigo-300" />
                         <span>开始深度评估</span>
                         <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
