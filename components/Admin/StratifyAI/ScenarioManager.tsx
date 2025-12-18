@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { StratifyScenario, StratifyScenarioFile } from '../../../types';
-import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, updateScenarioFile, deleteScenarioFile, getAvailableModels } from '../../../api/stratify';
-// Added SparklesIcon to the imports
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckIcon, ViewGridIcon, CodeIcon, GearIcon, SparklesIcon } from '../../icons';
+import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, updateScenarioFile, deleteScenarioFile } from '../../../api/stratify';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckIcon, ViewGridIcon, CodeIcon } from '../../icons';
 import { PromptEditorModal } from './PromptEditorModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -13,13 +12,12 @@ export const ScenarioManager: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
     const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
-    const [availableModels, setAvailableModels] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isFilesLoading, setIsFilesLoading] = useState(false);
     
     const [isEditingScenario, setIsEditingScenario] = useState(false);
-    const [scenarioForm, setScenarioForm] = useState({ name: '', title: '', description: '', model_config: '' });
+    const [scenarioForm, setScenarioForm] = useState({ name: '', title: '', description: '' });
     
     const [editingFile, setEditingFile] = useState<StratifyScenarioFile | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<{ type: 'scenario' | 'file', id: string, name: string } | null>(null);
@@ -27,14 +25,10 @@ export const ScenarioManager: React.FC = () => {
     const fetchScenarios = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [scenarioData, modelData] = await Promise.all([
-                getScenarios(),
-                getAvailableModels()
-            ]);
-            setScenarios(scenarioData);
-            setAvailableModels(modelData);
-            if (scenarioData.length > 0 && !selectedScenario) {
-                setSelectedScenario(scenarioData[0]);
+            const data = await getScenarios();
+            setScenarios(data);
+            if (data.length > 0 && !selectedScenario) {
+                setSelectedScenario(data[0]);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
@@ -92,7 +86,7 @@ export const ScenarioManager: React.FC = () => {
                     <h3 className="font-black text-slate-500 text-[10px] uppercase tracking-[0.2em]">Scenario List</h3>
                     <button onClick={() => { 
                         setSelectedScenario(null); 
-                        setScenarioForm({ name: '', title: '', description: '', model_config: '' });
+                        setScenarioForm({ name: '', title: '', description: '' });
                         setIsEditingScenario(true);
                     }} className="p-1.5 text-indigo-400 hover:bg-indigo-500/20 rounded-lg transition-colors">
                         <PlusIcon className="w-4 h-4" />
@@ -111,7 +105,7 @@ export const ScenarioManager: React.FC = () => {
                             </div>
                             {selectedScenario?.id === s.id && (
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsEditingScenario(true); setScenarioForm({ name: s.name, title: s.title, description: s.description, model_config: s.model_config || '' }); }}
+                                    onClick={(e) => { e.stopPropagation(); setIsEditingScenario(true); setScenarioForm({ name: s.name, title: s.title, description: s.description }); }}
                                     className="p-1 hover:bg-white/20 rounded-md transition-colors"
                                 >
                                     <PencilIcon className="w-3.5 h-3.5" />
@@ -125,10 +119,10 @@ export const ScenarioManager: React.FC = () => {
             {/* Prompt Workspace (Right) */}
             <div className="flex-1 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-inner relative">
                 {isEditingScenario || (selectedScenario && !selectedScenario.id) ? (
-                    <div className="p-10 max-w-2xl mx-auto w-full space-y-8 mt-12 bg-white rounded-[40px] shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-500">
+                    <div className="p-10 max-w-xl mx-auto w-full space-y-8 mt-12 bg-white rounded-[40px] shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-500">
                         <h2 className="text-3xl font-black text-slate-800 tracking-tight">{selectedScenario ? '编辑场景设置' : '定义新生成场景'}</h2>
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="col-span-1">
+                        <div className="space-y-5">
+                            <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">唯一标识 (Unique Slug)</label>
                                 <input 
                                     value={scenarioForm.name} 
@@ -137,7 +131,7 @@ export const ScenarioManager: React.FC = () => {
                                     placeholder="e.g. market_insight_pro"
                                 />
                             </div>
-                            <div className="col-span-1">
+                            <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">显示标题</label>
                                 <input 
                                     value={scenarioForm.title} 
@@ -146,22 +140,7 @@ export const ScenarioManager: React.FC = () => {
                                     placeholder="e.g. 深度市场洞察"
                                 />
                             </div>
-                            <div className="col-span-2">
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2">
-                                    <SparklesIcon className="w-3 h-3" /> 指定执行模型 (LLM Engine)
-                                </label>
-                                <select 
-                                    value={scenarioForm.model_config}
-                                    onChange={e => setScenarioForm({...scenarioForm, model_config: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none"
-                                >
-                                    <option value="">跟随系统默认 (mistral-devstral)</option>
-                                    {availableModels.map(m => (
-                                        <option key={m} value={m}>{m}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="col-span-2">
+                            <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">场景描述</label>
                                 <textarea 
                                     value={scenarioForm.description} 
@@ -184,11 +163,6 @@ export const ScenarioManager: React.FC = () => {
                                 <div className="flex items-center gap-3 mb-1">
                                     <h2 className="text-xl font-black text-slate-800 tracking-tight">{selectedScenario.title}</h2>
                                     <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-tighter">ID: {selectedScenario.name}</span>
-                                    {selectedScenario.model_config && (
-                                        <span className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
-                                            <SparklesIcon className="w-2.5 h-2.5" /> {selectedScenario.model_config}
-                                        </span>
-                                    )}
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium">{selectedScenario.description}</p>
                             </div>

@@ -86,19 +86,16 @@ export const streamGenerate = async (
 
 // --- 2. Scenario & Prompt Management (Admin) ---
 
-export const getAvailableModels = (): Promise<string[]> =>
-    apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/common/models`);
-
 export const getScenarios = (): Promise<StratifyScenario[]> =>
     apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
 
-export const createScenario = (data: { name: string; title: string; description: string; model_config?: string }): Promise<StratifyScenario> =>
+export const createScenario = (data: { name: string; title: string; description: string }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; model_config?: string }): Promise<StratifyScenario> =>
+export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
