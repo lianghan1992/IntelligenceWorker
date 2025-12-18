@@ -16,22 +16,20 @@ declare global {
 const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
 
 /**
- * 辅助函数：从尚不完整的 JSON 字符串中提取第一个键值对的内容
- * 适用于流式传输中的实时预览
+ * 辅助函数：从尚不完整的 JSON 碎片字符串中提取正在输出的 Value 内容
  */
 const extractPartialValue = (jsonPart: string): string => {
     // 匹配模式： "任意键": "提取内容...
-    // 使用 s 标志支持换行符，匹配引号开始后的所有内容
+    // 此正则匹配最后一个引号开始后的内容，适合流式追加
     const match = jsonPart.match(/"[^"]*"\s*:\s*"(.*)/s);
     if (match) {
         let raw = match[1];
-        // 清理转义的换行符和引号，但不移除结尾，因为流还在继续
         return raw
             .replace(/\\n/g, '\n')
             .replace(/\\"/g, '"')
             .replace(/\\t/g, '\t')
-            .replace(/"\s*,?\s*$/, '') // 如果已经有了结尾引号，尝试去掉以便平滑显示
-            .replace(/\\$/, '');       // 去掉末尾孤立的反斜杠预防乱码
+            .replace(/"\s*,?\s*$/, '') // 移除流末尾可能已经出现的结束引号
+            .replace(/\\$/, '');       // 移除末尾孤立的反斜杠防乱码
     }
     return '';
 };
@@ -62,7 +60,7 @@ export const WorkflowProcessor: React.FC<{
     const thoughtEndRef = useRef<HTMLDivElement>(null);
     const docEndRef = useRef<HTMLDivElement>(null);
 
-    // 组合最终 Markdown
+    // 组合最终 Markdown 用于预览
     const combinedMarkdown = useMemo(() => {
         let md = '';
         if (parts.p1) md += `## 第一部分：技术路线与当前所处阶段分析\n\n${parts.p1}\n\n`;
@@ -81,6 +79,7 @@ export const WorkflowProcessor: React.FC<{
         return combinedMarkdown;
     }, [combinedMarkdown]);
 
+    // 自动滚动控制
     useEffect(() => {
         thoughtEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [thoughtStream]);
@@ -105,42 +104,37 @@ export const WorkflowProcessor: React.FC<{
         setThoughtStream('');
 
         try {
-            let fullRes = '';
+            let accumulatedContent = '';
             await streamGenerate(
                 { 
                     prompt_name: '04_Revise_Combined_Content', 
-                    variables: { 
-                        revision_request: message,
-                        current_content: combinedMarkdown 
-                    }, 
+                    variables: { revision_request: message, current_content: combinedMarkdown }, 
                     scenario, 
                     session_id: sessionId,
                     model_override: TARGET_MODEL 
                 },
                 (chunk) => { 
-                    fullRes += chunk; 
-                    const { thought, jsonPart } = extractThoughtAndJson(fullRes);
-                    
-                    // 实时同步思考流
-                    if (thought) setThoughtStream(thought);
-
-                    if (jsonPart) {
-                        const parsed = parseLlmJson<any>(jsonPart);
-                        if (parsed) {
-                            if (parsed.p1) setParts(prev => ({ ...prev, p1: parsed.p1 }));
-                            if (parsed.p2) setParts(prev => ({ ...prev, p2: parsed.p2 }));
-                            if (parsed.p3) setParts(prev => ({ ...prev, p3: parsed.p3 }));
-                            if (parsed.refs) setParts(prev => ({ ...prev, refs: parsed.refs }));
+                    accumulatedContent += chunk; 
+                    // 尝试从碎片中解析 JSON 结构
+                    const parsed = parseLlmJson<any>(accumulatedContent);
+                    if (parsed) {
+                        if (parsed.p1) setParts(prev => ({ ...prev, p1: parsed.p1 }));
+                        if (parsed.p2) setParts(prev => ({ ...prev, p2: parsed.p2 }));
+                        if (parsed.p3) setParts(prev => ({ ...prev, p3: parsed.p3 }));
+                        if (parsed.refs) setParts(prev => ({ ...prev, refs: parsed.refs }));
+                    } else {
+                        // 如果还没成完整 JSON，尝试提取当前的 Value 进行预览
+                        const partial = extractPartialValue(accumulatedContent);
+                        if (partial) {
+                            // 这里我们不知道是在更新哪个 P，所以通常修订阶段建议返回全量 JSON 
+                            // 或者根据业务逻辑更新
                         }
                     }
                 }, 
                 () => setIsProcessing(false),
-                (err) => {
-                    console.error(err);
-                    setIsProcessing(false);
-                },
+                (err) => { console.error(err); setIsProcessing(false); },
                 (sid) => { if (sid) { setSessionId(sid); onUpdateSession(sid); } },
-                (tChunk) => setThoughtStream(prev => prev + tChunk)
+                (tChunk) => setThoughtStream(prev => prev + tChunk) // 核心：直接展示推理流
             );
         } catch (e) {
             console.error(e);
@@ -152,7 +146,7 @@ export const WorkflowProcessor: React.FC<{
         setSubTaskLabel(logLabel);
         setThoughtStream(''); 
         return new Promise<string>((resolve, reject) => {
-            let fullRes = '';
+            let accumulatedContent = '';
             streamGenerate(
                 { 
                     prompt_name: promptName, 
@@ -162,26 +156,17 @@ export const WorkflowProcessor: React.FC<{
                     model_override: TARGET_MODEL 
                 },
                 (chunk) => { 
-                    fullRes += chunk; 
-                    const { thought, jsonPart } = extractThoughtAndJson(fullRes);
-                    
-                    // 核心修复：如果模型在 content 中输出思考过程，实时显示它
-                    if (thought && !jsonPart) {
-                        setThoughtStream(thought);
-                    }
-
-                    // 核心修复：流式提取 JSON 中的内容，实现实时文档生长
-                    if (jsonPart && onPartUpdate) {
-                        const streamingContent = extractPartialValue(jsonPart);
-                        if (streamingContent) {
-                            onPartUpdate(streamingContent);
-                        }
+                    accumulatedContent += chunk; 
+                    // 核心修复：流式提取正在输出的内容
+                    if (onPartUpdate) {
+                        const partial = extractPartialValue(accumulatedContent);
+                        if (partial) onPartUpdate(partial);
                     }
                 }, 
-                () => resolve(fullRes),
+                () => resolve(accumulatedContent),
                 reject,
                 (sid) => { if (sid) { setSessionId(sid); onUpdateSession(sid); } },
-                (tChunk) => setThoughtStream(prev => prev + tChunk) // 处理模型原生 reasoning 字段
+                (tChunk) => setThoughtStream(prev => prev + tChunk) // 核心修复：直接展示 API 的 reasoning 字段
             );
         });
     };
@@ -206,10 +191,9 @@ export const WorkflowProcessor: React.FC<{
                 (c) => setParts(prev => ({ ...prev, p3: c })));
 
             const res4 = await executeStep('03_TriggerGeneration_step4', {}, '溯源文献整理');
-            const { jsonPart: refsJsonRaw } = extractThoughtAndJson(res4);
-            const refsJson = parseLlmJson<any>(refsJsonRaw);
-            if (refsJson && typeof refsJson === 'object') {
-                const refsMd = Object.entries(refsJson).map(([title, url]) => `- [${title}](${url})`).join('\n');
+            const parsedRefs = parseLlmJson<any>(res4);
+            if (parsedRefs && typeof parsedRefs === 'object') {
+                const refsMd = Object.entries(parsedRefs).map(([title, url]) => `- [${title}](${url})`).join('\n');
                 setParts(prev => ({ ...prev, refs: refsMd }));
             }
 
@@ -242,7 +226,7 @@ export const WorkflowProcessor: React.FC<{
                             { id: 4, label: '审核校对' }
                         ].map((s, i) => (
                             <div key={s.id} className="flex items-center gap-2">
-                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === s.id ? 'bg-indigo-600 animate-pulse ring-4 ring-indigo-100' : (currentStep > s.id ? 'bg-green-500' : 'bg-slate-300')}`}></div>
+                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === s.id ? 'bg-indigo-600 animate-pulse ring-4 ring-indigo-100' : (currentStep > s.id ? 'bg-green-50' : 'bg-slate-300')}`}></div>
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep === s.id ? 'text-indigo-600' : 'text-slate-400'}`}>
                                     {s.label}
                                 </span>
