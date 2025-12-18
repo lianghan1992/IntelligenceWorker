@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { ReasoningModal } from '../../../shared/ReasoningModal';
-import { CheckIcon, DownloadIcon, ChevronLeftIcon } from '../../../../icons';
+import { CheckIcon, DownloadIcon, SparklesIcon, BrainIcon } from '../../../../icons';
 
 // 场景指定使用的模型引擎
 const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
@@ -24,10 +23,10 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
     useEffect(() => {
         const render = async () => {
             let buffer = '';
-            setThought('');
+            setThought('正在启动高保真排版引擎...\n');
             
-            // 重要：显式传递 session_id: undefined，确保 04_Markdown2Html 在全新的上下文中执行
-            // 避免之前的分析思考过程干扰排版指令的严格执行
+            // 重要：显式传递 session_id: undefined
+            // 04_Markdown2Html 需要在一个干净的上下文里工作，只关注传入的 markdown_report
             await streamGenerate(
                 { 
                     prompt_name: '04_Markdown2Html', 
@@ -82,59 +81,70 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
-            <ReasoningModal 
-                isOpen={isRendering && !htmlContent} 
-                onClose={() => {}} 
-                content={thought} 
-                status="AI 视觉专家正在进行杂志级排版设计..." 
-            />
-
-            <div className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between shadow-sm z-10">
+            {/* 顶栏 */}
+            <div className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shadow-sm z-20">
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                    <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg">
                         <CheckIcon className="w-6 h-6" />
                     </div>
                     <div>
                         <h2 className="font-black text-slate-800 text-lg">评估报告生成完成</h2>
-                        <p className="text-xs text-slate-400 font-medium">预览报告效果 • 导出为专业级 PDF</p>
+                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">High-Fidelity Rendering Mode</p>
                     </div>
                 </div>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                     <button 
                         onClick={handleDownloadPdf}
                         disabled={!htmlContent || isDownloading}
-                        className="px-8 py-3 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
-                        {isDownloading ? <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div> : <DownloadIcon className="w-5 h-5" />}
-                        下载 PDF 版本
+                        {isDownloading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <DownloadIcon className="w-4 h-4" />}
+                        下载 PDF
                     </button>
-                    <button onClick={onComplete} className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all active:scale-95">
-                        完成并归档
+                    <button onClick={onComplete} className="px-6 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all">
+                        完成并关闭
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 p-8 md:p-12 overflow-hidden flex justify-center">
-                <div className="w-full max-w-[1100px] h-full bg-white shadow-2xl rounded-3xl overflow-hidden border border-slate-200 relative">
+            <div className="flex-1 p-8 flex gap-6 overflow-hidden">
+                {/* 左：排版逻辑流 */}
+                <div className="w-80 bg-slate-900 rounded-3xl border border-slate-800 p-6 flex flex-col shadow-2xl">
+                    <div className="flex items-center gap-2 mb-4 text-indigo-400">
+                        <SparklesIcon className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">UI Layout Engine</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto font-mono text-[10px] text-slate-500 custom-scrollbar-dark leading-relaxed">
+                        {thought || "Waking up UI Agent..."}
+                    </div>
+                </div>
+
+                {/* 右：HTML 报告预览 */}
+                <div className="flex-1 bg-white shadow-2xl rounded-3xl overflow-hidden border border-slate-200 relative">
                     {htmlContent ? (
                         <iframe 
                             srcDoc={htmlContent}
                             className="w-full h-full border-none"
-                            title="Final Tech Assessment Report"
+                            title="Final Report Preview"
                             sandbox="allow-scripts"
                         />
                     ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 text-slate-300">
                             <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-500 rounded-full animate-spin"></div>
                             <div className="text-center">
-                                <p className="font-black text-slate-400 text-xl tracking-tight">正在构建高保真 HTML 布局</p>
-                                <p className="text-sm font-medium text-slate-300 mt-1">注入设计样式、渲染可视化组件、优化阅读体验...</p>
+                                <p className="font-black text-slate-400 text-xl tracking-tight uppercase">Rendering Layout...</p>
+                                <p className="text-sm font-medium text-slate-300 mt-2">注入样式与可视化组件</p>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
+            <style>{`
+                .custom-scrollbar-dark::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+            `}</style>
         </div>
     );
 };
