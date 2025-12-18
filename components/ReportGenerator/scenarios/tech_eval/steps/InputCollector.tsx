@@ -47,7 +47,7 @@ export const InputCollector: React.FC<{
                 />
             </div>
 
-            {/* 2. 参考资料 (1/3) - 纯净输入区，与上方高度绝对一致 */}
+            {/* 2. 参考资料 (1/3) */}
             <div className="h-1/3 flex flex-col p-6 border-b border-slate-100">
                 <div className="flex items-center gap-2 mb-4">
                     <div className="w-1.5 h-6 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
@@ -62,44 +62,38 @@ export const InputCollector: React.FC<{
                 />
             </div>
 
-            {/* 3. 执行与辅助工具区 (1/3) */}
-            <div className="h-1/3 flex flex-col p-6 justify-between bg-slate-950 relative overflow-hidden group">
-                {/* 背景科幻光效 */}
-                <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-20">
-                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500 rounded-full blur-[80px]"></div>
-                    <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-purple-600 rounded-full blur-[80px]"></div>
-                </div>
-
-                <div className="relative z-10 space-y-6">
-                    {/* 辅助工具行 - 移至此处以释放上方输入框空间 */}
+            {/* 3. 执行区 (1/3) - 改为纯净白色背景 */}
+            <div className="h-1/3 flex flex-col p-6 justify-between bg-white relative overflow-hidden">
+                <div className="relative z-10 space-y-6 pt-4">
+                    {/* 辅助工具 - 统一色系风格 */}
                     <div className="flex gap-2">
-                        <button className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all flex items-center justify-center gap-2 group/tool">
-                            <PlusIcon className="w-3.5 h-3.5" />
+                        <button className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 group">
+                            <PlusIcon className="w-4 h-4" />
                             <span className="text-[10px] font-black uppercase tracking-wider">上传文件</span>
                         </button>
                         <button 
                             onClick={() => setIsVectorModalOpen(true)}
-                            className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all flex items-center justify-center gap-2 group/tool"
+                            className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-400 hover:text-emerald-600 transition-all flex items-center justify-center gap-2 group"
                         >
-                            <PuzzleIcon className="w-3.5 h-3.5" />
+                            <PuzzleIcon className="w-4 h-4" />
                             <span className="text-[10px] font-black uppercase tracking-wider">向量检索</span>
                         </button>
-                        <button className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/40 hover:text-white transition-all flex items-center justify-center gap-2 group/tool">
-                            <SparklesIcon className="w-3.5 h-3.5" />
+                        <button className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-400 hover:text-purple-600 transition-all flex items-center justify-center gap-2 group">
+                            <SparklesIcon className="w-4 h-4" />
                             <span className="text-[10px] font-black uppercase tracking-wider">LLM 检索</span>
                         </button>
                     </div>
 
-                    {/* 主执行按钮 */}
-                    <div className="pt-4">
+                    {/* 主执行按钮 - 极简高对比度设计 */}
+                    <div className="pt-2">
                         <button 
                             onClick={handleStart}
                             disabled={isProcessing || !targetTech.trim()}
                             className={`
                                 w-full py-5 rounded-[24px] font-black text-base shadow-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-4
                                 ${isProcessing || !targetTech.trim() 
-                                    ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50 shadow-none' 
-                                    : 'bg-gradient-to-br from-indigo-600 to-indigo-500 text-white shadow-indigo-900/40 hover:shadow-indigo-500/20 hover:-translate-y-1'
+                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none border border-slate-100' 
+                                    : 'bg-slate-900 text-white shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-500/30 hover:-translate-y-1'
                                 }
                             `}
                         >
@@ -113,13 +107,13 @@ export const InputCollector: React.FC<{
                     </div>
                 </div>
 
-                {/* 底部设置项 */}
-                <div className="relative z-10 flex items-center justify-between text-white/20 px-2 mt-auto">
-                    <div className="flex items-center gap-2 hover:text-white/60 cursor-pointer transition-colors group/set">
-                        <GearIcon className="w-3.5 h-3.5 group-hover/set:rotate-90 transition-transform" />
-                        <span className="text-[9px] font-black uppercase tracking-[0.2em]">System Config</span>
+                {/* 底部信息 - 仅保留极简提示 */}
+                <div className="relative z-10 flex items-center justify-center text-slate-300 px-2 mt-auto">
+                    <div className="flex items-center gap-1.5 opacity-40">
+                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                        <span className="text-[8px] font-black uppercase tracking-[0.4em]">Engine Intelligence v3.1</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
                     </div>
-                    <span className="text-[8px] font-mono uppercase tracking-[0.3em]">v3.5.0_PRO_CORE</span>
                 </div>
             </div>
 
