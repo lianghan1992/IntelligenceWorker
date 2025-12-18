@@ -92,7 +92,7 @@ export const ReportGenerator: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-white relative overflow-hidden font-sans">
+        <div className="h-full flex flex-col bg-slate-50/50 relative overflow-hidden font-sans">
             {/* 顶层浮动工具栏 */}
             <div className="absolute top-8 right-8 z-[60] flex items-center gap-3">
                 {view !== 'picker' && view !== 'done' && (
