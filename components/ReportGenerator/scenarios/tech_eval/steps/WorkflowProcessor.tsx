@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { CheckIcon, SparklesIcon, ArrowRightIcon, BrainIcon, CloseIcon, DocumentTextIcon, MessageIcon } from '../../../../icons';
+import { CheckIcon, SparklesIcon, ArrowRightIcon, BrainIcon, CloseIcon, DocumentTextIcon, RefreshIcon, ChevronRightIcon } from '../../../../icons';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -24,26 +23,24 @@ export const WorkflowProcessor: React.FC<{
     onFinish: (markdown: string) => void;
     onUpdateSession: (sid: string) => void;
 }> = ({ taskId, scenario, initialSessionId, targetTech, materials, onFinish, onUpdateSession }) => {
-    const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+    const [currentStep, setCurrentStep] = useState<number>(1);
     const [subTaskLabel, setSubTaskLabel] = useState('');
     const [thoughtStream, setThoughtStream] = useState('');
     const [sessionId, setSessionId] = useState(initialSessionId);
     
-    // 报告分段状态：严格仅存储 Step 1-4 的 JSON 产出
+    // 报告内容分段存储
     const [parts, setParts] = useState<{ p1: string; p2: string; p3: string; refs: string }>({
         p1: '', p2: '', p3: '', refs: ''
     });
     
-    const [isConsoleOpen, setIsConsoleOpen] = useState(true); 
-    const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
-    const [userInput, setUserInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [userInput, setUserInput] = useState('');
 
     const hasStarted = useRef(false);
     const thoughtEndRef = useRef<HTMLDivElement>(null);
     const docEndRef = useRef<HTMLDivElement>(null);
 
-    // 组合最终 Markdown：严格合稿逻辑
+    // 组合最终 Markdown
     const combinedMarkdown = useMemo(() => {
         let md = '';
         if (parts.p1) md += `## 第一部分：技术路线与当前所处阶段分析\n\n${parts.p1}\n\n`;
@@ -53,7 +50,7 @@ export const WorkflowProcessor: React.FC<{
         return md.trim();
     }, [parts]);
 
-    // 实时渲染 Markdown
+    // 实时渲染 Markdown 预览
     const renderedHtml = useMemo(() => {
         if (!combinedMarkdown) return '';
         if (window.marked && typeof window.marked.parse === 'function') {
@@ -63,8 +60,8 @@ export const WorkflowProcessor: React.FC<{
     }, [combinedMarkdown]);
 
     useEffect(() => {
-        if (isConsoleOpen) thoughtEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [thoughtStream, isConsoleOpen, messages]);
+        thoughtEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [thoughtStream]);
 
     useEffect(() => {
         docEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -76,8 +73,59 @@ export const WorkflowProcessor: React.FC<{
         runPipeline();
     }, []);
 
+    // 修复：添加处理用户消息的 handleSendMessage 函数，用于处理修订指令
+    const handleSendMessage = async () => {
+        if (!userInput.trim() || isProcessing) return;
+        
+        const message = userInput.trim();
+        setUserInput('');
+        setIsProcessing(true);
+        setSubTaskLabel('正在处理修订指令...');
+        setThoughtStream('');
+
+        try {
+            let fullRes = '';
+            await streamGenerate(
+                { 
+                    prompt_name: '04_Revise_Combined_Content', 
+                    variables: { 
+                        revision_request: message,
+                        current_content: combinedMarkdown 
+                    }, 
+                    scenario, 
+                    session_id: sessionId,
+                    model_override: TARGET_MODEL 
+                },
+                (chunk) => { 
+                    fullRes += chunk; 
+                    const { jsonPart } = extractThoughtAndJson(fullRes);
+                    if (jsonPart) {
+                        const parsed = parseLlmJson<any>(jsonPart);
+                        if (parsed) {
+                            if (parsed.p1) setParts(prev => ({ ...prev, p1: parsed.p1 }));
+                            if (parsed.p2) setParts(prev => ({ ...prev, p2: parsed.p2 }));
+                            if (parsed.p3) setParts(prev => ({ ...prev, p3: parsed.p3 }));
+                            if (parsed.refs) setParts(prev => ({ ...prev, refs: parsed.refs }));
+                        }
+                    }
+                }, 
+                () => setIsProcessing(false),
+                (err) => {
+                    console.error(err);
+                    setIsProcessing(false);
+                },
+                (sid) => { if (sid) { setSessionId(sid); onUpdateSession(sid); } },
+                (tChunk) => setThoughtStream(prev => prev + tChunk)
+            );
+        } catch (e) {
+            console.error(e);
+            setIsProcessing(false);
+        }
+    };
+
     const executeStep = async (promptName: string, vars: any, logLabel: string, onPartUpdate?: (content: string) => void): Promise<string> => {
         setSubTaskLabel(logLabel);
+        setThoughtStream(''); // 每个大步骤清空一次思考流，或追加
         return new Promise<string>((resolve, reject) => {
             let fullRes = '';
             streamGenerate(
@@ -109,27 +157,22 @@ export const WorkflowProcessor: React.FC<{
         setIsProcessing(true);
         try {
             setCurrentStep(1);
-            const roleRes = await executeStep('01_Role_ProtocolSetup', {}, '初始化专家协议');
-            setMessages(prev => [...prev, { role: 'assistant', content: roleRes.replace(/```json[\s\S]*?```/g, '').trim() || '技术专家角色已激活。' }]);
-
-            setCurrentStep(2);
-            const ingestRes = await executeStep('02_DataIngestion', { reference_materials: materials }, '情报注入分析');
-            setMessages(prev => [...prev, { role: 'assistant', content: ingestRes.replace(/```json[\s\S]*?```/g, '').trim() || '资料库已就绪，开始深度评估。' }]);
-
-            // 开始核心输出阶段，关闭对话框
-            setCurrentStep(3);
-            setIsConsoleOpen(false); 
+            await executeStep('01_Role_ProtocolSetup', {}, '专家协议初始化');
             
-            await executeStep('03_TriggerGeneration_step1', { target_tech: targetTech }, '分析技术路线', 
+            setCurrentStep(2);
+            await executeStep('02_DataIngestion', { reference_materials: materials }, '情报知识库对齐');
+
+            setCurrentStep(3);
+            await executeStep('03_TriggerGeneration_step1', { target_tech: targetTech }, '分析代际演进', 
                 (c) => setParts(prev => ({ ...prev, p1: c })));
             
-            await executeStep('03_TriggerGeneration_step2', {}, '识别潜在风险',
+            await executeStep('03_TriggerGeneration_step2', {}, '失效模式识别',
                 (c) => setParts(prev => ({ ...prev, p2: c })));
 
-            await executeStep('03_TriggerGeneration_step3', {}, '生成专家建议',
+            await executeStep('03_TriggerGeneration_step3', {}, '制定推荐方案',
                 (c) => setParts(prev => ({ ...prev, p3: c })));
 
-            const res4 = await executeStep('03_TriggerGeneration_step4', {}, '整合文献来源');
+            const res4 = await executeStep('03_TriggerGeneration_step4', {}, '溯源文献整理');
             const { jsonPart: refsJsonRaw } = extractThoughtAndJson(res4);
             const refsJson = parseLlmJson<any>(refsJsonRaw);
             if (refsJson && typeof refsJson === 'object') {
@@ -138,7 +181,6 @@ export const WorkflowProcessor: React.FC<{
             }
 
             setCurrentStep(4);
-            setMessages(prev => [...prev, { role: 'assistant', content: '评估报告已合成，请审阅。如有修订需求可在此反馈。' }]);
         } catch (e) {
             console.error(e);
         } finally {
@@ -146,168 +188,180 @@ export const WorkflowProcessor: React.FC<{
         }
     };
 
-    const handleSendMessage = async () => {
-        if (!userInput.trim() || isProcessing) return;
-        const userMsg = userInput.trim();
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-        setUserInput('');
-        setIsProcessing(true);
-        
-        let fullRes = '';
-        await streamGenerate(
-            { 
-                prompt_name: '02_revise_outline', 
-                variables: { user_revision_request: userMsg }, 
-                scenario, 
-                session_id: sessionId,
-                model_override: TARGET_MODEL 
-            },
-            (chunk) => {
-                fullRes += chunk;
-                if (fullRes.length > 50) setParts({ p1: fullRes, p2: '', p3: '', refs: '' });
-            },
-            () => {
-                setMessages(prev => [...prev, { role: 'assistant', content: '修订完成。' }]);
-                setIsProcessing(false);
-            },
-            () => setIsProcessing(false),
-            undefined,
-            (tChunk) => setThoughtStream(prev => prev + tChunk)
-        );
-    };
-
     return (
-        <div className="flex-1 flex flex-col overflow-hidden bg-slate-100 font-sans relative">
-            {/* 顶部极简状态栏 */}
-            <div className="h-14 border-b border-slate-200 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md z-30">
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2.5">
-                        <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                        <span className="font-black text-slate-800 text-sm tracking-tight">TECH_EVAL_AGENT v3.2</span>
+        <div className="flex-1 flex flex-col overflow-hidden bg-[#f1f3f6]">
+            {/* 顶栏：极简状态 */}
+            <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shadow-sm">
+                <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                            <BrainIcon className="w-5 h-5" />
+                        </div>
+                        <span className="font-black text-slate-900 tracking-tight">AI ANALYZER ENGINE</span>
                     </div>
-                    <div className="h-4 w-px bg-slate-200"></div>
-                    <div className="flex items-center gap-4">
-                        {['协议', '注入', '生成', '定稿'].map((l, i) => (
-                            <div key={l} className={`flex items-center gap-2 ${currentStep > i + 1 ? 'text-green-600' : (currentStep === i + 1 ? 'text-indigo-600' : 'text-slate-300')}`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === i + 1 ? 'bg-indigo-600 animate-pulse' : (currentStep > i + 1 ? 'bg-green-600' : 'bg-slate-300')}`}></div>
-                                <span className="text-[10px] font-black uppercase tracking-widest">{l}</span>
+                    
+                    {/* 进度步进器 */}
+                    <div className="hidden md:flex items-center gap-6">
+                        {[
+                            { id: 1, label: '角色协议' },
+                            { id: 2, label: '知识对齐' },
+                            { id: 3, label: '核心评估' },
+                            { id: 4, label: '审核校对' }
+                        ].map((s, i) => (
+                            <div key={s.id} className="flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === s.id ? 'bg-indigo-600 animate-pulse ring-4 ring-indigo-100' : (currentStep > s.id ? 'bg-green-50' : 'bg-slate-300')}`}></div>
+                                <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep === s.id ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                    {s.label}
+                                </span>
+                                {i < 3 && <ChevronRightIcon className="w-3 h-3 text-slate-200" />}
                             </div>
                         ))}
                     </div>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                     {isProcessing && (
-                        <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter animate-pulse">
-                            Agent: {subTaskLabel}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-black uppercase tracking-tighter animate-pulse border border-indigo-100">
+                            <RefreshIcon className="w-3 h-3 animate-spin" />
+                            Status: {subTaskLabel}
                         </div>
                     )}
                     <button 
                         onClick={() => onFinish(combinedMarkdown)}
                         disabled={isProcessing || !parts.p1}
-                        className="px-6 py-2 bg-slate-900 text-white font-black text-xs rounded-xl shadow-lg hover:bg-indigo-600 transition-all disabled:opacity-30 flex items-center gap-2"
+                        className="px-8 py-2.5 bg-slate-900 text-white font-black text-xs rounded-xl shadow-xl hover:bg-indigo-600 transition-all disabled:opacity-20 active:scale-95 flex items-center gap-2"
                     >
-                        <CheckIcon className="w-4 h-4" />
-                        确认定稿
+                        <CheckIcon className="w-4 h-4" /> 完成并导出
                     </button>
                 </div>
             </div>
 
-            {/* 文档区 */}
-            <div className="flex-1 overflow-y-auto py-12 px-4 custom-scrollbar bg-slate-200/50">
-                <div className="max-w-4xl mx-auto bg-white min-h-[1200px] shadow-2xl border border-slate-300 relative animate-in fade-in zoom-in duration-1000">
-                    <div className="absolute inset-0 flex items-center justify-center opacity-[0.02] pointer-events-none select-none rotate-12">
-                        <h2 className="text-[120px] font-black text-slate-900 whitespace-nowrap uppercase">AutoInsight Confidential</h2>
-                    </div>
-
-                    <div className="p-12 md:p-24 relative z-10">
-                        {!parts.p1 && !isProcessing ? (
-                            <div className="h-96 flex flex-col items-center justify-center text-slate-300">
-                                <DocumentTextIcon className="w-20 h-20 opacity-10 mb-4" />
-                                <p className="font-black text-xs uppercase tracking-[0.4em]">Standby for ignition...</p>
-                            </div>
-                        ) : (
-                            <article 
-                                className="prose prose-slate max-w-none prose-headings:font-black prose-h2:text-3xl prose-h2:border-b prose-h2:pb-4 prose-h2:mt-16 prose-p:text-slate-700 prose-p:leading-loose prose-p:text-lg selection:bg-indigo-100"
-                                dangerouslySetInnerHTML={{ __html: renderedHtml }}
-                            />
-                        )}
-                        {isProcessing && currentStep === 3 && (
-                            <div className="mt-8 flex items-center gap-3 text-indigo-600 animate-pulse">
-                                <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
-                                <span className="text-sm font-bold uppercase tracking-widest">AI 正在追加情报内容...</span>
-                            </div>
-                        )}
-                        <div ref={docEndRef} className="h-20" />
-                    </div>
-                </div>
-            </div>
-
-            {/* 悬浮控制台入口 */}
-            <button 
-                onClick={() => setIsConsoleOpen(true)}
-                className={`fixed bottom-8 right-8 w-14 h-14 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-indigo-600 transition-all z-40 ${isConsoleOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
-            >
-                <BrainIcon className="w-6 h-6" />
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 rounded-full border-2 border-white animate-pulse"></div>
-            </button>
-
-            {/* 沉浸式对话模态框 */}
-            {isConsoleOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-                    <div className="bg-slate-950 w-full max-w-4xl h-[70vh] rounded-[40px] shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 flex flex-col overflow-hidden animate-in zoom-in-95">
-                        <div className="px-10 py-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-                            <div className="flex items-center gap-4">
-                                <BrainIcon className="w-6 h-6 text-indigo-400" />
-                                <h3 className="font-black text-white text-lg tracking-widest uppercase">Intelligence Interface</h3>
-                            </div>
-                            <button onClick={() => setIsConsoleOpen(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
-                                <CloseIcon className="w-6 h-6" />
-                            </button>
+            {/* 主体工作台：分屏布局 */}
+            <div className="flex-1 flex overflow-hidden">
+                
+                {/* 左侧：Agent 思维控制台 (Dark) */}
+                <div className="w-full md:w-[400px] lg:w-[450px] bg-[#0f172a] border-r border-slate-800 flex flex-col shadow-2xl relative z-10">
+                    <div className="p-5 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Agent Thought Stream</span>
+                        <div className="flex gap-1">
+                            <div className="w-2 h-2 rounded-full bg-red-500/20"></div>
+                            <div className="w-2 h-2 rounded-full bg-amber-500/20"></div>
+                            <div className="w-2 h-2 rounded-full bg-green-500/20"></div>
                         </div>
-
-                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar-dark space-y-8">
-                            {messages.map((m, i) => (
-                                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[85%] text-2xl md:text-3xl font-medium leading-relaxed ${m.role === 'user' ? 'text-indigo-400 text-right' : 'text-white'}`}>
-                                        {m.content}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 font-mono text-[13px] leading-relaxed text-slate-300 custom-scrollbar-dark">
+                        <div className="space-y-6">
+                            {/* 此处可以渲染之前的 Message 历史，这里简化为展示当前 Thought */}
+                            <div className="opacity-40 italic text-slate-500 mb-8 border-b border-slate-800 pb-4">
+                                >> System: Neural network initialized.<br/>
+                                >> Protocol: Engineering Intelligence v3.2<br/>
+                                >> Source: Intelligence Database (RAG Mode)
+                            </div>
+                            
+                            {thoughtStream ? (
+                                <div className="animate-in fade-in duration-300">
+                                    <div className="flex items-center gap-2 text-indigo-400 font-bold mb-2">
+                                        <SparklesIcon className="w-4 h-4" /> 正在分析...
                                     </div>
+                                    <div className="whitespace-pre-wrap text-slate-400">{thoughtStream}</div>
+                                    <span className="inline-block w-2 h-4 bg-indigo-500 animate-pulse ml-1 align-middle"></span>
                                 </div>
-                            ))}
-                            {isProcessing && thoughtStream && (
-                                <div className="text-slate-500 font-mono text-sm leading-relaxed border-t border-white/5 pt-6 opacity-60">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping"></div>
-                                        <span className="uppercase tracking-[0.2em] font-black text-[10px]">Processing Thoughts</span>
-                                    </div>
-                                    <div className="whitespace-pre-wrap">{thoughtStream}</div>
+                            ) : (
+                                <div className="py-20 text-center text-slate-600">
+                                    <div className="w-12 h-12 border-4 border-slate-800 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4"></div>
+                                    <p className="text-[10px] uppercase tracking-widest font-black">Executing Pipeline...</p>
                                 </div>
                             )}
                             <div ref={thoughtEndRef} />
                         </div>
+                    </div>
 
-                        <div className="p-8 bg-white/5 border-t border-white/10">
-                            <div className="relative">
-                                <textarea 
-                                    value={userInput}
-                                    onChange={e => setUserInput(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                                    placeholder="输入您的指令或见解..."
-                                    className="w-full h-24 bg-transparent text-white text-2xl font-bold outline-none resize-none placeholder:text-slate-800"
-                                    disabled={isProcessing}
+                    {/* 修订指令框 */}
+                    <div className="p-5 bg-slate-900/50 border-t border-slate-800">
+                        <div className="relative group">
+                            <textarea 
+                                value={userInput}
+                                onChange={e => setUserInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !isProcessing && handleSendMessage()}
+                                placeholder="输入修订指令 (例如: '加强对比部分的数据密度')"
+                                className="w-full h-24 bg-slate-800/50 border border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all placeholder:text-slate-600 group-hover:border-slate-600"
+                                disabled={isProcessing}
+                            />
+                            <button 
+                                onClick={handleSendMessage}
+                                disabled={isProcessing || !userInput.trim()}
+                                className="absolute bottom-3 right-3 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition-all shadow-lg active:scale-95 disabled:opacity-20"
+                            >
+                                <ArrowRightIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 右侧：文档预览 (Light/Paper) */}
+                <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-12 lg:p-20 custom-scrollbar relative">
+                    {/* 纸张质感容器 */}
+                    <div className="max-w-4xl mx-auto bg-white min-h-full shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200 rounded-[2px] relative overflow-hidden transition-all duration-700">
+                        
+                        {/* 文档装饰：页眉 */}
+                        <div className="absolute top-0 left-0 right-0 h-16 border-b border-slate-50 flex items-center justify-between px-12 opacity-30 select-none">
+                            <span className="text-[9px] font-black uppercase tracking-[0.3em]">CONFIDENTIAL TECH REPORT</span>
+                            <span className="text-[9px] font-black uppercase tracking-[0.3em]">{new Date().toISOString().split('T')[0]}</span>
+                        </div>
+
+                        <div className="p-16 md:p-24 pt-28">
+                            {!combinedMarkdown ? (
+                                <div className="flex flex-col items-center justify-center py-40 text-slate-200">
+                                    <DocumentTextIcon className="w-24 h-24 opacity-10 mb-6" />
+                                    <div className="space-y-2 text-center">
+                                        <div className="h-4 w-64 bg-slate-100 rounded-full animate-pulse"></div>
+                                        <div className="h-4 w-48 bg-slate-100 rounded-full animate-pulse mx-auto"></div>
+                                        <div className="h-4 w-56 bg-slate-100 rounded-full animate-pulse"></div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <article 
+                                    className="prose prose-slate max-w-none 
+                                    prose-headings:text-slate-900 prose-headings:font-black
+                                    prose-h2:text-3xl prose-h2:mb-8 prose-h2:mt-16 prose-h2:border-b-2 prose-h2:border-slate-900 prose-h2:pb-4
+                                    prose-p:text-slate-600 prose-p:leading-loose prose-p:text-lg prose-p:text-justify
+                                    prose-strong:text-indigo-600 prose-strong:font-black
+                                    prose-ul:my-8 prose-li:my-2
+                                    animate-in fade-in duration-1000"
+                                    dangerouslySetInnerHTML={{ __html: renderedHtml }}
                                 />
-                                <button 
-                                    onClick={handleSendMessage}
-                                    disabled={isProcessing || !userInput.trim()}
-                                    className="absolute bottom-0 right-0 p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-500 shadow-xl transition-all active:scale-95 disabled:opacity-20"
-                                >
-                                    <ArrowRightIcon className="w-6 h-6" />
-                                </button>
+                            )}
+                            <div ref={docEndRef} className="h-32" />
+                        </div>
+                        
+                        {/* 页脚装饰 */}
+                        <div className="h-16 border-t border-slate-50 flex items-center justify-center opacity-20 select-none">
+                            <div className="flex items-center gap-2">
+                                <SparklesIcon className="w-3 h-3" />
+                                <span className="text-[8px] font-black tracking-widest uppercase">AutoInsight Intelligence Core v3.2</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            )}
+            </div>
+
+            <style>{`
+                .custom-scrollbar-dark::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+                
+                @keyframes scan {
+                    from { transform: translateY(-100%); }
+                    to { transform: translateY(100%); }
+                }
+                .scanline {
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(to bottom, transparent, rgba(99, 102, 241, 0.05), transparent);
+                    animation: scan 3s linear infinite;
+                    pointer-events: none;
+                }
+            `}</style>
         </div>
     );
 };
