@@ -207,8 +207,12 @@ export const getPoints = async (params?: { source_name?: string }): Promise<Inte
     const points = await getSpiderPoints(params?.source_name);
     return points.map(p => ({
         ...p,
+        id: p.uuid,
         point_name: p.name,
         point_url: p.url,
+        url_filters: [],
+        extra_hint: '',
+        status: p.is_active ? 'active' : 'inactive',
         updated_at: '',
         created_at: ''
     }));
@@ -227,8 +231,12 @@ export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
         is_active: true
     }).then(p => ({
         ...p,
+        id: p.uuid,
         point_name: p.name,
         point_url: p.url,
+        url_filters: [],
+        extra_hint: '',
+        status: 'active',
         updated_at: '',
         created_at: ''
     }));
@@ -318,7 +326,8 @@ export const getArticleById = (articleUuid: string): Promise<ArticlePublic> =>
     getSpiderArticleDetail(articleUuid).then(a => ({
         ...a,
         source_name: a.source_name || 'Unknown',
-        point_name: a.point_name || 'Unknown'
+        point_name: a.point_name || 'Unknown',
+        original_url: a.original_url || ''
     }));
 
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {

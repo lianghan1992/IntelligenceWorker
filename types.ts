@@ -112,6 +112,7 @@ export interface InfoItem {
     title: string;
     content: string;
     source_name: string;
+    point_name?: string;
     original_url: string;
     publish_date?: string;
     created_at: string;
@@ -516,4 +517,23 @@ export interface StratifyQueueStatus {
     running_tasks: number;
     pending_tasks: number;
     completed_last_24h: number;
+}
+
+export interface GenericPoint extends SpiderPoint {
+    id: string;
+    list_hint?: string;
+    list_filters?: string[];
+}
+
+export interface GenericTask {
+    id: string;
+    source_name: string;
+    point_name: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time: string;
+    created_at: string;
 }

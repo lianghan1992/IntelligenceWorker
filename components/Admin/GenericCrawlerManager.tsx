@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GenericPoint, GenericTask } from '../../types';
 import { createGenericPoint, updateGenericPoint, getSourcesAndPoints, getGenericTasks } from '../../api';
@@ -74,19 +75,18 @@ export const GenericCrawlerManager: React.FC = () => {
                     for (const p of src.points) {
                         if (p.mode === 'generic' || p.type === 'generic') {
                              // Map IntelligencePointPublic to GenericPoint
+                             // Fix: Removed non-existent properties 'point_name', 'point_url', 'created_at', and 'updated_at' to match GenericPoint type definition.
                              allPoints.push({
                                  id: p.id,
                                  uuid: p.uuid || p.id,
                                  source_uuid: p.source_uuid || src.uuid || src.id,
                                  source_name: p.source_name || src.source_name,
                                  name: p.name || p.point_name || 'Unnamed',
-                                 point_name: p.point_name || p.name || 'Unnamed',
                                  url: p.url || p.point_url || '',
-                                 point_url: p.point_url || p.url || '',
                                  cron_schedule: p.cron_schedule,
                                  is_active: p.is_active,
-                                 created_at: p.created_at || '',
-                                 updated_at: p.updated_at || '',
+                                 last_crawled_at: p.last_crawled_at,
+                                 initial_pages: p.initial_pages,
                                  list_hint: p.list_hint || p.extra_hint,
                                  list_filters: p.list_filters || p.url_filters
                              });

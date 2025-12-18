@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { InfoItem } from '../../types';
+import { InfoItem, ArticlePublic } from '../../types';
 import { CloseIcon } from '../icons';
 
 interface IntelligenceArticleModalProps {
@@ -13,13 +13,15 @@ const formatContent = (content: string) => {
 };
 
 export const IntelligenceArticleModal: React.FC<IntelligenceArticleModalProps> = ({ article, onClose }) => {
+  const displayArticle = article as ArticlePublic;
+  
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col shadow-xl transform transition-all animate-in fade-in-0 zoom-in-95">
         <div className="p-5 border-b flex justify-between items-center flex-shrink-0">
           <div className="overflow-hidden">
             <h3 className="text-lg font-semibold text-gray-900 truncate pr-4">{article.title}</h3>
-            <p className="text-sm text-gray-500">{article.source_name} / {article.point_name} - {new Date(article.publish_date || article.created_at).toLocaleDateString()}</p>
+            <p className="text-sm text-gray-500">{article.source_name} / {displayArticle.point_name} - {new Date(article.publish_date || article.created_at).toLocaleDateString()}</p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
             <CloseIcon className="w-5 h-5" />

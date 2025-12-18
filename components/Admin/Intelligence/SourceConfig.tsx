@@ -140,8 +140,12 @@ export const SourceConfig: React.FC = () => {
         if (!p) return null;
         return {
             ...p,
+            id: p.uuid,
             point_name: p.name,
             point_url: p.url,
+            url_filters: [],
+            extra_hint: '',
+            status: p.is_active ? 'active' : 'inactive',
             created_at: '',
             updated_at: ''
         };
