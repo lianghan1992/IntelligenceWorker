@@ -2,6 +2,7 @@
 import React from 'react';
 import { DefaultScenario } from './default/DefaultScenario';
 import { TechEvalScenario } from './tech_eval/TechEvalScenario';
+import { StratifyScenario } from '../../../types';
 
 // 场景组件的 Props 定义
 export interface ScenarioProps {
@@ -14,17 +15,32 @@ export interface ScenarioProps {
 }
 
 /**
- * 场景注册表：Key 必须对应后端返回的 technical name (slug) 或 UUID
+ * 场景注册表
+ * Key 建议同时配置 UUID 和 别名(name)，以确保无论后端返回哪种标识符都能匹配
  */
 export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
+    // 通用场景
     'default': DefaultScenario,
     '通用PPT生成': DefaultScenario,
-    // 新增：新技术评估场景 (通过 UUID 或名称映射)
+    
+    // 新技术评估场景 (核心修复：显式匹配你的 UUID)
     '50de3a59-0502-4202-9ddb-36ceb07fb3f1': TechEvalScenario,
     'tech_evaluation': TechEvalScenario,
+    '新技术评估': TechEvalScenario,
 };
 
-// 辅助函数：判断场景是否已在前端实现
-export const isScenarioSupported = (name: string) => {
-    return !!SCENARIO_REGISTRY[name];
+/**
+ * 辅助函数：判断场景是否已在前端实现
+ * 同时检查 ID 和 Name 字段
+ */
+export const isScenarioSupported = (scenario: StratifyScenario) => {
+    return !!SCENARIO_REGISTRY[scenario.id] || !!SCENARIO_REGISTRY[scenario.name];
+};
+
+/**
+ * 辅助函数：根据场景对象获取对应的组件
+ */
+export const getScenarioComponent = (scenario: StratifyScenario | string) => {
+    if (typeof scenario === 'string') return SCENARIO_REGISTRY[scenario];
+    return SCENARIO_REGISTRY[scenario.id] || SCENARIO_REGISTRY[scenario.name];
 };

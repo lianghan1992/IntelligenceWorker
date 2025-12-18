@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { StratifyTask, Scenario } from '../../types';
+import { StratifyTask, StratifyScenario } from '../../types';
 import { createStratifyTask, getScenarios, getStratifyTaskDetail, streamGenerate } from '../../api/stratify';
-import { SCENARIO_REGISTRY, isScenarioSupported } from './scenarios/registry';
+import { SCENARIO_REGISTRY, isScenarioSupported, getScenarioComponent } from './scenarios/registry';
 
 // Shared UI Components
 import { HistoryDrawer } from './shared/HistoryDrawer';
@@ -13,8 +13,8 @@ import { ClockIcon, ChevronLeftIcon, CheckIcon, DownloadIcon } from '../icons';
 
 export const ReportGenerator: React.FC = () => {
     const [view, setViewState] = useState<'picker' | 'collector' | 'workflow' | 'done'>('picker');
-    const [scenarios, setScenarios] = useState<Scenario[]>([]);
-    const [selectedScenario, setSelectedScenario] = useState<string>('default');
+    const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
+    const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
     
     const [task, setTask] = useState<StratifyTask | null>(null);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -27,9 +27,10 @@ export const ReportGenerator: React.FC = () => {
         }
     }, [view]);
 
-    const handleScenarioSelect = (name: string) => {
-        if (!isScenarioSupported(name)) return;
-        setSelectedScenario(name);
+    const handleScenarioSelect = (id: string) => {
+        const scenario = scenarios.find(s => s.id === id);
+        if (!scenario || !isScenarioSupported(scenario)) return;
+        setSelectedScenarioId(id);
         setViewState('collector');
     };
 
@@ -37,14 +38,14 @@ export const ReportGenerator: React.FC = () => {
         setIsAnalyzing(true);
         setAnalysisStream('');
         try {
-            const newTask = await createStratifyTask(userInput, selectedScenario);
+            const newTask = await createStratifyTask(userInput, selectedScenarioId);
             setTask({ ...newTask, context });
 
             await streamGenerate(
                 {
                     prompt_name: '00_analyze_input',
                     variables: { user_input: userInput },
-                    scenario: selectedScenario,
+                    scenario: selectedScenarioId,
                     task_id: newTask.id,
                     phase_name: '00_analyze_input'
                 },
@@ -67,7 +68,7 @@ export const ReportGenerator: React.FC = () => {
         try {
             const detail = await getStratifyTaskDetail(taskId);
             setTask(detail);
-            setSelectedScenario(detail.scenario_name);
+            setSelectedScenarioId(detail.scenario_name); // 注意：后端 scenario_name 可能存的是 ID 或 Name
             setViewState('workflow');
         } catch (e) {
             alert('加载失败');
@@ -76,14 +77,16 @@ export const ReportGenerator: React.FC = () => {
 
     const renderScenarioWorkflow = () => {
         if (!task) return null;
-        const ScenarioComponent = SCENARIO_REGISTRY[selectedScenario];
-        if (!ScenarioComponent) return <div className="p-20 text-center text-slate-500 font-bold">未找到场景实现</div>;
+        
+        // 使用场景名或 ID 寻找组件
+        const ScenarioComponent = getScenarioComponent(selectedScenarioId);
+        if (!ScenarioComponent) return <div className="p-20 text-center text-slate-500 font-bold">未找到场景实现 (Target: {selectedScenarioId})</div>;
 
         return (
             <ScenarioComponent 
                 taskId={task.id}
                 topic={task.input_text}
-                scenario={selectedScenario}
+                scenario={selectedScenarioId}
                 sessionId={task.session_id}
                 context={task.context}
                 onComplete={() => setViewState('done')}
@@ -93,7 +96,6 @@ export const ReportGenerator: React.FC = () => {
 
     return (
         <div className="h-full flex flex-col bg-white relative overflow-hidden font-sans">
-            {/* 顶层浮动工具栏 */}
             <div className="absolute top-8 right-8 z-[60] flex items-center gap-3">
                 {view !== 'picker' && view !== 'done' && (
                     <button 

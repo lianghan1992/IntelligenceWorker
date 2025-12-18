@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Scenario } from '../../../types';
+import { StratifyScenario } from '../../../types';
 import { isScenarioSupported } from '../scenarios/registry';
 import { SparklesIcon, ChevronRightIcon, LockClosedIcon, ViewGridIcon } from '../../icons';
 
@@ -37,7 +37,7 @@ const COLOR_SCHEMES = [
 ];
 
 export const ScenarioPicker: React.FC<{
-    scenarios: Scenario[];
+    scenarios: StratifyScenario[];
     onSelect: (name: string) => void;
 }> = ({ scenarios, onSelect }) => {
     return (
@@ -65,14 +65,15 @@ export const ScenarioPicker: React.FC<{
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {scenarios.map((s, idx) => {
-                        const supported = isScenarioSupported(s.name);
+                        // 核心：调用更新后的支持检查函数，传入整个场景对象
+                        const supported = isScenarioSupported(s);
                         const scheme = COLOR_SCHEMES[idx % COLOR_SCHEMES.length];
 
                         return (
                             <div 
-                                key={s.name}
-                                onClick={() => supported && onSelect(s.name)}
-                                className={`group relative h-[150px] rounded-[24px] overflow-hidden transition-all duration-500 shadow-lg ${
+                                key={s.id}
+                                onClick={() => supported && onSelect(s.id)}
+                                className={`group relative h-[180px] rounded-[24px] overflow-hidden transition-all duration-500 shadow-lg ${
                                     supported 
                                     ? 'cursor-pointer hover:scale-[1.04] hover:shadow-2xl active:scale-95' 
                                     : 'cursor-not-allowed grayscale opacity-40'
@@ -81,14 +82,11 @@ export const ScenarioPicker: React.FC<{
                                 {/* 动态渐变背景层 */}
                                 <div className={`absolute inset-0 bg-gradient-to-br ${scheme.bg} ${scheme.anim}`}></div>
                                 
-                                {/* 辅助装饰光斑 */}
                                 <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/20 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
                                 <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-black/10 rounded-full blur-3xl"></div>
 
-                                {/* 毛玻璃蒙层：让文字在彩色背景上呼吸 */}
                                 <div className="absolute inset-0 card-glass backdrop-blur-[1px]"></div>
 
-                                {/* 内容渲染 */}
                                 <div className="relative z-10 p-5 h-full flex flex-col justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-lg bg-white/95 shadow-sm flex items-center justify-center flex-shrink-0 transition-transform group-hover:rotate-12">
@@ -100,18 +98,18 @@ export const ScenarioPicker: React.FC<{
                                     </div>
 
                                     <div className="space-y-3">
-                                        <p className="text-[11px] text-white/80 line-clamp-2 leading-relaxed font-medium">
+                                        <p className="text-[11px] text-white/80 line-clamp-3 leading-relaxed font-medium">
                                             {s.description || '基于行业专家逻辑链条构建的智能创作流水线，一键产出高价值研报。'}
                                         </p>
                                         
                                         <div className="flex items-center justify-between">
                                             {supported ? (
                                                 <div className="flex items-center gap-1 text-[10px] font-black text-white/90 uppercase tracking-widest">
-                                                    Start Workflow <ChevronRightIcon className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                                    Enter Workflow <ChevronRightIcon className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-1 text-[10px] font-black text-white/40 uppercase tracking-widest">
-                                                    <LockClosedIcon className="w-3 h-3" /> Locked
+                                                    <LockClosedIcon className="w-3 h-3" /> Coming Soon
                                                 </div>
                                             )}
                                             <SparklesIcon className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-all group-hover:rotate-[30deg]" />
@@ -119,7 +117,6 @@ export const ScenarioPicker: React.FC<{
                                     </div>
                                 </div>
 
-                                {/* 底部细边框高亮 */}
                                 <div className="absolute bottom-0 left-0 h-[3px] w-0 bg-white/60 group-hover:w-full transition-all duration-700"></div>
                             </div>
                         );
