@@ -28,6 +28,7 @@ export const InputCollector: React.FC<{
         onStart({ targetTech, materials: manualMaterials });
     };
 
+    // 统一输入框样式
     const textareaBaseClass = "flex-1 w-full bg-slate-50 border border-slate-200 rounded-[24px] p-5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 transition-all resize-none placeholder:font-normal placeholder:text-slate-300 shadow-inner custom-scrollbar";
 
     return (
@@ -35,7 +36,7 @@ export const InputCollector: React.FC<{
             {/* 1. 评估目标 (1/3) */}
             <div className="h-1/3 flex flex-col p-6 border-b border-slate-100">
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.4)]"></div>
+                    <div className="w-1.5 h-6 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.3)]"></div>
                     <h4 className="text-xl font-black text-slate-900 tracking-tight">评估目标</h4>
                 </div>
                 <textarea 
@@ -50,7 +51,7 @@ export const InputCollector: React.FC<{
             {/* 2. 参考资料 (1/3) */}
             <div className="h-1/3 flex flex-col p-6 border-b border-slate-100">
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.4)]"></div>
+                    <div className="w-1.5 h-6 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.3)]"></div>
                     <h4 className="text-xl font-black text-slate-900 tracking-tight">参考资料</h4>
                 </div>
                 <textarea 
@@ -62,10 +63,10 @@ export const InputCollector: React.FC<{
                 />
             </div>
 
-            {/* 3. 执行区 (1/3) - 改为纯净白色背景 */}
-            <div className="h-1/3 flex flex-col p-6 justify-between bg-white relative overflow-hidden">
-                <div className="relative z-10 space-y-6 pt-4">
-                    {/* 辅助工具 - 统一色系风格 */}
+            {/* 3. 执行区 (1/3) - 纯净白色设计，移除所有多余文字 */}
+            <div className="h-1/3 flex flex-col p-6 justify-center bg-white">
+                <div className="space-y-6">
+                    {/* 辅助工具 - 统一灰阶，悬浮变色 */}
                     <div className="flex gap-2">
                         <button className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 group">
                             <PlusIcon className="w-4 h-4" />
@@ -84,36 +85,25 @@ export const InputCollector: React.FC<{
                         </button>
                     </div>
 
-                    {/* 主执行按钮 - 极简高对比度设计 */}
-                    <div className="pt-2">
-                        <button 
-                            onClick={handleStart}
-                            disabled={isProcessing || !targetTech.trim()}
-                            className={`
-                                w-full py-5 rounded-[24px] font-black text-base shadow-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-4
-                                ${isProcessing || !targetTech.trim() 
-                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none border border-slate-100' 
-                                    : 'bg-slate-900 text-white shadow-slate-900/20 hover:bg-indigo-600 hover:shadow-indigo-500/30 hover:-translate-y-1'
-                                }
-                            `}
-                        >
-                            {isProcessing ? (
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            ) : (
-                                <BrainIcon className="w-6 h-6" />
-                            )}
-                            <span>开始生成技术研报</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* 底部信息 - 仅保留极简提示 */}
-                <div className="relative z-10 flex items-center justify-center text-slate-300 px-2 mt-auto">
-                    <div className="flex items-center gap-1.5 opacity-40">
-                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                        <span className="text-[8px] font-black uppercase tracking-[0.4em]">Engine Intelligence v3.1</span>
-                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                    </div>
+                    {/* 主执行按钮 - 极简高对比度 */}
+                    <button 
+                        onClick={handleStart}
+                        disabled={isProcessing || !targetTech.trim()}
+                        className={`
+                            w-full py-5 rounded-[24px] font-black text-base transition-all active:scale-[0.98] flex items-center justify-center gap-4
+                            ${isProcessing || !targetTech.trim() 
+                                ? 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-100' 
+                                : 'bg-slate-900 text-white shadow-xl shadow-slate-200 hover:bg-indigo-600 hover:shadow-indigo-500/20 hover:-translate-y-0.5'
+                            }
+                        `}
+                    >
+                        {isProcessing ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        ) : (
+                            <BrainIcon className="w-6 h-6" />
+                        )}
+                        <span>开始生成技术研报</span>
+                    </button>
                 </div>
             </div>
 
