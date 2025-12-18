@@ -21,7 +21,6 @@ export const FinalRenderer: React.FC<{
     useEffect(() => {
         const synthesize = async () => {
             let buffer = '';
-            // 使用全新会话
             await streamGenerate(
                 { 
                     prompt_name: '04_Markdown2Html', 
@@ -32,21 +31,21 @@ export const FinalRenderer: React.FC<{
                 },
                 (chunk) => {
                     buffer += chunk;
-                    // 展示原始代码流，增加炫酷感
-                    setCodeStream(prev => (prev + chunk).slice(-2000));
+                    // 展示银白色代码流
+                    setCodeStream(prev => (prev + chunk).slice(-1500));
                 },
                 () => {
                     const { jsonPart } = extractThoughtAndJson(buffer);
                     const parsed = parseLlmJson<any>(jsonPart);
-                    if (parsed && parsed.html_report) {
-                        setHtmlContent(parsed.html_report);
-                    } else {
-                        // 兜底：尝试从文本中直接找 html 标签
+                    if (parsed && parsed.html_report) setHtmlContent(parsed.html_report);
+                    else {
                         const htmlMatch = buffer.match(/<div[\s\S]*<\/div>/i);
                         if (htmlMatch) setHtmlContent(htmlMatch[0]);
                     }
-                    setIsSynthesizing(false);
-                    onFinish();
+                    setTimeout(() => {
+                        setIsSynthesizing(false);
+                        onFinish();
+                    }, 1000);
                 }
             );
         };
@@ -57,11 +56,11 @@ export const FinalRenderer: React.FC<{
         if (!htmlContent) return;
         setIsDownloading(true);
         try {
-            const blob = await generatePdf(htmlContent, `TECH_REPORT_${taskId.slice(0,8)}.pdf`);
+            const blob = await generatePdf(htmlContent, `TECH_EVAL_${taskId.slice(0,8)}.pdf`);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `新技术评估报告_${new Date().toISOString().slice(0,10)}.pdf`;
+            a.download = `技术深度评估报告_${new Date().toISOString().slice(0,10)}.pdf`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -71,62 +70,77 @@ export const FinalRenderer: React.FC<{
     };
 
     return (
-        <div className="h-full flex flex-col bg-slate-900 overflow-hidden relative">
-            {/* Header */}
-            <div className="h-14 border-b border-white/10 flex items-center justify-between px-8 bg-slate-950/50 backdrop-blur-md z-30">
+        <div className="h-full flex flex-col bg-[#020617] overflow-hidden relative">
+            {/* 精致页眉 */}
+            <div className="h-14 border-b border-white/5 flex items-center justify-between px-8 bg-slate-950/80 backdrop-blur-md z-30">
                 <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-indigo-600 rounded-lg">
+                    <div className="p-1.5 bg-indigo-600 rounded-lg shadow-[0_0_20px_rgba(79,70,229,0.4)]">
                         <SparklesIcon className="w-4 h-4 text-white" />
                     </div>
-                    <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Visual Synthesis Engine</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-[0.3em]">Hifi Layout Synthesis Engine</span>
                 </div>
                 <div className="flex items-center gap-4">
                     {!isSynthesizing && (
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading}
-                            className="px-6 py-2 bg-white text-slate-900 text-[10px] font-black rounded-full hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-2"
+                            className="px-6 py-2 bg-white text-slate-900 text-[10px] font-black rounded-full hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 active:scale-95 shadow-2xl"
                         >
                             {isDownloading ? <div className="animate-spin h-3 w-3 border-2 border-slate-900 border-t-transparent rounded-full"></div> : <DownloadIcon className="w-4 h-4" />}
                             SAVE TO PDF
                         </button>
                     )}
-                    <button onClick={onComplete} className="p-2 text-slate-500 hover:text-white"><CloseIcon className="w-5 h-5" /></button>
+                    <button onClick={onComplete} className="p-2 text-slate-500 hover:text-white transition-colors"><CloseIcon className="w-5 h-5" /></button>
                 </div>
             </div>
 
-            <div className="flex-1 relative">
+            <div className="flex-1 relative flex items-center justify-center bg-slate-100/5">
                 {isSynthesizing ? (
-                    <div className="h-full flex flex-col bg-[#020617] p-10 font-mono text-[11px] text-emerald-500/60 overflow-hidden relative">
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-transparent to-transparent z-10"></div>
-                        <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-indigo-500/5 to-transparent z-10"></div>
+                    <div className="h-full w-full flex flex-col bg-[#020617] p-12 font-mono text-[11px] text-slate-400 overflow-hidden relative border-l border-white/5">
+                        {/* 工程网格底纹 */}
+                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
                         
-                        <div className="mb-8 flex items-center gap-4 border-b border-emerald-500/20 pb-4">
-                            <CodeIcon className="w-5 h-5 animate-pulse" />
-                            <span className="font-bold tracking-widest">SYNTHESIZING UI COMPONENTS...</span>
+                        <div className="relative z-10 mb-8 flex items-center justify-between border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-3">
+                                <CodeIcon className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                <span className="font-black tracking-[0.2em] text-white">SYSTEM_COMPILING_LAYOUT_BLUEPRINT</span>
+                            </div>
+                            <span className="text-[9px] text-indigo-500/50">V_ENGINE 3.2</span>
                         </div>
                         
-                        <div className="whitespace-pre-wrap break-all leading-relaxed">
+                        <div className="relative z-10 whitespace-pre-wrap break-all leading-loose opacity-80">
                             {codeStream}
-                            <span className="w-2 h-4 bg-emerald-500 animate-pulse inline-block align-middle ml-1"></span>
+                            <span className="w-2 h-4 bg-indigo-500 animate-pulse inline-block align-middle ml-1"></span>
                         </div>
 
-                        {/* Scanline Effect */}
-                        <div className="absolute inset-0 pointer-events-none opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]"></div>
+                        {/* 扫描线动画 */}
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                            <div className="w-full h-[20%] bg-gradient-to-b from-transparent via-indigo-500/10 to-transparent absolute top-0 animate-blueprint-scan"></div>
+                        </div>
                     </div>
                 ) : (
-                    <div className="h-full w-full bg-slate-100 flex items-center justify-center p-4 lg:p-10">
-                         <div className="w-full h-full max-w-5xl bg-white shadow-2xl rounded-[2px] overflow-hidden border border-slate-200">
+                    <div className="h-full w-full bg-[#eef2f6] flex items-center justify-center p-4 lg:p-12 animate-in fade-in duration-1000">
+                         <div className="w-full h-full max-w-5xl bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] rounded-sm overflow-hidden border border-slate-200 ring-1 ring-black/5">
                              <iframe 
                                 srcDoc={htmlContent || ''}
                                 className="w-full h-full border-none"
-                                title="Final Report"
+                                title="Hifi Engineering Report"
                                 sandbox="allow-scripts allow-same-origin"
                             />
                          </div>
                     </div>
                 )}
             </div>
+            
+            <style>{`
+                @keyframes blueprint-scan {
+                    0% { transform: translateY(-100%); }
+                    100% { transform: translateY(500%); }
+                }
+                .animate-blueprint-scan {
+                    animation: blueprint-scan 3s linear infinite;
+                }
+            `}</style>
         </div>
     );
 };
