@@ -62,7 +62,10 @@ export const ScenarioPicker: React.FC<{
                                         <ViewGridIcon className="w-6 h-6 text-white" />
                                     </div>
 
-                                    <h3 className="text-xl font-black text-white tracking-tight mb-2 group-hover:translate-x-1 transition-transform">{s.name}</h3>
+                                    {/* 修正：优先显示 s.label，如果为空则显示 s.name */}
+                                    <h3 className="text-xl font-black text-white tracking-tight mb-2 group-hover:translate-x-1 transition-transform">
+                                        {s.label || s.name}
+                                    </h3>
                                     <p className="text-white/70 text-xs leading-relaxed line-clamp-3 font-medium">
                                         {s.description || '基于该场景的专业逻辑，深入剖析市场动态。'}
                                     </p>

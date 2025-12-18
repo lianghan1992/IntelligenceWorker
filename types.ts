@@ -47,7 +47,8 @@ export interface SystemSource {
 // --- Report Generator / Stratify Types (Plumber Mode) ---
 
 export interface Scenario {
-    name: string;
+    name: string;      // 技术标识符 (ID/Slug)，如 'default'
+    label: string;     // 显示名称，如 '通用PPT生成'
     description: string | null;
 }
 

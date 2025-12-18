@@ -12,9 +12,13 @@ export interface ScenarioProps {
     onComplete: () => void;
 }
 
-// 场景注册表：Key 必须对应后端返回的 scenario_name
+/**
+ * 场景注册表：Key 必须对应后端返回的 technical name (slug)
+ * 如果后端将 '通用PPT生成' 直接作为 key 传递，我们也在此进行注册。
+ */
 export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
     'default': DefaultScenario,
+    '通用PPT生成': DefaultScenario, // 增加映射，确保即便后端返回中文作为 ID 也能正常工作
     // 未来在这里增加新场景，例如：
     // 'tech_report': TechReportScenario,
 };
