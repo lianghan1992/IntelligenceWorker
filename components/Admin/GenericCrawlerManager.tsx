@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { GenericPoint, GenericTask } from '../../types';
 import { createGenericPoint, updateGenericPoint, getSourcesAndPoints, getGenericTasks } from '../../api';
@@ -12,6 +11,9 @@ const Spinner: React.FC = () => (
 );
 
 // --- Sub-components ---
+/**
+ * Fix: Use point.name and point.url as they are standard on SpiderPoint which GenericPoint extends.
+ */
 const PointCard: React.FC<{ point: GenericPoint; onEdit: (p: GenericPoint) => void; onToggle: (p: GenericPoint) => void }> = ({ point, onEdit, onToggle }) => (
     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:border-indigo-200 group flex flex-col h-full">
         <div className="flex justify-between items-start mb-3">
@@ -62,13 +64,16 @@ export const GenericCrawlerManager: React.FC = () => {
     const fetchPoints = useCallback(async () => {
         setIsLoading(true);
         try {
+            // Get all sources and their points
             const sources = await getSourcesAndPoints();
             const allPoints: GenericPoint[] = [];
             
+            // Filter for generic points
             for (const src of sources) {
                 if (src.points) {
                     for (const p of src.points) {
                         if (p.mode === 'generic' || p.type === 'generic') {
+                             // Map IntelligencePointPublic to GenericPoint
                              allPoints.push({
                                  id: p.id,
                                  uuid: p.uuid || p.id,
@@ -80,6 +85,7 @@ export const GenericCrawlerManager: React.FC = () => {
                                  point_url: p.point_url || p.url || '',
                                  cron_schedule: p.cron_schedule,
                                  is_active: p.is_active,
+                                 created_at: p.created_at || '',
                                  updated_at: p.updated_at || '',
                                  list_hint: p.list_hint || p.extra_hint,
                                  list_filters: p.list_filters || p.url_filters
@@ -194,6 +200,7 @@ export const GenericCrawlerManager: React.FC = () => {
                                 )}
                             </tbody>
                         </table>
+                        {/* Pagination controls for tasks */}
                         <div className="p-4 border-t border-slate-100 flex justify-between items-center bg-white">
                             <span className="text-xs text-slate-400">共 {taskTotal} 条记录</span>
                             <div className="flex gap-2">
