@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
+import { streamGenerate, parseLlmJson, getScenarios } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { CheckIcon, SparklesIcon, ArrowRightIcon, BrainIcon, CloseIcon, DocumentTextIcon, RefreshIcon, ChevronRightIcon } from '../../../../icons';
 
@@ -12,7 +12,8 @@ declare global {
   }
 }
 
-const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+// 默认执行引擎切换至 mistral-devstral
+const DEFAULT_TARGET_MODEL = "mistralai/devstral-2512:free";
 
 /**
  * 增强型提取函数：从流式字符串中寻找正在输出的键值对内容
@@ -46,6 +47,7 @@ export const WorkflowProcessor: React.FC<{
     const [subTaskLabel, setSubTaskLabel] = useState('准备就绪');
     const [thoughtStream, setThoughtStream] = useState('');
     const [sessionId, setSessionId] = useState(initialSessionId);
+    const [configuredModel, setConfiguredModel] = useState(DEFAULT_TARGET_MODEL);
     
     const [parts, setParts] = useState<{ p1: string; p2: string; p3: string; refs: string }>({
         p1: '', p2: '', p3: '', refs: ''
@@ -60,7 +62,7 @@ export const WorkflowProcessor: React.FC<{
 
     const combinedMarkdown = useMemo(() => {
         let md = '';
-        if (parts.p1) md += `## 第一部分：技术路线与当前所处阶段分析\n\n${parts.p1}\n\n`;
+        if (parts.p1) md += `## 第一部分：技术路线与当前所处阶段 analysis\n\n${parts.p1}\n\n`;
         if (parts.p2) md += `## 第二部分：当前技术潜在风险识别与分析\n\n${parts.p2}\n\n`;
         if (parts.p3) md += `## 第三部分：行业技术方案推荐\n\n${parts.p3}\n\n`;
         if (parts.refs) md += `### 引用资料来源\n\n${parts.refs}`;
@@ -83,15 +85,30 @@ export const WorkflowProcessor: React.FC<{
         docEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [combinedMarkdown]);
 
+    // 初始化：获取场景配置的模型
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const scenarios = await getScenarios();
+                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+                if (current?.model_config) {
+                    setConfiguredModel(current.model_config);
+                }
+            } catch (e) {
+                console.warn("Failed to load scenario model config, using default.");
+            }
+        };
+        init();
+    }, [scenario]);
+
     useEffect(() => {
         if (hasStarted.current) return;
         hasStarted.current = true;
         runPipeline();
-    }, []);
+    }, [configuredModel]); // 确保在获取到配置模型后开始
 
     const executeStep = async (promptName: string, vars: any, logLabel: string, onPartUpdate?: (content: string) => void): Promise<string> => {
         setSubTaskLabel(logLabel);
-        // 如果是新任务，不重置所有思维流，而是添加一个分隔符
         setThoughtStream(prev => prev + `\n\n[System] 执行步骤: ${logLabel}\n----------------------------\n`);
         
         return new Promise<string>((resolve, reject) => {
@@ -102,16 +119,14 @@ export const WorkflowProcessor: React.FC<{
                     variables: vars, 
                     scenario, 
                     session_id: sessionId,
-                    model_override: TARGET_MODEL 
+                    model_override: configuredModel 
                 },
                 (chunk) => { 
                     accumulatedContent += chunk; 
                     if (onPartUpdate) {
-                        // 如果后端返回的是 JSON 碎片，尝试提取正文
                         const partial = extractPartialValue(accumulatedContent);
                         if (partial) onPartUpdate(partial);
                     } else {
-                        // 如果不需要提取 JSON（如协议确认），直接把 content 流显示在左侧
                         setThoughtStream(prev => prev + chunk);
                     }
                 }, 
@@ -138,7 +153,7 @@ export const WorkflowProcessor: React.FC<{
                     variables: { revision_request: message, current_content: combinedMarkdown }, 
                     scenario, 
                     session_id: sessionId,
-                    model_override: TARGET_MODEL 
+                    model_override: configuredModel 
                 },
                 (chunk) => { 
                     accumulated += chunk; 
@@ -148,12 +163,6 @@ export const WorkflowProcessor: React.FC<{
                         if (parsed.p2) setParts(prev => ({ ...prev, p2: parsed.p2 }));
                         if (parsed.p3) setParts(prev => ({ ...prev, p3: parsed.p3 }));
                         if (parsed.refs) setParts(prev => ({ ...prev, refs: parsed.refs }));
-                    } else {
-                        const partial = extractPartialValue(accumulated);
-                        if (partial) {
-                             // 简单的流式更新逻辑：如果当前正处于修订，我们无法精确知道在更新哪个 P，
-                             // 建议后端在修订接口返回固定的 key 或者全量。此处展示最新提取的内容。
-                        }
                     }
                 }, 
                 () => setIsProcessing(false),
@@ -167,6 +176,7 @@ export const WorkflowProcessor: React.FC<{
     };
 
     const runPipeline = async () => {
+        if (!configuredModel) return;
         setIsProcessing(true);
         try {
             setCurrentStep(1);
@@ -231,6 +241,10 @@ export const WorkflowProcessor: React.FC<{
                 </div>
 
                 <div className="flex items-center gap-4">
+                    <div className="hidden lg:flex flex-col items-end mr-4">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Active Model</span>
+                        <span className="text-[10px] font-bold text-indigo-600">{configuredModel}</span>
+                    </div>
                     {isProcessing && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-black animate-pulse border border-indigo-100 uppercase">
                             <RefreshIcon className="w-3 h-3 animate-spin" />
@@ -262,7 +276,7 @@ export const WorkflowProcessor: React.FC<{
                         <div className="space-y-4">
                             <div className="opacity-40 italic text-slate-500 mb-8 border-b border-slate-800 pb-4">
                                 &gt;&gt; System: Neural network initialized.<br/>
-                                &gt;&gt; Source: Intelligence Database (RAG Mode)
+                                &gt;&gt; Engine: {configuredModel}
                             </div>
                             
                             {thoughtStream ? (

@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
+import { streamGenerate, parseLlmJson, generatePdf, getScenarios } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { CheckIcon, DownloadIcon, SparklesIcon, BrainIcon, CloseIcon, ChevronLeftIcon } from '../../../../icons';
 
-const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+// 默认排版引擎切换
+const DEFAULT_TARGET_MODEL = "mistralai/devstral-2512:free";
 
 interface FinalRendererProps {
     taskId: string;
@@ -18,9 +19,26 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
     const [isRendering, setIsRendering] = useState(true);
     const [isDownloading, setIsDownloading] = useState(false);
     const [thought, setThought] = useState('');
+    const [configuredModel, setConfiguredModel] = useState(DEFAULT_TARGET_MODEL);
+
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const scenarios = await getScenarios();
+                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+                if (current?.model_config) {
+                    setConfiguredModel(current.model_config);
+                }
+            } catch (e) {
+                console.warn("Failed to load scenario model config for renderer.");
+            }
+        };
+        init();
+    }, [scenario]);
 
     useEffect(() => {
         const render = async () => {
+            if (!configuredModel) return;
             let buffer = '';
             setThought('Waking up High-Fidelity Layout Engine...\nInjecting Typography & Component Library...\n');
             
@@ -30,7 +48,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                     variables: { markdown_report: markdown }, 
                     scenario, 
                     session_id: undefined, 
-                    model_override: TARGET_MODEL 
+                    model_override: configuredModel 
                 },
                 (chunk) => {
                     buffer += chunk;
@@ -66,7 +84,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
             );
         };
         render();
-    }, [markdown, scenario]);
+    }, [markdown, scenario, configuredModel]);
 
     const handleDownloadPdf = async () => {
         if (!htmlContent) return;
@@ -98,10 +116,13 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                     </div>
                     <div>
                         <h2 className="font-black text-slate-900 text-xl tracking-tight">高保真报告就绪</h2>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">
-                            <SparklesIcon className="w-3 h-3 text-indigo-500" />
-                            Visual Component Factory v1.1
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest flex items-center gap-2">
+                                <SparklesIcon className="w-3 h-3 text-indigo-500" />
+                                Visual Component Factory v1.1
+                            </p>
+                            <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-bold">{configuredModel}</span>
+                        </div>
                     </div>
                 </div>
                 
@@ -165,7 +186,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                             </div>
                             <div className="text-center space-y-2">
                                 <p className="font-black text-slate-900 text-2xl tracking-tighter uppercase">High Fidelity Rendering</p>
-                                <p className="text-sm font-medium text-slate-400">正在构建可视化组件与动态图表...</p>
+                                <p className="text-sm font-medium text-slate-400">正在使用 {configuredModel} 构建可视化组件...</p>
                             </div>
                         </div>
                     )}

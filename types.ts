@@ -493,7 +493,6 @@ export interface GenerateStreamParams {
     task_id?: string;
     phase_name?: string;
     session_id?: string;
-    // Fix: Added model_override to GenerateStreamParams to allow passing a specific model engine for generation requests.
     model_override?: string;
 }
 
@@ -504,6 +503,7 @@ export interface StratifyScenario {
     name: string;
     title: string;
     description: string;
+    model_config?: string; // 用户可配置的 LLM 引擎
     created_at: string;
     updated_at: string;
 }
