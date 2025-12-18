@@ -11,6 +11,8 @@ import { ContextCollector } from './shared/ContextCollector';
 import { ScenarioPicker } from './shared/ScenarioPicker';
 import { ClockIcon, ChevronLeftIcon, CheckIcon } from '../icons';
 
+const DEFAULT_REPORT_MODEL = "openrouter@mistralai/devstral-2512:free";
+
 export const ReportGenerator: React.FC = () => {
     const [view, setViewState] = useState<'picker' | 'collector' | 'workflow' | 'done'>('picker');
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
@@ -55,7 +57,8 @@ export const ReportGenerator: React.FC = () => {
                     variables: { user_input: userInput },
                     scenario: selectedScenarioId,
                     task_id: newTask.id,
-                    phase_name: '00_analyze_input'
+                    phase_name: '00_analyze_input',
+                    model_override: DEFAULT_REPORT_MODEL
                 },
                 (chunk) => setAnalysisStream(prev => prev + chunk),
                 () => {

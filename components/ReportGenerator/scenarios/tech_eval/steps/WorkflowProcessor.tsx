@@ -12,7 +12,7 @@ declare global {
   }
 }
 
-const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
 /**
  * 增强型提取函数：从流式字符串中寻找正在输出的键值对内容

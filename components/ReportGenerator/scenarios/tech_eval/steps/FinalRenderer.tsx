@@ -4,7 +4,7 @@ import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/st
 import { extractThoughtAndJson } from '../../../utils';
 import { CheckIcon, DownloadIcon, SparklesIcon, BrainIcon, CloseIcon, ChevronLeftIcon } from '../../../../icons';
 
-const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
 interface FinalRendererProps {
     taskId: string;
