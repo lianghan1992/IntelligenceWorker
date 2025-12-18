@@ -25,19 +25,21 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
         const render = async () => {
             let buffer = '';
             setThought('');
-            // 使用全新的独立会话调用 04_Markdown2Html
+            
+            // 重要：显式传递 session_id: undefined，确保 04_Markdown2Html 在全新的上下文中执行
+            // 避免之前的分析思考过程干扰排版指令的严格执行
             await streamGenerate(
                 { 
                     prompt_name: '04_Markdown2Html', 
                     variables: { markdown_report: markdown }, 
                     scenario, 
-                    session_id: undefined, // 独立会话确保排版纯净
-                    model_override: TARGET_MODEL // 注入指定模型
+                    session_id: undefined, 
+                    model_override: TARGET_MODEL 
                 },
                 (chunk) => {
                     buffer += chunk;
                     const { jsonPart } = extractThoughtAndJson(buffer);
-                    if (jsonPart && jsonPart.length > 100) {
+                    if (jsonPart && jsonPart.length > 200) {
                         const parsed = parseLlmJson<any>(jsonPart);
                         if (parsed && parsed.html_report) {
                             setHtmlContent(parsed.html_report);
@@ -52,7 +54,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                 },
                 () => setIsRendering(false),
                 undefined,
-                (tChunk) => setThought(prev => prev + tChunk) // 修复：累加思考流
+                (tChunk) => setThought(prev => prev + tChunk) 
             );
         };
         render();
@@ -84,7 +86,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                 isOpen={isRendering && !htmlContent} 
                 onClose={() => {}} 
                 content={thought} 
-                status="AI 视觉专家正在进行杂志级排版..." 
+                status="AI 视觉专家正在进行杂志级排版设计..." 
             />
 
             <div className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between shadow-sm z-10">
@@ -93,8 +95,8 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                         <CheckIcon className="w-6 h-6" />
                     </div>
                     <div>
-                        <h2 className="font-black text-slate-800 text-lg">评估报告已就绪</h2>
-                        <p className="text-xs text-slate-400 font-medium">渲染报告 • 导出 PDF</p>
+                        <h2 className="font-black text-slate-800 text-lg">评估报告生成完成</h2>
+                        <p className="text-xs text-slate-400 font-medium">预览报告效果 • 导出为专业级 PDF</p>
                     </div>
                 </div>
                 
@@ -105,10 +107,10 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                         className="px-8 py-3 bg-indigo-600 text-white font-black rounded-2xl shadow-xl shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                         {isDownloading ? <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div> : <DownloadIcon className="w-5 h-5" />}
-                        导出为 PDF
+                        下载 PDF 版本
                     </button>
                     <button onClick={onComplete} className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all active:scale-95">
-                        完成并关闭
+                        完成并归档
                     </button>
                 </div>
             </div>
@@ -119,7 +121,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                         <iframe 
                             srcDoc={htmlContent}
                             className="w-full h-full border-none"
-                            title="Final Report Preview"
+                            title="Final Tech Assessment Report"
                             sandbox="allow-scripts"
                         />
                     ) : (
@@ -127,7 +129,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                             <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-500 rounded-full animate-spin"></div>
                             <div className="text-center">
                                 <p className="font-black text-slate-400 text-xl tracking-tight">正在构建高保真 HTML 布局</p>
-                                <p className="text-sm font-medium text-slate-300 mt-1">注入样式、生成动态图表、优化视觉层级...</p>
+                                <p className="text-sm font-medium text-slate-300 mt-1">注入设计样式、渲染可视化组件、优化阅读体验...</p>
                             </div>
                         </div>
                     )}

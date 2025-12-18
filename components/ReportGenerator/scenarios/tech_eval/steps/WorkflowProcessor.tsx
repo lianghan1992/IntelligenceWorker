@@ -78,7 +78,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                     resolve(fullRes);
                 },
                 reject,
-                (sid) => { setSessionId(sid); onUpdateSession(sid); },
+                (sid) => { if (sid) { setSessionId(sid); onUpdateSession(sid); } },
                 (tChunk) => setThoughtStream(prev => prev + tChunk)
             );
         });
@@ -87,40 +87,40 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
     const runPipeline = async () => {
         setIsProcessing(true);
         try {
-            // Step 1: AI角色定义
+            // Step 1: 初始化专家协议
             setCurrentStep(1);
             setIsThinkingOpen(true);
-            await executeStep('01_Role_ProtocolSetup', {}, '初始化专家协议');
+            await executeStep('01_Role_ProtocolSetup', {}, '初始化行业专家协议');
 
-            // Step 2: AI正在分析资料
+            // Step 2: 注入资料库 (使用 data 变量，请确保 Prompt 文末有 {data} 占位符)
             setCurrentStep(2);
-            await executeStep('02_DataIngestion', { data: materials }, '注入行业资料库');
+            await executeStep('02_DataIngestion', { data: materials }, '注入参考资料与行业背景');
 
-            // Step 3: AI撰写报告 (分4个子步骤)
+            // Step 3: 多阶段报告撰写
             setCurrentStep(3);
             
-            // Sub-Step 3.1: 技术路线分析
-            const res1 = await executeStep('03_TriggerGeneration_step1', { tec: targetTech }, '分析技术路线与成熟度');
+            // Sub-Step 3.1: 技术路线分析 (核心注入 tec 变量)
+            const res1 = await executeStep('03_TriggerGeneration_step1', { tec: targetTech }, '分析技术路线与代际定位');
             const part1 = parseLlmJson<any>(extractThoughtAndJson(res1).jsonPart)?.第一部分_技术路线与当前所处阶段分析 || '';
 
-            // Sub-Step 3.2: 风险识别
-            const res2 = await executeStep('03_TriggerGeneration_step2', {}, '识别潜在工程风险');
+            // Sub-Step 3.2: 潜在风险识别
+            const res2 = await executeStep('03_TriggerGeneration_step2', {}, '识别工程实现与环境风险');
             const part2 = parseLlmJson<any>(extractThoughtAndJson(res2).jsonPart)?.第二部分_当前技术潜在风险识别与分析 || '';
 
-            // Sub-Step 3.3: 方案推荐
-            const res3 = await executeStep('03_TriggerGeneration_step3', {}, '生成行业方案推荐');
+            // Sub-Step 3.3: 行业方案推荐
+            const res3 = await executeStep('03_TriggerGeneration_step3', {}, '生成行业方案决策建议');
             const part3 = parseLlmJson<any>(extractThoughtAndJson(res3).jsonPart)?.第三部分_行业技术方案推荐 || '';
 
-            // Sub-Step 3.4: 引用解析
-            const res4 = await executeStep('03_TriggerGeneration_step4', {}, '提取引用资料来源');
+            // Sub-Step 3.4: 引用资料提取
+            const res4 = await executeStep('03_TriggerGeneration_step4', {}, '提取并构建引用资料清单');
             const refsJson = parseLlmJson<any>(extractThoughtAndJson(res4).jsonPart);
             let refsMd = '';
-            if (refsJson && typeof refsJson === 'object') {
-                refsMd = Object.entries(refsJson).map(([title, url]) => `- [${title}](${url})`).join('\n');
+            if (refsJson && typeof refsJson === 'object' && Object.keys(refsJson).length > 0) {
+                refsMd = "### 引用资料来源\n\n" + Object.entries(refsJson).map(([title, url]) => `- [${title}](${url})`).join('\n');
             }
 
-            // 汇总 Markdown
-            const finalDraft = `# 技术评估报告: ${targetTech.substring(0, 30)}${targetTech.length > 30 ? '...' : ''}\n\n## 第一部分：技术路线与当前所处阶段分析\n\n${part1}\n\n## 第二部分：当前技术潜在风险识别与分析\n\n${part2}\n\n## 第三部分：行业技术方案推荐\n\n${part3}\n\n## 引用资料来源\n\n${refsMd || '暂无外部引用资料'}`;
+            // 自动化 Markdown 缝合
+            const finalDraft = `# 技术评估报告: ${targetTech}\n\n## 第一部分：技术路线与当前所处阶段分析\n\n${part1}\n\n## 第二部分：当前技术潜在风险识别与分析\n\n${part2}\n\n## 第三部分：行业技术方案推荐\n\n${part3}\n\n${refsMd}`;
             
             setDraftMarkdown(finalDraft);
             setCurrentStep(4);
@@ -150,7 +150,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         let fullRes = '';
         await streamGenerate(
             { 
-                prompt_name: '02_revise_outline', // 复用修订指令
+                prompt_name: '02_revise_outline', // 通用修订逻辑
                 variables: { user_revision_request: userMsg }, 
                 scenario, 
                 session_id: sessionId,
@@ -173,7 +173,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
     };
 
     const steps = [
-        { id: 1, label: '角色定义', active: currentStep === 1, done: currentStep > 1 },
+        { id: 1, label: '专家协议', active: currentStep === 1, done: currentStep > 1 },
         { id: 2, label: '分析资料', active: currentStep === 2, done: currentStep > 2 },
         { id: 3, label: '撰写初稿', active: currentStep === 3, done: currentStep > 3 },
         { id: 4, label: '修订调优', active: currentStep === 4, done: false },
@@ -185,7 +185,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                 isOpen={isThinkingOpen} 
                 onClose={() => setIsThinkingOpen(false)} 
                 content={thoughtStream}
-                status={`AI 正在执行: ${subTaskLabel || '任务处理'}`}
+                status={`Agent 正在执行: ${subTaskLabel || '深度解析中'}`}
             />
 
             {/* 顶部进度条 */}
@@ -208,7 +208,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         title="查看原始交互记录"
                     >
                         <CodeIcon className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-widest">Debug Logs</span>
+                        <span className="text-xs font-bold uppercase tracking-widest">Debug Console</span>
                     </button>
                 </div>
             </div>
@@ -218,7 +218,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                 <div className="w-96 border-r border-slate-200 bg-white flex flex-col shadow-inner">
                     <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                        <span className="font-bold text-slate-800 text-sm">修订实验室</span>
+                        <span className="font-bold text-slate-800 text-sm">报告修订台</span>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -232,7 +232,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         {isProcessing && currentStep === 4 && (
                             <div className="flex items-center gap-2 text-slate-400 italic text-xs px-2">
                                 <div className="animate-spin rounded-full h-3 w-3 border-2 border-indigo-500 border-t-transparent"></div>
-                                AI 正在改写报告...
+                                AI 正在重构报告内容...
                             </div>
                         )}
                     </div>
@@ -243,7 +243,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                                 value={userInput}
                                 onChange={e => setUserInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                                placeholder="输入修改建议..."
+                                placeholder="输入具体修改指令..."
                                 className="w-full h-24 p-4 bg-white border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none shadow-sm"
                                 disabled={isProcessing || currentStep < 4}
                             />
@@ -267,7 +267,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                             className="px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-2xl hover:bg-green-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-3"
                         >
                             <CheckIcon className="w-6 h-6" />
-                            确认终稿并渲染报告
+                            确认终稿并启动高保真渲染
                         </button>
                     </div>
 
@@ -287,7 +287,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                                 <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-500 rounded-full animate-spin"></div>
                                 <div className="text-center space-y-2">
                                     <p className="font-black text-slate-400 text-xl tracking-tight">Agent 正在深度解析资料</p>
-                                    <p className="text-sm font-medium text-slate-300">{subTaskLabel || '构建技术逻辑链，识别潜在工程风险...'}</p>
+                                    <p className="text-sm font-medium text-slate-300">{subTaskLabel || '构建技术逻辑链，提取高价值洞察...'}</p>
                                 </div>
                             </div>
                         )}
@@ -305,7 +305,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                                     <CodeIcon className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-white font-black text-lg">Backend Interaction Console</h3>
+                                    <h3 className="text-white font-black text-lg">Agent Interaction Console</h3>
                                     <p className="text-slate-400 text-xs font-mono uppercase tracking-widest">Tracing Session: {sessionId || 'No Session'}</p>
                                 </div>
                             </div>
@@ -348,11 +348,11 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                             <div className="flex items-center gap-6">
                                 <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Channel: Plumber_v3</span>
+                                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Pipeline: Tech_Eval_v3</span>
                                 </div>
-                                <span className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logs: {interactionLogs.length}</span>
+                                <span className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Captured Logs: {interactionLogs.length}</span>
                             </div>
-                            <span className="text-indigo-400/30 font-black italic text-[10px] tracking-widest uppercase">AutoInsight Internal Debugger</span>
+                            <span className="text-indigo-400/30 font-black italic text-[10px] tracking-widest uppercase">AutoInsight Internal Engine</span>
                         </div>
                     </div>
                 </div>
