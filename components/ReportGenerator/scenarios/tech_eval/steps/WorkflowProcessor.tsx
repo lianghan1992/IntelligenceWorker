@@ -209,7 +209,7 @@ export const WorkflowProcessor: React.FC<{
                             { id: 4, label: '审核校对' }
                         ].map((s, i) => (
                             <div key={s.id} className="flex items-center gap-2">
-                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === s.id ? 'bg-indigo-600 animate-pulse ring-4 ring-indigo-100' : (currentStep > s.id ? 'bg-green-50' : 'bg-slate-300')}`}></div>
+                                <div className={`w-1.5 h-1.5 rounded-full ${currentStep === s.id ? 'bg-indigo-600 animate-pulse ring-4 ring-indigo-100' : (currentStep > s.id ? 'bg-green-500' : 'bg-slate-300')}`}></div>
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${currentStep === s.id ? 'text-indigo-600' : 'text-slate-400'}`}>
                                     {s.label}
                                 </span>
@@ -253,9 +253,9 @@ export const WorkflowProcessor: React.FC<{
                         <div className="space-y-6">
                             {/* 此处可以渲染之前的 Message 历史，这里简化为展示当前 Thought */}
                             <div className="opacity-40 italic text-slate-500 mb-8 border-b border-slate-800 pb-4">
-                                >> System: Neural network initialized.<br/>
-                                >> Protocol: Engineering Intelligence v3.2<br/>
-                                >> Source: Intelligence Database (RAG Mode)
+                                &gt;&gt; System: Neural network initialized.<br/>
+                                &gt;&gt; Protocol: Engineering Intelligence v3.2<br/>
+                                &gt;&gt; Source: Intelligence Database (RAG Mode)
                             </div>
                             
                             {thoughtStream ? (
