@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
 import { ScenarioProps } from '../registry';
-import { StratifyPage } from '../../../../types';
 import { InputCollector } from './steps/InputCollector';
 import { WorkflowProcessor } from './steps/WorkflowProcessor';
 import { FinalRenderer } from './steps/FinalRenderer';
 
+// 场景视图状态：输入 -> 处理与修订 -> 最终渲染
 type ViewStatus = 'input' | 'processing' | 'rendering';
 
 export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenario, sessionId, onComplete }) => {
@@ -17,13 +17,13 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId, topic, scena
     const [draftMarkdown, setDraftMarkdown] = useState('');
     const [lastSessionId, setLastSessionId] = useState(sessionId);
 
-    // 步骤1：输入完成，进入处理流
+    // 步骤1：输入完成
     const handleInputComplete = (data: { targetTech: string; materials: string }) => {
         setConfig(data);
         setView('processing');
     };
 
-    // 步骤2：处理与对话微调完成，进入最终渲染
+    // 步骤2：处理与对话修订完成，用户确认后进入渲染
     const handleWorkflowComplete = (finalMd: string) => {
         setDraftMarkdown(finalMd);
         setView('rendering');
