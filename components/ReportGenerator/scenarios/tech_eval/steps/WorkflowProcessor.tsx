@@ -62,6 +62,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             // Step 1: AI角色定义
             setCurrentStep(1);
             setIsThinkingOpen(true);
+            setThoughtStream('');
             addLog({ role: 'system', name: '01_Role_ProtocolSetup', content: '正在发送角色定义协议...', timestamp: Date.now() });
             
             await new Promise<void>((resolve, reject) => {
@@ -72,7 +73,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         variables: {}, 
                         scenario, 
                         session_id: sessionId,
-                        model_override: TARGET_MODEL // 注入指定模型
+                        model_override: TARGET_MODEL 
                     },
                     (chunk) => { fullRes += chunk; }, 
                     () => {
@@ -81,7 +82,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                     },
                     reject,
                     (sid) => { setSessionId(sid); onUpdateSession(sid); },
-                    setThoughtStream
+                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
                 );
             });
 
@@ -98,7 +99,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         variables: { data: materials }, 
                         scenario, 
                         session_id: sessionId,
-                        model_override: TARGET_MODEL // 注入指定模型
+                        model_override: TARGET_MODEL 
                     },
                     (chunk) => { fullRes += chunk; },
                     () => {
@@ -107,7 +108,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                     },
                     reject,
                     undefined,
-                    setThoughtStream
+                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
                 );
             });
 
@@ -124,7 +125,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         variables: { target_technology: targetTech }, 
                         scenario, 
                         session_id: sessionId,
-                        model_override: TARGET_MODEL // 注入指定模型
+                        model_override: TARGET_MODEL 
                     },
                     (chunk) => {
                         fullDraft += chunk;
@@ -148,7 +149,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                     },
                     reject,
                     undefined,
-                    setThoughtStream
+                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
                 );
             });
 
@@ -182,7 +183,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                 variables: { user_revision_request: userMsg }, 
                 scenario, 
                 session_id: sessionId,
-                model_override: TARGET_MODEL // 注入指定模型
+                model_override: TARGET_MODEL 
             },
             (chunk) => {
                 fullRes += chunk;
@@ -196,7 +197,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             },
             () => { setIsProcessing(false); setIsThinkingOpen(false); },
             undefined,
-            setThoughtStream
+            (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
         );
     };
 

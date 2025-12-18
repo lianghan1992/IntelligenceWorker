@@ -24,6 +24,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
     useEffect(() => {
         const render = async () => {
             let buffer = '';
+            setThought('');
             // 使用全新的独立会话调用 04_Markdown2Html
             await streamGenerate(
                 { 
@@ -51,7 +52,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                 },
                 () => setIsRendering(false),
                 undefined,
-                setThought
+                (tChunk) => setThought(prev => prev + tChunk) // 修复：累加思考流
             );
         };
         render();
