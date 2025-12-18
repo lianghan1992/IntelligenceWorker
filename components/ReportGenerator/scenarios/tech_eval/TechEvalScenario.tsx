@@ -34,8 +34,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-[#f8fafc] overflow-hidden font-sans">
-            {/* Header: 超窄导航条 */}
+        <div className="flex-1 flex flex-col h-full bg-white overflow-hidden font-sans">
+            {/* Header */}
             <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-50">
                 <div className="flex items-center gap-3">
                     <BrainIcon className="w-4 h-4 text-indigo-600" />
@@ -48,8 +48,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-                {/* 1. 左栏：资源管理器 (280px) */}
-                <div className="w-[280px] border-r border-slate-200 bg-white z-20 flex flex-col shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+                {/* 1. 左栏：控制中心 (33.3%) */}
+                <div className="w-1/3 border-r border-slate-200 bg-white z-20 flex flex-col">
                     <InputCollector 
                         initialTech={targetTech}
                         initialMaterials={materials}
@@ -58,8 +58,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                     />
                 </div>
 
-                {/* 2. 中栏：沉浸式画布 (Elastic) */}
-                <div className="flex-1 flex flex-col relative z-10 bg-white overflow-hidden">
+                {/* 2. 中栏：内容生成 (33.3%) */}
+                <div className="w-1/3 flex flex-col relative z-10 bg-white overflow-hidden border-r border-slate-100">
                     {activeTaskId ? (
                         <WorkflowProcessor 
                             taskId={activeTaskId}
@@ -81,8 +81,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                     )}
                 </div>
 
-                {/* 3. 右栏：合成与预览 (400px) */}
-                <div className="w-[400px] border-l border-slate-200 bg-slate-950 z-20 flex flex-col shadow-[-1px_0_10px_rgba(0,0,0,0.05)]">
+                {/* 3. 右栏：合成渲染 (33.3%) */}
+                <div className="w-1/3 bg-slate-950 z-20 flex flex-col shadow-[-1px_0_10px_rgba(0,0,0,0.05)]">
                     <FinalRenderer 
                         taskId={activeTaskId || ''}
                         scenario={scenario}
