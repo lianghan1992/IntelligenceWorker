@@ -48,7 +48,7 @@ export interface SystemSource {
 
 export interface Scenario {
     name: string;      // 技术标识符 (ID/Slug)，如 'default'
-    label: string;     // 显示名称，如 '通用PPT生成'
+    title: string;     // 显示名称，如 '通用PPT生成'
     description: string | null;
 }
 
@@ -295,8 +295,13 @@ export interface GenericPoint extends SpiderPoint {
 export interface GenericTask extends SpiderTask {
     source_name: string;
     point_name: string;
-    stage?: string;
-    detail_info?: string;
+    url: string;
+    task_type: string;
+    stage: string;
+    detail_info: string;
+    start_time: string;
+    end_time?: string;
+    created_at: string;
 }
 
 /**
