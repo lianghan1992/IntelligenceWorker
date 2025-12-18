@@ -42,9 +42,10 @@ export const WorkflowProcessor: React.FC<{
     // 辅助函数：执行单个步骤并打印诊断信息
     const executeStep = async (promptName: string, vars: any, logLabel: string): Promise<string> => {
         setSubTaskLabel(logLabel);
-        // 诊断日志：显示变量注入情况
+        
+        // 关键诊断：在思维链控制台打印变量注入情况
         const varDiagnostic = Object.entries(vars)
-            .map(([k, v]) => `[VAR INJECT] ${k} -> ${String(v).substring(0, 40)}...`)
+            .map(([k, v]) => `[CONTEXT INJECT] ${k} (Len: ${String(v).length})`)
             .join('\n');
             
         setThoughtStream(prev => prev + `\n\n>>> 正在调用: ${promptName}\n${varDiagnostic}\n-----------------------------------\n`);
@@ -75,11 +76,11 @@ export const WorkflowProcessor: React.FC<{
             await executeStep('01_Role_ProtocolSetup', {}, '初始化专家协议');
 
             setCurrentStep(2);
-            // 修正变量名为 reference_materials
+            // 对齐后端变量名: reference_materials
             await executeStep('02_DataIngestion', { reference_materials: materials }, '注入行业资料库');
 
             setCurrentStep(3);
-            // 修正变量名为 target_tech
+            // 对齐后端变量名: target_tech
             const res1 = await executeStep('03_TriggerGeneration_step1', { target_tech: targetTech }, '分析技术路线');
             const part1 = parseLlmJson<any>(extractThoughtAndJson(res1).jsonPart)?.第一部分_技术路线与当前所处阶段分析 || '';
 
