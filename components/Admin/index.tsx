@@ -1,20 +1,23 @@
+
 import React, { useState } from 'react';
 import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
 import { UserManager } from './UserManager';
-import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon } from '../icons';
+import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
 import { DeepInsightManager } from './DeepInsight/index';
+import { StratifyAiManager } from './StratifyAI/index';
 
 const navItems: { view: AdminView; label: string; icon: React.FC<any> }[] = [
     { view: 'users', label: '用户', icon: UsersIcon },
     { view: 'events', label: '发布会', icon: VideoCameraIcon },
     { view: 'intelligence', label: '情报', icon: RssIcon },
     { view: 'competitiveness', label: '竞争力', icon: BrainIcon },
-    { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
+    { view: 'stratify_ai', label: 'AI报告', icon: SparklesIcon },
     { view: 'deep_insight', label: '深度洞察', icon: ViewGridIcon },
+    { view: 'markdown2html', label: 'Markdown', icon: DocumentTextIcon },
 ];
 
 export const AdminPage: React.FC = () => {
@@ -30,6 +33,8 @@ export const AdminPage: React.FC = () => {
                 return <IntelligenceDashboard />;
             case 'competitiveness':
                 return <CompetitivenessManager />;
+            case 'stratify_ai':
+                return <StratifyAiManager />;
             case 'markdown2html':
                 return <MarkdownToHtmlManager />;
             case 'deep_insight':

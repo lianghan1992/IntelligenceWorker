@@ -30,7 +30,8 @@ export const PhaseWorkflow: React.FC<{
         // 按 key 排序确保顺序一致 (后端 00, 01, 02 命名习惯)
         return Object.entries(task.result.phases)
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, p]) => ({ ...p, id: key }));
+            // Fix: cast p to any to resolve spread type error
+            .map(([key, p]) => ({ ...(p as any), id: key }));
     }, [task.result?.phases]);
 
     const activePhase = phases.find(p => p.status !== 'completed') || phases[phases.length - 1];
@@ -121,8 +122,8 @@ export const PhaseWorkflow: React.FC<{
                 <div className="p-4 border-t border-slate-100 bg-slate-50/50">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">已注入上下文</div>
                     <div className="flex gap-1.5 flex-wrap">
-                        {task.context?.files.map((_, i) => <div key={i} className="w-2 h-2 rounded-full bg-blue-400" title="File Attached"></div>)}
-                        {task.context?.vector_snippets.map((_, i) => <div key={i} className="w-2 h-2 rounded-full bg-emerald-400" title="Vector Snippet Attached"></div>)}
+                        {task.context?.files.map((_: any, i: number) => <div key={i} className="w-2 h-2 rounded-full bg-blue-400" title="File Attached"></div>)}
+                        {task.context?.vector_snippets.map((_: any, i: number) => <div key={i} className="w-2 h-2 rounded-full bg-emerald-400" title="Vector Snippet Attached"></div>)}
                     </div>
                 </div>
             </div>

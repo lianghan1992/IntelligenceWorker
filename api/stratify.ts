@@ -2,8 +2,8 @@
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, StratifyPage, GenerateStreamParams, Scenario } from '../types';
-import { apiFetch } from './helper';
+import { StratifyTask, StratifyPage, GenerateStreamParams, Scenario, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus } from '../types';
+import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
 
@@ -84,10 +84,66 @@ export const streamGenerate = async (
     }
 };
 
-// --- 2. Scenario & Uploads ---
+// --- 2. Scenario & Prompt Management (Admin) ---
 
-export const getScenarios = (): Promise<Scenario[]> =>
-    apiFetch<Scenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
+export const getScenarios = (): Promise<StratifyScenario[]> =>
+    apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
+
+export const createScenario = (data: { name: string; title: string; description: string }): Promise<StratifyScenario> =>
+    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string }): Promise<StratifyScenario> =>
+    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deleteScenario = (id: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
+        method: 'DELETE',
+    });
+
+export const getScenarioFiles = (scenarioId: string): Promise<StratifyScenarioFile[]> =>
+    apiFetch<StratifyScenarioFile[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files`);
+
+export const updateScenarioFile = (scenarioId: string, filename: string, content: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: filename, content }),
+    });
+
+export const deleteScenarioFile = (scenarioId: string, filename: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
+        method: 'DELETE',
+    });
+
+// --- 3. Persistence (CRUD) ---
+
+export const createStratifyTask = async (topic: string, scenario: string = 'default'): Promise<StratifyTask> => {
+    const response = await apiFetch<any>(`${STRATIFY_SERVICE_PATH}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({ user_input: topic, scenario }),
+    });
+    return response;
+};
+
+export const getStratifyTasks = (params: any = {}): Promise<StratifyTask[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<StratifyTask[]>(`${STRATIFY_SERVICE_PATH}/tasks${query}`);
+}
+
+export const getStratifyTaskDetail = (taskId: string): Promise<StratifyTask> =>
+    apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks/${taskId}`);
+
+// --- 4. System Status ---
+
+export const getStratifyQueueStatus = (): Promise<StratifyQueueStatus> =>
+    apiFetch<StratifyQueueStatus>(`${STRATIFY_SERVICE_PATH}/queue/status`);
+
+// --- 5. Assets & Others ---
 
 export const uploadStratifyFile = (file: File): Promise<{ filename: string; url: string; type: string }> => {
     const formData = new FormData();
@@ -97,28 +153,6 @@ export const uploadStratifyFile = (file: File): Promise<{ filename: string; url:
         body: formData,
     });
 };
-
-// --- 3. Persistence (CRUD) ---
-
-export const createStratifyTask = async (topic: string, scenario: string = 'default'): Promise<StratifyTask> => {
-    const response = await apiFetch<any>(`${STRATIFY_SERVICE_PATH}/tasks`, {
-        method: 'POST',
-        body: JSON.stringify({ user_input: topic, scenario }),
-    });
-    return {
-        ...response,
-        topic: response.input_text || topic
-    };
-};
-
-export const getStratifyTasks = (): Promise<StratifyTask[]> =>
-    apiFetch<StratifyTask[]>(`${STRATIFY_SERVICE_PATH}/tasks`);
-
-export const getStratifyTaskDetail = (taskId: string): Promise<StratifyTask> =>
-    apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks/${taskId}`);
-
-export const getSessionHistory = (sessionId: string): Promise<{role: string, content: string}[]> =>
-    apiFetch(`${STRATIFY_SERVICE_PATH}/sessions/${sessionId}/history`);
 
 export const generatePdf = async (htmlContent: string, filename?: string): Promise<Blob> => {
     const url = `${STRATIFY_SERVICE_PATH}/generate/pdf`;
