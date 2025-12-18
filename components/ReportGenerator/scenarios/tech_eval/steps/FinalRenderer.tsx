@@ -2,35 +2,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { DownloadIcon, SparklesIcon, CloseIcon } from '../../../../icons';
+import { DownloadIcon, SparklesIcon, CloseIcon, CodeIcon, EyeIcon } from '../../../../icons';
 
 const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
 /**
- * 强力流式 HTML 提取器：
- * 不依赖完整的 JSON 闭合，只要识别到 "html_report" 键值对开始，就开始提取字符串内容
+ * 实时提取 HTML 字符串流
  */
 const extractStreamingHtml = (text: string): string => {
-    // 1. 查找 "html_report"
     const key = '"html_report"';
     const keyIndex = text.indexOf(key);
     if (keyIndex === -1) return '';
 
-    // 2. 查找键之后的第一个引号（值的起始）
     const afterKey = text.slice(keyIndex + key.length);
     const startQuoteIndex = afterKey.indexOf('"');
     if (startQuoteIndex === -1) return '';
 
-    // 3. 截取从第一个引号之后的所有内容
     const rawContent = afterKey.slice(startQuoteIndex + 1);
     
-    // 4. 处理 JSON 转义字符，并移除可能导致解析失败的结尾转义斜杠
+    // 基础转义处理，保持源码的可读性
     return rawContent
         .replace(/\\n/g, '\n')
         .replace(/\\"/g, '"')
         .replace(/\\t/g, '\t')
         .replace(/\\\\/g, '\\')
-        .replace(/\\$/, ''); 
+        .replace(/\\$/, ''); // 移除末尾可能的转义符
 };
 
 export const FinalRenderer: React.FC<{
@@ -43,7 +39,16 @@ export const FinalRenderer: React.FC<{
     const [htmlContent, setHtmlContent] = useState<string>('');
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const iframeRef = useRef<HTMLIFrameElement>(null);
+    
+    // 自动滚动 Ref
+    const codeScrollRef = useRef<HTMLDivElement>(null);
+
+    // 监听内容变化，生成时自动滚动到底部
+    useEffect(() => {
+        if (isSynthesizing && codeScrollRef.current) {
+            codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
+        }
+    }, [htmlContent, isSynthesizing]);
 
     useEffect(() => {
         if (isReady && !htmlContent && !isSynthesizing) {
@@ -53,6 +58,7 @@ export const FinalRenderer: React.FC<{
 
     const synthesize = async () => {
         setIsSynthesizing(true);
+        setHtmlContent(''); // 清空历史
         let buffer = '';
         
         await streamGenerate(
@@ -65,19 +71,25 @@ export const FinalRenderer: React.FC<{
             },
             (chunk) => { 
                 buffer += chunk; 
-                // 实时提取
+                // 实时提取源码用于展示
                 const extracted = extractStreamingHtml(buffer);
                 if (extracted) {
                     setHtmlContent(extracted);
                 }
             },
             () => {
-                // 最终清洗
+                // 生成结束：进行最终的 JSON 解析以确保内容完整无误
                 const { jsonPart } = extractThoughtAndJson(buffer);
                 const parsed = parseLlmJson<any>(jsonPart);
+                
+                // 如果解析成功，使用清洗后的完整 HTML；否则使用流式积累的内容
                 if (parsed && parsed.html_report) {
                     setHtmlContent(parsed.html_report);
                 }
+                
+                // 关键点：只有在这里才将 isSynthesizing 置为 false
+                // 这会触发从“代码视图”到“预览视图”的切换
+                // 此时 HTML 结构已完整，iframe 渲染将带上所有 CSS，不会出现样式缺失
                 setIsSynthesizing(false);
             }
         );
@@ -102,21 +114,21 @@ export const FinalRenderer: React.FC<{
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#020617] overflow-hidden relative">
+        <div className="h-full flex flex-col bg-[#020617] overflow-hidden relative border-l border-white/5">
             {/* Header */}
             <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between z-30 bg-[#020617]/90 backdrop-blur-xl">
                 <div className="flex items-center gap-4">
-                    <span className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">Synthesis Engine</span>
+                    <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Synthesis Engine</span>
                     <div className="flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${isSynthesizing ? 'bg-indigo-500 animate-pulse shadow-[0_0_8px_#6366f1]' : 'bg-slate-700'}`}></div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                            {isSynthesizing ? 'Outputting...' : 'Live Preview'}
+                        <div className={`w-1.5 h-1.5 rounded-full ${isSynthesizing ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]' : 'bg-green-500 shadow-[0_0_8px_#22c55e]'}`}></div>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${isSynthesizing ? 'text-cyan-400' : 'text-green-500'}`}>
+                            {isSynthesizing ? 'Generating Source Code...' : 'Render Complete'}
                         </span>
                     </div>
                 </div>
                 
                 <div className="flex items-center gap-3">
-                    {htmlContent.length > 20 && (
+                    {!isSynthesizing && htmlContent.length > 0 && (
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading}
@@ -133,54 +145,63 @@ export const FinalRenderer: React.FC<{
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 relative bg-[#0f172a] flex flex-col overflow-hidden">
-                {/* 只要有内容，就立即显示 iframe (阈值设为 1) */}
-                {htmlContent.length > 0 ? (
-                    <div className="flex-1 w-full h-full relative overflow-hidden">
+            <div className="flex-1 relative bg-[#020617] flex flex-col overflow-hidden">
+                {isSynthesizing ? (
+                    /* 阶段一：代码终端模式 (Dark Terminal) */
+                    <div className="flex-1 flex flex-col min-h-0 relative">
+                        <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-[#020617] to-transparent z-10 pointer-events-none"></div>
+                        
+                        <div ref={codeScrollRef} className="flex-1 overflow-auto p-6 font-mono text-[11px] leading-relaxed custom-scrollbar-dark selection:bg-cyan-500/30">
+                            <div className="flex items-center gap-2 mb-4 opacity-50 sticky top-0">
+                                <CodeIcon className="w-4 h-4 text-cyan-400" />
+                                <span className="text-white text-[10px] font-black tracking-widest uppercase">Stream Buffer</span>
+                            </div>
+                            {/* 代码流展示 */}
+                            <pre className="text-cyan-400/90 whitespace-pre-wrap break-all">
+                                {htmlContent || '> Initializing connection to synthesis core...'}
+                                <span className="inline-block w-2 h-4 bg-cyan-400 ml-1 animate-pulse align-middle"></span>
+                            </pre>
+                        </div>
+                        
+                        {/* 底部装饰条 */}
+                        <div className="h-6 bg-[#020617] border-t border-white/5 flex items-center px-4 justify-between text-[9px] text-slate-600 font-mono select-none">
+                            <span>MODE: RAW_STREAM</span>
+                            <span>UTF-8</span>
+                        </div>
+                    </div>
+                ) : htmlContent.length > 0 ? (
+                    /* 阶段二：完整预览模式 (Full Render) */
+                    <div className="flex-1 w-full h-full relative overflow-hidden animate-in fade-in duration-700">
                         <iframe 
-                            ref={iframeRef}
                             srcDoc={htmlContent}
                             className="w-full h-full border-none bg-white"
-                            title="Live HTML Synthesis"
+                            title="Final HTML Synthesis"
+                            sandbox="allow-scripts" 
                         />
-                        
-                        {/* 扫描动画层 */}
-                        {isSynthesizing && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                                <div className="w-full h-24 bg-gradient-to-b from-transparent via-indigo-500/10 to-transparent absolute top-0 animate-[scan_3s_linear_infinite]"></div>
-                                <div className="absolute bottom-6 right-8 bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10 text-[10px] font-mono text-indigo-400 flex items-center gap-3 shadow-2xl">
-                                    <div className="flex gap-1">
-                                        <div className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce"></div>
-                                        <div className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                                        <div className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                                    </div>
-                                    STREAMING RENDERING...
-                                </div>
+                        {/* 浮动标签：提示用户这是渲染后的结果 */}
+                        <div className="absolute top-4 right-4 pointer-events-none opacity-0 animate-in fade-in delay-500 fill-mode-forwards duration-1000">
+                            <div className="flex items-center gap-2 bg-black/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black text-white uppercase tracking-widest shadow-2xl">
+                                <EyeIcon className="w-3 h-3 text-green-400" />
+                                Live Preview
                             </div>
-                        )}
+                        </div>
                     </div>
                 ) : (
+                    /* 初始等待状态 */
                     <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
                         <div className="relative">
-                            <div className={`w-24 h-24 rounded-full border-2 border-dashed border-indigo-500/20 ${isSynthesizing ? 'animate-spin' : ''}`}></div>
-                            <SparklesIcon className="w-10 h-10 text-indigo-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-50" />
+                            <div className="w-24 h-24 rounded-full border-2 border-dashed border-indigo-500/20 animate-spin"></div>
+                            <SparklesIcon className="w-10 h-10 text-indigo-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-30" />
                         </div>
                         <div className="space-y-1">
-                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em]">Synthesis Lab</p>
+                            <p className="text-[11px] font-black text-slate-600 uppercase tracking-[0.4em]">Synthesis Lab</p>
                             <p className="text-[9px] font-mono text-indigo-400/30 uppercase tracking-widest animate-pulse">
-                                {isSynthesizing ? 'Igniting Engine...' : 'Waiting for Data Particles...'}
+                                Awaiting Agent Final Payload...
                             </p>
                         </div>
                     </div>
                 )}
             </div>
-
-            <style>{`
-                @keyframes scan {
-                    0% { transform: translateY(-100%); }
-                    100% { transform: translateY(1000%); }
-                }
-            `}</style>
         </div>
     );
 };
