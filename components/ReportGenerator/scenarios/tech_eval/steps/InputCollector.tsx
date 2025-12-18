@@ -24,7 +24,7 @@ export const InputCollector: React.FC<{
             setReferences(prev => [...prev, { 
                 id: Math.random().toString(36), 
                 title: file.name, 
-                content: `[参考文件: ${file.name}]`, // 这里建议在实际 prompt 中包含对文件URL的引用或内容注入
+                content: `[参考文件: ${file.name}]`, 
                 type: 'file' 
             }]);
         } catch (err) {
@@ -60,8 +60,8 @@ export const InputCollector: React.FC<{
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col items-center py-12 px-6">
-            <div className="max-w-5xl w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="flex-1 overflow-y-auto bg-slate-50 flex flex-col items-center py-12 px-6 custom-scrollbar">
+            <div className="max-w-4xl w-full space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <header className="text-center space-y-2">
                     <div className="inline-flex p-3 bg-white rounded-2xl shadow-sm border border-indigo-100 text-indigo-600 mb-2">
                         <BrainIcon className="w-8 h-8" />
@@ -70,11 +70,14 @@ export const InputCollector: React.FC<{
                     <p className="text-slate-500 font-medium">输入技术现状，关联情报库，由行业专家级 Agent 撰写专业评估报告。</p>
                 </header>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* 左：技术现状 */}
+                <div className="flex flex-col gap-10">
+                    {/* 1. 技术现状 - 纵向排列 */}
                     <div className="space-y-3">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">1. 需要评估的技术现状描述 (必填)</label>
-                        <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-xl shadow-slate-200/40 p-4 focus-within:border-indigo-500 transition-all flex flex-col h-[400px]">
+                        <div className="flex items-center gap-3 ml-1">
+                            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">01</div>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">需要评估的技术现状描述 (必填)</label>
+                        </div>
+                        <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-xl shadow-slate-200/40 p-4 focus-within:border-indigo-500 transition-all flex flex-col h-[300px]">
                             <textarea 
                                 value={targetTech}
                                 onChange={e => setTargetTech(e.target.value)}
@@ -84,49 +87,54 @@ export const InputCollector: React.FC<{
                         </div>
                     </div>
 
-                    {/* 右：资料库 */}
+                    {/* 2. 资料库 - 纵向排列 */}
                     <div className="space-y-3">
-                        <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">2. 参考资料与背景上下文</label>
-                        <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col h-[400px] overflow-hidden">
+                        <div className="flex items-center gap-3 ml-1">
+                            <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">02</div>
+                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">参考资料与背景上下文</label>
+                        </div>
+                        <div className="bg-white rounded-3xl border-2 border-slate-100 shadow-xl shadow-slate-200/40 flex flex-col h-[350px] overflow-hidden">
                             <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
                                 <textarea 
                                     value={manualMaterials}
                                     onChange={e => setManualMaterials(e.target.value)}
                                     placeholder="在此粘贴参考文本..."
-                                    className="w-full h-32 p-2 text-sm border-none focus:ring-0 outline-none resize-none text-slate-600 placeholder:text-slate-300"
+                                    className="w-full h-24 p-2 text-sm border-none focus:ring-0 outline-none resize-none text-slate-600 placeholder:text-slate-300"
                                 />
                                 
                                 {references.length > 0 && (
                                     <div className="mt-4 pt-4 border-t border-slate-50 space-y-2">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">已加载的参考资料项</p>
-                                        {references.map(r => (
-                                            <div key={r.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 p-2.5 rounded-xl group">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    {r.type === 'file' ? <DocumentTextIcon className="w-4 h-4 text-blue-500" /> : <PuzzleIcon className="w-4 h-4 text-emerald-500" />}
-                                                    <span className="text-xs font-bold text-slate-600 truncate">{r.title}</span>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {references.map(r => (
+                                                <div key={r.id} className="flex items-center justify-between bg-slate-50 border border-slate-100 p-2.5 rounded-xl group">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        {r.type === 'file' ? <DocumentTextIcon className="w-4 h-4 text-blue-500" /> : <PuzzleIcon className="w-4 h-4 text-emerald-500" />}
+                                                        <span className="text-xs font-bold text-slate-600 truncate">{r.title}</span>
+                                                    </div>
+                                                    <button onClick={() => removeReference(r.id)} className="text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"><TrashIcon className="w-4 h-4"/></button>
                                                 </div>
-                                                <button onClick={() => removeReference(r.id)} className="text-slate-300 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"><TrashIcon className="w-4 h-4"/></button>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="p-3 bg-slate-50 flex items-center gap-2">
+                            <div className="p-4 bg-slate-50 flex items-center gap-3">
                                 <input type="file" className="hidden" id="tech-upload" onChange={handleFileUpload} />
                                 <button 
                                     onClick={() => document.getElementById('tech-upload')?.click()}
-                                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm flex items-center gap-2 text-xs font-bold"
+                                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm flex items-center gap-2 text-xs font-bold"
                                 >
                                     <DocumentTextIcon className="w-4 h-4" /> 上传文件
                                 </button>
                                 <button 
                                     onClick={() => setIsVectorModalOpen(true)}
-                                    className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm flex items-center gap-2 text-xs font-bold"
+                                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm flex items-center gap-2 text-xs font-bold"
                                 >
                                     <PuzzleIcon className="w-4 h-4" /> 向量检索
                                 </button>
-                                {isUploading && <span className="ml-auto text-[10px] font-black text-indigo-500 animate-pulse">UPLOADING...</span>}
+                                {isUploading && <span className="ml-auto text-[10px] font-black text-indigo-500 animate-pulse uppercase tracking-widest">Uploading...</span>}
                             </div>
                         </div>
                     </div>
@@ -136,7 +144,7 @@ export const InputCollector: React.FC<{
                     <button 
                         onClick={handleStart}
                         disabled={!targetTech.trim() || isUploading}
-                        className="group relative px-16 py-5 bg-slate-900 text-white font-black text-xl rounded-3xl shadow-2xl shadow-indigo-500/20 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-4"
+                        className="group relative px-20 py-5 bg-slate-900 text-white font-black text-xl rounded-3xl shadow-2xl shadow-indigo-500/20 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-4"
                     >
                         <SparklesIcon className="w-6 h-6 text-indigo-300" />
                         <span>开始 Agent 评估流程</span>
