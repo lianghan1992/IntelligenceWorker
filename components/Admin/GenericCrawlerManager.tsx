@@ -12,11 +12,14 @@ const Spinner: React.FC = () => (
 );
 
 // --- Sub-components ---
+/**
+ * Fix: Use point.name and point.url as they are standard on SpiderPoint which GenericPoint extends.
+ */
 const PointCard: React.FC<{ point: GenericPoint; onEdit: (p: GenericPoint) => void; onToggle: (p: GenericPoint) => void }> = ({ point, onEdit, onToggle }) => (
     <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all hover:border-indigo-200 group flex flex-col h-full">
         <div className="flex justify-between items-start mb-3">
             <div>
-                <h4 className="font-bold text-slate-800 text-base line-clamp-1" title={point.point_name}>{point.point_name}</h4>
+                <h4 className="font-bold text-slate-800 text-base line-clamp-1" title={point.name}>{point.name}</h4>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
                     <ServerIcon className="w-3.5 h-3.5"/> {point.source_name}
                 </div>
@@ -25,7 +28,7 @@ const PointCard: React.FC<{ point: GenericPoint; onEdit: (p: GenericPoint) => vo
         </div>
         
         <div className="bg-slate-50 rounded-lg p-2 mb-4 border border-slate-100">
-            <p className="text-xs text-slate-600 truncate font-mono" title={point.point_url}>{point.point_url}</p>
+            <p className="text-xs text-slate-600 truncate font-mono" title={point.url}>{point.url}</p>
         </div>
         
         <div className="flex justify-between items-center border-t border-slate-100 pt-3 mt-auto">
@@ -163,7 +166,7 @@ export const GenericCrawlerManager: React.FC = () => {
             <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar">
                 {activeView === 'points' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {points.map(p => <PointCard key={p.id} point={p} onEdit={(pt) => { setEditingPoint(pt); setFormData({source_name:pt.source_name || '', point_name:pt.point_name || '', point_url:pt.point_url || '', cron_schedule:pt.cron_schedule}); setIsModalOpen(true); }} onToggle={handleTogglePoint} />)}
+                        {points.map(p => <PointCard key={p.id} point={p} onEdit={(pt) => { setEditingPoint(pt); setFormData({source_name:pt.source_name || '', point_name:pt.name || '', point_url:pt.url || '', cron_schedule:pt.cron_schedule}); setIsModalOpen(true); }} onToggle={handleTogglePoint} />)}
                         {points.length === 0 && !isLoading && (
                             <div className="col-span-full text-center py-20 text-slate-400">暂无配置</div>
                         )}

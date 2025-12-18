@@ -113,6 +113,18 @@ export interface SpiderSource {
     total_articles?: number;
 }
 
+/**
+ * Fix: Added IntelligenceSourcePublic to the types.
+ */
+export interface IntelligenceSourcePublic extends SpiderSource {
+    id: string;
+    source_name: string;
+    points_count: number;
+    articles_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
 // Added SpiderPoint for IntelSpider API
 export interface SpiderPoint {
     id: string;
@@ -265,8 +277,13 @@ export interface LlmSearchTaskItem {
     created_at: string;
 }
 
+/**
+ * Fix: Added point_name and point_url to GenericPoint.
+ */
 // Added GenericPoint for generic crawler
 export interface GenericPoint extends SpiderPoint {
+    point_name: string;
+    point_url: string;
     list_hint?: string;
     list_filters?: string[];
 }
@@ -279,6 +296,9 @@ export interface GenericTask extends SpiderTask {
     detail_info?: string;
 }
 
+/**
+ * Fix: Added created_at to IntelligencePointPublic.
+ */
 // Added url_filters, extra_hint, initial_pages to IntelligencePointPublic
 export interface IntelligencePointPublic extends SpiderPoint {
     point_name: string;
@@ -287,6 +307,7 @@ export interface IntelligencePointPublic extends SpiderPoint {
     extra_hint?: string;
     max_depth?: number;
     status?: string;
+    created_at: string;
     updated_at: string;
 }
 

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon, ServerIcon, RssIcon, ClockIcon, ArrowRightIcon } from '../icons';
 import { createPoint } from '../../api/intelligence';

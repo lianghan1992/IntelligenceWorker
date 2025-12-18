@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderTask } from '../../../types';
+import { IntelligenceTaskPublic } from '../../../types';
 import { getSpiderTasks } from '../../../api/intelligence';
 import { RefreshIcon, PlayIcon, CheckCircleIcon, ShieldExclamationIcon, ClockIcon } from '../../icons';
 
@@ -40,7 +40,7 @@ const formatDuration = (start?: string, end?: string) => {
 };
 
 export const TaskList: React.FC = () => {
-    const [tasks, setTasks] = useState<SpiderTask[]>([]);
+    const [tasks, setTasks] = useState<IntelligenceTaskPublic[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
@@ -52,10 +52,10 @@ export const TaskList: React.FC = () => {
             const res = await getSpiderTasks({ page, page_size: pageSize });
             if (Array.isArray(res)) {
                  // Fallback if API returns array directly (old behavior)
-                 setTasks(res);
+                 setTasks(res as IntelligenceTaskPublic[]);
                  setTotal(res.length);
             } else {
-                 setTasks(res.items || []);
+                 setTasks(res.items as IntelligenceTaskPublic[] || []);
                  setTotal(res.total || 0);
             }
         } catch (e) { console.error(e); }

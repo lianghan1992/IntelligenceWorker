@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderSource, SpiderPoint } from '../../../types';
+import { SpiderSource, SpiderPoint, IntelligencePointPublic } from '../../../types';
 import { 
     getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask,
     deleteSource, deleteSpiderPoint, disableSpiderPoint, enableSpiderPoint
@@ -131,6 +131,20 @@ export const SourceConfig: React.FC = () => {
         } finally {
             setTogglingPointId(null);
         }
+    };
+
+    /**
+     * Fix: Helper to map SpiderPoint to IntelligencePointPublic.
+     */
+    const getMappedPointToEdit = (p: SpiderPoint | null): IntelligencePointPublic | null => {
+        if (!p) return null;
+        return {
+            ...p,
+            point_name: p.name,
+            point_url: p.url,
+            created_at: '',
+            updated_at: ''
+        };
     };
 
     return (
@@ -320,7 +334,7 @@ export const SourceConfig: React.FC = () => {
                 onClose={() => { setIsCreatePointModalOpen(false); setEditingPoint(null); }}
                 onSave={() => { fetchPoints(); setEditingPoint(null); }}
                 sourceId={selectedSource?.uuid}
-                pointToEdit={editingPoint}
+                pointToEdit={getMappedPointToEdit(editingPoint)}
             />
 
             {/* Task Drawer */}

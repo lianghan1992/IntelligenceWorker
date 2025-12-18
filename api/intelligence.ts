@@ -117,9 +117,19 @@ export const createSpiderSource = async (data: { name: string; main_url: string 
 };
 
 // Legacy alias mapping for compatibility
+/**
+ * Fix: Mapped type fields to align with IntelligenceSourcePublic interface.
+ */
 export const getSources = async (): Promise<IntelligenceSourcePublic[]> => {
     const sources = await getSpiderSources();
-    return sources.map((s: any) => ({ ...s, source_name: s.name }));
+    return sources.map((s: any) => ({ 
+        ...s, 
+        source_name: s.name,
+        points_count: s.total_points || 0,
+        articles_count: s.total_articles || 0,
+        created_at: s.created_at || '',
+        updated_at: s.updated_at || ''
+    }));
 };
 
 export const deleteSource = (id: string): Promise<void> => {
@@ -190,11 +200,23 @@ export const deleteSpiderPoint = (uuid: string): Promise<void> =>
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, { method: 'DELETE' });
 
 // Compatibility Wrappers for Points
+/**
+ * Fix: Mapped SpiderPoint to IntelligencePointPublic.
+ */
 export const getPoints = async (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
     const points = await getSpiderPoints(params?.source_name);
-    return points;
+    return points.map(p => ({
+        ...p,
+        point_name: p.name,
+        point_url: p.url,
+        updated_at: '',
+        created_at: ''
+    }));
 };
 
+/**
+ * Fix: Cast createSpiderPoint result to align with IntelligencePointPublic.
+ */
 export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
     return createSpiderPoint({
         source_uuid: data.source_name, // Map source_name field to source_uuid for backend
@@ -203,7 +225,13 @@ export const createPoint = (data: any): Promise<IntelligencePointPublic> => {
         cron_schedule: data.cron_schedule,
         initial_pages: data.initial_pages,
         is_active: true
-    });
+    }).then(p => ({
+        ...p,
+        point_name: p.name,
+        point_url: p.url,
+        updated_at: '',
+        created_at: ''
+    }));
 };
 
 export const deletePoints = (ids: string[]): Promise<void> => {

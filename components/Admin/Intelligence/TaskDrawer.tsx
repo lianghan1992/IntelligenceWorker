@@ -20,6 +20,9 @@ const getTypeInfo = (type: string) => {
     }
 };
 
+/**
+ * Fix: Return proper JSX from StatusBadge.
+ */
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const s = status.toLowerCase();
     const style = 
@@ -32,7 +35,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         s === 'done' ? <CheckCircleIcon className="w-3 h-3" /> :
         s === 'running' ? <PlayIcon className="w-3 h-3" /> :
         s === 'error' ? <ShieldExclamationIcon className="w-3 h-3" /> :
-        <ClockIcon className="w-3 h-3 />;
+        <ClockIcon className="w-3 h-3" />;
 
     return (
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold uppercase ${style}`}>
@@ -41,6 +44,9 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     );
 };
 
+/**
+ * Fix: Re-implemented StatCard with proper JSX syntax.
+ */
 const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
     <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm text-center">
         <div className="text-[10px] md:text-xs text-gray-400 uppercase font-bold tracking-wide mb-1">{label}</div>
@@ -60,14 +66,14 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
     const fetchTasks = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await getSpiderPointTasks(point.id, { page, limit });
+            const res = await getSpiderPointTasks(point.uuid || point.id, { page, limit });
             setTasks(res.items);
             setCounts(res.counts);
             setTypeCounts(res.type_counts || null);
             setTotal(res.total);
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [point.id, page]);
+    }, [point.uuid, point.id, page]);
 
     useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -81,10 +87,10 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
                 <div className="p-4 md:p-5 border-b flex justify-between items-center bg-gray-50/50 flex-shrink-0">
                     <div className="min-w-0 pr-4">
                         <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-extrabold text-lg md:text-xl text-gray-800 truncate">{point.point_name}</h3>
-                            <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded font-mono hidden sm:inline-block">{point.id.slice(0,8)}</span>
+                            <h3 className="font-extrabold text-lg md:text-xl text-gray-800 truncate">{point.name}</h3>
+                            <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded font-mono hidden sm:inline-block">{(point.uuid || point.id).slice(0,8)}</span>
                         </div>
-                        <p className="text-xs text-gray-500 font-medium truncate">{point.source_name} • {point.point_url}</p>
+                        <p className="text-xs text-gray-500 font-medium truncate">{point.source_name} • {point.url}</p>
                     </div>
                     <div className="flex gap-2 flex-shrink-0">
                         <button onClick={fetchTasks} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 border border-transparent hover:border-gray-200 transition-all"><RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/></button>
@@ -106,7 +112,6 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
                     {/* Type Stats - Scrollable on Mobile */}
                     {typeCounts && (
                         <div className="flex gap-2 pt-2 border-t border-gray-200 overflow-x-auto no-scrollbar pb-1">
-                            {/* FIX: Explicitly cast Object.entries to resolve type inference issues where 'count' was seen as unknown */}
                             {(Object.entries(typeCounts) as [string, number][]).map(([type, count]) => {
                                 const info = getTypeInfo(type);
                                 return (

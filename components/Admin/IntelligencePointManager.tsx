@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SystemSource, Subscription, IntelligenceSourcePublic, IntelligencePointPublic } from '../../types';
 import { getSources, getPoints, deletePoints, deleteSource, togglePoint, runPoint } from '../../api/intelligence';
@@ -195,6 +194,9 @@ export const IntelligencePointManager: React.FC = () => {
     };
 
     // Mapping helper for modal
+    /**
+     * Fix: Added missing updated_at and created_at to follow IntelligencePointPublic.
+     */
     const getPointForModal = (subscription: Subscription | null): IntelligencePointPublic | null => {
         if (!subscription) return null;
         return {
