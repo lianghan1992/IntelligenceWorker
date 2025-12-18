@@ -32,7 +32,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         s === 'done' ? <CheckCircleIcon className="w-3 h-3" /> :
         s === 'running' ? <PlayIcon className="w-3 h-3" /> :
         s === 'error' ? <ShieldExclamationIcon className="w-3 h-3" /> :
-        <ClockIcon className="w-3 h-3" />;
+        <ClockIcon className="w-3 h-3 />;
 
     return (
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold uppercase ${style}`}>
@@ -106,7 +106,8 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
                     {/* Type Stats - Scrollable on Mobile */}
                     {typeCounts && (
                         <div className="flex gap-2 pt-2 border-t border-gray-200 overflow-x-auto no-scrollbar pb-1">
-                            {Object.entries(typeCounts).map(([type, count]) => {
+                            {/* FIX: Explicitly cast Object.entries to resolve type inference issues where 'count' was seen as unknown */}
+                            {(Object.entries(typeCounts) as [string, number][]).map(([type, count]) => {
                                 const info = getTypeInfo(type);
                                 return (
                                     <div key={type} className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 ${info.color}`}>
