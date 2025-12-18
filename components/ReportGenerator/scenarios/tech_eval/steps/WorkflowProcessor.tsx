@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
@@ -13,6 +14,27 @@ declare global {
 }
 
 const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+
+/**
+ * 辅助函数：从尚不完整的 JSON 字符串中提取第一个键值对的内容
+ * 适用于流式传输中的实时预览
+ */
+const extractPartialValue = (jsonPart: string): string => {
+    // 匹配模式： "任意键": "提取内容...
+    // 使用 s 标志支持换行符，匹配引号开始后的所有内容
+    const match = jsonPart.match(/"[^"]*"\s*:\s*"(.*)/s);
+    if (match) {
+        let raw = match[1];
+        // 清理转义的换行符和引号，但不移除结尾，因为流还在继续
+        return raw
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\t/g, '\t')
+            .replace(/"\s*,?\s*$/, '') // 如果已经有了结尾引号，尝试去掉以便平滑显示
+            .replace(/\\$/, '');       // 去掉末尾孤立的反斜杠预防乱码
+    }
+    return '';
+};
 
 export const WorkflowProcessor: React.FC<{
     taskId: string;
@@ -73,7 +95,6 @@ export const WorkflowProcessor: React.FC<{
         runPipeline();
     }, []);
 
-    // 修复：添加处理用户消息的 handleSendMessage 函数，用于处理修订指令
     const handleSendMessage = async () => {
         if (!userInput.trim() || isProcessing) return;
         
@@ -98,7 +119,11 @@ export const WorkflowProcessor: React.FC<{
                 },
                 (chunk) => { 
                     fullRes += chunk; 
-                    const { jsonPart } = extractThoughtAndJson(fullRes);
+                    const { thought, jsonPart } = extractThoughtAndJson(fullRes);
+                    
+                    // 实时同步思考流
+                    if (thought) setThoughtStream(thought);
+
                     if (jsonPart) {
                         const parsed = parseLlmJson<any>(jsonPart);
                         if (parsed) {
@@ -125,7 +150,7 @@ export const WorkflowProcessor: React.FC<{
 
     const executeStep = async (promptName: string, vars: any, logLabel: string, onPartUpdate?: (content: string) => void): Promise<string> => {
         setSubTaskLabel(logLabel);
-        setThoughtStream(''); // 每个大步骤清空一次思考流，或追加
+        setThoughtStream(''); 
         return new Promise<string>((resolve, reject) => {
             let fullRes = '';
             streamGenerate(
@@ -138,17 +163,25 @@ export const WorkflowProcessor: React.FC<{
                 },
                 (chunk) => { 
                     fullRes += chunk; 
-                    const { jsonPart } = extractThoughtAndJson(fullRes);
+                    const { thought, jsonPart } = extractThoughtAndJson(fullRes);
+                    
+                    // 核心修复：如果模型在 content 中输出思考过程，实时显示它
+                    if (thought && !jsonPart) {
+                        setThoughtStream(thought);
+                    }
+
+                    // 核心修复：流式提取 JSON 中的内容，实现实时文档生长
                     if (jsonPart && onPartUpdate) {
-                        const parsed = parseLlmJson<any>(jsonPart);
-                        const content = parsed ? (Object.values(parsed)[0] as string) : '';
-                        if (content) onPartUpdate(content);
+                        const streamingContent = extractPartialValue(jsonPart);
+                        if (streamingContent) {
+                            onPartUpdate(streamingContent);
+                        }
                     }
                 }, 
                 () => resolve(fullRes),
                 reject,
                 (sid) => { if (sid) { setSessionId(sid); onUpdateSession(sid); } },
-                (tChunk) => setThoughtStream(prev => prev + tChunk)
+                (tChunk) => setThoughtStream(prev => prev + tChunk) // 处理模型原生 reasoning 字段
             );
         });
     };
@@ -181,6 +214,7 @@ export const WorkflowProcessor: React.FC<{
             }
 
             setCurrentStep(4);
+            setSubTaskLabel('分析流程已完成');
         } catch (e) {
             console.error(e);
         } finally {
@@ -190,7 +224,7 @@ export const WorkflowProcessor: React.FC<{
 
     return (
         <div className="flex-1 flex flex-col overflow-hidden bg-[#f1f3f6]">
-            {/* 顶栏：极简状态 */}
+            {/* 顶栏 */}
             <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-30 shadow-sm">
                 <div className="flex items-center gap-8">
                     <div className="flex items-center gap-3">
@@ -200,7 +234,6 @@ export const WorkflowProcessor: React.FC<{
                         <span className="font-black text-slate-900 tracking-tight">AI ANALYZER ENGINE</span>
                     </div>
                     
-                    {/* 进度步进器 */}
                     <div className="hidden md:flex items-center gap-6">
                         {[
                             { id: 1, label: '角色协议' },
@@ -236,10 +269,8 @@ export const WorkflowProcessor: React.FC<{
                 </div>
             </div>
 
-            {/* 主体工作台：分屏布局 */}
             <div className="flex-1 flex overflow-hidden">
-                
-                {/* 左侧：Agent 思维控制台 (Dark) */}
+                {/* 左侧：思维控制台 */}
                 <div className="w-full md:w-[400px] lg:w-[450px] bg-[#0f172a] border-r border-slate-800 flex flex-col shadow-2xl relative z-10">
                     <div className="p-5 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Agent Thought Stream</span>
@@ -251,7 +282,6 @@ export const WorkflowProcessor: React.FC<{
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 font-mono text-[13px] leading-relaxed text-slate-300 custom-scrollbar-dark">
                         <div className="space-y-6">
-                            {/* 此处可以渲染之前的 Message 历史，这里简化为展示当前 Thought */}
                             <div className="opacity-40 italic text-slate-500 mb-8 border-b border-slate-800 pb-4">
                                 &gt;&gt; System: Neural network initialized.<br/>
                                 &gt;&gt; Protocol: Engineering Intelligence v3.2<br/>
@@ -261,7 +291,7 @@ export const WorkflowProcessor: React.FC<{
                             {thoughtStream ? (
                                 <div className="animate-in fade-in duration-300">
                                     <div className="flex items-center gap-2 text-indigo-400 font-bold mb-2">
-                                        <SparklesIcon className="w-4 h-4" /> 正在分析...
+                                        <SparklesIcon className="w-4 h-4 animate-pulse" /> 正在分析逻辑链...
                                     </div>
                                     <div className="whitespace-pre-wrap text-slate-400">{thoughtStream}</div>
                                     <span className="inline-block w-2 h-4 bg-indigo-500 animate-pulse ml-1 align-middle"></span>
@@ -276,7 +306,6 @@ export const WorkflowProcessor: React.FC<{
                         </div>
                     </div>
 
-                    {/* 修订指令框 */}
                     <div className="p-5 bg-slate-900/50 border-t border-slate-800">
                         <div className="relative group">
                             <textarea 
@@ -298,12 +327,10 @@ export const WorkflowProcessor: React.FC<{
                     </div>
                 </div>
 
-                {/* 右侧：文档预览 (Light/Paper) */}
+                {/* 右侧：文档预览 */}
                 <div className="flex-1 overflow-y-auto bg-slate-100 p-4 md:p-12 lg:p-20 custom-scrollbar relative">
-                    {/* 纸张质感容器 */}
                     <div className="max-w-4xl mx-auto bg-white min-h-full shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200 rounded-[2px] relative overflow-hidden transition-all duration-700">
                         
-                        {/* 文档装饰：页眉 */}
                         <div className="absolute top-0 left-0 right-0 h-16 border-b border-slate-50 flex items-center justify-between px-12 opacity-30 select-none">
                             <span className="text-[9px] font-black uppercase tracking-[0.3em]">CONFIDENTIAL TECH REPORT</span>
                             <span className="text-[9px] font-black uppercase tracking-[0.3em]">{new Date().toISOString().split('T')[0]}</span>
@@ -313,10 +340,11 @@ export const WorkflowProcessor: React.FC<{
                             {!combinedMarkdown ? (
                                 <div className="flex flex-col items-center justify-center py-40 text-slate-200">
                                     <DocumentTextIcon className="w-24 h-24 opacity-10 mb-6" />
-                                    <div className="space-y-2 text-center">
-                                        <div className="h-4 w-64 bg-slate-100 rounded-full animate-pulse"></div>
-                                        <div className="h-4 w-48 bg-slate-100 rounded-full animate-pulse mx-auto"></div>
-                                        <div className="h-4 w-56 bg-slate-100 rounded-full animate-pulse"></div>
+                                    <div className="space-y-4 text-center">
+                                        <p className="text-sm font-black text-slate-300 animate-pulse tracking-widest uppercase">Waiting for Agent Output</p>
+                                        <div className="h-1 w-48 bg-slate-100 rounded-full mx-auto overflow-hidden">
+                                            <div className="h-full bg-indigo-500 w-1/3 animate-[shimmer_1.5s_infinite]"></div>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
@@ -334,7 +362,6 @@ export const WorkflowProcessor: React.FC<{
                             <div ref={docEndRef} className="h-32" />
                         </div>
                         
-                        {/* 页脚装饰 */}
                         <div className="h-16 border-t border-slate-50 flex items-center justify-center opacity-20 select-none">
                             <div className="flex items-center gap-2">
                                 <SparklesIcon className="w-3 h-3" />
@@ -350,16 +377,9 @@ export const WorkflowProcessor: React.FC<{
                 .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
                 .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
                 
-                @keyframes scan {
-                    from { transform: translateY(-100%); }
-                    to { transform: translateY(100%); }
-                }
-                .scanline {
-                    position: absolute;
-                    inset: 0;
-                    background: linear-gradient(to bottom, transparent, rgba(99, 102, 241, 0.05), transparent);
-                    animation: scan 3s linear infinite;
-                    pointer-events: none;
+                @keyframes shimmer {
+                    from { transform: translateX(-100%); }
+                    to { transform: translateX(300%); }
                 }
             `}</style>
         </div>
