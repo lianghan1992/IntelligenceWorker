@@ -278,7 +278,7 @@ export interface LlmSearchTaskItem {
 }
 
 /**
- * Fix: Added point_name and point_url to GenericPoint.
+ * Fix: Added point_name, point_url, created_at, and updated_at to GenericPoint.
  */
 // Added GenericPoint for generic crawler
 export interface GenericPoint extends SpiderPoint {
@@ -286,6 +286,8 @@ export interface GenericPoint extends SpiderPoint {
     point_url: string;
     list_hint?: string;
     list_filters?: string[];
+    created_at: string;
+    updated_at: string;
 }
 
 // Added GenericTask for generic task monitor
@@ -309,6 +311,7 @@ export interface IntelligencePointPublic extends SpiderPoint {
     status?: string;
     created_at: string;
     updated_at: string;
+    initial_pages?: number;
 }
 
 // Added Subscription for internal frontend state

@@ -38,7 +38,6 @@ export const ReportGenerator: React.FC = () => {
             const newTask = await createStratifyTask(userInput, selectedScenario);
             setTask({ ...newTask, context });
 
-            // 触发初始意图分析
             await streamGenerate(
                 {
                     prompt_name: '00_analyze_input',
@@ -73,7 +72,6 @@ export const ReportGenerator: React.FC = () => {
         }
     };
 
-    // 动态渲染选定的场景工作流
     const renderScenarioWorkflow = () => {
         if (!task) return null;
         const ScenarioComponent = SCENARIO_REGISTRY[selectedScenario];

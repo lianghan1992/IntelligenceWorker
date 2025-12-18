@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ScenarioProps } from '../registry';
 import { StratifyPage, StratifyOutline } from '../../../../types';
 
-// 场景内部私有组件 (从 shared 或当前目录引用)
+// 场景内部私有组件
 import { OutlineStep } from './steps/OutlineStep';
 import { ContentStep } from './steps/ContentStep';
 import { LayoutStep } from './steps/LayoutStep';
@@ -17,7 +17,7 @@ export const DefaultScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenar
 
     return (
         <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
-            {/* 场景私有的步骤条 (如果每个场景步骤不同，也可以在这里定制) */}
+            {/* 场景私有的步骤条 */}
             <MinimalStepper currentStep={step} />
 
             <div className="flex-1 relative overflow-hidden flex flex-col">
@@ -40,7 +40,7 @@ export const DefaultScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenar
                         outline={outline}
                         scenario={scenario}
                         initialSessionId={activeSessionId}
-                        onComplete={(resPages) => {
+                        onComplete={(resPages: StratifyPage[]) => {
                             setPages(resPages);
                             setStep(3);
                         }}

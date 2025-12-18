@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BrainIcon, CheckIcon, RefreshIcon } from '../../../../icons';
+import { BrainIcon, CheckIcon } from '../../../../icons';
 import { StratifyOutline } from '../../../../../types';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
