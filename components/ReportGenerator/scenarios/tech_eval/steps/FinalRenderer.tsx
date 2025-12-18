@@ -23,16 +23,15 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
     useEffect(() => {
         const render = async () => {
             let buffer = '';
-            setThought('正在启动高保真排版引擎...\n');
+            setThought('正在启动高保真排版引擎，解析合稿内容...\n');
             
-            // 重要：显式传递 session_id: undefined
-            // 04_Markdown2Html 需要在一个干净的上下文里工作，只关注传入的 markdown_report
+            // 重要：04_Markdown2Html 将 Markdown 转换为 HTML
             await streamGenerate(
                 { 
                     prompt_name: '04_Markdown2Html', 
                     variables: { markdown_report: markdown }, 
                     scenario, 
-                    session_id: undefined, 
+                    session_id: undefined, // 开启全新会话
                     model_override: TARGET_MODEL 
                 },
                 (chunk) => {
@@ -97,7 +96,7 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                     <button 
                         onClick={handleDownloadPdf}
                         disabled={!htmlContent || isDownloading}
-                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-black rounded-xl shadow-xl hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                         {isDownloading ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <DownloadIcon className="w-4 h-4" />}
                         下载 PDF
