@@ -1,10 +1,16 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
-// Fix: Removed non-existent MessageIcon and unused BrainIcon
-import { CheckIcon, SparklesIcon, ArrowRightIcon } from '../../../../icons';
+/* Added CloseIcon to the imports from icons.tsx to resolve the error on line 318 */
+import { CheckIcon, SparklesIcon, ArrowRightIcon, CodeIcon, ChevronRightIcon, BrainIcon, CloseIcon } from '../../../../icons';
+
+interface InteractionLog {
+    role: 'user' | 'assistant' | 'system';
+    name: string;
+    content: string;
+    timestamp: number;
+}
 
 interface WorkflowProcessorProps {
     taskId: string;
@@ -19,12 +25,16 @@ interface WorkflowProcessorProps {
 export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({ 
     taskId, scenario, initialSessionId, targetTech, materials, onFinish, onUpdateSession 
 }) => {
-    const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1); // 1:Role, 2:Analyze, 3:Draft, 4:Revision
+    const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [thoughtStream, setThoughtStream] = useState('');
     const [draftMarkdown, setDraftMarkdown] = useState('');
     const [sessionId, setSessionId] = useState(initialSessionId);
     
+    // 调试记录状态
+    const [interactionLogs, setInteractionLogs] = useState<InteractionLog[]>([]);
+    const [isDebugOpen, setIsDebugOpen] = useState(false);
+
     // 修订对话
     const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
     const [userInput, setUserInput] = useState('');
@@ -38,40 +48,58 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         runPipeline();
     }, []);
 
+    const addLog = (log: InteractionLog) => {
+        setInteractionLogs(prev => [...prev, log]);
+    };
+
     const runPipeline = async () => {
         setIsProcessing(true);
         try {
-            // Step 1: AI角色定义 (01_Role_ProtocolSetup)
+            // Step 1: AI角色定义
             setCurrentStep(1);
             setIsThinkingOpen(true);
+            addLog({ role: 'system', name: '01_Role_ProtocolSetup', content: '正在发送角色定义协议...', timestamp: Date.now() });
+            
             await new Promise<void>((resolve, reject) => {
+                let fullRes = '';
                 streamGenerate(
                     { prompt_name: '01_Role_ProtocolSetup', variables: {}, scenario, session_id: sessionId },
-                    () => {}, 
-                    resolve,
+                    (chunk) => { fullRes += chunk; }, 
+                    () => {
+                        addLog({ role: 'assistant', name: '01_Role_ProtocolSetup', content: fullRes, timestamp: Date.now() });
+                        resolve();
+                    },
                     reject,
                     (sid) => { setSessionId(sid); onUpdateSession(sid); },
                     setThoughtStream
                 );
             });
 
-            // Step 2: AI正在分析资料 (02_DataIngestion)
+            // Step 2: AI正在分析资料
             setCurrentStep(2);
             setThoughtStream('');
+            addLog({ role: 'user', name: '02_DataIngestion', content: `注入资料库：${materials.substring(0, 100)}...`, timestamp: Date.now() });
+            
             await new Promise<void>((resolve, reject) => {
+                let fullRes = '';
                 streamGenerate(
                     { prompt_name: '02_DataIngestion', variables: { data: materials }, scenario, session_id: sessionId },
-                    () => {},
-                    resolve,
+                    (chunk) => { fullRes += chunk; },
+                    () => {
+                        addLog({ role: 'assistant', name: '02_DataIngestion', content: fullRes, timestamp: Date.now() });
+                        resolve();
+                    },
                     reject,
                     undefined,
                     setThoughtStream
                 );
             });
 
-            // Step 3: AI撰写报告 (03_TriggerGeneration)
+            // Step 3: AI撰写报告
             setCurrentStep(3);
             setThoughtStream('');
+            addLog({ role: 'user', name: '03_TriggerGeneration', content: `触发评估：${targetTech}`, timestamp: Date.now() });
+            
             let fullDraft = '';
             await new Promise<void>((resolve, reject) => {
                 streamGenerate(
@@ -80,7 +108,6 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                         fullDraft += chunk;
                         const { jsonPart } = extractThoughtAndJson(fullDraft);
                         if (jsonPart) {
-                            // 尝试格式化显示 draft
                             const parsed = parseLlmJson<any>(jsonPart);
                             if (parsed && parsed.报告) {
                                 let md = '';
@@ -93,7 +120,10 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                             }
                         }
                     },
-                    resolve,
+                    () => {
+                        addLog({ role: 'assistant', name: '03_TriggerGeneration', content: fullDraft, timestamp: Date.now() });
+                        resolve();
+                    },
                     reject,
                     undefined,
                     setThoughtStream
@@ -105,6 +135,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             setMessages([{ role: 'assistant', content: '技术评估报告初稿已完成。您可以查看右侧预览内容，并在此处提出修改意见。' }]);
         } catch (e) {
             console.error("Pipeline error", e);
+            addLog({ role: 'system', name: 'Error', content: `执行异常: ${String(e)}`, timestamp: Date.now() });
             alert("执行过程中出现异常，请重试");
         } finally {
             setIsProcessing(false);
@@ -116,6 +147,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         
         const userMsg = userInput.trim();
         setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+        addLog({ role: 'user', name: 'ManualRevision', content: userMsg, timestamp: Date.now() });
         setUserInput('');
         setIsProcessing(true);
         setIsThinkingOpen(true);
@@ -124,17 +156,17 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         let fullRes = '';
         await streamGenerate(
             { 
-                prompt_name: '02_revise_outline', // 复用修订指令
+                prompt_name: '02_revise_outline',
                 variables: { user_revision_request: userMsg }, 
                 scenario, 
                 session_id: sessionId 
             },
             (chunk) => {
                 fullRes += chunk;
-                // 实时更新右侧预览（简单处理，对话期间 AI 通常直接返回 Markdown 内容）
                 if (fullRes.length > 20) setDraftMarkdown(fullRes); 
             },
             () => {
+                addLog({ role: 'assistant', name: 'ManualRevision', content: fullRes, timestamp: Date.now() });
                 setMessages(prev => [...prev, { role: 'assistant', content: '内容已按您的要求更新。' }]);
                 setIsProcessing(false);
                 setIsThinkingOpen(false);
@@ -162,15 +194,28 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             />
 
             {/* 顶部进度条 */}
-            <div className="bg-white border-b border-slate-200 px-10 py-4 flex justify-center gap-12">
-                {steps.map(s => (
-                    <div key={s.id} className={`flex items-center gap-3 transition-all ${s.active ? 'scale-105' : 'opacity-50'}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 ${s.done ? 'bg-green-50 border-green-100 text-white' : s.active ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 text-slate-400'}`}>
-                            {s.done ? <CheckIcon className="w-5 h-5" /> : s.id}
+            <div className="bg-white border-b border-slate-200 px-10 py-4 flex items-center justify-between shadow-sm relative z-10">
+                <div className="flex-1"></div>
+                <div className="flex items-center gap-12">
+                    {steps.map(s => (
+                        <div key={s.id} className={`flex items-center gap-3 transition-all ${s.active ? 'scale-105' : 'opacity-50'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border-2 ${s.done ? 'bg-green-50 border-green-100 text-white' : s.active ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 text-slate-400'}`}>
+                                {s.done ? <CheckIcon className="w-5 h-5" /> : s.id}
+                            </div>
+                            <span className={`text-sm font-bold ${s.active ? 'text-indigo-900' : 'text-slate-500'}`}>{s.label}</span>
                         </div>
-                        <span className={`text-sm font-bold ${s.active ? 'text-indigo-900' : 'text-slate-500'}`}>{s.label}</span>
-                    </div>
-                ))}
+                    ))}
+                </div>
+                <div className="flex-1 flex justify-end">
+                    <button 
+                        onClick={() => setIsDebugOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-all border border-slate-200"
+                        title="查看原始交互记录"
+                    >
+                        <CodeIcon className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase tracking-widest">Debug Logs</span>
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
@@ -254,6 +299,69 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* 对话交互记录模态框 */}
+            {isDebugOpen && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-8 animate-in fade-in">
+                    <div className="bg-[#0f172a] w-full max-w-5xl h-[85vh] rounded-[32px] shadow-2xl border border-white/10 flex flex-col overflow-hidden animate-in zoom-in-95">
+                        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50 flex-shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                                    <CodeIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-black text-lg">Backend Interaction Console</h3>
+                                    <p className="text-slate-400 text-xs font-mono uppercase tracking-widest">Tracing Session: {sessionId || 'No Session'}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsDebugOpen(false)} className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-all">
+                                <CloseIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar-dark bg-[#0f172a]">
+                            {interactionLogs.length === 0 ? (
+                                <div className="h-full flex items-center justify-center text-slate-600 font-mono italic">
+                                    Waiting for first interaction packet...
+                                </div>
+                            ) : (
+                                interactionLogs.map((log, i) => (
+                                    <div key={i} className="space-y-3">
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase tracking-widest ${
+                                                log.role === 'assistant' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 
+                                                log.role === 'system' ? 'border-amber-500/30 text-amber-400 bg-amber-500/10' : 
+                                                'border-indigo-500/30 text-indigo-400 bg-indigo-500/10'
+                                            }`}>
+                                                {log.role}
+                                            </span>
+                                            <span className="text-slate-500 font-mono text-[10px]">{log.name}</span>
+                                            <div className="h-px bg-white/5 flex-1"></div>
+                                            <span className="text-slate-600 font-mono text-[10px]">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                        </div>
+                                        <div className={`p-5 rounded-2xl border font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre-wrap ${
+                                            log.role === 'assistant' ? 'bg-slate-800/40 border-slate-700/50 text-slate-300 shadow-inner' : 'bg-transparent border-white/5 text-slate-400'
+                                        }`}>
+                                            {log.content}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="p-4 bg-slate-950/80 border-t border-white/5 flex justify-between items-center px-8">
+                            <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Channel: Plumber_v3</span>
+                                </div>
+                                <span className="text-slate-600 text-[10px] font-black uppercase tracking-widest">Logs: {interactionLogs.length}</span>
+                            </div>
+                            <span className="text-indigo-400/30 font-black italic text-[10px] tracking-widest uppercase">AutoInsight Internal Debugger</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
