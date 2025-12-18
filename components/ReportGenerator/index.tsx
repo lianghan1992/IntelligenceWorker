@@ -92,15 +92,18 @@ export const ReportGenerator: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-slate-50/50 relative overflow-hidden font-sans">
+        <div className="h-full flex flex-col bg-white relative overflow-hidden font-sans">
             {/* 顶层浮动工具栏 */}
             <div className="absolute top-8 right-8 z-[60] flex items-center gap-3">
                 {view !== 'picker' && view !== 'done' && (
                     <button 
                         onClick={() => setViewState(view === 'workflow' ? 'collector' : 'picker')}
-                        className="p-2.5 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 rounded-2xl shadow-sm transition-all hover:shadow-md"
+                        className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 rounded-2xl shadow-sm transition-all hover:shadow-md hover:border-indigo-200 active:scale-95"
                     >
-                        <ChevronLeftIcon className="w-5 h-5" />
+                        <ChevronLeftIcon className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+                        <span className="text-xs font-bold tracking-tight">
+                            {view === 'workflow' ? '返回修改描述' : '返回场景选择'}
+                        </span>
                     </button>
                 )}
                 {view === 'picker' && (
