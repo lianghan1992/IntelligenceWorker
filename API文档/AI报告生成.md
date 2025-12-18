@@ -9,7 +9,25 @@ StratifyAI 服务采用“前端驱动业务，后端提供能力”的架构。
 
 ## 1. 核心流式接口 (The Plumber)
 
-### 1.1 通用生成流
+### 1.1 获取可用模型列表
+- **URL**: `GET /common/models`
+- **响应**: `application/json`
+
+**功能说明**:
+获取当前系统允许使用的模型白名单列表。前端在传递 `model_override` 参数时，必须确保值存在于此列表中。
+
+**响应示例**:
+```json
+[
+  "zhipu@glm-4-flash",
+  "openrouter@tngtech/deepseek-r1t2-chimera:free",
+  "gemini_cookie@gemini"
+]
+```
+
+---
+
+### 1.2 通用生成流
 - **URL**: `POST /generate/stream`
 - **Content-Type**: `application/json`
 - **响应**: `text/event-stream` (Server-Sent Events)
@@ -29,7 +47,7 @@ StratifyAI 服务采用“前端驱动业务，后端提供能力”的架构。
     "reference_materials": "..."     // 可选
   },
   "scenario": "default",             // (可选) 场景名称，默认为 "default"。必须对应已存在的场景。
-  "model_override": "zhipu@glm-4-flash",   // (可选) 指定模型，格式: channel@model
+  "model_override": "zhipu@glm-4-flash",   // (可选) 指定模型。必须是 /common/models 接口返回的白名单模型之一，否则返回 400 错误。
   "session_id": "sess_...",          // (可选) 会话ID，用于继续之前的对话
   "task_id": "task_123...",          // (可选) 关联的任务ID。如果提供，生成结果会自动保存到任务的 result.phases 中
   "phase_name": "01_generate_outline", // (可选) 关联的任务阶段名称。需与 task_id 配合使用
@@ -67,7 +85,7 @@ data: [DONE]
 
 ---
 
-### 1.2 通用文件上传
+### 1.3 通用文件上传
 - **URL**: `POST /common/upload`
 - **Content-Type**: `multipart/form-data`
 - **响应**: `application/json`

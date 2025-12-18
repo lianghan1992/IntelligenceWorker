@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
-/* Added CloseIcon to the imports from icons.tsx to resolve the error on line 318 */
 import { CheckIcon, SparklesIcon, ArrowRightIcon, CodeIcon, ChevronRightIcon, BrainIcon, CloseIcon } from '../../../../icons';
 
 // 场景指定使用的模型引擎
@@ -30,6 +29,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
     taskId, scenario, initialSessionId, targetTech, materials, onFinish, onUpdateSession 
 }) => {
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+    const [subTaskLabel, setSubTaskLabel] = useState('');
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [thoughtStream, setThoughtStream] = useState('');
     const [draftMarkdown, setDraftMarkdown] = useState('');
@@ -56,103 +56,73 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         setInteractionLogs(prev => [...prev, log]);
     };
 
+    // 辅助函数：执行单个流式步骤并返回完整响应
+    const executeStep = async (promptName: string, vars: any, logLabel: string): Promise<string> => {
+        setSubTaskLabel(logLabel);
+        setThoughtStream('');
+        addLog({ role: 'system', name: promptName, content: `执行步骤: ${logLabel}...`, timestamp: Date.now() });
+        
+        return new Promise<string>((resolve, reject) => {
+            let fullRes = '';
+            streamGenerate(
+                { 
+                    prompt_name: promptName, 
+                    variables: vars, 
+                    scenario, 
+                    session_id: sessionId,
+                    model_override: TARGET_MODEL 
+                },
+                (chunk) => { fullRes += chunk; }, 
+                () => {
+                    addLog({ role: 'assistant', name: promptName, content: fullRes, timestamp: Date.now() });
+                    resolve(fullRes);
+                },
+                reject,
+                (sid) => { setSessionId(sid); onUpdateSession(sid); },
+                (tChunk) => setThoughtStream(prev => prev + tChunk)
+            );
+        });
+    };
+
     const runPipeline = async () => {
         setIsProcessing(true);
         try {
             // Step 1: AI角色定义
             setCurrentStep(1);
             setIsThinkingOpen(true);
-            setThoughtStream('');
-            addLog({ role: 'system', name: '01_Role_ProtocolSetup', content: '正在发送角色定义协议...', timestamp: Date.now() });
-            
-            await new Promise<void>((resolve, reject) => {
-                let fullRes = '';
-                streamGenerate(
-                    { 
-                        prompt_name: '01_Role_ProtocolSetup', 
-                        variables: {}, 
-                        scenario, 
-                        session_id: sessionId,
-                        model_override: TARGET_MODEL 
-                    },
-                    (chunk) => { fullRes += chunk; }, 
-                    () => {
-                        addLog({ role: 'assistant', name: '01_Role_ProtocolSetup', content: fullRes, timestamp: Date.now() });
-                        resolve();
-                    },
-                    reject,
-                    (sid) => { setSessionId(sid); onUpdateSession(sid); },
-                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
-                );
-            });
+            await executeStep('01_Role_ProtocolSetup', {}, '初始化专家协议');
 
             // Step 2: AI正在分析资料
             setCurrentStep(2);
-            setThoughtStream('');
-            addLog({ role: 'user', name: '02_DataIngestion', content: `注入资料库：${materials.substring(0, 100)}...`, timestamp: Date.now() });
-            
-            await new Promise<void>((resolve, reject) => {
-                let fullRes = '';
-                streamGenerate(
-                    { 
-                        prompt_name: '02_DataIngestion', 
-                        variables: { data: materials }, 
-                        scenario, 
-                        session_id: sessionId,
-                        model_override: TARGET_MODEL 
-                    },
-                    (chunk) => { fullRes += chunk; },
-                    () => {
-                        addLog({ role: 'assistant', name: '02_DataIngestion', content: fullRes, timestamp: Date.now() });
-                        resolve();
-                    },
-                    reject,
-                    undefined,
-                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
-                );
-            });
+            await executeStep('02_DataIngestion', { data: materials }, '注入行业资料库');
 
-            // Step 3: AI撰写报告
+            // Step 3: AI撰写报告 (分4个子步骤)
             setCurrentStep(3);
-            setThoughtStream('');
-            addLog({ role: 'user', name: '03_TriggerGeneration', content: `触发评估：${targetTech}`, timestamp: Date.now() });
             
-            let fullDraft = '';
-            await new Promise<void>((resolve, reject) => {
-                streamGenerate(
-                    { 
-                        prompt_name: '03_TriggerGeneration', 
-                        variables: { target_technology: targetTech }, 
-                        scenario, 
-                        session_id: sessionId,
-                        model_override: TARGET_MODEL 
-                    },
-                    (chunk) => {
-                        fullDraft += chunk;
-                        const { jsonPart } = extractThoughtAndJson(fullDraft);
-                        if (jsonPart) {
-                            const parsed = parseLlmJson<any>(jsonPart);
-                            if (parsed && parsed.报告) {
-                                let md = '';
-                                Object.entries(parsed.报告).forEach(([k, v]: [string, any]) => {
-                                    md += `## ${k}\n\n**核心观点**: ${v.核心观点}\n\n**详细论据**: ${v.详细论据}\n\n**可视化建议**: ${v.可视化建议}\n\n`;
-                                });
-                                setDraftMarkdown(md);
-                            } else {
-                                setDraftMarkdown(jsonPart);
-                            }
-                        }
-                    },
-                    () => {
-                        addLog({ role: 'assistant', name: '03_TriggerGeneration', content: fullDraft, timestamp: Date.now() });
-                        resolve();
-                    },
-                    reject,
-                    undefined,
-                    (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
-                );
-            });
+            // Sub-Step 3.1: 技术路线分析
+            const res1 = await executeStep('03_TriggerGeneration_step1', { tec: targetTech }, '分析技术路线与成熟度');
+            const part1 = parseLlmJson<any>(extractThoughtAndJson(res1).jsonPart)?.第一部分_技术路线与当前所处阶段分析 || '';
 
+            // Sub-Step 3.2: 风险识别
+            const res2 = await executeStep('03_TriggerGeneration_step2', {}, '识别潜在工程风险');
+            const part2 = parseLlmJson<any>(extractThoughtAndJson(res2).jsonPart)?.第二部分_当前技术潜在风险识别与分析 || '';
+
+            // Sub-Step 3.3: 方案推荐
+            const res3 = await executeStep('03_TriggerGeneration_step3', {}, '生成行业方案推荐');
+            const part3 = parseLlmJson<any>(extractThoughtAndJson(res3).jsonPart)?.第三部分_行业技术方案推荐 || '';
+
+            // Sub-Step 3.4: 引用解析
+            const res4 = await executeStep('03_TriggerGeneration_step4', {}, '提取引用资料来源');
+            const refsJson = parseLlmJson<any>(extractThoughtAndJson(res4).jsonPart);
+            let refsMd = '';
+            if (refsJson && typeof refsJson === 'object') {
+                refsMd = Object.entries(refsJson).map(([title, url]) => `- [${title}](${url})`).join('\n');
+            }
+
+            // 汇总 Markdown
+            const finalDraft = `# 技术评估报告: ${targetTech.substring(0, 30)}${targetTech.length > 30 ? '...' : ''}\n\n## 第一部分：技术路线与当前所处阶段分析\n\n${part1}\n\n## 第二部分：当前技术潜在风险识别与分析\n\n${part2}\n\n## 第三部分：行业技术方案推荐\n\n${part3}\n\n## 引用资料来源\n\n${refsMd || '暂无外部引用资料'}`;
+            
+            setDraftMarkdown(finalDraft);
             setCurrentStep(4);
             setIsThinkingOpen(false);
             setMessages([{ role: 'assistant', content: '技术评估报告初稿已完成。您可以查看右侧预览内容，并在此处提出修改意见。' }]);
@@ -175,11 +145,12 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
         setIsProcessing(true);
         setIsThinkingOpen(true);
         setThoughtStream('');
+        setSubTaskLabel('正在按要求修订报告');
 
         let fullRes = '';
         await streamGenerate(
             { 
-                prompt_name: '02_revise_outline',
+                prompt_name: '02_revise_outline', // 复用修订指令
                 variables: { user_revision_request: userMsg }, 
                 scenario, 
                 session_id: sessionId,
@@ -197,7 +168,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             },
             () => { setIsProcessing(false); setIsThinkingOpen(false); },
             undefined,
-            (tChunk) => setThoughtStream(prev => prev + tChunk) // 修复：累加思考流
+            (tChunk) => setThoughtStream(prev => prev + tChunk)
         );
     };
 
@@ -214,7 +185,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                 isOpen={isThinkingOpen} 
                 onClose={() => setIsThinkingOpen(false)} 
                 content={thoughtStream}
-                status={`AI 正在执行: ${steps.find(s => s.active)?.label || '任务处理'}`}
+                status={`AI 正在执行: ${subTaskLabel || '任务处理'}`}
             />
 
             {/* 顶部进度条 */}
@@ -316,7 +287,7 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                                 <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-500 rounded-full animate-spin"></div>
                                 <div className="text-center space-y-2">
                                     <p className="font-black text-slate-400 text-xl tracking-tight">Agent 正在深度解析资料</p>
-                                    <p className="text-sm font-medium text-slate-300">构建技术逻辑链，识别潜在工程风险...</p>
+                                    <p className="text-sm font-medium text-slate-300">{subTaskLabel || '构建技术逻辑链，识别潜在工程风险...'}</p>
                                 </div>
                             </div>
                         )}
