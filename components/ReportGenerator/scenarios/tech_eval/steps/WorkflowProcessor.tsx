@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { BrainIcon, SparklesIcon } from '../../../../icons';
+import { BrainIcon, SparklesIcon, CheckIcon } from '../../../../icons';
 
 declare global {
   interface Window {
@@ -12,6 +12,9 @@ declare global {
 
 const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
+/**
+ * 实时提取 JSON 中特定 key 的部分内容（用于流式显示 Markdown 内容）
+ */
 const extractPartialValue = (text: string, keys: string[]): string => {
     for (const key of keys) {
         const regex = new RegExp(`"${key}"\\s*:\\s*"(?<content>(?:[^"\\\\]|\\\\.)*)`, 'gs');
@@ -40,17 +43,20 @@ export const WorkflowProcessor: React.FC<{
     onConfirm: () => void;
 }> = ({ taskId, scenario, initialSessionId, targetTech, materials, workflowState, setWorkflowState, markdownContent, setMarkdownContent, onConfirm }) => {
     const [currentStep, setCurrentStep] = useState<number>(1);
-    const [thoughtStream, setThoughtStream] = useState('');
+    const [thoughtStream, setThoughtStream] = useState(''); // Agent 解释流
     const [sessionId, setSessionId] = useState(initialSessionId);
     const [parts, setParts] = useState({ p1: '', p2: '', p3: '', p4: '' });
     
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const docScrollRef = useRef<HTMLDivElement>(null);
+    const chatScrollRef = useRef<HTMLDivElement>(null);
     const hasStarted = useRef(false);
 
     // 格式化 Step 4 的 JSON 为 Markdown 列表
     const formatReferences = (rawJson: string) => {
         try {
-            const refs = JSON.parse(rawJson);
+            // 清理可能的流式尾缀
+            const cleanJson = rawJson.trim().endsWith(',') ? rawJson.trim().slice(0, -1) + '}' : rawJson;
+            const refs = JSON.parse(cleanJson);
             if (Object.keys(refs).length === 0) return '';
             let md = '## 引用资料来源\n\n';
             Object.entries(refs).forEach(([title, url]) => {
@@ -58,8 +64,7 @@ export const WorkflowProcessor: React.FC<{
             });
             return md;
         } catch (e) {
-            // 如果不是合法JSON，直接返回原始文本（防止解析失败）
-            return rawJson; 
+            return ''; 
         }
     };
 
@@ -69,7 +74,7 @@ export const WorkflowProcessor: React.FC<{
         if (parts.p1) md += `## 技术路线与当前所处阶段分析\n\n${parts.p1}\n\n`;
         if (parts.p2) md += `## 当前技术潜在风险识别与分析\n\n${parts.p2}\n\n`;
         if (parts.p3) md += `## 行业技术方案推荐\n\n${parts.p3}\n\n`;
-        if (parts.p4) md += parts.p4; // p4 已经由 formatReferences 处理过
+        if (parts.p4) md += parts.p4; 
         return md.trim();
     }, [parts, targetTech]);
 
@@ -77,11 +82,19 @@ export const WorkflowProcessor: React.FC<{
         setMarkdownContent(combinedMarkdown);
     }, [combinedMarkdown, setMarkdownContent]);
 
+    // 自动滚动文档区
     useEffect(() => {
-        if (workflowState === 'processing') {
-            scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+        if (docScrollRef.current) {
+            docScrollRef.current.scrollTo({ top: docScrollRef.current.scrollHeight, behavior: 'smooth' });
         }
-    }, [markdownContent, workflowState]);
+    }, [markdownContent]);
+
+    // 自动滚动对话区
+    useEffect(() => {
+        if (chatScrollRef.current) {
+            chatScrollRef.current.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' });
+        }
+    }, [thoughtStream]);
 
     useEffect(() => {
         if (hasStarted.current) return;
@@ -90,20 +103,31 @@ export const WorkflowProcessor: React.FC<{
     }, []);
 
     const executeStep = async (promptName: string, vars: any, logLabel: string, partKey?: keyof typeof parts): Promise<string> => {
-        setThoughtStream(`我正在分析 ${logLabel}...`);
+        setThoughtStream(prev => prev + `\n\n[Agent]: 正在处理 ${logLabel}...`);
         return new Promise((resolve, reject) => {
             let accumulated = '';
             streamGenerate(
                 { prompt_name: promptName, variables: vars, scenario, session_id: sessionId, model_override: TARGET_MODEL },
                 (chunk) => {
                     accumulated += chunk;
+                    const { thought, jsonPart } = extractThoughtAndJson(accumulated);
+                    
+                    // 1. 更新 Agent 解释（非 JSON 部分）
+                    if (thought) {
+                        setThoughtStream(prev => {
+                            const lastLineIdx = prev.lastIndexOf('[Agent]:');
+                            const prefix = prev.slice(0, lastLineIdx + 9);
+                            return prefix + thought;
+                        });
+                    }
+
+                    // 2. 更新 Markdown 报告部分（JSON 里的内容）
                     if (partKey) {
-                        const keys = partKey === 'p4' ? [] : [`第一部分_技术路线与当前所处阶段分析`, `第二部分_当前技术潜在风险识别与分析`, `第三部分_行业技术方案推荐`].filter(k => k.includes(partKey.replace('p','')));
-                        
-                        // 针对 p4 (引用资料) 的特殊逻辑
                         if (partKey === 'p4') {
-                             const { jsonPart } = extractThoughtAndJson(accumulated);
-                             if (jsonPart) setParts(prev => ({ ...prev, p4: formatReferences(jsonPart) }));
+                            // Step 4 特殊处理：解析 JSON 链接
+                            if (jsonPart && jsonPart.includes('}')) {
+                                setParts(prev => ({ ...prev, p4: formatReferences(jsonPart) }));
+                            }
                         } else {
                             const content = extractPartialValue(accumulated, [`第一部分_技术路线与当前所处阶段分析`, `第二部分_当前技术潜在风险识别与分析`, `第三部分_行业技术方案推荐`]);
                             if (content) setParts(prev => ({ ...prev, [partKey]: content }));
@@ -113,7 +137,7 @@ export const WorkflowProcessor: React.FC<{
                 () => resolve(accumulated),
                 reject,
                 (sid) => { if (sid) setSessionId(sid); },
-                (tChunk) => setThoughtStream(prev => (prev.length > 80 ? tChunk : prev + tChunk))
+                (tChunk) => {} // reasoning 已经包含在 extractThoughtAndJson 的 thought 里了
             );
         });
     };
@@ -121,61 +145,59 @@ export const WorkflowProcessor: React.FC<{
     const runPipeline = async () => {
         try {
             setCurrentStep(1);
-            await executeStep('01_Role_ProtocolSetup', {}, '角色协议');
+            await executeStep('01_Role_ProtocolSetup', {}, '初始化分析协议');
             setCurrentStep(2);
-            await executeStep('02_DataIngestion', { reference_materials: materials }, '知识库对齐');
+            await executeStep('02_DataIngestion', { reference_materials: materials }, '知识库注入与对齐');
             setCurrentStep(3);
             await executeStep('03_TriggerGeneration_step1', { target_tech: targetTech }, '技术演进路线', 'p1');
             await executeStep('03_TriggerGeneration_step2', {}, '潜在风险识别', 'p2');
             await executeStep('03_TriggerGeneration_step3', {}, '方案推荐模型', 'p3');
-            await executeStep('03_TriggerGeneration_step4', {}, '引用溯源', 'p4');
+            await executeStep('03_TriggerGeneration_step4', {}, '引用资料溯源', 'p4');
             setCurrentStep(4);
             setWorkflowState('done');
         } catch (e) { console.error(e); }
     };
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-white overflow-hidden relative">
-            {/* Scroll Area */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-10 bg-white">
+        <div className="flex-1 flex flex-col h-full bg-[#f8fafc] overflow-hidden relative">
+            
+            {/* 1. 上方 70%：Markdown 文档流 */}
+            <div ref={docScrollRef} className="h-[70%] overflow-y-auto custom-scrollbar p-10 bg-white">
                 <article 
-                    className="prose prose-slate max-w-none 
+                    className="prose prose-slate max-w-[850px] mx-auto
                     prose-h1:text-3xl prose-h1:font-black prose-h1:text-slate-900 prose-h1:mb-8
                     prose-h2:text-lg prose-h2:text-indigo-600 prose-h2:font-black prose-h2:uppercase prose-h2:tracking-wider prose-h2:mt-10
                     prose-p:text-slate-700 prose-p:leading-relaxed prose-p:text-sm
                     prose-li:text-sm prose-li:text-slate-600"
                     dangerouslySetInnerHTML={{ __html: window.marked?.parse(markdownContent) || '' }}
                 />
+            </div>
 
-                {/* Agent Thinking Card - Same Plane Layout */}
-                {currentStep < 4 && (
-                    <div className="mt-12 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100 flex items-center gap-5">
-                            <div className="relative">
-                                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">
-                                    <span className="font-bold text-sm">AI</span>
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-50">
-                                    <SparklesIcon className="w-3 h-3 text-indigo-500" />
-                                </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-center mb-1.5">
-                                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2">
-                                        <div className="flex gap-1">
-                                            <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce"></div>
-                                            <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce delay-75"></div>
-                                            <div className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce delay-150"></div>
-                                        </div>
-                                        Agent Thinking
-                                    </span>
-                                    <span className="text-[10px] font-mono text-slate-400">P: {Math.round((currentStep/4)*100)}%</span>
-                                </div>
-                                <p className="text-xs text-slate-500 font-medium truncate">{thoughtStream || '正在解析情报脉络...'}</p>
+            {/* 2. 下方 30%：Agent Chat Console (固定位置) */}
+            <div className="h-[30%] bg-white border-t border-slate-200 flex flex-col relative shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+                <div className="px-6 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Agent Console</span>
+                    </div>
+                    <span className="text-[9px] font-mono text-slate-400">STATUS: {currentStep < 4 ? 'ANALYZING' : 'READY'}</span>
+                </div>
+
+                <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4 max-w-[850px] mx-auto w-full">
+                    {/* Agent Message Container */}
+                    <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white flex-shrink-0 shadow-lg shadow-indigo-100">
+                            <BrainIcon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Intelligence Agent 007</div>
+                            <div className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
+                                {thoughtStream || '正在建立情报连接...'}
+                                {currentStep < 4 && <span className="inline-block w-1.5 h-3 bg-indigo-400 ml-1 animate-pulse"></span>}
                             </div>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
