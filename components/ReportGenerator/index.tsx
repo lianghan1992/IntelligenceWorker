@@ -27,11 +27,22 @@ export const ReportGenerator: React.FC = () => {
         }
     }, [view]);
 
+    // 核心修复：点击卡片后的跳转逻辑
     const handleScenarioSelect = (id: string) => {
         const scenario = scenarios.find(s => s.id === id);
         if (!scenario || !isScenarioSupported(scenario)) return;
+        
         setSelectedScenarioId(id);
-        setViewState('collector');
+        
+        // 如果是“新技术评估”这类高度定制化的场景，它们拥有自己的输入界面
+        // 我们直接进入 workflow 视图，让场景组件接管一切
+        if (id === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || id === 'tech_evaluation') {
+            setTask(null); // 清空旧任务，让场景组件自己创建
+            setViewState('workflow');
+        } else {
+            // 通用场景，走标准的“收集简单描述 -> 后端自动分析”流程
+            setViewState('collector');
+        }
     };
 
     const handleStartTask = async (userInput: string, context: StratifyTask['context']) => {
@@ -68,7 +79,7 @@ export const ReportGenerator: React.FC = () => {
         try {
             const detail = await getStratifyTaskDetail(taskId);
             setTask(detail);
-            setSelectedScenarioId(detail.scenario_name); // 注意：后端 scenario_name 可能存的是 ID 或 Name
+            setSelectedScenarioId(detail.scenario_name); 
             setViewState('workflow');
         } catch (e) {
             alert('加载失败');
@@ -76,19 +87,21 @@ export const ReportGenerator: React.FC = () => {
     };
 
     const renderScenarioWorkflow = () => {
-        if (!task) return null;
+        // 对于特殊场景，允许在没有 task 对象的情况下先渲染（用于展示其自定义输入界面）
+        const isSpecialized = selectedScenarioId === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || selectedScenarioId === 'tech_evaluation';
         
-        // 使用场景名或 ID 寻找组件
+        if (!task && !isSpecialized) return null;
+        
         const ScenarioComponent = getScenarioComponent(selectedScenarioId);
         if (!ScenarioComponent) return <div className="p-20 text-center text-slate-500 font-bold">未找到场景实现 (Target: {selectedScenarioId})</div>;
 
         return (
             <ScenarioComponent 
-                taskId={task.id}
-                topic={task.input_text}
+                taskId={task?.id || ''}
+                topic={task?.input_text || ''}
                 scenario={selectedScenarioId}
-                sessionId={task.session_id}
-                context={task.context}
+                sessionId={task?.session_id || ''}
+                context={task?.context}
                 onComplete={() => setViewState('done')}
             />
         );
@@ -99,13 +112,11 @@ export const ReportGenerator: React.FC = () => {
             <div className="absolute top-8 right-8 z-[60] flex items-center gap-3">
                 {view !== 'picker' && view !== 'done' && (
                     <button 
-                        onClick={() => setViewState(view === 'workflow' ? 'collector' : 'picker')}
+                        onClick={() => setViewState('picker')}
                         className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 rounded-2xl shadow-sm transition-all hover:shadow-md hover:border-indigo-200 active:scale-95"
                     >
                         <ChevronLeftIcon className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                        <span className="text-xs font-bold tracking-tight">
-                            {view === 'workflow' ? '返回修改描述' : '返回场景选择'}
-                        </span>
+                        <span className="text-xs font-bold tracking-tight">返回场景选择</span>
                     </button>
                 )}
                 {view === 'picker' && (
@@ -130,10 +141,7 @@ export const ReportGenerator: React.FC = () => {
                         <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">报告已就绪</h2>
                         <p className="text-slate-500 mb-8 max-w-md font-medium">您的专家级报告已生成，您可以进行预览或下载。</p>
                         <div className="flex gap-4">
-                            <button className="px-10 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2">
-                                <DownloadIcon className="w-5 h-5" /> 导出 PDF
-                            </button>
-                            <button onClick={() => setViewState('picker')} className="px-10 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">返回首页</button>
+                            <button onClick={() => setViewState('picker')} className="px-10 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all">确定</button>
                         </div>
                     </div>
                 )}

@@ -1,29 +1,41 @@
 
 import React, { useState } from 'react';
 import { ScenarioProps } from '../registry';
+import { createStratifyTask } from '../../../../api/stratify';
 import { InputCollector } from './steps/InputCollector';
 import { WorkflowProcessor } from './steps/WorkflowProcessor';
 import { FinalRenderer } from './steps/FinalRenderer';
 
-// 场景视图状态：输入 -> 处理与修订 -> 最终渲染
 type ViewStatus = 'input' | 'processing' | 'rendering';
 
-export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenario, sessionId, onComplete }) => {
+export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskId, scenario, onComplete }) => {
     const [view, setView] = useState<ViewStatus>('input');
     const [config, setConfig] = useState<{
         targetTech: string;
         materials: string;
     } | null>(null);
     const [draftMarkdown, setDraftMarkdown] = useState('');
-    const [lastSessionId, setLastSessionId] = useState(sessionId);
+    const [activeTaskId, setActiveTaskId] = useState(initialTaskId);
+    const [activeSessionId, setActiveSessionId] = useState('');
 
-    // 步骤1：输入完成
-    const handleInputComplete = (data: { targetTech: string; materials: string }) => {
+    // 步骤1：输入完成，此时才真正创建后端 Task 记录
+    const handleInputComplete = async (data: { targetTech: string; materials: string }) => {
         setConfig(data);
-        setView('processing');
+        
+        try {
+            // 如果 initialTaskId 为空（从 Picker 直接跳过来），则创建新任务
+            if (!activeTaskId) {
+                const newTask = await createStratifyTask(data.targetTech, scenario);
+                setActiveTaskId(newTask.id);
+                setActiveSessionId(newTask.session_id);
+            }
+            setView('processing');
+        } catch (e) {
+            alert('初始化任务失败');
+        }
     };
 
-    // 步骤2：处理与对话修订完成，用户确认后进入渲染
+    // 步骤2：处理与对话微调完成，进入最终渲染
     const handleWorkflowComplete = (finalMd: string) => {
         setDraftMarkdown(finalMd);
         setView('rendering');
@@ -37,21 +49,21 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId, topic, scena
                 />
             )}
 
-            {view === 'processing' && config && (
+            {view === 'processing' && config && activeTaskId && (
                 <WorkflowProcessor 
-                    taskId={taskId}
+                    taskId={activeTaskId}
                     scenario={scenario}
-                    initialSessionId={lastSessionId}
+                    initialSessionId={activeSessionId}
                     targetTech={config.targetTech}
                     materials={config.materials}
                     onFinish={handleWorkflowComplete}
-                    onUpdateSession={setLastSessionId}
+                    onUpdateSession={setActiveSessionId}
                 />
             )}
 
             {view === 'rendering' && (
                 <FinalRenderer 
-                    taskId={taskId}
+                    taskId={activeTaskId}
                     scenario={scenario}
                     markdown={draftMarkdown}
                     onComplete={onComplete}
