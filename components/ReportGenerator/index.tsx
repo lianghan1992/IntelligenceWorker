@@ -77,7 +77,7 @@ export const ReportGenerator: React.FC = () => {
     const renderScenarioWorkflow = () => {
         if (!task) return null;
         const ScenarioComponent = SCENARIO_REGISTRY[selectedScenario];
-        if (!ScenarioComponent) return <div className="p-20 text-center text-white">未找到场景实现</div>;
+        if (!ScenarioComponent) return <div className="p-20 text-center">未找到场景实现</div>;
 
         return (
             <ScenarioComponent 
@@ -92,12 +92,7 @@ export const ReportGenerator: React.FC = () => {
     };
 
     return (
-        <div className={`h-full flex flex-col relative overflow-hidden font-sans transition-colors duration-700 ${view === 'picker' ? 'bg-[#080808]' : 'bg-[#fcfdfe]'}`}>
-            {/* 噪点纹理层 (仅在选择器页面显示) */}
-            <div className={`fixed inset-0 pointer-events-none z-10 transition-opacity duration-700 ${view === 'picker' ? 'opacity-[0.04]' : 'opacity-0'}`} 
-                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
-            </div>
-
+        <div className="h-full flex flex-col bg-slate-50/50 relative overflow-hidden font-sans">
             {/* 顶层浮动工具栏 */}
             <div className="absolute top-8 right-8 z-[60] flex items-center gap-3">
                 {view !== 'picker' && view !== 'done' && (
@@ -111,7 +106,7 @@ export const ReportGenerator: React.FC = () => {
                 {view === 'picker' && (
                     <button 
                         onClick={() => setIsHistoryOpen(true)} 
-                        className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 backdrop-blur-md text-white rounded-full text-xs font-bold border border-white/10 transition-all active:scale-95"
+                        className="flex items-center gap-2 px-4 py-2 bg-white text-slate-600 rounded-full text-xs font-bold border border-slate-200 shadow-sm hover:border-indigo-300 hover:text-indigo-600 transition-all active:scale-95"
                     >
                         <ClockIcon className="w-3.5 h-3.5 opacity-60" /> 历史任务
                     </button>

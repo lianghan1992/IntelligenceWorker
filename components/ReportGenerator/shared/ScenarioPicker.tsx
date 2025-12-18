@@ -65,8 +65,8 @@ export const ScenarioPicker: React.FC<{
                 @keyframes grid-move { from { background-position: 0 0; } to { background-position: 30px 30px; } }
                 .animate-grid-move { animation: grid-move 25s linear infinite; }
                 @keyframes float-blob { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(15px,25px) scale(1.1); } }
-                .animate-float-blob { animation: float-blob 8s infinite alternate ease-in-out; }
-                .animate-float-blob-delay { animation: float-blob 8s infinite alternate-reverse ease-in-out; }
+                .animate-float-blob { animation: float-blob 10s infinite alternate ease-in-out; }
+                .animate-float-blob-delay { animation: float-blob 10s infinite alternate-reverse ease-in-out; }
                 @keyframes scan-y { 0% { transform: translateY(-100%); } 100% { transform: translateY(100%); } }
                 .animate-scan-y { animation: scan-y 3.5s linear infinite; }
                 @keyframes spin-slow { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
@@ -86,8 +86,8 @@ export const ScenarioPicker: React.FC<{
 
             <div className="max-w-[1100px] w-full">
                 <header className="mb-14">
-                    <h2 className="text-3xl font-black tracking-tight text-white mb-3">Agent Workspace</h2>
-                    <p className="text-white/40 text-sm font-medium tracking-wide">由专业行业知识图谱驱动的 AI 协作环境。</p>
+                    <h2 className="text-4xl font-black tracking-tight text-slate-900 mb-4">选择创作场景</h2>
+                    <p className="text-slate-500 text-sm font-medium tracking-wide">基于行业专家逻辑链条构建的 AI 创作流水线。</p>
                 </header>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -100,22 +100,22 @@ export const ScenarioPicker: React.FC<{
                             <div 
                                 key={s.name}
                                 onClick={() => supported && onSelect(s.name)}
-                                className={`card-pop-in group relative h-[200px] rounded-[20px] border border-white/10 overflow-hidden transition-all duration-500 ${
+                                className={`card-pop-in group relative h-[200px] rounded-[24px] border border-slate-200 overflow-hidden transition-all duration-500 ${
                                     supported 
-                                    ? 'cursor-pointer hover:scale-[1.02] hover:border-white/30 hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)]' 
+                                    ? 'cursor-pointer hover:scale-[1.02] hover:border-indigo-400 hover:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.3)]' 
                                     : 'cursor-not-allowed grayscale opacity-30'
                                 }`}
                                 style={{ animationDelay: `${idx * 0.08}s` }}
                             >
-                                {/* 核心动效层 */}
+                                {/* 核心动态特效背景 */}
                                 <BgEffect />
 
-                                {/* 磨砂玻璃/深度遮罩层 */}
-                                <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/5 to-black/80 backdrop-blur-[1.5px] transition-opacity duration-500 group-hover:opacity-60"></div>
+                                {/* 深度遮罩层：确保在白色页面上内容的清晰度 */}
+                                <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/5 to-black/80 backdrop-blur-[1px] transition-opacity duration-500 group-hover:opacity-60"></div>
 
                                 {/* 内容渲染层 */}
                                 <div className="relative z-[2] p-6 h-full flex flex-col justify-between">
-                                    <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-lg font-bold text-white shadow-inner group-hover:scale-110 group-hover:bg-white/15 transition-all">
+                                    <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-lg font-bold text-white shadow-inner group-hover:scale-110 group-hover:bg-white/20 transition-all">
                                         {icon}
                                     </div>
                                     
@@ -123,14 +123,14 @@ export const ScenarioPicker: React.FC<{
                                         <h3 className="text-lg font-bold text-white tracking-tight drop-shadow-lg">
                                             {s.title || s.name}
                                         </h3>
-                                        <p className="text-[11px] text-white/50 line-clamp-2 leading-relaxed font-medium transition-colors group-hover:text-white/70">
+                                        <p className="text-[11px] text-white/60 line-clamp-2 leading-relaxed font-medium transition-colors group-hover:text-white/80">
                                             {s.description || '基于行业专家逻辑链条构建的智能创作流水线。'}
                                         </p>
                                     </div>
                                 </div>
 
-                                {/* 动态底边线 */}
-                                <div className="absolute bottom-0 left-0 h-[1.5px] w-0 bg-white/40 group-hover:w-full transition-all duration-700"></div>
+                                {/* 悬停效果底边 */}
+                                <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-white/40 group-hover:w-full transition-all duration-700"></div>
                             </div>
                         );
                     })}
