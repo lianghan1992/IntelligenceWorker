@@ -493,6 +493,8 @@ export interface GenerateStreamParams {
     task_id?: string;
     phase_name?: string;
     session_id?: string;
+    // Fix: Added model_override to GenerateStreamParams to allow passing a specific model engine for generation requests.
+    model_override?: string;
 }
 
 export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight' | 'stratify_ai';

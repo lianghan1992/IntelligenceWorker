@@ -1,9 +1,13 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 /* Added CloseIcon to the imports from icons.tsx to resolve the error on line 318 */
 import { CheckIcon, SparklesIcon, ArrowRightIcon, CodeIcon, ChevronRightIcon, BrainIcon, CloseIcon } from '../../../../icons';
+
+// 场景指定使用的模型引擎
+const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
 
 interface InteractionLog {
     role: 'user' | 'assistant' | 'system';
@@ -63,7 +67,13 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             await new Promise<void>((resolve, reject) => {
                 let fullRes = '';
                 streamGenerate(
-                    { prompt_name: '01_Role_ProtocolSetup', variables: {}, scenario, session_id: sessionId },
+                    { 
+                        prompt_name: '01_Role_ProtocolSetup', 
+                        variables: {}, 
+                        scenario, 
+                        session_id: sessionId,
+                        model_override: TARGET_MODEL // 注入指定模型
+                    },
                     (chunk) => { fullRes += chunk; }, 
                     () => {
                         addLog({ role: 'assistant', name: '01_Role_ProtocolSetup', content: fullRes, timestamp: Date.now() });
@@ -83,7 +93,13 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             await new Promise<void>((resolve, reject) => {
                 let fullRes = '';
                 streamGenerate(
-                    { prompt_name: '02_DataIngestion', variables: { data: materials }, scenario, session_id: sessionId },
+                    { 
+                        prompt_name: '02_DataIngestion', 
+                        variables: { data: materials }, 
+                        scenario, 
+                        session_id: sessionId,
+                        model_override: TARGET_MODEL // 注入指定模型
+                    },
                     (chunk) => { fullRes += chunk; },
                     () => {
                         addLog({ role: 'assistant', name: '02_DataIngestion', content: fullRes, timestamp: Date.now() });
@@ -103,7 +119,13 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
             let fullDraft = '';
             await new Promise<void>((resolve, reject) => {
                 streamGenerate(
-                    { prompt_name: '03_TriggerGeneration', variables: { target_technology: targetTech }, scenario, session_id: sessionId },
+                    { 
+                        prompt_name: '03_TriggerGeneration', 
+                        variables: { target_technology: targetTech }, 
+                        scenario, 
+                        session_id: sessionId,
+                        model_override: TARGET_MODEL // 注入指定模型
+                    },
                     (chunk) => {
                         fullDraft += chunk;
                         const { jsonPart } = extractThoughtAndJson(fullDraft);
@@ -159,7 +181,8 @@ export const WorkflowProcessor: React.FC<WorkflowProcessorProps> = ({
                 prompt_name: '02_revise_outline',
                 variables: { user_revision_request: userMsg }, 
                 scenario, 
-                session_id: sessionId 
+                session_id: sessionId,
+                model_override: TARGET_MODEL // 注入指定模型
             },
             (chunk) => {
                 fullRes += chunk;

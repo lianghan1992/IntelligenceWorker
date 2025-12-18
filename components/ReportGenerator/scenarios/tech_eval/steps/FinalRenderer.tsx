@@ -5,6 +5,9 @@ import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 import { CheckIcon, DownloadIcon, ChevronLeftIcon } from '../../../../icons';
 
+// 场景指定使用的模型引擎
+const TARGET_MODEL = "openrouter@tngtech/deepseek-r1t2-chimera:free";
+
 interface FinalRendererProps {
     taskId: string;
     scenario: string;
@@ -27,7 +30,8 @@ export const FinalRenderer: React.FC<FinalRendererProps> = ({ taskId, scenario, 
                     prompt_name: '04_Markdown2Html', 
                     variables: { markdown_report: markdown }, 
                     scenario, 
-                    session_id: undefined // 独立会话确保排版纯净
+                    session_id: undefined, // 独立会话确保排版纯净
+                    model_override: TARGET_MODEL // 注入指定模型
                 },
                 (chunk) => {
                     buffer += chunk;
