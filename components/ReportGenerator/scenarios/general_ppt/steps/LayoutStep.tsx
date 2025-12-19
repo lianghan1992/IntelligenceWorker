@@ -24,21 +24,6 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return null;
 };
 
-// Helper to clean streaming JSON to show pure HTML code
-const extractStreamingHtmlContent = (text: string): string => {
-    // 1. Try to find the start of the "html" field value
-    const match = text.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
-    if (match && match.groups?.content) {
-        // Unescape JSON string characters to show real HTML code
-        return match.groups.content
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\t/g, '\t')
-            .replace(/\\\\/g, '\\');
-    }
-    return '';
-};
-
 // --- Scaled Preview Component ---
 const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -49,12 +34,9 @@ const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }
             if (containerRef.current) {
                 // Target width: 1600px
                 const availableWidth = containerRef.current.offsetWidth;
-                const availableHeight = containerRef.current.offsetHeight;
-                
                 // Calculate scale to fit width
                 const scaleW = availableWidth / 1600;
-                
-                // Use slightly less than full width to avoid accidental horizontal scroll
+                // Use scaleW to fit width, maybe deduct a little padding
                 setScale(Math.min(scaleW, 1) * 0.95);
             }
         };
@@ -112,7 +94,6 @@ export const LayoutStep: React.FC<{
     const [activePageIdx, setActivePageIdx] = useState(1);
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
-    const [htmlStreamBuffer, setHtmlStreamBuffer] = useState(''); 
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -132,7 +113,6 @@ export const LayoutStep: React.FC<{
             
             setPageThought('');
             setReasoningStream('');
-            setHtmlStreamBuffer(''); 
             setIsThinkingOpen(true);
             
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
@@ -156,17 +136,7 @@ export const LayoutStep: React.FC<{
                     // Update Thought for Modal (Only reasoning)
                     setPageThought(thought);
                     
-                    // Extract purely HTML content for the fancy display
-                    // This separates the raw LLM output into "Thought" (Modal) and "Code" (Preview)
-                    const cleanHtml = extractStreamingHtmlContent(jsonPart);
-                    if (cleanHtml) {
-                         setHtmlStreamBuffer(cleanHtml);
-                         // If we have valid HTML structure, try to render it immediately
-                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: cleanHtml } : p));
-                    }
-                    
-                    // If JSON starts, stop focusing on thinking modal? 
-                    // Prompt requirement: "Modal only shows thinking... before JSON starts"
+                    // If JSON starts, close the reasoning modal to indicate transition
                     if (jsonPart && jsonPart.trim().length > 5) {
                         setIsThinkingOpen(false);
                     }
@@ -176,18 +146,14 @@ export const LayoutStep: React.FC<{
                     setPageThought(thought); 
                     setIsThinkingOpen(false);
 
+                    // Robust extraction from final buffer
                     const htmlContent = robustExtractHtml(fullBuffer, jsonPart);
 
                     if (htmlContent) {
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
                     } else {
                         console.warn('Failed to parse HTML from response');
-                        // If parsing failed but we had a stream, try to use it as fallback
-                        if (htmlStreamBuffer.length > 50) {
-                             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlStreamBuffer, status: 'done' } : p));
-                        } else {
-                             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
-                        }
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     }
                     processingRef.current = false;
                 },
@@ -218,7 +184,7 @@ export const LayoutStep: React.FC<{
                 .filter(p => p.status === 'done' && p.html_content)
                 .map(p => {
                     const html = p.html_content!;
-                    // Extract styles
+                    // Extract styles to merge them or keep them scoped (simple merge here)
                     const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
                     if (styleMatch) {
                         allStyles += styleMatch[1] + '\n';
@@ -387,13 +353,12 @@ export const LayoutStep: React.FC<{
                             </button>
                         </div>
 
-                        {/* Content Display: Scaled Preview with Live Updates */}
+                        {/* Content Display: Scaled Preview with No Flashing */}
                         <div className="flex-1 relative bg-gray-100 overflow-hidden">
-                            {/* Render HTML Content if available (even partially) */}
-                            {activePage.html_content ? (
+                            {activePage.html_content && activePage.status === 'done' ? (
                                 <ScaledPreview htmlContent={activePage.html_content} />
                             ) : (
-                                /* Pending State */
+                                /* Pending or Generating State */
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/30 text-slate-400">
                                     {activePage.status === 'pending' ? (
                                         <>
@@ -403,8 +368,15 @@ export const LayoutStep: React.FC<{
                                             <p className="text-base font-medium">等待排版引擎启动...</p>
                                         </>
                                     ) : activePage.status === 'generating' ? (
-                                        <div className="text-center">
-                                            <div className="w-16 h-16 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8 mx-auto"></div>
+                                        <div className="text-center animate-in fade-in duration-700">
+                                            {/* Beautiful Loading State instead of Flashing Iframe */}
+                                            <div className="relative mb-8 mx-auto w-24 h-24">
+                                                <div className="absolute inset-0 rounded-full border-4 border-purple-100 animate-ping opacity-20"></div>
+                                                <div className="absolute inset-2 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <ViewGridIcon className="w-8 h-8 text-purple-500" />
+                                                </div>
+                                            </div>
                                             <h3 className="text-xl font-bold text-slate-700 mb-2">AI 架构师正在设计</h3>
                                             <p className="text-sm text-slate-500">构建布局 • 生成矢量图形 • 优化排版</p>
                                         </div>
