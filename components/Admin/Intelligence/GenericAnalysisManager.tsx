@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
-import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults } from '../../../api/intelligence';
+import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults, getSpiderArticleDetail } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
 import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon, ClockIcon } from '../../icons';
+import { ArticleDetailModal } from './ArticleDetailModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -121,6 +122,10 @@ export const GenericAnalysisManager: React.FC = () => {
     const [resultTotal, setResultTotal] = useState(0);
     const [filterTemplateId, setFilterTemplateId] = useState('');
     const [viewingItem, setViewingItem] = useState<any | null>(null);
+    const [detailArticleUuid, setDetailArticleUuid] = useState<string | null>(null);
+
+    // Article Cache (uuid -> Article Detail)
+    const [articleCache, setArticleCache] = useState<Record<string, any>>({});
     
     const [isLoading, setIsLoading] = useState(false);
 
@@ -146,9 +151,6 @@ export const GenericAnalysisManager: React.FC = () => {
                 page_size: 50,
                 template_uuid: filterTemplateId || undefined
             };
-            // Note: Removed user_uuid filter to allow admin to see all results, or keep it if "my results" is intended.
-            // Assuming admin view wants to see everything unless filtered. If user specific, uncomment:
-            // if (userUuid) params.user_uuid = userUuid;
 
             const res: any = await getAnalysisResults(params);
             
@@ -172,10 +174,9 @@ export const GenericAnalysisManager: React.FC = () => {
 
             const processedItems = rawItems.map(item => ({
                 ...item,
-                // Prioritize 'result' field as per user instruction, fallback to others
                 result_json: item.result || item.result_json || item.data || item.output || {},
                 uuid: item.uuid || item.id,
-                article_title: item.article_title || item.title || 'Unknown Article',
+                article_uuid: item.article_uuid || item.article_id, // Normalize ID
                 template_name: item.template_name || 'Unknown Template',
                 username: item.username || item.user_name || item.user_uuid || 'Unknown User',
                 model_used: item.model_used || 'default',
@@ -190,6 +191,45 @@ export const GenericAnalysisManager: React.FC = () => {
             setIsLoading(false);
         }
     }, [resultPage, filterTemplateId]);
+
+    // Fetch Article Details Effect
+    useEffect(() => {
+        if (results.length === 0) return;
+
+        // Find articles we haven't fetched yet
+        const idsToFetch = Array.from(new Set(
+            results
+                .map(r => r.article_uuid)
+                .filter(id => id && !articleCache[id])
+        ));
+
+        if (idsToFetch.length === 0) return;
+
+        const loadDetails = async () => {
+            // Fetch concurrently
+            const promises = idsToFetch.map(async (id) => {
+                try {
+                    const detail = await getSpiderArticleDetail(id);
+                    return { id, detail };
+                } catch (e) {
+                    console.error(`Failed to fetch article ${id}`, e);
+                    return { id, detail: { title: 'Unknown Article (Load Failed)', uuid: id } };
+                }
+            });
+
+            const fetchedItems = await Promise.all(promises);
+            
+            setArticleCache(prev => {
+                const next = { ...prev };
+                fetchedItems.forEach(item => {
+                    if (item) next[item.id] = item.detail;
+                });
+                return next;
+            });
+        };
+
+        loadDetails();
+    }, [results]); // Intentionally don't dep on articleCache to avoid loops
 
     // Initial Load
     useEffect(() => {
@@ -315,45 +355,56 @@ export const GenericAnalysisManager: React.FC = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {results.map(r => (
-                                        <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-6 py-4 align-top">
-                                                <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name}</div>
-                                                <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
-                                                    <LightningBoltIcon className="w-3 h-3"/>
-                                                    {r.model_used || 'default'}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 align-top text-xs text-slate-600">
-                                                <div className="truncate max-w-[120px]" title={r.username}>
-                                                    {r.username}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
-                                                <div className="line-clamp-2" title={r.article_title || r.article_uuid}>
-                                                    {r.article_title || r.article_uuid}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 align-top text-center">
-                                                <button 
-                                                    onClick={() => setViewingItem(r)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg text-xs font-bold transition-colors border border-indigo-100"
-                                                >
-                                                    <EyeIcon className="w-3.5 h-3.5" />
-                                                    查看
-                                                </button>
-                                            </td>
-                                            <td className="px-6 py-4 align-top text-xs text-slate-500 font-mono">
-                                                {r.duration}
-                                            </td>
-                                            <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
-                                                {new Date(r.created_at).toLocaleString()}
-                                            </td>
-                                            <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
-                                                {r.completed_at ? new Date(r.completed_at).toLocaleString() : '-'}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {results.map(r => {
+                                        // Retrieve title from cache or fallback
+                                        const cachedArticle = articleCache[r.article_uuid];
+                                        const displayTitle = cachedArticle ? cachedArticle.title : (r.article_title && r.article_title !== 'Unknown Article' ? r.article_title : r.article_uuid);
+                                        
+                                        return (
+                                            <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4 align-top">
+                                                    <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name}</div>
+                                                    <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
+                                                        <LightningBoltIcon className="w-3 h-3"/>
+                                                        {r.model_used || 'default'}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 align-top text-xs text-slate-600">
+                                                    <div className="truncate max-w-[120px]" title={r.username}>
+                                                        {r.username}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
+                                                    <button 
+                                                        onClick={() => setDetailArticleUuid(r.article_uuid)}
+                                                        className="text-left line-clamp-2 hover:text-indigo-600 hover:underline transition-colors w-full" 
+                                                        title={displayTitle}
+                                                    >
+                                                        {displayTitle}
+                                                    </button>
+                                                    {!cachedArticle && <div className="text-[10px] text-slate-400 mt-1 animate-pulse">Loading info...</div>}
+                                                </td>
+                                                <td className="px-6 py-4 align-top text-center">
+                                                    <button 
+                                                        onClick={() => setViewingItem(r)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg text-xs font-bold transition-colors border border-indigo-100"
+                                                    >
+                                                        <EyeIcon className="w-3.5 h-3.5" />
+                                                        查看
+                                                    </button>
+                                                </td>
+                                                <td className="px-6 py-4 align-top text-xs text-slate-500 font-mono">
+                                                    {r.duration}
+                                                </td>
+                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                    {new Date(r.created_at).toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                    {r.completed_at ? new Date(r.completed_at).toLocaleString() : '-'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {results.length === 0 && !isLoading && (
                                         <tr><td colSpan={7} className="text-center py-20 text-gray-400">
                                             <div className="flex flex-col items-center">
@@ -382,10 +433,22 @@ export const GenericAnalysisManager: React.FC = () => {
             {/* Result Modal */}
             {viewingItem && (
                 <ResultViewerModal 
-                    title={viewingItem.article_title || '分析结果'} 
+                    title={
+                        articleCache[viewingItem.article_uuid]?.title || 
+                        viewingItem.article_title || 
+                        '分析结果'
+                    } 
                     content={viewingItem.result_json} 
                     fullItem={viewingItem}
                     onClose={() => setViewingItem(null)} 
+                />
+            )}
+
+            {/* Article Detail Modal */}
+            {detailArticleUuid && (
+                <ArticleDetailModal 
+                    articleUuid={detailArticleUuid} 
+                    onClose={() => setDetailArticleUuid(null)} 
                 />
             )}
         </div>
