@@ -89,13 +89,13 @@ export const streamGenerate = async (
 export const getScenarios = (): Promise<StratifyScenario[]> =>
     apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
 
-export const createScenario = (data: { name: string; title: string; description: string }): Promise<StratifyScenario> =>
+export const createScenario = (data: { name: string; title: string; description: string; default_model?: string }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string }): Promise<StratifyScenario> =>
+export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; default_model?: string }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -109,16 +109,19 @@ export const deleteScenario = (id: string): Promise<void> =>
 export const getScenarioFiles = (scenarioId: string): Promise<StratifyScenarioFile[]> =>
     apiFetch<StratifyScenarioFile[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files`);
 
-export const updateScenarioFile = (scenarioId: string, filename: string, content: string): Promise<void> =>
+export const updateScenarioFile = (scenarioId: string, filename: string, content: string, model?: string): Promise<void> =>
     apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
         method: 'PUT',
-        body: JSON.stringify({ name: filename, content }),
+        body: JSON.stringify({ name: filename, content, model }),
     });
 
 export const deleteScenarioFile = (scenarioId: string, filename: string): Promise<void> =>
     apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
         method: 'DELETE',
     });
+
+export const getAvailableModels = (): Promise<string[]> =>
+    apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/common/models`);
 
 // --- 3. Persistence (CRUD) ---
 

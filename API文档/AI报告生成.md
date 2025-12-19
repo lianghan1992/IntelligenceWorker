@@ -138,12 +138,13 @@ data: [DONE]
 - **Body**:
 ```json
 {
-  "name": "new_scenario", // 内部标识符 (unique)
-  "title": "新场景名称",   // 显示名称
-  "description": "描述"
+  "name": "new_scenario", // 内部标识符 (unique, required)
+  "title": "新场景名称",   // 显示名称 (optional)
+  "description": "描述",  // (optional)
+  "default_model": "openrouter@tngtech/deepseek-r1t2-chimera:free" // 场景默认使用的渠道及模型 (optional)
 }
 ```
-- **说明**: 创建时会自动生成标准的 6 个空白提示词文件。
+- **说明**: 创建时**不再**自动生成默认提示词文件，需手动添加。如果不指定 `default_model`，且具体的提示词也没有指定模型，则会回退到系统默认模型。
 
 ### 2.3 修改场景信息
 - **URL**: `PUT /prompts/scenarios/{scenario_id}`
@@ -152,7 +153,8 @@ data: [DONE]
 {
   "name": "updated_name",
   "title": "更新后的标题",
-  "description": "更新后的描述"
+  "description": "更新后的描述",
+  "default_model": "zhipu@glm-4-flash" // 更新默认模型
 }
 ```
 
@@ -169,6 +171,7 @@ data: [DONE]
     "id": "uuid-...",
     "name": "00_analyze_input.md",
     "content": "...",
+    "model": "zhipu@glm-4-flash", // 该提示词特定的模型配置，可能为 null
     "updated_at": "..."
   },
   ...
@@ -176,12 +179,53 @@ data: [DONE]
 ```
 
 ### 2.6 获取/修改/删除提示词文件
-- **获取**: `GET /prompts/scenarios/{scenario_id}/files/{filename}`
-- **创建/修改**: `PUT /prompts/scenarios/{scenario_id}/files/{filename}`
-  - **Body**: `{"name": "filename.md", "content": "new content"}`
-- **创建(显式)**: `POST /prompts/scenarios/{scenario_id}/files`
-  - **Body**: `{"name": "new_file.md", "content": "..."}`
-- **删除**: `DELETE /prompts/scenarios/{scenario_id}/files/{filename}`
+
+#### 2.6.1 获取提示词文件
+- **URL**: `GET /prompts/scenarios/{scenario_id}/files/{filename}`
+- **响应示例**:
+```json
+{
+  "id": "uuid-...",
+  "name": "00_analyze_input.md",
+  "content": "Your prompt content here...",
+  "model": "openrouter@anthropic/claude-3-opus", // 如果该文件配置了特定模型
+  "order_index": 0,
+  "updated_at": "2023-10-27T10:00:00"
+}
+```
+
+#### 2.6.2 创建/修改提示词文件
+- **URL**: `PUT /prompts/scenarios/{scenario_id}/files/{filename}`
+- **说明**: 如果文件不存在则创建，存在则更新。
+- **Request Body**:
+```json
+{
+  "name": "00_analyze_input.md", // 文件名，需与 URL 中的 filename 一致（或用于重命名）
+  "content": "Updated prompt content...",
+  "model": "openrouter@google/gemini-pro-1.5" // (Optional) 为该提示词指定特定模型。如果不指定或为 null，将使用场景默认模型。
+}
+```
+- **Response**:
+```json
+{
+  "message": "File updated" // or "File created"
+}
+```
+
+#### 2.6.3 显式创建提示词文件
+- **URL**: `POST /prompts/scenarios/{scenario_id}/files`
+- **Request Body**:
+```json
+{
+  "name": "new_prompt.md",
+  "content": "New prompt content...",
+  "model": "zhipu@glm-4-air" // (Optional)
+}
+```
+
+#### 2.6.4 删除提示词文件
+- **URL**: `DELETE /prompts/scenarios/{scenario_id}/files/{filename}`
+- **说明**: 物理删除该提示词记录。
 
 ---
 

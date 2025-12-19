@@ -504,6 +504,7 @@ export interface StratifyScenario {
     name: string;
     title: string;
     description: string;
+    default_model?: string; // New: Supports setting a default model for the scenario
     created_at: string;
     updated_at: string;
 }
@@ -512,6 +513,7 @@ export interface StratifyScenarioFile {
     id: string;
     name: string;
     content: string;
+    model?: string; // New: Supports specific model for this prompt file
     updated_at: string;
 }
 

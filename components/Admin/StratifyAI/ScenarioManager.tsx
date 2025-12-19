@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { StratifyScenario, StratifyScenarioFile } from '../../../types';
-import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, updateScenarioFile, deleteScenarioFile } from '../../../api/stratify';
+import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, deleteScenarioFile, getAvailableModels } from '../../../api/stratify';
 import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CodeIcon, CloseIcon, CheckIcon, ViewGridIcon } from '../../icons';
 import { PromptEditorModal } from './PromptEditorModal';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -12,18 +12,24 @@ const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2
 interface ScenarioEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { name: string; title: string; description: string }) => Promise<void>;
-    initialData?: { name: string; title: string; description: string };
+    onSave: (data: { name: string; title: string; description: string; default_model?: string }) => Promise<void>;
+    initialData?: { name: string; title: string; description: string; default_model?: string };
     isEditing: boolean;
+    availableModels: string[];
 }
 
-const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing }) => {
-    const [form, setForm] = useState({ name: '', title: '', description: '' });
+const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing, availableModels }) => {
+    const [form, setForm] = useState({ name: '', title: '', description: '', default_model: '' });
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
-            setForm(initialData || { name: '', title: '', description: '' });
+            setForm({
+                name: initialData?.name || '',
+                title: initialData?.title || '',
+                description: initialData?.description || '',
+                default_model: initialData?.default_model || ''
+            });
         }
     }, [isOpen, initialData]);
 
@@ -31,7 +37,10 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         if (!form.name || !form.title) return;
         setIsSaving(true);
         try {
-            await onSave(form);
+            await onSave({
+                ...form,
+                default_model: form.default_model || undefined
+            });
             onClose();
         } catch (e) {
             // Error handling done in parent or here
@@ -77,6 +86,20 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                         />
                     </div>
                     <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">默认模型 (Default Model)</label>
+                        <select 
+                            value={form.default_model} 
+                            onChange={e => setForm({...form, default_model: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                        >
+                            <option value="">使用系统默认 (zhipu@glm-4-flash)</option>
+                            {availableModels.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                         <p className="text-[10px] text-slate-400 mt-1 ml-1">该场景下所有提示词的默认执行模型，可被单个提示词配置覆盖。</p>
+                    </div>
+                    <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">场景描述</label>
                         <textarea 
                             value={form.description} 
@@ -109,37 +132,41 @@ export const ScenarioManager: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
     const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
+    const [availableModels, setAvailableModels] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(false);
     const [isFilesLoading, setIsFilesLoading] = useState(false);
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string } | undefined>(undefined);
+    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; default_model?: string } | undefined>(undefined);
     const [isEditingMode, setIsEditingMode] = useState(false);
     
     const [editingFile, setEditingFile] = useState<StratifyScenarioFile | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<{ type: 'scenario' | 'file', id: string, name: string } | null>(null);
 
-    const fetchScenarios = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await getScenarios();
-            setScenarios(data);
+            const [sData, mData] = await Promise.all([
+                getScenarios(),
+                getAvailableModels()
+            ]);
+            setScenarios(sData);
+            setAvailableModels(mData);
+            
             // Auto select first if none selected
-            if (data.length > 0 && !selectedScenario) {
-                setSelectedScenario(data[0]);
+            if (sData.length > 0 && !selectedScenario) {
+                setSelectedScenario(sData[0]);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [selectedScenario]); // Depend on selectedScenario to respect manual selection, but handle carefully
+    }, [selectedScenario]); 
 
-    // Effect to handle initial load or empty selection
+    // Effect to handle initial load
     useEffect(() => {
-        if (scenarios.length === 0) {
-            fetchScenarios();
-        }
-    }, [fetchScenarios, scenarios.length]);
+        fetchData();
+    }, [fetchData]);
 
     const fetchFiles = useCallback(async (sid: string) => {
         setIsFilesLoading(true);
@@ -161,14 +188,19 @@ export const ScenarioManager: React.FC = () => {
     };
 
     const handleEditClick = (s: StratifyScenario) => {
-        setEditingScenarioData({ name: s.name, title: s.title, description: s.description });
+        setEditingScenarioData({ 
+            name: s.name, 
+            title: s.title, 
+            description: s.description,
+            default_model: s.default_model
+        });
         setIsEditingMode(true);
         // Ensure we are selecting the one we are editing
         setSelectedScenario(s);
         setIsModalOpen(true);
     };
 
-    const handleSaveScenario = async (data: { name: string; title: string; description: string }) => {
+    const handleSaveScenario = async (data: { name: string; title: string; description: string; default_model?: string }) => {
         try {
             if (isEditingMode && selectedScenario) {
                 const updated = await updateScenario(selectedScenario.id, data);
@@ -179,6 +211,7 @@ export const ScenarioManager: React.FC = () => {
                 const created = await createScenario(data);
                 setScenarios(prev => [...prev, created]);
                 setSelectedScenario(created);
+                setFiles([]); // New scenario has no files
             }
         } catch (e) {
             alert('保存失败，请检查网络或重试');
@@ -255,7 +288,14 @@ export const ScenarioManager: React.FC = () => {
                                     <h2 className="text-xl font-black text-slate-800 tracking-tight">{selectedScenario.title}</h2>
                                     <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 uppercase tracking-tighter">ID: {selectedScenario.name}</span>
                                 </div>
-                                <p className="text-xs text-slate-400 font-medium">{selectedScenario.description}</p>
+                                <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                                    <span>{selectedScenario.description}</span>
+                                    {selectedScenario.default_model && (
+                                        <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-mono text-[10px]">
+                                            Model: {selectedScenario.default_model}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <button onClick={() => fetchFiles(selectedScenario.id)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
@@ -304,9 +344,16 @@ export const ScenarioManager: React.FC = () => {
                                         <h4 className="font-black text-slate-800 text-sm mb-1 truncate leading-tight" title={file.name}>
                                             {file.name}
                                         </h4>
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-                                            {new Date(file.updated_at).toLocaleDateString()}
-                                        </p>
+                                        <div className="flex flex-col gap-1 mb-6">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {new Date(file.updated_at).toLocaleDateString()}
+                                            </p>
+                                            {file.model && (
+                                                <p className="text-[9px] font-mono text-indigo-400 truncate" title={file.model}>
+                                                    {file.model}
+                                                </p>
+                                            )}
+                                        </div>
                                         
                                         <button 
                                             onClick={() => setEditingFile(file)}
@@ -321,7 +368,7 @@ export const ScenarioManager: React.FC = () => {
                             {/* New Prompt Card */}
                             <button 
                                 onClick={() => setEditingFile({ id: 'new', name: '', content: '', updated_at: '' })}
-                                className="group h-[162px] border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-300 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all duration-300"
+                                className="group h-[180px] border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-300 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all duration-300"
                             >
                                 <PlusIcon className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
                                 <span className="font-black text-[10px] uppercase tracking-widest">New Instruction</span>
@@ -345,6 +392,7 @@ export const ScenarioManager: React.FC = () => {
                 onSave={handleSaveScenario}
                 initialData={editingScenarioData}
                 isEditing={isEditingMode}
+                availableModels={availableModels}
             />
 
             {/* Prompt Editor Modal */}
@@ -353,7 +401,8 @@ export const ScenarioManager: React.FC = () => {
                     file={editingFile} 
                     scenarioId={selectedScenario.id}
                     onClose={() => setEditingFile(null)} 
-                    onSave={() => { setEditingFile(null); fetchFiles(selectedScenario.id); }} 
+                    onSave={() => { setEditingFile(null); fetchFiles(selectedScenario.id); }}
+                    availableModels={availableModels}
                 />
             )}
 

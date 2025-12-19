@@ -2,25 +2,27 @@
 import React, { useState, useEffect } from 'react';
 import { StratifyScenarioFile } from '../../../types';
 import { updateScenarioFile } from '../../../api/stratify';
-import { CloseIcon, DocumentTextIcon, CheckIcon, CodeIcon } from '../../icons';
+import { CloseIcon, CheckIcon, CodeIcon } from '../../icons';
 
 interface PromptEditorModalProps {
     file: StratifyScenarioFile;
     scenarioId: string;
     onClose: () => void;
     onSave: () => void;
+    availableModels: string[];
 }
 
-export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ file, scenarioId, onClose, onSave }) => {
+export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ file, scenarioId, onClose, onSave, availableModels }) => {
     const [name, setName] = useState(file.name);
     const [content, setContent] = useState(file.content);
+    const [model, setModel] = useState(file.model || '');
     const [isSaving, setIsSaving] = useState(false);
 
     const handleSave = async () => {
         if (!name.trim()) return;
         setIsSaving(true);
         try {
-            await updateScenarioFile(scenarioId, name, content);
+            await updateScenarioFile(scenarioId, name, content, model || undefined);
             onSave();
         } catch (e) {
             alert('保存失败');
@@ -69,6 +71,21 @@ export const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ file, scen
                             <span>保存指令</span>
                         </button>
                     </div>
+                </div>
+
+                {/* Toolbar for Model Config */}
+                <div className="px-8 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Model Override:</label>
+                    <select 
+                        value={model}
+                        onChange={e => setModel(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-lg px-3 py-1 text-xs font-mono text-indigo-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                        <option value="">(Inherit from Scenario)</option>
+                        {availableModels.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* Editor Content Area - Focus on Editor */}
