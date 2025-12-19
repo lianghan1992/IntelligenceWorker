@@ -24,12 +24,12 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return null;
 };
 
-// Helper to clean streaming JSON to show pure HTML code
+// Helper to clean streaming JSON to show pure HTML code in the terminal window
 const extractStreamingHtmlContent = (text: string): string => {
-    // 1. Try to find the start of the "html" field value
+    // 1. Try to find the start of the "html" field value in the JSON stream
     const match = text.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
     if (match && match.groups?.content) {
-        // Unescape JSON string characters to show real HTML code
+        // Unescape JSON string characters to show real HTML code (e.g. \n -> newline)
         return match.groups.content
             .replace(/\\n/g, '\n')
             .replace(/\\"/g, '"')
@@ -185,8 +185,6 @@ export const LayoutStep: React.FC<{
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
                     } else {
                         console.warn('Failed to parse HTML from response');
-                        // If parsing failed but we had a stream, try to use it as fallback? 
-                        // No, let's mark failed to be safe.
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     }
                     processingRef.current = false;
@@ -403,8 +401,8 @@ export const LayoutStep: React.FC<{
                                         </>
                                     ) : activePage.status === 'generating' ? (
                                         <div className="flex flex-col items-center w-full max-w-2xl px-6 animate-in fade-in duration-700">
-                                            {/* Top: Branding / Status */}
-                                            <div className="mb-8 text-center">
+                                            {/* Top: Branding / Status - Moved Up slightly via margin-bottom adjustment in container above */}
+                                            <div className="mb-8 text-center -mt-10">
                                                 <div className="relative mb-4 mx-auto w-20 h-20">
                                                     <div className="absolute inset-0 rounded-full border-4 border-purple-100 animate-ping opacity-20"></div>
                                                     <div className="absolute inset-2 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
@@ -417,7 +415,7 @@ export const LayoutStep: React.FC<{
                                             </div>
 
                                             {/* Bottom: Code Window */}
-                                            <div className="w-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl border border-slate-700 font-mono text-xs relative">
+                                            <div className="w-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl border border-slate-700 font-mono text-xs relative transform translate-y-4">
                                                 {/* Fake Title Bar */}
                                                 <div className="bg-[#2d2d2d] px-4 py-2 flex items-center gap-2 border-b border-black/50">
                                                     <div className="flex gap-1.5">
