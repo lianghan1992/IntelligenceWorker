@@ -418,10 +418,7 @@ export const LayoutStep: React.FC<{
                             </div>
                             
                             <div className="flex-1 flex justify-center">
-                                <div className="bg-white border border-slate-200 text-xs text-slate-500 font-medium px-4 py-1.5 rounded-lg flex items-center gap-2 w-full max-w-md justify-center shadow-sm">
-                                    <span className={`w-2 h-2 rounded-full ${activePage.status === 'generating' ? 'bg-purple-500 animate-pulse' : 'bg-green-500'}`}></span>
-                                    {activePage.status === 'generating' ? 'designing_layout...' : `preview_page_${activePage.page_index}.html`}
-                                </div>
+                                {/* Filename display removed as requested */}
                             </div>
                             
                             <button 
