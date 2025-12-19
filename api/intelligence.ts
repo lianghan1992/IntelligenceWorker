@@ -26,7 +26,8 @@ import {
     IntelligenceTaskPublic,
     AnalysisTemplate,
     CreateAnalysisTemplateRequest,
-    AnalysisResult
+    AnalysisResult,
+    UploadedDocument
 } from '../types';
 
 // --- Service Status & Stats ---
@@ -506,6 +507,54 @@ export const triggerAnalysis = (articleUuid: string): Promise<{ message: string 
     return apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleUuid}`, {
         method: 'POST'
     });
+};
+
+// --- Uploaded Docs (New) ---
+
+export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<{ message: string, results: any[] }> => {
+    const formData = new FormData();
+    data.files.forEach(file => formData.append('files', file));
+    formData.append('point_uuid', data.point_uuid);
+    if (data.publish_date) formData.append('publish_date', data.publish_date);
+    
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, {
+        method: 'POST',
+        body: formData,
+    });
+};
+
+export const getUploadedDocs = (params: { page?: number, page_size?: number, point_uuid?: string, start_date?: string, end_date?: string, search?: string }): Promise<PaginatedResponse<UploadedDocument>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<UploadedDocument>>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${query}`);
+};
+
+export const batchUpdateDocsPoint = (data: { old_point_uuid: string, new_point_uuid: string, doc_uuids?: string[] }): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-update-point`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+};
+
+export const downloadUploadedDoc = async (docUuid: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${docUuid}/download`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('下载文件失败');
+    return response.blob();
+};
+
+export const getDocPreview = async (docUuid: string, pageNum: number): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${docUuid}/preview/${pageNum}`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('获取预览失败');
+    return response.blob();
 };
 
 // --- Proxies ---

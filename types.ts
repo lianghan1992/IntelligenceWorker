@@ -573,3 +573,17 @@ export interface AnalysisResult {
     article_title?: string; // Enriched
     template_name?: string; // Enriched
 }
+
+export interface UploadedDocument {
+    uuid: string;
+    original_filename: string;
+    file_size: number;
+    mime_type: string;
+    page_count: number;
+    download_count: number;
+    view_count: number;
+    publish_date: string;
+    created_at: string;
+    point_name: string;
+    point_uuid?: string;
+}
