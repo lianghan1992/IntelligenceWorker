@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
-import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon } from '../../icons';
+import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon } from '../../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -11,6 +11,56 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+// --- 结果查看弹窗 ---
+const ResultViewerModal: React.FC<{ title: string; content: any; fullItem: any; onClose: () => void }> = ({ title, content, fullItem, onClose }) => {
+    // 尝试解析字符串形式的 JSON
+    let displayContent = content;
+    let isRawFallback = false;
+
+    if (!content || (typeof content === 'object' && Object.keys(content).length === 0)) {
+        // 如果提取的内容为空，则显示整条原始数据以便调试
+        displayContent = fullItem;
+        isRawFallback = true;
+    } else if (typeof content === 'string') {
+        try {
+            displayContent = JSON.parse(content);
+        } catch (e) {
+            // 保持原样
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
+            <div className="bg-white w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                            <DocumentTextIcon className="w-5 h-5"/>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-gray-800 text-lg leading-tight">{title || '分析结果详情'}</h3>
+                            {isRawFallback && <p className="text-xs text-orange-600 mt-1 font-mono">⚠️ 未检测到结果字段，显示原始记录</p>}
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+                        <CloseIcon className="w-6 h-6"/>
+                    </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6 bg-slate-50/50 custom-scrollbar">
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <pre className="text-xs md:text-sm font-mono text-slate-700 whitespace-pre-wrap break-all leading-relaxed">
+                            {typeof displayContent === 'object' ? JSON.stringify(displayContent, null, 2) : String(displayContent)}
+                        </pre>
+                    </div>
+                </div>
+                <div className="p-4 border-t bg-white flex justify-end">
+                     <button onClick={onClose} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">关闭</button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const TemplateCard: React.FC<{ template: AnalysisTemplate; onDelete: () => void; onToggle: () => void }> = ({ template, onDelete, onToggle }) => {
     return (
@@ -24,7 +74,7 @@ const TemplateCard: React.FC<{ template: AnalysisTemplate; onDelete: () => void;
                             onClick={onToggle}
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${template.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
                         >
-                            {template.is_active ? 'ACTIVE' : 'PAUSED'}
+                            {template.is_active ? '启用' : '暂停'}
                         </button>
                         <button onClick={onDelete} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
                             <TrashIcon className="w-4 h-4" />
@@ -53,11 +103,10 @@ export const GenericAnalysisManager: React.FC = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     
     // Result State
-    const [results, setResults] = useState<any[]>([]); // Use any[] to allow raw debugging
+    const [results, setResults] = useState<any[]>([]); // Use any[] to handle flexible backend response
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
-    // 调试模式：强制关闭隐藏功能
-    const [hideEmptyResults, setHideEmptyResults] = useState(false);
+    const [viewingItem, setViewingItem] = useState<any | null>(null);
     
     const [isLoading, setIsLoading] = useState(false);
 
@@ -88,7 +137,7 @@ export const GenericAnalysisManager: React.FC = () => {
                 params.user_uuid = userUuid;
             }
 
-            // 使用 any 类型接收响应，以便处理不确定的结构
+            // 使用 any 类型接收响应
             const res: any = await getAnalysisResults(params);
             
             let rawItems: any[] = [];
@@ -105,25 +154,22 @@ export const GenericAnalysisManager: React.FC = () => {
                 } else if (Array.isArray(res.data)) {
                     rawItems = res.data;
                     total = res.total || res.data.length;
-                } else {
-                    // 尝试直接作为单个对象或者空
-                    console.warn("API Response structure unknown:", res);
                 }
             }
 
-            console.log("Raw Items from API:", rawItems);
+            console.log("API Response Items:", rawItems);
 
-            // 调试模式：不做过多映射，保留原始结构，只做必要的 UI 字段补充
-            // 这样我们在表格里就能看到真实返回了什么
+            // 关键修复：多重字段映射，确保能取到结果
             const processedItems = rawItems.map(item => ({
                 ...item,
-                // 用于 UI 显示的辅助字段
-                _ui_uuid: item.uuid || item.id || 'no-id',
-                _ui_title: item.article_title || item.title || 'Unknown Article',
-                _ui_template: item.template_name || 'Unknown Template',
-                _ui_time: item.created_at || new Date().toISOString(),
-                // 保留一个字段用于显示整个 item
-                _debug_full_item: item 
+                // 尝试从各种可能的字段名中获取结果
+                result_json: item.result_json || item.result || item.data || item.output || {},
+                // 确保 ID 存在
+                uuid: item.uuid || item.id,
+                // 确保其他字段
+                article_title: item.article_title || item.title || 'Unknown Article',
+                template_name: item.template_name || 'Unknown Template',
+                model_used: item.model_used || 'default'
             }));
 
             setResults(processedItems);
@@ -169,25 +215,6 @@ export const GenericAnalysisManager: React.FC = () => {
         }
     };
 
-    // 调试模式：不进行过滤，显示所有结果
-    const filteredResults = results;
-
-    // 调试模式：显示完整的 Item 对象
-    const renderResultContent = (fullItem: any) => {
-        const displayStr = JSON.stringify(fullItem, null, 2);
-        
-        return (
-            <div className="relative group">
-                <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-xl max-h-80 whitespace-pre-wrap break-all text-slate-600">
-                    {displayStr}
-                </pre>
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-100 text-indigo-700 text-[9px] px-1 rounded">
-                    Full Object Dump
-                </div>
-            </div>
-        );
-    };
-
     return (
         <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden relative">
             {/* Toolbar */}
@@ -207,12 +234,6 @@ export const GenericAnalysisManager: React.FC = () => {
                             分析结果
                         </button>
                     </div>
-                    
-                    {view === 'results' && (
-                        <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-100">
-                           <EyeIcon className="w-3 h-3" /> 调试模式：显示原始数据 (RAW)
-                        </div>
-                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => view === 'templates' ? fetchTemplates() : fetchResults()} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border rounded-lg hover:shadow-sm transition-all">
@@ -256,41 +277,45 @@ export const GenericAnalysisManager: React.FC = () => {
                                     <tr>
                                         <th className="px-6 py-4 w-48">模版 / 模型</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-1/3">完整对象数据 (Full Dump)</th>
-                                        <th className="px-6 py-4 w-32">时间</th>
+                                        <th className="px-6 py-4 w-32 text-center">分析结果</th>
+                                        <th className="px-6 py-4 w-40">时间</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {filteredResults.map(r => (
-                                        <tr key={r._ui_uuid} className="hover:bg-slate-50 transition-colors">
+                                    {results.map(r => (
+                                        <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 align-top">
-                                                <div className="font-bold text-slate-800 text-sm mb-1">{r._ui_template}</div>
+                                                <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name}</div>
                                                 <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
                                                     <LightningBoltIcon className="w-3 h-3"/>
                                                     {r.model_used || 'default'}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
-                                                <div className="line-clamp-2" title={r._ui_title}>
-                                                    {r._ui_title}
+                                                <div className="line-clamp-2" title={r.article_title || r.article_uuid}>
+                                                    {r.article_title || r.article_uuid}
                                                 </div>
-                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r._ui_uuid.slice(0, 8)}...</div>
+                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r.article_uuid.slice(0, 8)}...</div>
                                             </td>
-                                            <td className="px-6 py-4 align-top">
-                                                {/* Display the entire item object */}
-                                                {renderResultContent(r._debug_full_item)}
+                                            <td className="px-6 py-4 align-top text-center">
+                                                <button 
+                                                    onClick={() => setViewingItem(r)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg text-xs font-bold transition-colors border border-indigo-100"
+                                                >
+                                                    <EyeIcon className="w-3.5 h-3.5" />
+                                                    查看详情
+                                                </button>
                                             </td>
                                             <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
-                                                {new Date(r._ui_time).toLocaleString()}
+                                                {new Date(r.created_at).toLocaleString()}
                                             </td>
                                         </tr>
                                     ))}
-                                    {filteredResults.length === 0 && !isLoading && (
+                                    {results.length === 0 && !isLoading && (
                                         <tr><td colSpan={4} className="text-center py-20 text-gray-400">
                                             <div className="flex flex-col items-center">
                                                 <EyeIcon className="w-10 h-10 mb-2 opacity-20"/>
                                                 <p>暂无数据</p>
-                                                <p className="text-xs mt-1 text-slate-400">(List is empty)</p>
                                             </div>
                                         </td></tr>
                                     )}
@@ -310,6 +335,16 @@ export const GenericAnalysisManager: React.FC = () => {
 
             {/* Create Drawer (Slide-in from Right) */}
             {isCreateModalOpen && <CreateTemplateDrawer onClose={() => setIsCreateModalOpen(false)} onSave={handleCreateTemplate} />}
+            
+            {/* Result Modal */}
+            {viewingItem && (
+                <ResultViewerModal 
+                    title={viewingItem.article_title || '分析结果'} 
+                    content={viewingItem.result_json} 
+                    fullItem={viewingItem}
+                    onClose={() => setViewingItem(null)} 
+                />
+            )}
         </div>
     );
 };
