@@ -3,13 +3,13 @@ import React, { useState } from 'react';
 import { ScenarioProps } from '../registry';
 import { StratifyPage, StratifyOutline } from '../../../../types';
 
-// 场景内部私有组件
+// Steps
 import { OutlineStep } from './steps/OutlineStep';
 import { ContentStep } from './steps/ContentStep';
 import { LayoutStep } from './steps/LayoutStep';
 import { MinimalStepper } from '../../shared/MinimalStepper';
 
-export const DefaultScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenario, sessionId, onComplete }) => {
+export const GeneralPptScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenario, sessionId, onComplete }) => {
     const [step, setStep] = useState(1);
     const [outline, setOutline] = useState<StratifyOutline | null>(null);
     const [pages, setPages] = useState<StratifyPage[]>([]);
@@ -17,7 +17,7 @@ export const DefaultScenario: React.FC<ScenarioProps> = ({ taskId, topic, scenar
 
     return (
         <div className="flex-1 flex flex-col min-h-0 bg-slate-50">
-            {/* 场景私有的步骤条 */}
+            {/* Stepper Navigation */}
             <MinimalStepper currentStep={step} />
 
             <div className="flex-1 relative overflow-hidden flex flex-col">

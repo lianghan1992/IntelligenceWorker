@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BrainIcon, CheckIcon } from '../../../../icons';
+import { BrainIcon } from '../../../../icons';
 import { StratifyOutline } from '../../../../../types';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
@@ -102,9 +102,17 @@ export const OutlineStep: React.FC<{
                         className="flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={revisionInput}
                         onChange={e => setRevisionInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && !isGenerating && handleRevise()}
                         placeholder="输入微调意见..."
                         disabled={isGenerating}
                     />
+                    <button 
+                        onClick={handleRevise}
+                        disabled={isGenerating || !revisionInput.trim()}
+                        className="px-6 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:text-indigo-600 hover:border-indigo-200 transition-all disabled:opacity-50"
+                    >
+                        修改
+                    </button>
                     <button 
                         onClick={() => outlineData && onConfirm(outlineData, sessionId)}
                         disabled={isGenerating || !outlineData}

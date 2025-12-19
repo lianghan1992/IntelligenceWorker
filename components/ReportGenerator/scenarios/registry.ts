@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { DefaultScenario } from './default/DefaultScenario';
 import { TechEvalScenario } from './tech_eval/TechEvalScenario';
+import { GeneralPptScenario } from './general_ppt/GeneralPptScenario';
 import { StratifyScenario } from '../../../types';
 
 // 场景组件的 Props 定义
@@ -19,11 +19,15 @@ export interface ScenarioProps {
  * Key 建议同时配置 UUID 和 别名(name)，以确保无论后端返回哪种标识符都能匹配
  */
 export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
-    // 通用场景
-    'default': DefaultScenario,
-    '通用PPT生成': DefaultScenario,
+    // 通用场景 (已迁移至 general_ppt 模块)
+    'default': GeneralPptScenario,
     
-    // 新技术评估场景 (核心修复：显式匹配你的 UUID)
+    // 通用PPT生成 (独立模块)
+    '89dc71e5-ee59-4cbc-9b21-24518176c0b1': GeneralPptScenario,
+    'general_ppt': GeneralPptScenario,
+    '通用PPT生成': GeneralPptScenario,
+    
+    // 新技术评估场景
     '50de3a59-0502-4202-9ddb-36ceb07fb3f1': TechEvalScenario,
     'tech_evaluation': TechEvalScenario,
     '新技术评估': TechEvalScenario,
