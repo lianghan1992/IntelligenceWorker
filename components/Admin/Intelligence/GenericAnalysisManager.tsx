@@ -91,31 +91,38 @@ export const GenericAnalysisManager: React.FC = () => {
             // 使用 any 类型接收响应，以便处理不确定的结构
             const res: any = await getAnalysisResults(params);
             
-            let items: AnalysisResult[] = [];
+            let rawItems: any[] = [];
             let total = 0;
 
             // 增强的响应结构处理逻辑
             if (Array.isArray(res)) {
-                // 情况 1: 直接返回数组
-                items = res;
+                rawItems = res;
                 total = res.length;
             } else if (res && typeof res === 'object') {
                 if (Array.isArray(res.items)) {
-                    // 情况 2: 标准分页结构 { items: [], total: 100 }
-                    items = res.items;
+                    rawItems = res.items;
                     total = res.total || res.items.length;
                 } else if (Array.isArray(res.data)) {
-                    // 情况 3: 另一种常见结构 { data: [], total: 100 }
-                    items = res.data;
+                    rawItems = res.data;
                     total = res.total || res.data.length;
-                } else {
-                    // 情况 4: 可能是空对象或其他未知结构，尝试将其本身作为单条记录（极少见）或为空
-                    console.warn("GenericAnalysisManager: Unknown response structure", res);
                 }
             }
 
-            console.log("GenericAnalysisManager fetchResults:", { raw: res, processedItems: items });
-            setResults(items);
+            // 关键修复：映射后端可能的不同字段名 ('result' vs 'result_json')
+            const processedItems = rawItems.map(item => ({
+                ...item,
+                // 优先取 result_json，如果为空则取 result，最后给空对象
+                result_json: item.result_json || item.result || {},
+                // 确保 ID 存在
+                uuid: item.uuid || item.id,
+                // 确保其他字段
+                article_title: item.article_title || item.title || 'Unknown Article',
+                template_name: item.template_name || 'Unknown Template',
+                model_used: item.model_used || 'default'
+            }));
+
+            console.log("GenericAnalysisManager fetchResults:", { raw: res, processedItems });
+            setResults(processedItems);
             setResultTotal(total);
         } catch (e) {
             console.error("GenericAnalysisManager fetchResults error:", e);
@@ -162,31 +169,37 @@ export const GenericAnalysisManager: React.FC = () => {
     const filteredResults = results;
 
     // 调试模式：直接展示原始数据 (RAW)
-    const renderResultContent = (json: any) => {
-        let displayStr = '';
-        const type = typeof json;
+    const renderResultContent = (data: any) => {
+        let content = data;
+        let typeInfo: string = typeof data;
 
-        if (json === null || json === undefined) {
-            displayStr = String(json);
-        } else if (type === 'object') {
-            try {
-                // 尝试美化 JSON，如果失败则回退到 toString
-                displayStr = JSON.stringify(json, null, 2);
-            } catch (e) {
-                displayStr = `[Object conversion error]: ${e}`;
-            }
-        } else {
-            // 字符串、数字等直接显示
-            displayStr = String(json);
+        // 尝试解析字符串形式的 JSON，以便更好地展示
+        if (typeof data === 'string') {
+             try {
+                 if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
+                    const parsed = JSON.parse(data);
+                    content = parsed;
+                    typeInfo = 'string (parsed)';
+                 }
+             } catch (e) {
+                 // 保持原样
+             }
         }
         
+        let displayStr = '';
+        try {
+            displayStr = typeof content === 'object' ? JSON.stringify(content, null, 2) : String(content);
+        } catch (e) {
+            displayStr = String(content);
+        }
+
         return (
             <div className="relative group">
                 <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-lg max-h-60 whitespace-pre-wrap break-all text-slate-600">
                     {displayStr}
                 </pre>
                 <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[9px] bg-gray-200 px-1 rounded text-gray-500">{type}</span>
+                    <span className="text-[9px] bg-gray-200 px-1 rounded text-gray-500">{typeInfo}</span>
                 </div>
             </div>
         );
