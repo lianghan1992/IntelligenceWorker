@@ -39,6 +39,36 @@ const extractStreamingHtmlContent = (text: string): string => {
     return '';
 };
 
+// Helper: Intent Sniffing for Status Text
+const detectAction = (buffer: string) => {
+    const tail = buffer.slice(-500); // Only analyze the last 500 characters
+    
+    if (tail.match(/<svg|<path|<rect|<circle|<defs/i)) {
+        return { title: '正在绘制矢量图形', sub: 'Rendering Vector Assets • SVG Optimization' };
+    }
+    if (tail.match(/<style|@media|font-family|:root/i)) {
+        return { title: '正在调配视觉样式', sub: 'Injecting CSS • Typography • Color Palette' };
+    }
+    if (tail.match(/<script|function|const|var|let|addEventListener/i)) {
+        return { title: '正在注入交互逻辑', sub: 'Compiling JavaScript • Event Listeners' };
+    }
+    if (tail.match(/display:\s*grid|grid-template|flex-direction|columns/i)) {
+        return { title: '正在构建布局系统', sub: 'Grid System • Flexbox • Responsive Design' };
+    }
+    if (tail.match(/<img|src=['"]http|background-image/i)) {
+        return { title: '正在加载媒体资源', sub: 'Fetching Images • CDN Assets' };
+    }
+    if (tail.match(/<table|<tr|<td|<th/i)) {
+        return { title: '正在生成数据表格', sub: 'Data Visualization • Table Structure' };
+    }
+    if (tail.match(/<h1|<h2|<p|<span/i)) {
+        return { title: '正在排版文本内容', sub: 'Typesetting • Semantic Structure' };
+    }
+    
+    // Default State
+    return { title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' };
+};
+
 // --- Scaled Preview Component ---
 const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +144,10 @@ export const LayoutStep: React.FC<{
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     
+    // Dynamic Status State
+    const [statusInfo, setStatusInfo] = useState({ title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' });
+    const lastUpdateRef = useRef(0);
+    
     const processingRef = useRef(false);
     const codeScrollRef = useRef<HTMLDivElement>(null); // Ref for auto-scrolling code window
     const completedCount = pages.filter(p => p.status === 'done').length;
@@ -122,6 +156,19 @@ export const LayoutStep: React.FC<{
     useEffect(() => {
         if (codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
+        }
+    }, [htmlStreamBuffer]);
+    
+    // Dynamic Status Update Logic
+    useEffect(() => {
+        if (!htmlStreamBuffer) return;
+        
+        const now = Date.now();
+        // Throttle updates to avoid flickering (update at most every 800ms)
+        if (now - lastUpdateRef.current > 800) {
+            const info = detectAction(htmlStreamBuffer);
+            setStatusInfo(info);
+            lastUpdateRef.current = now;
         }
     }, [htmlStreamBuffer]);
 
@@ -138,6 +185,7 @@ export const LayoutStep: React.FC<{
             setPageThought('');
             setReasoningStream('');
             setHtmlStreamBuffer(''); 
+            setStatusInfo({ title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' });
             setIsThinkingOpen(true);
             
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
@@ -402,7 +450,7 @@ export const LayoutStep: React.FC<{
                                     ) : activePage.status === 'generating' ? (
                                         <div className="flex flex-col items-center w-full max-w-2xl px-6 animate-in fade-in duration-700">
                                             {/* Top: Branding / Status - Moved Up slightly via margin-bottom adjustment in container above */}
-                                            <div className="mb-8 text-center -mt-10">
+                                            <div className="mb-8 text-center -mt-24">
                                                 <div className="relative mb-4 mx-auto w-20 h-20">
                                                     <div className="absolute inset-0 rounded-full border-4 border-purple-100 animate-ping opacity-20"></div>
                                                     <div className="absolute inset-2 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
@@ -410,8 +458,12 @@ export const LayoutStep: React.FC<{
                                                         <ViewGridIcon className="w-8 h-8 text-purple-500" />
                                                     </div>
                                                 </div>
-                                                <h3 className="text-xl font-bold text-slate-700 mb-2">AI 架构师正在设计</h3>
-                                                <p className="text-sm text-slate-500">构建布局 • 生成矢量图形 • 优化排版</p>
+                                                <h3 className="text-xl font-bold text-slate-700 mb-2 transition-all duration-300">
+                                                    {statusInfo.title}
+                                                </h3>
+                                                <p className="text-sm text-slate-500 transition-all duration-300">
+                                                    {statusInfo.sub}
+                                                </p>
                                             </div>
 
                                             {/* Bottom: Code Window */}
