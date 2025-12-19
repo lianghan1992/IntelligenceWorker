@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
-import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon } from '../../icons';
+import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon, ClockIcon } from '../../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -11,6 +11,19 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+const calculateDuration = (start?: string, end?: string) => {
+    if (!start || !end) return '-';
+    const s = new Date(start).getTime();
+    const e = new Date(end).getTime();
+    const diff = e - s;
+    if (isNaN(diff) || diff < 0) return '-';
+    
+    const seconds = Math.floor(diff / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}m ${seconds % 60}s`;
+};
 
 // --- 结果查看弹窗 ---
 const ResultViewerModal: React.FC<{ title: string; content: any; fullItem: any; onClose: () => void }> = ({ title, content, fullItem, onClose }) => {
@@ -106,6 +119,7 @@ export const GenericAnalysisManager: React.FC = () => {
     const [results, setResults] = useState<any[]>([]); // Use any[] to handle flexible backend response
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
+    const [filterTemplateId, setFilterTemplateId] = useState('');
     const [viewingItem, setViewingItem] = useState<any | null>(null);
     
     const [isLoading, setIsLoading] = useState(false);
@@ -115,14 +129,12 @@ export const GenericAnalysisManager: React.FC = () => {
     }, []);
 
     const fetchTemplates = useCallback(async () => {
-        setIsLoading(true);
+        // Load templates even if not in template view, for the filter dropdown
         try {
             const res = await getAnalysisTemplates({}); 
             setTemplates(res);
         } catch (e) {
             console.error(e);
-        } finally {
-            setIsLoading(false);
         }
     }, []);
 
@@ -131,19 +143,18 @@ export const GenericAnalysisManager: React.FC = () => {
         try {
             const params: any = { 
                 page: resultPage, 
-                page_size: 50 
+                page_size: 50,
+                template_uuid: filterTemplateId || undefined
             };
-            if (userUuid) {
-                params.user_uuid = userUuid;
-            }
+            // Note: Removed user_uuid filter to allow admin to see all results, or keep it if "my results" is intended.
+            // Assuming admin view wants to see everything unless filtered. If user specific, uncomment:
+            // if (userUuid) params.user_uuid = userUuid;
 
-            // 使用 any 类型接收响应
             const res: any = await getAnalysisResults(params);
             
             let rawItems: any[] = [];
             let total = 0;
 
-            // 增强的响应结构处理逻辑
             if (Array.isArray(res)) {
                 rawItems = res;
                 total = res.length;
@@ -159,17 +170,16 @@ export const GenericAnalysisManager: React.FC = () => {
 
             console.log("API Response Items:", rawItems);
 
-            // 关键修复：多重字段映射，确保能取到结果
             const processedItems = rawItems.map(item => ({
                 ...item,
-                // 尝试从各种可能的字段名中获取结果
-                result_json: item.result_json || item.result || item.data || item.output || {},
-                // 确保 ID 存在
+                // Prioritize 'result' field as per user instruction, fallback to others
+                result_json: item.result || item.result_json || item.data || item.output || {},
                 uuid: item.uuid || item.id,
-                // 确保其他字段
                 article_title: item.article_title || item.title || 'Unknown Article',
                 template_name: item.template_name || 'Unknown Template',
-                model_used: item.model_used || 'default'
+                username: item.username || item.user_name || item.user_uuid || 'Unknown User',
+                model_used: item.model_used || 'default',
+                duration: calculateDuration(item.created_at, item.completed_at || item.end_time)
             }));
 
             setResults(processedItems);
@@ -179,12 +189,18 @@ export const GenericAnalysisManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [resultPage, userUuid]);
+    }, [resultPage, filterTemplateId]);
+
+    // Initial Load
+    useEffect(() => {
+        fetchTemplates();
+    }, [fetchTemplates]);
 
     useEffect(() => {
-        if (view === 'templates') fetchTemplates();
-        else fetchResults();
-    }, [view, fetchTemplates, fetchResults]);
+        if (view === 'results') {
+            fetchResults();
+        }
+    }, [view, fetchResults]);
 
     const handleCreateTemplate = async (data: any) => {
         try {
@@ -218,8 +234,8 @@ export const GenericAnalysisManager: React.FC = () => {
     return (
         <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden relative">
             {/* Toolbar */}
-            <div className="p-4 border-b bg-gradient-to-r from-white to-slate-50 flex justify-between items-center z-10">
-                <div className="flex gap-4 items-center">
+            <div className="p-4 border-b bg-gradient-to-r from-white to-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4 z-10">
+                <div className="flex gap-4 items-center w-full sm:w-auto">
                     <div className="flex bg-slate-100 p-1 rounded-lg">
                         <button 
                             onClick={() => setView('templates')}
@@ -234,15 +250,29 @@ export const GenericAnalysisManager: React.FC = () => {
                             分析结果
                         </button>
                     </div>
+
+                    {view === 'results' && (
+                        <div className="flex items-center gap-2">
+                             <select 
+                                value={filterTemplateId}
+                                onChange={(e) => { setFilterTemplateId(e.target.value); setResultPage(1); }}
+                                className="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2 outline-none shadow-sm"
+                            >
+                                <option value="">所有模版</option>
+                                {templates.map(t => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
+                            </select>
+                        </div>
+                    )}
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex items-center gap-3 self-end sm:self-auto">
                     <button onClick={() => view === 'templates' ? fetchTemplates() : fetchResults()} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border rounded-lg hover:shadow-sm transition-all">
                         <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
                     {view === 'templates' && (
                         <button 
                             onClick={() => setIsCreateModalOpen(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md transition-all active:scale-95 whitespace-nowrap"
                         >
                             <PlusIcon className="w-4 h-4" /> 新建模版
                         </button>
@@ -251,7 +281,7 @@ export const GenericAnalysisManager: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar relative z-0">
+            <div className="flex-1 overflow-auto bg-slate-50/50 p-4 md:p-6 custom-scrollbar relative z-0">
                 {view === 'templates' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {templates.map(t => (
@@ -275,10 +305,13 @@ export const GenericAnalysisManager: React.FC = () => {
                             <table className="w-full text-sm text-left text-slate-500">
                                 <thead className="text-xs text-slate-700 uppercase bg-gray-50 border-b sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <th className="px-6 py-4 w-48">模版 / 模型</th>
+                                        <th className="px-6 py-4 w-40">模板名称</th>
+                                        <th className="px-6 py-4 w-32">用户名称</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-32 text-center">分析结果</th>
-                                        <th className="px-6 py-4 w-40">时间</th>
+                                        <th className="px-6 py-4 w-28 text-center">分析结果</th>
+                                        <th className="px-6 py-4 w-24">分析耗时</th>
+                                        <th className="px-6 py-4 w-40">创建时间</th>
+                                        <th className="px-6 py-4 w-40">结束时间</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -291,11 +324,15 @@ export const GenericAnalysisManager: React.FC = () => {
                                                     {r.model_used || 'default'}
                                                 </div>
                                             </td>
+                                            <td className="px-6 py-4 align-top text-xs text-slate-600">
+                                                <div className="truncate max-w-[120px]" title={r.username}>
+                                                    {r.username}
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
                                                 <div className="line-clamp-2" title={r.article_title || r.article_uuid}>
                                                     {r.article_title || r.article_uuid}
                                                 </div>
-                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r.article_uuid.slice(0, 8)}...</div>
                                             </td>
                                             <td className="px-6 py-4 align-top text-center">
                                                 <button 
@@ -303,16 +340,22 @@ export const GenericAnalysisManager: React.FC = () => {
                                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg text-xs font-bold transition-colors border border-indigo-100"
                                                 >
                                                     <EyeIcon className="w-3.5 h-3.5" />
-                                                    查看详情
+                                                    查看
                                                 </button>
+                                            </td>
+                                            <td className="px-6 py-4 align-top text-xs text-slate-500 font-mono">
+                                                {r.duration}
                                             </td>
                                             <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
                                                 {new Date(r.created_at).toLocaleString()}
                                             </td>
+                                            <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                {r.completed_at ? new Date(r.completed_at).toLocaleString() : '-'}
+                                            </td>
                                         </tr>
                                     ))}
                                     {results.length === 0 && !isLoading && (
-                                        <tr><td colSpan={4} className="text-center py-20 text-gray-400">
+                                        <tr><td colSpan={7} className="text-center py-20 text-gray-400">
                                             <div className="flex flex-col items-center">
                                                 <EyeIcon className="w-10 h-10 mb-2 opacity-20"/>
                                                 <p>暂无数据</p>
