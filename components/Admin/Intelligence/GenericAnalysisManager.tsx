@@ -56,6 +56,7 @@ export const GenericAnalysisManager: React.FC = () => {
     const [results, setResults] = useState<AnalysisResult[]>([]);
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
+    // 调试模式：强制关闭隐藏功能
     const [hideEmptyResults, setHideEmptyResults] = useState(false);
     
     const [isLoading, setIsLoading] = useState(false);
@@ -67,7 +68,6 @@ export const GenericAnalysisManager: React.FC = () => {
     const fetchTemplates = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Admin can see all templates or filter by user? For now let's show all or user's
             const res = await getAnalysisTemplates({}); 
             setTemplates(res);
         } catch (e) {
@@ -80,8 +80,6 @@ export const GenericAnalysisManager: React.FC = () => {
     const fetchResults = useCallback(async () => {
         setIsLoading(true);
         try {
-            // 调试模式：恢复 user_uuid 过滤，以确保能获取到当前用户的测试数据
-            // 如果后端不需要 user_uuid 也能返回所有数据，可以再次移除
             const params: any = { 
                 page: resultPage, 
                 page_size: 50 
@@ -90,11 +88,37 @@ export const GenericAnalysisManager: React.FC = () => {
                 params.user_uuid = userUuid;
             }
 
-            const res = await getAnalysisResults(params);
-            setResults(res.items || []);
-            setResultTotal(res.total);
+            // 使用 any 类型接收响应，以便处理不确定的结构
+            const res: any = await getAnalysisResults(params);
+            
+            let items: AnalysisResult[] = [];
+            let total = 0;
+
+            // 增强的响应结构处理逻辑
+            if (Array.isArray(res)) {
+                // 情况 1: 直接返回数组
+                items = res;
+                total = res.length;
+            } else if (res && typeof res === 'object') {
+                if (Array.isArray(res.items)) {
+                    // 情况 2: 标准分页结构 { items: [], total: 100 }
+                    items = res.items;
+                    total = res.total || res.items.length;
+                } else if (Array.isArray(res.data)) {
+                    // 情况 3: 另一种常见结构 { data: [], total: 100 }
+                    items = res.data;
+                    total = res.total || res.data.length;
+                } else {
+                    // 情况 4: 可能是空对象或其他未知结构，尝试将其本身作为单条记录（极少见）或为空
+                    console.warn("GenericAnalysisManager: Unknown response structure", res);
+                }
+            }
+
+            console.log("GenericAnalysisManager fetchResults:", { raw: res, processedItems: items });
+            setResults(items);
+            setResultTotal(total);
         } catch (e) {
-            console.error(e);
+            console.error("GenericAnalysisManager fetchResults error:", e);
         } finally {
             setIsLoading(false);
         }
@@ -134,30 +158,37 @@ export const GenericAnalysisManager: React.FC = () => {
         }
     };
 
-    // 调试模式：暂时禁用“是否为空”的智能判断，总是返回 false，让数据展示出来
-    const isResultEmpty = (json: any) => {
-        // DEBUG: Force show all
-        return false;
-    };
+    // 调试模式：不进行过滤，显示所有结果
+    const filteredResults = results;
 
-    const filteredResults = useMemo(() => {
-        if (!hideEmptyResults) return results;
-        return results.filter(r => !isResultEmpty(r.result_json));
-    }, [results, hideEmptyResults]);
-
-    // 调试模式：直接展示原始数据，不进行 JSON 解析或美化
+    // 调试模式：直接展示原始数据 (RAW)
     const renderResultContent = (json: any) => {
         let displayStr = '';
-        if (typeof json === 'object') {
-            displayStr = JSON.stringify(json, null, 2);
+        const type = typeof json;
+
+        if (json === null || json === undefined) {
+            displayStr = String(json);
+        } else if (type === 'object') {
+            try {
+                // 尝试美化 JSON，如果失败则回退到 toString
+                displayStr = JSON.stringify(json, null, 2);
+            } catch (e) {
+                displayStr = `[Object conversion error]: ${e}`;
+            }
         } else {
+            // 字符串、数字等直接显示
             displayStr = String(json);
         }
         
         return (
-            <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-lg max-h-40 whitespace-pre-wrap break-all text-slate-600">
-                {displayStr}
-            </pre>
+            <div className="relative group">
+                <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-lg max-h-60 whitespace-pre-wrap break-all text-slate-600">
+                    {displayStr}
+                </pre>
+                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[9px] bg-gray-200 px-1 rounded text-gray-500">{type}</span>
+                </div>
+            </div>
         );
     };
 
@@ -182,15 +213,9 @@ export const GenericAnalysisManager: React.FC = () => {
                     </div>
                     
                     {view === 'results' && (
-                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors select-none">
-                            <input 
-                                type="checkbox" 
-                                checked={hideEmptyResults} 
-                                onChange={e => setHideEmptyResults(e.target.checked)} 
-                                className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300"
-                            />
-                            仅显示有数据的条目 (调试中)
-                        </label>
+                        <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-100">
+                           <EyeIcon className="w-3 h-3" /> 调试模式：显示原始数据 (RAW)
+                        </div>
                     )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -235,7 +260,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                     <tr>
                                         <th className="px-6 py-4 w-48">模版 / 模型</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-1/3">原始数据 (Raw)</th>
+                                        <th className="px-6 py-4 w-1/3">原始返回数据 (RAW JSON)</th>
                                         <th className="px-6 py-4 w-32">时间</th>
                                     </tr>
                                 </thead>
@@ -267,8 +292,8 @@ export const GenericAnalysisManager: React.FC = () => {
                                         <tr><td colSpan={4} className="text-center py-20 text-gray-400">
                                             <div className="flex flex-col items-center">
                                                 <EyeIcon className="w-10 h-10 mb-2 opacity-20"/>
-                                                <p>暂无符合条件的分析结果</p>
-                                                <p className="text-xs mt-1 text-slate-400">(raw count: {results.length})</p>
+                                                <p>暂无数据</p>
+                                                <p className="text-xs mt-1 text-slate-400">(List is empty)</p>
                                             </div>
                                         </td></tr>
                                     )}
@@ -279,7 +304,7 @@ export const GenericAnalysisManager: React.FC = () => {
                             <div className="p-4 border-t flex justify-end gap-2 bg-white flex-shrink-0">
                                 <button disabled={resultPage <= 1} onClick={() => setResultPage(p => p - 1)} className="px-3 py-1 border rounded text-xs hover:bg-slate-50 disabled:opacity-50">上一页</button>
                                 <span className="text-xs self-center px-2">{resultPage}</span>
-                                <button disabled={results.length < 20} onClick={() => setResultPage(p => p + 1)} className="px-3 py-1 border rounded text-xs hover:bg-slate-50 disabled:opacity-50">下一页</button>
+                                <button disabled={results.length < 50} onClick={() => setResultPage(p => p + 1)} className="px-3 py-1 border rounded text-xs hover:bg-slate-50 disabled:opacity-50">下一页</button>
                             </div>
                         )}
                     </div>
