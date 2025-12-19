@@ -501,12 +501,8 @@ export const getAnalysisResults = (params: { article_uuid?: string; template_uui
     return apiFetch<PaginatedResponse<AnalysisResult>>(`${INTELSPIDER_SERVICE_PATH}/analysis/results${query}`);
 };
 
-export const triggerAnalysis = (articleUuid: string, templateUuid: string): Promise<{ message: string }> => {
-    // The endpoint provided in spec is /intelspider/analysis/trigger/{article_uuid}, but it needs template context.
-    // Assuming the spec implies a query param or body for template choice, or if it runs ALL active templates.
-    // Based on typical patterns, let's assume it runs all matching templates unless specified.
-    // If the API requires template selection, the spec might be simplified.
-    // Let's stick to the spec: POST /intelspider/analysis/trigger/{article_uuid}
+export const triggerAnalysis = (articleUuid: string): Promise<{ message: string }> => {
+    // Spec: POST /intelspider/analysis/trigger/{article_uuid}
     return apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleUuid}`, {
         method: 'POST'
     });

@@ -14,39 +14,31 @@ const Spinner: React.FC = () => (
 
 const TemplateCard: React.FC<{ template: AnalysisTemplate; onDelete: () => void; onToggle: () => void }> = ({ template, onDelete, onToggle }) => {
     return (
-        <div className="bg-white p-5 rounded-2xl border border-indigo-50 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group relative overflow-hidden">
+        <div className="bg-white p-5 rounded-2xl border border-indigo-50 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all group relative overflow-hidden h-full flex flex-col justify-between">
             <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-indigo-400 to-purple-500"></div>
-            <div className="flex justify-between items-start mb-3">
-                <h4 className="font-bold text-slate-800 text-base">{template.name}</h4>
-                <div className="flex items-center gap-2">
-                    <button 
-                        onClick={onToggle}
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${template.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
-                    >
-                        {template.is_active ? 'ACTIVE' : 'PAUSED'}
-                    </button>
-                    <button onClick={onDelete} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
-                        <TrashIcon className="w-4 h-4" />
-                    </button>
+            <div>
+                <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold text-slate-800 text-base line-clamp-1">{template.name}</h4>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={onToggle}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${template.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-500 border-gray-200'}`}
+                        >
+                            {template.is_active ? 'ACTIVE' : 'PAUSED'}
+                        </button>
+                        <button onClick={onDelete} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                            <TrashIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
+                <p className="text-xs text-slate-500 line-clamp-3 mb-4 font-mono leading-relaxed bg-slate-50 p-2 rounded border border-slate-100">
+                    {template.prompt_template}
+                </p>
             </div>
             
-            <div className="space-y-3">
-                {template.trigger_rules && template.trigger_rules.keywords && template.trigger_rules.keywords.length > 0 && (
-                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Trigger Keywords</div>
-                        <div className="flex flex-wrap gap-1">
-                            {template.trigger_rules.keywords.map(k => (
-                                <span key={k} className="text-xs bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-medium">{k}</span>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <LightningBoltIcon className="w-3.5 h-3.5 text-purple-500" />
-                    <span className="font-mono">{template.target_model || 'glm-4.5-flash'}</span>
-                </div>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+                <LightningBoltIcon className="w-3.5 h-3.5 text-purple-500" />
+                <span className="font-mono">{template.target_model || 'glm-4.5-flash'}</span>
             </div>
         </div>
     );
@@ -133,9 +125,9 @@ export const GenericAnalysisManager: React.FC = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden">
+        <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden relative">
             {/* Toolbar */}
-            <div className="p-4 border-b bg-gradient-to-r from-white to-slate-50 flex justify-between items-center">
+            <div className="p-4 border-b bg-gradient-to-r from-white to-slate-50 flex justify-between items-center z-10">
                 <div className="flex gap-4">
                     <button 
                         onClick={() => setView('templates')}
@@ -166,7 +158,7 @@ export const GenericAnalysisManager: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar">
+            <div className="flex-1 overflow-auto bg-slate-50/50 p-6 custom-scrollbar relative z-0">
                 {view === 'templates' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {templates.map(t => (
@@ -233,13 +225,13 @@ export const GenericAnalysisManager: React.FC = () => {
                 )}
             </div>
 
-            {/* Create Modal */}
-            {isCreateModalOpen && <CreateTemplateModal onClose={() => setIsCreateModalOpen(false)} onSave={handleCreateTemplate} />}
+            {/* Create Drawer (Slide-in from Right) */}
+            {isCreateModalOpen && <CreateTemplateDrawer onClose={() => setIsCreateModalOpen(false)} onSave={handleCreateTemplate} />}
         </div>
     );
 };
 
-const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) => void }> = ({ onClose, onSave }) => {
+const CreateTemplateDrawer: React.FC<{ onClose: () => void; onSave: (data: any) => void }> = ({ onClose, onSave }) => {
     const [name, setName] = useState('');
     const [prompt, setPrompt] = useState('请分析以下文章是否涉及新能源电池技术：\n标题：{{title}}\n链接：{{url}}\n内容：{{content}}');
     const [schema, setSchema] = useState('{\n  "type": "object",\n  "properties": {\n    "is_tech": { "type": "boolean" },\n    "tech_name": { "type": "string" }\n  }\n}');
@@ -265,7 +257,8 @@ const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) =
 
     return (
         <div className="fixed inset-0 z-[70] flex justify-end pointer-events-none">
-            <div className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col pointer-events-auto border-l border-slate-200 animate-in slide-in-from-right duration-300">
+            {/* Drawer Container */}
+            <div className="w-full max-w-xl h-full bg-white shadow-2xl flex flex-col pointer-events-auto border-l border-indigo-100 animate-in slide-in-from-right duration-300">
                 <div className="p-5 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-indigo-600" /> 新建分析模版
@@ -273,27 +266,29 @@ const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) =
                     <button onClick={onClose} className="p-1.5 hover:bg-gray-200 rounded-full text-gray-500"><CloseIcon className="w-5 h-5"/></button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">模版名称</label>
-                        <input value={name} onChange={e => setName(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 新能源技术识别" />
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">模版名称</label>
+                        <input value={name} onChange={e => setName(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow" placeholder="e.g. 新能源技术识别" />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Prompt 模版</label>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Prompt 模版</label>
                         <div className="relative">
-                            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-32" />
-                            <div className="absolute top-2 right-2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 border border-slate-200">支持 {`{{title}}`}, {`{{url}}`}, {`{{content}}`}</div>
+                            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-40 resize-none transition-shadow" />
+                            <div className="absolute top-2 right-2 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 font-bold opacity-80">支持 {`{{title}}`}, {`{{url}}`}, {`{{content}}`}</div>
                         </div>
+                        <p className="text-xs text-gray-400 mt-1">系统会自动将文章信息注入到变量位置。</p>
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">输出 Schema (JSON)</label>
-                        <textarea value={schema} onChange={e => setSchema(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-48 bg-slate-50" />
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">输出 Schema (JSON Schema)</label>
+                        <textarea value={schema} onChange={e => setSchema(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-48 bg-slate-50 transition-shadow" />
+                        <p className="text-xs text-gray-400 mt-1">定义期望模型返回的 JSON 结构。</p>
                     </div>
                 </div>
 
                 <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-slate-600 font-bold text-sm hover:bg-gray-100 transition-colors">取消</button>
-                    <button onClick={handleSubmit} disabled={isSubmitting || !name} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
+                    <button onClick={handleSubmit} disabled={isSubmitting || !name} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2 disabled:opacity-50 hover:shadow-lg active:scale-95">
                         {isSubmitting ? <Spinner /> : <CheckIcon className="w-4 h-4"/>} 保存模版
                     </button>
                 </div>
