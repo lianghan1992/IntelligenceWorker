@@ -53,7 +53,7 @@ export const GenericAnalysisManager: React.FC = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     
     // Result State
-    const [results, setResults] = useState<AnalysisResult[]>([]);
+    const [results, setResults] = useState<any[]>([]); // Use any[] to allow raw debugging
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
     // 调试模式：强制关闭隐藏功能
@@ -105,23 +105,27 @@ export const GenericAnalysisManager: React.FC = () => {
                 } else if (Array.isArray(res.data)) {
                     rawItems = res.data;
                     total = res.total || res.data.length;
+                } else {
+                    // 尝试直接作为单个对象或者空
+                    console.warn("API Response structure unknown:", res);
                 }
             }
 
-            // 关键修复：映射后端可能的不同字段名 ('result' vs 'result_json')
+            console.log("Raw Items from API:", rawItems);
+
+            // 调试模式：不做过多映射，保留原始结构，只做必要的 UI 字段补充
+            // 这样我们在表格里就能看到真实返回了什么
             const processedItems = rawItems.map(item => ({
                 ...item,
-                // 优先取 result_json，如果为空则取 result，最后给空对象
-                result_json: item.result_json || item.result || {},
-                // 确保 ID 存在
-                uuid: item.uuid || item.id,
-                // 确保其他字段
-                article_title: item.article_title || item.title || 'Unknown Article',
-                template_name: item.template_name || 'Unknown Template',
-                model_used: item.model_used || 'default'
+                // 用于 UI 显示的辅助字段
+                _ui_uuid: item.uuid || item.id || 'no-id',
+                _ui_title: item.article_title || item.title || 'Unknown Article',
+                _ui_template: item.template_name || 'Unknown Template',
+                _ui_time: item.created_at || new Date().toISOString(),
+                // 保留一个字段用于显示整个 item
+                _debug_full_item: item 
             }));
 
-            console.log("GenericAnalysisManager fetchResults:", { raw: res, processedItems });
             setResults(processedItems);
             setResultTotal(total);
         } catch (e) {
@@ -168,38 +172,17 @@ export const GenericAnalysisManager: React.FC = () => {
     // 调试模式：不进行过滤，显示所有结果
     const filteredResults = results;
 
-    // 调试模式：直接展示原始数据 (RAW)
-    const renderResultContent = (data: any) => {
-        let content = data;
-        let typeInfo: string = typeof data;
-
-        // 尝试解析字符串形式的 JSON，以便更好地展示
-        if (typeof data === 'string') {
-             try {
-                 if (data.trim().startsWith('{') || data.trim().startsWith('[')) {
-                    const parsed = JSON.parse(data);
-                    content = parsed;
-                    typeInfo = 'string (parsed)';
-                 }
-             } catch (e) {
-                 // 保持原样
-             }
-        }
+    // 调试模式：显示完整的 Item 对象
+    const renderResultContent = (fullItem: any) => {
+        const displayStr = JSON.stringify(fullItem, null, 2);
         
-        let displayStr = '';
-        try {
-            displayStr = typeof content === 'object' ? JSON.stringify(content, null, 2) : String(content);
-        } catch (e) {
-            displayStr = String(content);
-        }
-
         return (
             <div className="relative group">
-                <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-lg max-h-60 whitespace-pre-wrap break-all text-slate-600">
+                <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-xl max-h-80 whitespace-pre-wrap break-all text-slate-600">
                     {displayStr}
                 </pre>
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[9px] bg-gray-200 px-1 rounded text-gray-500">{typeInfo}</span>
+                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-100 text-indigo-700 text-[9px] px-1 rounded">
+                    Full Object Dump
                 </div>
             </div>
         );
@@ -273,31 +256,32 @@ export const GenericAnalysisManager: React.FC = () => {
                                     <tr>
                                         <th className="px-6 py-4 w-48">模版 / 模型</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-1/3">原始返回数据 (RAW JSON)</th>
+                                        <th className="px-6 py-4 w-1/3">完整对象数据 (Full Dump)</th>
                                         <th className="px-6 py-4 w-32">时间</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {filteredResults.map(r => (
-                                        <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
+                                        <tr key={r._ui_uuid} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 align-top">
-                                                <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name || 'Unknown Template'}</div>
+                                                <div className="font-bold text-slate-800 text-sm mb-1">{r._ui_template}</div>
                                                 <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
                                                     <LightningBoltIcon className="w-3 h-3"/>
                                                     {r.model_used || 'default'}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
-                                                <div className="line-clamp-2" title={r.article_title || r.article_uuid}>
-                                                    {r.article_title || r.article_uuid}
+                                                <div className="line-clamp-2" title={r._ui_title}>
+                                                    {r._ui_title}
                                                 </div>
-                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r.article_uuid.slice(0, 8)}...</div>
+                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r._ui_uuid.slice(0, 8)}...</div>
                                             </td>
                                             <td className="px-6 py-4 align-top">
-                                                {renderResultContent(r.result_json)}
+                                                {/* Display the entire item object */}
+                                                {renderResultContent(r._debug_full_item)}
                                             </td>
                                             <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
-                                                {new Date(r.created_at).toLocaleString()}
+                                                {new Date(r._ui_time).toLocaleString()}
                                             </td>
                                         </tr>
                                     ))}
