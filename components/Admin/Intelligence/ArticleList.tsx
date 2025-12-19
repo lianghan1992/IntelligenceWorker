@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { 
@@ -9,9 +10,10 @@ import {
     checkIntelGeminiStatus,
     updateIntelGeminiCookies,
     toggleIntelHtmlGeneration,
-    toggleRetrospectiveHtmlGeneration
+    toggleRetrospectiveHtmlGeneration,
+    triggerAnalysis
 } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon } from '../../icons';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -100,6 +102,7 @@ export const ArticleList: React.FC = () => {
     const [generatingId, setGeneratingId] = useState<string | null>(null);
     const [viewingHtmlId, setViewingHtmlId] = useState<string | null>(null);
     const [pdfDownloadingId, setPdfDownloadingId] = useState<string | null>(null);
+    const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
     // --- Gemini Engine State ---
     const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean; message: string } | null>(null);
@@ -274,6 +277,20 @@ export const ArticleList: React.FC = () => {
         }
     };
 
+    const handleTriggerAnalysis = async (article: SpiderArticle) => {
+        if (analyzingId) return;
+        setAnalyzingId(article.id);
+        try {
+            await triggerAnalysis(article.id);
+            alert('通用分析任务已触发');
+        } catch (e: any) {
+            const msg = e.message || String(e);
+            alert(msg);
+        } finally {
+            setAnalyzingId(null);
+        }
+    };
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
             
@@ -409,6 +426,13 @@ export const ArticleList: React.FC = () => {
                                         <td className="px-6 py-4 text-xs font-mono text-gray-600 whitespace-nowrap">{formatBeijingTime(article.created_at).split(' ')[0]}</td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleTriggerAnalysis(article); }}
+                                                    className="text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded p-1.5 transition-colors"
+                                                    title="触发通用分析"
+                                                >
+                                                    {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                                </button>
                                                 {article.is_atomized && (
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
@@ -466,6 +490,13 @@ export const ArticleList: React.FC = () => {
                                         ))}
                                     </div>
                                     <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleTriggerAnalysis(article); }}
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
+                                            title="触发通用分析"
+                                        >
+                                            {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                        </button>
                                         {article.is_atomized ? (
                                             <button 
                                                 onClick={() => setViewingHtmlId(article.id)}
