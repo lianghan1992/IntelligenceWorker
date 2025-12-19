@@ -60,6 +60,14 @@ StratifyAI 服务采用“前端驱动业务，后端提供能力”的架构。
 }
 ```
 
+**支持的 `prompt_name`**:
+*注意：以下仅为 default 场景的示例，实际可用的 prompt 取决于场景目录下的文件。*
+- `00_analyze_input`: 意图识别与分析。
+- `01_generate_outline`: 生成大纲。
+- `02_revise_outline`: 修改大纲。
+- `03_generate_content`: 生成单页内容。
+- `04_revise_content`: 修改内容。
+- `05_generate_html`: 生成HTML。
 
 **响应数据**:
 SSE 事件流。

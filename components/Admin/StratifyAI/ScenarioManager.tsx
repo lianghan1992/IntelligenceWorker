@@ -2,11 +2,108 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StratifyScenario, StratifyScenarioFile } from '../../../types';
 import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, updateScenarioFile, deleteScenarioFile } from '../../../api/stratify';
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, ChevronRightIcon, DocumentTextIcon, CloseIcon, CheckIcon, ViewGridIcon, CodeIcon } from '../../icons';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CodeIcon, CloseIcon, CheckIcon, ViewGridIcon } from '../../icons';
 import { PromptEditorModal } from './PromptEditorModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
+
+// --- Scenario Editor Modal ---
+interface ScenarioEditorModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (data: { name: string; title: string; description: string }) => Promise<void>;
+    initialData?: { name: string; title: string; description: string };
+    isEditing: boolean;
+}
+
+const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing }) => {
+    const [form, setForm] = useState({ name: '', title: '', description: '' });
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setForm(initialData || { name: '', title: '', description: '' });
+        }
+    }, [isOpen, initialData]);
+
+    const handleSubmit = async () => {
+        if (!form.name || !form.title) return;
+        setIsSaving(true);
+        try {
+            await onSave(form);
+            onClose();
+        } catch (e) {
+            // Error handling done in parent or here
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                    <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                        <ViewGridIcon className="w-5 h-5 text-indigo-600" />
+                        {isEditing ? '编辑场景配置' : '创建新场景'}
+                    </h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
+                        <CloseIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                <div className="p-8 space-y-6">
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">唯一标识 (Unique ID)</label>
+                        <input 
+                            value={form.name} 
+                            onChange={e => setForm({...form, name: e.target.value})}
+                            disabled={isEditing} // ID usually shouldn't change after creation to avoid breaking refs
+                            className={`w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
+                            placeholder="e.g. market_insight_pro"
+                        />
+                        {!isEditing && <p className="text-[10px] text-slate-400 mt-1 ml-1">创建后不可修改，作为系统调用的 Key。</p>}
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">显示标题</label>
+                        <input 
+                            value={form.title} 
+                            onChange={e => setForm({...form, title: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                            placeholder="e.g. 深度市场洞察"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">场景描述</label>
+                        <textarea 
+                            value={form.description} 
+                            onChange={e => setForm({...form, description: e.target.value})}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm h-28 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
+                            placeholder="描述该场景的用途，如：'针对新能源汽车市场的月度竞品分析报告'..."
+                        />
+                    </div>
+                </div>
+
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                    <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
+                    <button 
+                        onClick={handleSubmit} 
+                        disabled={isSaving || !form.name || !form.title}
+                        className="px-8 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 shadow-lg shadow-slate-200 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4" />}
+                        {isEditing ? '保存更新' : '立即创建'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Main Manager ---
 
 export const ScenarioManager: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
@@ -16,8 +113,10 @@ export const ScenarioManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isFilesLoading, setIsFilesLoading] = useState(false);
     
-    const [isEditingScenario, setIsEditingScenario] = useState(false);
-    const [scenarioForm, setScenarioForm] = useState({ name: '', title: '', description: '' });
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string } | undefined>(undefined);
+    const [isEditingMode, setIsEditingMode] = useState(false);
     
     const [editingFile, setEditingFile] = useState<StratifyScenarioFile | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<{ type: 'scenario' | 'file', id: string, name: string } | null>(null);
@@ -27,12 +126,20 @@ export const ScenarioManager: React.FC = () => {
         try {
             const data = await getScenarios();
             setScenarios(data);
+            // Auto select first if none selected
             if (data.length > 0 && !selectedScenario) {
                 setSelectedScenario(data[0]);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [selectedScenario]);
+    }, [selectedScenario]); // Depend on selectedScenario to respect manual selection, but handle carefully
+
+    // Effect to handle initial load or empty selection
+    useEffect(() => {
+        if (scenarios.length === 0) {
+            fetchScenarios();
+        }
+    }, [fetchScenarios, scenarios.length]);
 
     const fetchFiles = useCallback(async (sid: string) => {
         setIsFilesLoading(true);
@@ -43,22 +150,40 @@ export const ScenarioManager: React.FC = () => {
         finally { setIsFilesLoading(false); }
     }, []);
 
-    useEffect(() => { fetchScenarios(); }, [fetchScenarios]);
     useEffect(() => { 
         if (selectedScenario) fetchFiles(selectedScenario.id); 
     }, [selectedScenario, fetchFiles]);
 
-    const handleSaveScenario = async () => {
-        if (!scenarioForm.name || !scenarioForm.title) return;
+    const handleCreateClick = () => {
+        setEditingScenarioData(undefined);
+        setIsEditingMode(false);
+        setIsModalOpen(true);
+    };
+
+    const handleEditClick = (s: StratifyScenario) => {
+        setEditingScenarioData({ name: s.name, title: s.title, description: s.description });
+        setIsEditingMode(true);
+        // Ensure we are selecting the one we are editing
+        setSelectedScenario(s);
+        setIsModalOpen(true);
+    };
+
+    const handleSaveScenario = async (data: { name: string; title: string; description: string }) => {
         try {
-            if (selectedScenario && isEditingScenario && selectedScenario.id !== 'new') {
-                await updateScenario(selectedScenario.id, scenarioForm);
+            if (isEditingMode && selectedScenario) {
+                const updated = await updateScenario(selectedScenario.id, data);
+                // Update local list
+                setScenarios(prev => prev.map(s => s.id === updated.id ? updated : s));
+                setSelectedScenario(updated);
             } else {
-                await createScenario(scenarioForm);
+                const created = await createScenario(data);
+                setScenarios(prev => [...prev, created]);
+                setSelectedScenario(created);
             }
-            setIsEditingScenario(false);
-            fetchScenarios();
-        } catch (e) { alert('保存失败'); }
+        } catch (e) {
+            alert('保存失败，请检查网络或重试');
+            throw e;
+        }
     };
 
     const handleDelete = async () => {
@@ -66,8 +191,11 @@ export const ScenarioManager: React.FC = () => {
         try {
             if (confirmDelete.type === 'scenario') {
                 await deleteScenario(confirmDelete.id);
-                setSelectedScenario(null);
-                fetchScenarios();
+                setScenarios(prev => prev.filter(s => s.id !== confirmDelete.id));
+                if (selectedScenario?.id === confirmDelete.id) {
+                    setSelectedScenario(null);
+                    setFiles([]);
+                }
             } else {
                 if (selectedScenario) {
                     await deleteScenarioFile(selectedScenario.id, confirmDelete.name);
@@ -81,14 +209,14 @@ export const ScenarioManager: React.FC = () => {
     return (
         <div className="h-full flex gap-6 overflow-hidden">
             {/* Scenarios List (Left) - Dark Themed */}
-            <div className="w-64 bg-slate-900 rounded-3xl flex flex-col overflow-hidden shadow-2xl border border-slate-800">
+            <div className="w-64 bg-slate-900 rounded-3xl flex flex-col overflow-hidden shadow-2xl border border-slate-800 flex-shrink-0">
                 <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
                     <h3 className="font-black text-slate-500 text-[10px] uppercase tracking-[0.2em]">Scenario List</h3>
-                    <button onClick={() => { 
-                        setSelectedScenario(null); 
-                        setScenarioForm({ name: '', title: '', description: '' });
-                        setIsEditingScenario(true);
-                    }} className="p-1.5 text-indigo-400 hover:bg-indigo-500/20 rounded-lg transition-colors">
+                    <button 
+                        onClick={handleCreateClick} 
+                        className="p-1.5 text-indigo-400 hover:bg-indigo-500/20 rounded-lg transition-colors"
+                        title="创建新场景"
+                    >
                         <PlusIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -96,7 +224,7 @@ export const ScenarioManager: React.FC = () => {
                     {scenarios.map(s => (
                         <div 
                             key={s.id}
-                            onClick={() => { setSelectedScenario(s); setIsEditingScenario(false); }}
+                            onClick={() => setSelectedScenario(s)}
                             className={`group flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${selectedScenario?.id === s.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/40' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
                         >
                             <div className="flex-1 min-w-0">
@@ -105,7 +233,7 @@ export const ScenarioManager: React.FC = () => {
                             </div>
                             {selectedScenario?.id === s.id && (
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsEditingScenario(true); setScenarioForm({ name: s.name, title: s.title, description: s.description }); }}
+                                    onClick={(e) => { e.stopPropagation(); handleEditClick(s); }}
                                     className="p-1 hover:bg-white/20 rounded-md transition-colors"
                                 >
                                     <PencilIcon className="w-3.5 h-3.5" />
@@ -118,44 +246,7 @@ export const ScenarioManager: React.FC = () => {
 
             {/* Prompt Workspace (Right) */}
             <div className="flex-1 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-inner relative">
-                {isEditingScenario || (selectedScenario && !selectedScenario.id) ? (
-                    <div className="p-10 max-w-xl mx-auto w-full space-y-8 mt-12 bg-white rounded-[40px] shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-500">
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">{selectedScenario ? '编辑场景设置' : '定义新生成场景'}</h2>
-                        <div className="space-y-5">
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">唯一标识 (Unique Slug)</label>
-                                <input 
-                                    value={scenarioForm.name} 
-                                    onChange={e => setScenarioForm({...scenarioForm, name: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                    placeholder="e.g. market_insight_pro"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">显示标题</label>
-                                <input 
-                                    value={scenarioForm.title} 
-                                    onChange={e => setScenarioForm({...scenarioForm, title: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                    placeholder="e.g. 深度市场洞察"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">场景描述</label>
-                                <textarea 
-                                    value={scenarioForm.description} 
-                                    onChange={e => setScenarioForm({...scenarioForm, description: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm h-32 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
-                                    placeholder="该场景下 AI 将扮演何种专家角色？"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3 pt-4">
-                            <button onClick={() => setIsEditingScenario(false)} className="px-8 py-3 text-slate-500 font-bold text-sm hover:text-slate-800">取消</button>
-                            <button onClick={handleSaveScenario} className="px-10 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-indigo-600 shadow-xl shadow-slate-200 transition-all active:scale-95">保存场景</button>
-                        </div>
-                    </div>
-                ) : selectedScenario ? (
+                {selectedScenario ? (
                     <>
                         {/* Selected Scenario Header */}
                         <div className="px-8 py-6 border-b border-slate-200 flex justify-between items-center bg-white/80 backdrop-blur-xl sticky top-0 z-10">
@@ -172,7 +263,7 @@ export const ScenarioManager: React.FC = () => {
                                 </button>
                                 <button 
                                     onClick={() => setConfirmDelete({ type: 'scenario', id: selectedScenario.id, name: selectedScenario.title })}
-                                    disabled={selectedScenario.name === 'default'}
+                                    disabled={selectedScenario.name === 'default'} // Default scenario protection
                                     className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-0"
                                 >
                                     <TrashIcon className="w-5 h-5" />
@@ -180,7 +271,7 @@ export const ScenarioManager: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Files Grid - Smaller & More Colorful Cards */}
+                        {/* Files Grid */}
                         <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 custom-scrollbar">
                             {files.map((file, idx) => {
                                 // Dynamic theme for each card to avoid "素"
@@ -247,6 +338,16 @@ export const ScenarioManager: React.FC = () => {
                 )}
             </div>
 
+            {/* Scenario Editor Modal */}
+            <ScenarioEditorModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSave={handleSaveScenario}
+                initialData={editingScenarioData}
+                isEditing={isEditingMode}
+            />
+
+            {/* Prompt Editor Modal */}
             {editingFile && selectedScenario && (
                 <PromptEditorModal 
                     file={editingFile} 
@@ -256,6 +357,7 @@ export const ScenarioManager: React.FC = () => {
                 />
             )}
 
+            {/* Confirmation Modal */}
             {confirmDelete && (
                 <ConfirmationModal 
                     title={confirmDelete.type === 'scenario' ? "删除场景" : "移除指令"}
