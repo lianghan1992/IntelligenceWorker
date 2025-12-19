@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { SpiderPoint } from '../../../types';
+import { DocTag } from '../../../types';
 import { uploadDocs } from '../../../api/intelligence';
 import { CloseIcon, CloudIcon, CheckIcon } from '../../icons';
 
@@ -8,7 +8,7 @@ interface DocUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    points: SpiderPoint[];
+    tags: DocTag[];
 }
 
 const Spinner: React.FC = () => (
@@ -18,9 +18,9 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose, onSuccess, points }) => {
+export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose, onSuccess, tags }) => {
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-    const [pointUuid, setPointUuid] = useState('');
+    const [tagUuid, setTagUuid] = useState('');
     const [publishDate, setPublishDate] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,12 +32,12 @@ export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose,
     };
 
     const handleUpload = async () => {
-        if (selectedFiles.length === 0 || !pointUuid) return;
+        if (selectedFiles.length === 0 || !tagUuid) return;
         setIsUploading(true);
         try {
             await uploadDocs({
                 files: selectedFiles,
-                point_uuid: pointUuid,
+                point_uuid: tagUuid,
                 publish_date: publishDate || undefined
             });
             onSuccess();
@@ -62,14 +62,14 @@ export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose,
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">选择采集点 <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">选择分类标签 <span className="text-red-500">*</span></label>
                         <select 
-                            value={pointUuid} 
-                            onChange={e => setPointUuid(e.target.value)}
+                            value={tagUuid} 
+                            onChange={e => setTagUuid(e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                             <option value="">-- 请选择 --</option>
-                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name} ({p.source_name})</option>)}
+                            {tags.map(t => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
                         </select>
                     </div>
 
@@ -119,7 +119,7 @@ export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose,
                     <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">取消</button>
                     <button 
                         onClick={handleUpload} 
-                        disabled={isUploading || !pointUuid || selectedFiles.length === 0}
+                        disabled={isUploading || !tagUuid || selectedFiles.length === 0}
                         className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-all active:scale-95"
                     >
                         {isUploading ? <Spinner /> : <CloudIcon className="w-4 h-4"/>} 开始上传

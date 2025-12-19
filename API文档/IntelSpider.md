@@ -924,6 +924,65 @@ curl -sS http://127.0.0.1:7657/intelspider/analysis/stats
 
 ## 文档上传与管理
 
+### 文档标签管理
+
+#### 获取标签列表
+- 接口介绍：获取所有属于“深度洞察报告”的分类标签（情报点）。
+- 接口方法：`GET /intelspider/uploaded-docs/tags`
+- curl 示例：
+```bash
+curl -sS http://127.0.0.1:7657/intelspider/uploaded-docs/tags
+```
+- 返回示例：
+```json
+[
+  {
+    "uuid": "tag-uuid-1",
+    "name": "市场分析",
+    "created_at": "2024-01-01T10:00:00",
+    "doc_count": 10
+  }
+]
+```
+
+#### 创建标签
+- 接口介绍：创建一个新的分类标签。
+- 接口方法：`POST /intelspider/uploaded-docs/tags`
+- 字段说明：
+  - `name`: 字符串，标签名称，必填。
+- curl 示例：
+```bash
+curl -sS -X POST http://127.0.0.1:7657/intelspider/uploaded-docs/tags \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "竞品分析"}'
+```
+
+#### 重命名标签
+- 接口介绍：修改标签名称。
+- 接口方法：`PUT /intelspider/uploaded-docs/tags/{tag_uuid}`
+- 字段说明：
+  - `name`: 字符串，新的标签名称，必填。
+- curl 示例：
+```bash
+curl -sS -X PUT http://127.0.0.1:7657/intelspider/uploaded-docs/tags/tag-uuid-1 \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "竞品深度分析"}'
+```
+
+#### 删除标签
+- 接口介绍：删除指定标签。**注意：只有该标签下没有关联文档时才允许删除。**
+- 接口方法：`DELETE /intelspider/uploaded-docs/tags/{tag_uuid}`
+- curl 示例：
+```bash
+curl -sS -X DELETE http://127.0.0.1:7657/intelspider/uploaded-docs/tags/tag-uuid-1
+```
+- 返回示例：
+```json
+{
+  "message": "Tag deleted successfully"
+}
+```
+
 ### 上传文档
 - 接口介绍：上传一个或多个文档（PDF/Word/PPT）到指定的情报点（标签）。支持文档去重、元数据提取。
 - 接口方法：`POST /intelspider/uploaded-docs/upload`

@@ -27,7 +27,8 @@ import {
     AnalysisTemplate,
     CreateAnalysisTemplateRequest,
     AnalysisResult,
-    UploadedDocument
+    UploadedDocument,
+    DocTag
 } from '../types';
 
 // --- Service Status & Stats ---
@@ -510,6 +511,30 @@ export const triggerAnalysis = (articleUuid: string): Promise<{ message: string 
 };
 
 // --- Uploaded Docs (New) ---
+
+export const getDocTags = (): Promise<DocTag[]> => {
+    return apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
+};
+
+export const createDocTag = (name: string): Promise<DocTag> => {
+    return apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`, {
+        method: 'POST',
+        body: JSON.stringify({ name })
+    });
+};
+
+export const updateDocTag = (uuid: string, name: string): Promise<DocTag> => {
+    return apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name })
+    });
+};
+
+export const deleteDocTag = (uuid: string): Promise<{ message: string }> => {
+    return apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, {
+        method: 'DELETE'
+    });
+};
 
 export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<{ message: string, results: any[] }> => {
     const formData = new FormData();

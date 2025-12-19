@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SpiderPoint } from '../../../types';
+import { DocTag } from '../../../types';
 import { batchUpdateDocsPoint } from '../../../api/intelligence';
 import { CloseIcon, ArrowRightIcon } from '../../icons';
 
@@ -8,7 +8,7 @@ interface DocMoveModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
-    points: SpiderPoint[];
+    tags: DocTag[];
 }
 
 const Spinner: React.FC = () => (
@@ -18,18 +18,18 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
-export const DocMoveModal: React.FC<DocMoveModalProps> = ({ isOpen, onClose, onSuccess, points }) => {
-    const [oldPointUuid, setOldPointUuid] = useState('');
-    const [newPointUuid, setNewPointUuid] = useState('');
+export const DocMoveModal: React.FC<DocMoveModalProps> = ({ isOpen, onClose, onSuccess, tags }) => {
+    const [oldTagUuid, setOldTagUuid] = useState('');
+    const [newTagUuid, setNewTagUuid] = useState('');
     const [isMoving, setIsMoving] = useState(false);
 
     const handleMove = async () => {
-        if (!oldPointUuid || !newPointUuid || oldPointUuid === newPointUuid) return;
+        if (!oldTagUuid || !newTagUuid || oldTagUuid === newTagUuid) return;
         setIsMoving(true);
         try {
             await batchUpdateDocsPoint({
-                old_point_uuid: oldPointUuid,
-                new_point_uuid: newPointUuid
+                old_point_uuid: oldTagUuid,
+                new_point_uuid: newTagUuid
             });
             alert('迁移成功');
             onSuccess();
@@ -54,18 +54,18 @@ export const DocMoveModal: React.FC<DocMoveModalProps> = ({ isOpen, onClose, onS
 
                 <div className="space-y-4">
                     <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 text-xs text-orange-700 leading-relaxed mb-4">
-                        此操作将把 <b>源采集点</b> 下的所有文档批量移动到 <b>目标采集点</b>。请谨慎操作。
+                        此操作将把 <b>源标签</b> 下的所有文档批量移动到 <b>目标标签</b>。请谨慎操作。
                     </div>
 
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">从 (源采集点)</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">从 (源标签)</label>
                         <select 
-                            value={oldPointUuid} 
-                            onChange={e => setOldPointUuid(e.target.value)}
+                            value={oldTagUuid} 
+                            onChange={e => setOldTagUuid(e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                             <option value="">-- 请选择 --</option>
-                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name} ({p.source_name})</option>)}
+                            {tags.map(t => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
                         </select>
                     </div>
 
@@ -76,14 +76,14 @@ export const DocMoveModal: React.FC<DocMoveModalProps> = ({ isOpen, onClose, onS
                     </div>
 
                     <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1.5">移动到 (目标采集点)</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-1.5">移动到 (目标标签)</label>
                         <select 
-                            value={newPointUuid} 
-                            onChange={e => setNewPointUuid(e.target.value)}
+                            value={newTagUuid} 
+                            onChange={e => setNewTagUuid(e.target.value)}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                         >
                             <option value="">-- 请选择 --</option>
-                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name} ({p.source_name})</option>)}
+                            {tags.map(t => <option key={t.uuid} value={t.uuid}>{t.name}</option>)}
                         </select>
                     </div>
                 </div>
@@ -92,7 +92,7 @@ export const DocMoveModal: React.FC<DocMoveModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="px-5 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors">取消</button>
                     <button 
                         onClick={handleMove} 
-                        disabled={isMoving || !oldPointUuid || !newPointUuid || oldPointUuid === newPointUuid}
+                        disabled={isMoving || !oldTagUuid || !newTagUuid || oldTagUuid === newTagUuid}
                         className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 shadow-md transition-all active:scale-95"
                     >
                         {isMoving ? <Spinner /> : <ArrowRightIcon className="w-4 h-4"/>} 确认迁移

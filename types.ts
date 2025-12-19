@@ -587,3 +587,10 @@ export interface UploadedDocument {
     point_name: string;
     point_uuid?: string;
 }
+
+export interface DocTag {
+    uuid: string;
+    name: string;
+    created_at: string;
+    doc_count: number;
+}
