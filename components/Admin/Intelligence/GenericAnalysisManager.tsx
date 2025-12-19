@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults, getSpiderArticleDetail } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
-import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon, ClockIcon } from '../../icons';
+import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon, DocumentTextIcon, ClockIcon, ShieldExclamationIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 
 const Spinner: React.FC = () => (
@@ -26,14 +26,42 @@ const calculateDuration = (start?: string, end?: string) => {
     return `${minutes}m ${seconds % 60}s`;
 };
 
+// --- JSON 美化组件 ---
+const JsonView: React.FC<{ data: any; level?: number }> = ({ data, level = 0 }) => {
+    if (data === null || data === undefined) return <span className="text-gray-400 italic">null</span>;
+    
+    if (typeof data !== 'object') {
+        const isBool = typeof data === 'boolean';
+        const isNumber = typeof data === 'number';
+        const colorClass = isBool ? 'text-purple-600 font-bold' : isNumber ? 'text-blue-600 font-mono' : 'text-slate-700';
+        return <span className={`${colorClass} break-all`}>{String(data)}</span>;
+    }
+
+    const isArray = Array.isArray(data);
+    const isEmpty = Object.keys(data).length === 0;
+    
+    if (isEmpty) return <span className="text-gray-400 text-xs italic">{'<empty>'}</span>;
+
+    return (
+        <div className={`text-sm ${level > 0 ? 'ml-3 pl-3 border-l-2 border-slate-100' : ''}`}>
+            {Object.entries(data).map(([key, value]) => (
+                <div key={key} className="my-2">
+                    <span className="font-bold text-slate-500 mr-2 text-xs uppercase tracking-wide bg-slate-50 px-1.5 py-0.5 rounded select-none">{key}</span>
+                    <div className="mt-1">
+                        <JsonView data={value} level={level + 1} />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 // --- 结果查看弹窗 ---
 const ResultViewerModal: React.FC<{ title: string; content: any; fullItem: any; onClose: () => void }> = ({ title, content, fullItem, onClose }) => {
-    // 尝试解析字符串形式的 JSON
     let displayContent = content;
     let isRawFallback = false;
 
     if (!content || (typeof content === 'object' && Object.keys(content).length === 0)) {
-        // 如果提取的内容为空，则显示整条原始数据以便调试
         displayContent = fullItem;
         isRawFallback = true;
     } else if (typeof content === 'string') {
@@ -50,26 +78,24 @@ const ResultViewerModal: React.FC<{ title: string; content: any; fullItem: any; 
                 <div className="p-5 border-b flex justify-between items-center bg-gray-50">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                            <DocumentTextIcon className="w-5 h-5"/>
+                            <SparklesIcon className="w-5 h-5"/>
                         </div>
                         <div>
                             <h3 className="font-bold text-gray-800 text-lg leading-tight">{title || '分析结果详情'}</h3>
-                            {isRawFallback && <p className="text-xs text-orange-600 mt-1 font-mono">⚠️ 未检测到结果字段，显示原始记录</p>}
+                            {isRawFallback && <p className="text-xs text-orange-600 mt-1 font-mono">⚠️ 未检测到结构化结果，显示原始记录</p>}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
                         <CloseIcon className="w-6 h-6"/>
                     </button>
                 </div>
-                <div className="flex-1 overflow-auto p-6 bg-slate-50/50 custom-scrollbar">
-                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <pre className="text-xs md:text-sm font-mono text-slate-700 whitespace-pre-wrap break-all leading-relaxed">
-                            {typeof displayContent === 'object' ? JSON.stringify(displayContent, null, 2) : String(displayContent)}
-                        </pre>
+                <div className="flex-1 overflow-auto p-8 bg-white custom-scrollbar">
+                    <div className="max-w-3xl mx-auto">
+                        <JsonView data={displayContent} />
                     </div>
                 </div>
-                <div className="p-4 border-t bg-white flex justify-end">
-                     <button onClick={onClose} className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors">关闭</button>
+                <div className="p-4 border-t bg-gray-50 flex justify-end">
+                     <button onClick={onClose} className="px-6 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-slate-700 font-bold rounded-xl transition-colors shadow-sm">关闭</button>
                 </div>
             </div>
         </div>
@@ -174,12 +200,14 @@ export const GenericAnalysisManager: React.FC = () => {
 
             const processedItems = rawItems.map(item => ({
                 ...item,
+                // Prioritize 'result' field as per user instruction, fallback to others
                 result_json: item.result || item.result_json || item.data || item.output || {},
                 uuid: item.uuid || item.id,
                 article_uuid: item.article_uuid || item.article_id, // Normalize ID
                 template_name: item.template_name || 'Unknown Template',
                 username: item.username || item.user_name || item.user_uuid || 'Unknown User',
                 model_used: item.model_used || 'default',
+                status: item.status || (Object.keys(item.result || item.result_json || {}).length > 0 ? 'completed' : 'pending'),
                 duration: calculateDuration(item.created_at, item.completed_at || item.end_time)
             }));
 
@@ -212,7 +240,7 @@ export const GenericAnalysisManager: React.FC = () => {
                     const detail = await getSpiderArticleDetail(id);
                     return { id, detail };
                 } catch (e) {
-                    console.error(`Failed to fetch article ${id}`, e);
+                    // console.error(`Failed to fetch article ${id}`, e);
                     return { id, detail: { title: 'Unknown Article (Load Failed)', uuid: id } };
                 }
             });
@@ -348,10 +376,10 @@ export const GenericAnalysisManager: React.FC = () => {
                                         <th className="px-6 py-4 w-40">模板名称</th>
                                         <th className="px-6 py-4 w-32">用户名称</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-28 text-center">分析结果</th>
-                                        <th className="px-6 py-4 w-24">分析耗时</th>
-                                        <th className="px-6 py-4 w-40">创建时间</th>
-                                        <th className="px-6 py-4 w-40">结束时间</th>
+                                        <th className="px-6 py-4 w-20 text-center">结果</th>
+                                        <th className="px-6 py-4 w-24 text-right">耗时</th>
+                                        <th className="px-6 py-4 w-40 text-right">创建时间</th>
+                                        <th className="px-6 py-4 w-40 text-right">结束时间</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -359,11 +387,12 @@ export const GenericAnalysisManager: React.FC = () => {
                                         // Retrieve title from cache or fallback
                                         const cachedArticle = articleCache[r.article_uuid];
                                         const displayTitle = cachedArticle ? cachedArticle.title : (r.article_title && r.article_title !== 'Unknown Article' ? r.article_title : r.article_uuid);
+                                        const isCompleted = r.status === 'completed' || r.status === 'success';
                                         
                                         return (
                                             <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
                                                 <td className="px-6 py-4 align-top">
-                                                    <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name}</div>
+                                                    <div className="font-bold text-slate-800 text-sm mb-1 truncate" title={r.template_name}>{r.template_name}</div>
                                                     <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
                                                         <LightningBoltIcon className="w-3 h-3"/>
                                                         {r.model_used || 'default'}
@@ -374,7 +403,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                                         {r.username}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
+                                                <td className="px-6 py-4 align-top font-medium text-slate-900">
                                                     <button 
                                                         onClick={() => setDetailArticleUuid(r.article_uuid)}
                                                         className="text-left line-clamp-2 hover:text-indigo-600 hover:underline transition-colors w-full" 
@@ -385,21 +414,27 @@ export const GenericAnalysisManager: React.FC = () => {
                                                     {!cachedArticle && <div className="text-[10px] text-slate-400 mt-1 animate-pulse">Loading info...</div>}
                                                 </td>
                                                 <td className="px-6 py-4 align-top text-center">
-                                                    <button 
-                                                        onClick={() => setViewingItem(r)}
-                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 rounded-lg text-xs font-bold transition-colors border border-indigo-100"
-                                                    >
-                                                        <EyeIcon className="w-3.5 h-3.5" />
-                                                        查看
-                                                    </button>
+                                                    {isCompleted ? (
+                                                        <button 
+                                                            onClick={() => setViewingItem(r)}
+                                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                                                            title="查看分析结果"
+                                                        >
+                                                            <EyeIcon className="w-5 h-5" />
+                                                        </button>
+                                                    ) : (
+                                                        <div className="p-2 text-orange-400 cursor-help" title="分析中 / 等待中">
+                                                            <ClockIcon className="w-5 h-5 animate-pulse" />
+                                                        </div>
+                                                    )}
                                                 </td>
-                                                <td className="px-6 py-4 align-top text-xs text-slate-500 font-mono">
+                                                <td className="px-6 py-4 align-top text-xs text-slate-500 font-mono text-right">
                                                     {r.duration}
                                                 </td>
-                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap text-right">
                                                     {new Date(r.created_at).toLocaleString()}
                                                 </td>
-                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap text-right">
                                                     {r.completed_at ? new Date(r.completed_at).toLocaleString() : '-'}
                                                 </td>
                                             </tr>
