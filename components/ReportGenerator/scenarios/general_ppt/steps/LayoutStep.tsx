@@ -6,7 +6,7 @@ import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/st
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 
-// Helper to robustly extract HTML
+// Helper to robustly extract HTML for final rendering
 const robustExtractHtml = (fullText: string, jsonPart: string): string | null => {
     if (jsonPart) {
         try {
@@ -24,6 +24,21 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return null;
 };
 
+// Helper to clean streaming JSON to show pure HTML code
+const extractStreamingHtmlContent = (text: string): string => {
+    // 1. Try to find the start of the "html" field value
+    const match = text.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+    if (match && match.groups?.content) {
+        // Unescape JSON string characters to show real HTML code
+        return match.groups.content
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\t/g, '\t')
+            .replace(/\\\\/g, '\\');
+    }
+    return '';
+};
+
 // --- Scaled Preview Component ---
 const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -34,8 +49,13 @@ const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }
             if (containerRef.current) {
                 // Target width: 1600px
                 const availableWidth = containerRef.current.offsetWidth;
-                const newScale = availableWidth / 1600;
-                setScale(newScale);
+                const availableHeight = containerRef.current.offsetHeight;
+                
+                // Calculate scale to fit width
+                const scaleW = availableWidth / 1600;
+                
+                // Use slightly less than full width to avoid accidental horizontal scroll
+                setScale(Math.min(scaleW, 1) * 0.95);
             }
         };
 
@@ -55,20 +75,22 @@ const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }
     if (!htmlContent) return null;
 
     return (
-        <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-gray-100 overflow-hidden relative">
+        <div ref={containerRef} className="w-full h-full flex items-start justify-center bg-gray-200 overflow-auto relative p-8 custom-scrollbar">
             <div 
                 style={{
                     width: '1600px',
-                    height: '900px',
+                    height: '900px', // Base height for a slide, but content can overflow in HTML
+                    minHeight: '900px',
                     transform: `scale(${scale})`,
-                    transformOrigin: 'center center',
-                    boxShadow: '0 0 40px rgba(0,0,0,0.1)',
-                    backgroundColor: 'white'
+                    transformOrigin: 'top center',
+                    boxShadow: '0 0 50px rgba(0,0,0,0.15)',
+                    backgroundColor: 'white',
+                    // Let HTML determine its own scrolling or overflow
                 }}
             >
                 <iframe 
                     srcDoc={htmlContent} 
-                    className="w-full h-full border-none" 
+                    className="w-full h-full border-none bg-white" 
                     title="Preview"
                     sandbox="allow-scripts"
                 />
@@ -90,20 +112,13 @@ export const LayoutStep: React.FC<{
     const [activePageIdx, setActivePageIdx] = useState(1);
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
-    const [streamBuffer, setStreamBuffer] = useState(''); 
+    const [htmlStreamBuffer, setHtmlStreamBuffer] = useState(''); 
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     
     const processingRef = useRef(false);
-    const codeScrollRef = useRef<HTMLDivElement>(null); 
     const completedCount = pages.filter(p => p.status === 'done').length;
-
-    useEffect(() => {
-        if (codeScrollRef.current) {
-            codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
-        }
-    }, [streamBuffer]);
 
     useEffect(() => {
         if (processingRef.current) return;
@@ -117,7 +132,7 @@ export const LayoutStep: React.FC<{
             
             setPageThought('');
             setReasoningStream('');
-            setStreamBuffer(''); 
+            setHtmlStreamBuffer(''); 
             setIsThinkingOpen(true);
             
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
@@ -136,13 +151,23 @@ export const LayoutStep: React.FC<{
                 },
                 (chunk) => {
                     fullBuffer += chunk;
-                    setStreamBuffer(prev => prev + chunk); 
+                    const { thought, jsonPart } = extractThoughtAndJson(fullBuffer);
                     
-                    const { jsonPart } = extractThoughtAndJson(fullBuffer);
-                    if (jsonPart && jsonPart.trim().length > 5) {
-                        setIsThinkingOpen(false);
+                    // Update Thought for Modal (Only reasoning)
+                    setPageThought(thought);
+                    
+                    // Extract purely HTML content for the fancy display
+                    // This separates the raw LLM output into "Thought" (Modal) and "Code" (Preview)
+                    const cleanHtml = extractStreamingHtmlContent(jsonPart);
+                    if (cleanHtml) {
+                         setHtmlStreamBuffer(cleanHtml);
+                         // If we have valid HTML structure, try to render it immediately
+                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: cleanHtml } : p));
                     }
-                    else if (fullBuffer.includes('<!DOCTYPE html>') || fullBuffer.includes('<html')) {
+                    
+                    // If JSON starts, stop focusing on thinking modal? 
+                    // Prompt requirement: "Modal only shows thinking... before JSON starts"
+                    if (jsonPart && jsonPart.trim().length > 5) {
                         setIsThinkingOpen(false);
                     }
                 },
@@ -157,7 +182,12 @@ export const LayoutStep: React.FC<{
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
                     } else {
                         console.warn('Failed to parse HTML from response');
-                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                        // If parsing failed but we had a stream, try to use it as fallback
+                        if (htmlStreamBuffer.length > 50) {
+                             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlStreamBuffer, status: 'done' } : p));
+                        } else {
+                             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                        }
                     }
                     processingRef.current = false;
                 },
@@ -181,18 +211,7 @@ export const LayoutStep: React.FC<{
     const handleExportPdf = async () => {
         setIsDownloading(true);
         try {
-            // Concatenate all pages with page breaks
-            // Note: The @page CSS inside individual HTMLs might conflict, but simple concatenation usually works for basic print-to-pdf engines.
-            // Ideally, we strip <html><body> tags and merge styles, but here we append them.
-            // For better results, we might want to wrap each page content in a div with proper page-break-after.
-            
-            // Simplified merge: Just join them. The backend PDF generator needs to handle multiple HTML roots or we clean them.
-            // Assuming backend uses wkhtmltopdf or puppeteer which can handle concatenated strings mostly.
-            // Better: Extract body content and merge styles.
-            
             let combinedContent = '';
-            
-            // 1. Extract and merge styles
             let allStyles = '';
             
             const processedPages = pages
@@ -332,7 +351,7 @@ export const LayoutStep: React.FC<{
             {/* Right Main Area */}
             <div className="flex-1 flex flex-col relative overflow-hidden bg-[#eef2f6]">
                 {/* Preview Window Container */}
-                <div className="flex-1 p-4 md:p-8 flex flex-col overflow-hidden items-center justify-center">
+                <div className="flex-1 p-0 md:p-8 flex flex-col overflow-hidden items-center justify-center">
                     
                     <div className="w-full h-full bg-white rounded-2xl shadow-2xl border border-slate-300/60 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
                         
@@ -355,7 +374,7 @@ export const LayoutStep: React.FC<{
                             <div className="flex-1 flex justify-center">
                                 <div className="bg-white border border-slate-200 text-xs text-slate-500 font-medium px-4 py-1.5 rounded-lg flex items-center gap-2 w-full max-w-md justify-center shadow-sm">
                                     <span className={`w-2 h-2 rounded-full ${activePage.status === 'generating' ? 'bg-purple-500 animate-pulse' : 'bg-green-500'}`}></span>
-                                    {activePage.status === 'generating' ? 'designing_layout.exe...' : `preview_page_${activePage.page_index}.html`}
+                                    {activePage.status === 'generating' ? 'designing_layout...' : `preview_page_${activePage.page_index}.html`}
                                 </div>
                             </div>
                             
@@ -368,28 +387,13 @@ export const LayoutStep: React.FC<{
                             </button>
                         </div>
 
-                        {/* Content Display: Stream or Scaled Preview */}
+                        {/* Content Display: Scaled Preview with Live Updates */}
                         <div className="flex-1 relative bg-gray-100 overflow-hidden">
-                            {activePage.status === 'generating' ? (
-                                // 1. Generating State: Code Stream View
-                                <div className="absolute inset-0 bg-[#1e1e1e] flex flex-col z-20">
-                                    <div className="px-4 py-2 bg-[#2d2d2d] text-xs text-gray-400 border-b border-gray-700 flex justify-between flex-shrink-0">
-                                        <span>HTML SOURCE STREAM</span>
-                                        <span className="text-green-500 animate-pulse">● Receiving Data...</span>
-                                    </div>
-                                    <div 
-                                        ref={codeScrollRef}
-                                        className="flex-1 p-6 overflow-auto custom-scrollbar font-mono text-xs md:text-sm leading-relaxed text-gray-300 whitespace-pre-wrap break-all"
-                                    >
-                                        {streamBuffer || <span className="text-gray-500 italic">// Waiting for layout engine output...</span>}
-                                        <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>
-                                    </div>
-                                </div>
-                            ) : activePage.html_content ? (
-                                // 2. Done State: Scaled Preview
+                            {/* Render HTML Content if available (even partially) */}
+                            {activePage.html_content ? (
                                 <ScaledPreview htmlContent={activePage.html_content} />
                             ) : (
-                                // 3. Pending/Idle State
+                                /* Pending State */
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/30 text-slate-400">
                                     {activePage.status === 'pending' ? (
                                         <>
@@ -398,6 +402,12 @@ export const LayoutStep: React.FC<{
                                             </div>
                                             <p className="text-base font-medium">等待排版引擎启动...</p>
                                         </>
+                                    ) : activePage.status === 'generating' ? (
+                                        <div className="text-center">
+                                            <div className="w-16 h-16 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8 mx-auto"></div>
+                                            <h3 className="text-xl font-bold text-slate-700 mb-2">AI 架构师正在设计</h3>
+                                            <p className="text-sm text-slate-500">构建布局 • 生成矢量图形 • 优化排版</p>
+                                        </div>
                                     ) : (
                                         <div className="text-center text-red-400">
                                             <p>生成失败</p>

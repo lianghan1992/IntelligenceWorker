@@ -1,10 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRightIcon, BrainIcon, DocumentTextIcon, MenuIcon } from '../../../../icons';
+import { ArrowRightIcon, BrainIcon, DocumentTextIcon, MenuIcon, CheckIcon } from '../../../../icons';
 import { StratifyOutline, StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
+
+// Helper to handle partial JSON string unescaping for smooth streaming
+const unescapePartialJsonString = (str: string) => {
+    return str
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\');
+};
 
 export const ContentStep: React.FC<{
     taskId: string;
@@ -32,15 +41,24 @@ export const ContentStep: React.FC<{
     const contentScrollRef = useRef<HTMLDivElement>(null);
     
     const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
-    const isAllDone = pages.every(p => p.status === 'done');
+    
+    // Strict check: All pages must be 'done' to proceed
+    const isAllDone = pages.length > 0 && pages.every(p => p.status === 'done');
     const completedCount = pages.filter(p => p.status === 'done').length;
 
+    // Auto-scroll logic handles smooth scrolling during generation
     useEffect(() => {
-        if ((activePage.status === 'generating' || isRevising) && contentScrollRef.current) {
-            contentScrollRef.current.scrollTo({ top: contentScrollRef.current.scrollHeight, behavior: 'smooth' });
+        const activePageObj = pages.find(p => p.page_index === activePageIdx);
+        if (activePageObj && (activePageObj.status === 'generating' || isRevising) && contentScrollRef.current) {
+            // Smart auto-scroll: only if near bottom
+            const { scrollTop, scrollHeight, clientHeight } = contentScrollRef.current;
+            if (scrollHeight - scrollTop - clientHeight < 300) {
+                contentScrollRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+            }
         }
-    }, [pages, activePageIdx, isRevising, activePage.status]);
+    }, [pages, activePageIdx, isRevising]);
 
+    // Queue Processor
     useEffect(() => {
         if (processingRef.current || isRevising) return;
         const nextPage = pages.find(p => p.status === 'pending');
@@ -71,28 +89,18 @@ export const ContentStep: React.FC<{
                     buffer += chunk;
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     setPageThought(thought);
-                    if (jsonPart && jsonPart.length > 5) setIsThinkingOpen(false);
                     
-                    // Streaming Logic: Extract 'content' field as it comes in
-                    let extractedContent = '';
-                    const parsed = parseLlmJson<{title:string, content:string}>(jsonPart);
-                    if (parsed && parsed.content) {
-                        extractedContent = parsed.content;
-                    } else {
-                        // Regex fallback for partial streaming
-                        const contentMatch = jsonPart.match(/"content"\s*:\s*"(.*?)$/s); // Match from key to end of string (simple)
-                        if (!contentMatch) {
-                            // Try harder regex if it's somewhere in middle
-                             const contentMidMatch = jsonPart.match(/"content"\s*:\s*"(.*?)"/s);
-                             if (contentMidMatch) extractedContent = contentMidMatch[1];
-                        } else {
-                            // Partial match, might contain escaped quotes
-                            extractedContent = contentMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
-                        }
-                    }
-
-                    if (extractedContent) {
-                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, content_markdown: extractedContent } : p));
+                    // Close modal earlier if we detect content start to show the rendering
+                    if (jsonPart && jsonPart.length > 20) setIsThinkingOpen(false);
+                    
+                    // --- Real-time Markdown Extraction Logic ---
+                    const contentRegex = /"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s;
+                    const match = jsonPart.match(contentRegex);
+                    
+                    if (match && match.groups?.content) {
+                        const rawContent = match.groups.content;
+                        const cleanMarkdown = unescapePartialJsonString(rawContent);
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, content_markdown: cleanMarkdown } : p));
                     }
                 },
                 () => {
@@ -137,7 +145,11 @@ export const ContentStep: React.FC<{
                 buffer += chunk;
                 const { thought, jsonPart } = extractThoughtAndJson(buffer);
                 setPageThought(thought);
-                if (jsonPart && jsonPart.length > 5) setIsThinkingOpen(false);
+                
+                if (jsonPart && jsonPart.length > 5) {
+                    setIsThinkingOpen(false);
+                }
+
                 const parsed = parseLlmJson<{title:string, content:string}>(jsonPart);
                 if (parsed && parsed.content) {
                     setPages(prev => prev.map(p => p.page_index === activePageIdx ? { ...p, content_markdown: parsed.content } : p));
@@ -160,7 +172,16 @@ export const ContentStep: React.FC<{
     };
 
     const renderContent = (md: string) => {
-        return <div className="prose prose-slate prose-lg max-w-none whitespace-pre-wrap leading-relaxed">{md}</div>;
+        // Using window.marked from CDN if available, else simple pre
+        if (window.marked) {
+             return (
+                <div 
+                    className="prose prose-slate prose-lg max-w-none leading-relaxed prose-headings:font-bold prose-headings:text-slate-800 prose-p:text-slate-600 prose-strong:text-indigo-700 animate-in fade-in"
+                    dangerouslySetInnerHTML={{ __html: window.marked.parse(md) }}
+                />
+             );
+        }
+        return <div className="prose prose-slate prose-lg max-w-none whitespace-pre-wrap leading-relaxed animate-in fade-in">{md}</div>;
     };
 
     return (
@@ -179,6 +200,8 @@ export const ContentStep: React.FC<{
                                 <span className="truncate">{p.title}</span>
                             </div>
                             {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>}
+                            {p.status === 'done' && <CheckIcon className="w-4 h-4 text-green-500" />}
+                            {p.status === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
                         </button>
                     ))}
                 </div>
@@ -206,8 +229,12 @@ export const ContentStep: React.FC<{
                             </div>
                             <button onClick={() => setIsThinkingOpen(true)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="查看思考过程"><BrainIcon className="w-6 h-6" /></button>
                         </div>
-                        <div className="min-h-[500px] animate-in fade-in duration-500">
+                        <div className="min-h-[500px] pb-24">
                             {activePage.content_markdown ? renderContent(activePage.content_markdown) : <div className="flex flex-col items-center justify-center h-96 text-slate-400 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50"><p className="text-sm font-medium">{activePage.status === 'pending' ? '等待生成...' : 'AI 正在撰写...'}</p></div>}
+                            {/* Cursor for typing effect when generating */}
+                            {activePage.status === 'generating' && (
+                                <span className="inline-block w-2 h-5 bg-indigo-500 ml-1 animate-pulse align-middle"></span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -217,7 +244,16 @@ export const ContentStep: React.FC<{
                             <input type="text" value={revisionInput} onChange={(e) => setRevisionInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && activePage.status === 'done' && handleRevisePage()} placeholder="输入修改指令..." className="w-full bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 rounded-xl pl-4 pr-12 py-3 text-sm transition-all outline-none" disabled={activePage.status === 'generating'} />
                             <button onClick={handleRevisePage} disabled={activePage.status === 'generating' || !revisionInput.trim()} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 rounded-lg text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowRightIcon className="w-4 h-4" /></button>
                         </div>
-                        <button onClick={() => onComplete(pages)} disabled={!isAllDone || isRevising || processingRef.current} className="w-full md:w-auto px-8 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 whitespace-nowrap"><span>排版设计</span><ArrowRightIcon className="w-4 h-4" /></button>
+                        {/* Only enable when all done */}
+                        <button 
+                            onClick={() => onComplete(pages)} 
+                            disabled={!isAllDone || isRevising || processingRef.current} 
+                            className="w-full md:w-auto px-8 py-3 bg-slate-900 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!isAllDone ? "请等待所有章节生成完毕" : "进入排版设计"}
+                        >
+                            <span>排版设计</span>
+                            <ArrowRightIcon className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
             </div>
