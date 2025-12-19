@@ -80,12 +80,17 @@ export const GenericAnalysisManager: React.FC = () => {
     const fetchResults = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Fetch results. Removing user_uuid filter to allow admins to see all system results.
-            // If personalization is needed later, we can add a toggle.
-            const res = await getAnalysisResults({ 
+            // 调试模式：恢复 user_uuid 过滤，以确保能获取到当前用户的测试数据
+            // 如果后端不需要 user_uuid 也能返回所有数据，可以再次移除
+            const params: any = { 
                 page: resultPage, 
-                page_size: 50 // Fetch more to allow for client-side filtering of empty results if needed visually
-            });
+                page_size: 50 
+            };
+            if (userUuid) {
+                params.user_uuid = userUuid;
+            }
+
+            const res = await getAnalysisResults(params);
             setResults(res.items || []);
             setResultTotal(res.total);
         } catch (e) {
@@ -93,7 +98,7 @@ export const GenericAnalysisManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [resultPage]);
+    }, [resultPage, userUuid]);
 
     useEffect(() => {
         if (view === 'templates') fetchTemplates();
@@ -129,18 +134,10 @@ export const GenericAnalysisManager: React.FC = () => {
         }
     };
 
-    // Helper to check if result is effectively empty
+    // 调试模式：暂时禁用“是否为空”的智能判断，总是返回 false，让数据展示出来
     const isResultEmpty = (json: any) => {
-        if (!json) return true;
-        if (typeof json === 'string') {
-             try {
-                 const parsed = JSON.parse(json);
-                 return Object.keys(parsed).length === 0;
-             } catch {
-                 return false; // Non-json string is content
-             }
-        }
-        return Object.keys(json).length === 0;
+        // DEBUG: Force show all
+        return false;
     };
 
     const filteredResults = useMemo(() => {
@@ -148,27 +145,18 @@ export const GenericAnalysisManager: React.FC = () => {
         return results.filter(r => !isResultEmpty(r.result_json));
     }, [results, hideEmptyResults]);
 
-    // Parse and render JSON content safely
+    // 调试模式：直接展示原始数据，不进行 JSON 解析或美化
     const renderResultContent = (json: any) => {
-        let data = json;
-        // Defensive: Parse stringified JSON if needed
-        if (typeof data === 'string') {
-            try { data = JSON.parse(data); } catch(e) {}
-        }
-        
-        const isEmpty = !data || (typeof data === 'object' && Object.keys(data).length === 0);
-        
-        if (isEmpty) {
-            return (
-                <div className="flex items-center gap-2 text-xs text-gray-400 italic bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
-                    <CloseIcon className="w-3 h-3" /> 无匹配内容
-                </div>
-            );
+        let displayStr = '';
+        if (typeof json === 'object') {
+            displayStr = JSON.stringify(json, null, 2);
+        } else {
+            displayStr = String(json);
         }
         
         return (
-            <pre className="text-[11px] font-mono bg-slate-50 p-3 rounded-lg border border-slate-200 overflow-x-auto max-w-lg max-h-60 custom-scrollbar text-slate-700">
-                {JSON.stringify(data, null, 2)}
+            <pre className="text-[10px] font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-lg max-h-40 whitespace-pre-wrap break-all text-slate-600">
+                {displayStr}
             </pre>
         );
     };
@@ -201,7 +189,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                 onChange={e => setHideEmptyResults(e.target.checked)} 
                                 className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300"
                             />
-                            仅显示有数据的条目
+                            仅显示有数据的条目 (调试中)
                         </label>
                     )}
                 </div>
@@ -247,7 +235,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                     <tr>
                                         <th className="px-6 py-4 w-48">模版 / 模型</th>
                                         <th className="px-6 py-4">文章标题</th>
-                                        <th className="px-6 py-4 w-1/3">分析结果</th>
+                                        <th className="px-6 py-4 w-1/3">原始数据 (Raw)</th>
                                         <th className="px-6 py-4 w-32">时间</th>
                                     </tr>
                                 </thead>
@@ -280,7 +268,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                             <div className="flex flex-col items-center">
                                                 <EyeIcon className="w-10 h-10 mb-2 opacity-20"/>
                                                 <p>暂无符合条件的分析结果</p>
-                                                {hideEmptyResults && <p className="text-xs mt-1">(已隐藏空结果)</p>}
+                                                <p className="text-xs mt-1 text-slate-400">(raw count: {results.length})</p>
                                             </div>
                                         </td></tr>
                                     )}
