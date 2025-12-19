@@ -418,7 +418,35 @@ export const LayoutStep: React.FC<{
                             </div>
                             
                             <div className="flex-1 flex justify-center">
-                                {/* Filename display removed as requested */}
+                                {activePage.status === 'generating' && (
+                                    <div className="relative w-full max-w-md h-7 rounded-full bg-white overflow-hidden border border-indigo-100 shadow-inner">
+                                         {/* Liquid Background */}
+                                         <div className="absolute inset-0 w-full h-full bg-indigo-50/50"></div>
+                                         
+                                         {/* Moving Stream Texture */}
+                                         <div 
+                                            className="absolute inset-0 w-full h-full opacity-30"
+                                            style={{
+                                                backgroundImage: 'repeating-linear-gradient(-45deg, #6366f1 0, #6366f1 10px, transparent 10px, transparent 20px)',
+                                                backgroundSize: '28px 28px',
+                                                animation: 'flow-stream 1s linear infinite'
+                                            }}
+                                         ></div>
+
+                                         {/* Text */}
+                                         <div className="absolute inset-0 flex items-center justify-center z-10 gap-2">
+                                             <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></div>
+                                             <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Designing Layout...</span>
+                                         </div>
+
+                                         <style>{`
+                                            @keyframes flow-stream {
+                                                0% { background-position: 0 0; }
+                                                100% { background-position: 28px 0; }
+                                            }
+                                         `}</style>
+                                    </div>
+                                )}
                             </div>
                             
                             <button 
