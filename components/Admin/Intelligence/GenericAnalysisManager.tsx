@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults } from '../../../api/intelligence';
 import { getMe } from '../../../api/auth';
-import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon } from '../../icons';
+import { SparklesIcon, PlusIcon, TrashIcon, RefreshIcon, CodeIcon, CheckIcon, CloseIcon, LightningBoltIcon, EyeIcon, FilterIcon } from '../../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -56,6 +56,7 @@ export const GenericAnalysisManager: React.FC = () => {
     const [results, setResults] = useState<AnalysisResult[]>([]);
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
+    const [hideEmptyResults, setHideEmptyResults] = useState(false);
     
     const [isLoading, setIsLoading] = useState(false);
 
@@ -64,23 +65,27 @@ export const GenericAnalysisManager: React.FC = () => {
     }, []);
 
     const fetchTemplates = useCallback(async () => {
-        if (!userUuid) return;
         setIsLoading(true);
         try {
-            const res = await getAnalysisTemplates({ user_uuid: userUuid });
+            // Admin can see all templates or filter by user? For now let's show all or user's
+            const res = await getAnalysisTemplates({}); 
             setTemplates(res);
         } catch (e) {
             console.error(e);
         } finally {
             setIsLoading(false);
         }
-    }, [userUuid]);
+    }, []);
 
     const fetchResults = useCallback(async () => {
-        if (!userUuid) return;
         setIsLoading(true);
         try {
-            const res = await getAnalysisResults({ user_uuid: userUuid, page: resultPage, page_size: 20 });
+            // Fetch results. Removing user_uuid filter to allow admins to see all system results.
+            // If personalization is needed later, we can add a toggle.
+            const res = await getAnalysisResults({ 
+                page: resultPage, 
+                page_size: 50 // Fetch more to allow for client-side filtering of empty results if needed visually
+            });
             setResults(res.items || []);
             setResultTotal(res.total);
         } catch (e) {
@@ -88,7 +93,7 @@ export const GenericAnalysisManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [userUuid, resultPage]);
+    }, [resultPage]);
 
     useEffect(() => {
         if (view === 'templates') fetchTemplates();
@@ -124,23 +129,81 @@ export const GenericAnalysisManager: React.FC = () => {
         }
     };
 
+    // Helper to check if result is effectively empty
+    const isResultEmpty = (json: any) => {
+        if (!json) return true;
+        if (typeof json === 'string') {
+             try {
+                 const parsed = JSON.parse(json);
+                 return Object.keys(parsed).length === 0;
+             } catch {
+                 return false; // Non-json string is content
+             }
+        }
+        return Object.keys(json).length === 0;
+    };
+
+    const filteredResults = useMemo(() => {
+        if (!hideEmptyResults) return results;
+        return results.filter(r => !isResultEmpty(r.result_json));
+    }, [results, hideEmptyResults]);
+
+    // Parse and render JSON content safely
+    const renderResultContent = (json: any) => {
+        let data = json;
+        // Defensive: Parse stringified JSON if needed
+        if (typeof data === 'string') {
+            try { data = JSON.parse(data); } catch(e) {}
+        }
+        
+        const isEmpty = !data || (typeof data === 'object' && Object.keys(data).length === 0);
+        
+        if (isEmpty) {
+            return (
+                <div className="flex items-center gap-2 text-xs text-gray-400 italic bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                    <CloseIcon className="w-3 h-3" /> 无匹配内容
+                </div>
+            );
+        }
+        
+        return (
+            <pre className="text-[11px] font-mono bg-slate-50 p-3 rounded-lg border border-slate-200 overflow-x-auto max-w-lg max-h-60 custom-scrollbar text-slate-700">
+                {JSON.stringify(data, null, 2)}
+            </pre>
+        );
+    };
+
     return (
         <div className="h-full flex flex-col bg-white rounded-lg overflow-hidden relative">
             {/* Toolbar */}
             <div className="p-4 border-b bg-gradient-to-r from-white to-slate-50 flex justify-between items-center z-10">
-                <div className="flex gap-4">
-                    <button 
-                        onClick={() => setView('templates')}
-                        className={`text-sm font-bold px-4 py-2 rounded-lg transition-all ${view === 'templates' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}
-                    >
-                        模版管理
-                    </button>
-                    <button 
-                        onClick={() => setView('results')}
-                        className={`text-sm font-bold px-4 py-2 rounded-lg transition-all ${view === 'results' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600 hover:bg-slate-100'}`}
-                    >
-                        分析结果
-                    </button>
+                <div className="flex gap-4 items-center">
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setView('templates')}
+                            className={`text-sm font-bold px-4 py-1.5 rounded-md transition-all ${view === 'templates' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            模版管理
+                        </button>
+                        <button 
+                            onClick={() => setView('results')}
+                            className={`text-sm font-bold px-4 py-1.5 rounded-md transition-all ${view === 'results' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            分析结果
+                        </button>
+                    </div>
+                    
+                    {view === 'results' && (
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors select-none">
+                            <input 
+                                type="checkbox" 
+                                checked={hideEmptyResults} 
+                                onChange={e => setHideEmptyResults(e.target.checked)} 
+                                className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-gray-300"
+                            />
+                            仅显示有数据的条目
+                        </label>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => view === 'templates' ? fetchTemplates() : fetchResults()} className="p-2 text-slate-400 hover:text-indigo-600 bg-white border rounded-lg hover:shadow-sm transition-all">
@@ -177,45 +240,55 @@ export const GenericAnalysisManager: React.FC = () => {
                         )}
                     </div>
                 ) : (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <table className="w-full text-sm text-left text-slate-500">
-                            <thead className="text-xs text-slate-700 uppercase bg-gray-50 border-b">
-                                <tr>
-                                    <th className="px-6 py-4 w-48">模版 / 模型</th>
-                                    <th className="px-6 py-4">文章标题</th>
-                                    <th className="px-6 py-4 w-1/3">分析结果 (JSON)</th>
-                                    <th className="px-6 py-4 w-32">时间</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {results.map(r => (
-                                    <tr key={r.uuid} className="hover:bg-slate-50">
-                                        <td className="px-6 py-4 align-top">
-                                            <div className="font-bold text-slate-800">{r.template_name || 'Unknown'}</div>
-                                            <div className="text-[10px] text-purple-600 font-mono mt-1 bg-purple-50 px-1.5 py-0.5 rounded w-fit border border-purple-100">
-                                                {r.model_used}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 align-top font-medium text-slate-900">
-                                            {r.article_title || r.article_uuid}
-                                        </td>
-                                        <td className="px-6 py-4 align-top">
-                                            <pre className="text-xs font-mono bg-slate-50 p-2 rounded border border-slate-200 overflow-x-auto max-w-md max-h-32 custom-scrollbar">
-                                                {JSON.stringify(r.result_json, null, 2)}
-                                            </pre>
-                                        </td>
-                                        <td className="px-6 py-4 align-top text-xs font-mono text-slate-400">
-                                            {new Date(r.created_at).toLocaleString()}
-                                        </td>
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+                        <div className="overflow-auto flex-1 custom-scrollbar">
+                            <table className="w-full text-sm text-left text-slate-500">
+                                <thead className="text-xs text-slate-700 uppercase bg-gray-50 border-b sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-4 w-48">模版 / 模型</th>
+                                        <th className="px-6 py-4">文章标题</th>
+                                        <th className="px-6 py-4 w-1/3">分析结果</th>
+                                        <th className="px-6 py-4 w-32">时间</th>
                                     </tr>
-                                ))}
-                                {results.length === 0 && !isLoading && (
-                                    <tr><td colSpan={4} className="text-center py-10 text-gray-400">暂无分析结果</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {filteredResults.map(r => (
+                                        <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="font-bold text-slate-800 text-sm mb-1">{r.template_name || 'Unknown Template'}</div>
+                                                <div className="text-[10px] text-purple-600 font-mono bg-purple-50 px-2 py-0.5 rounded w-fit border border-purple-100 inline-flex items-center gap-1">
+                                                    <LightningBoltIcon className="w-3 h-3"/>
+                                                    {r.model_used || 'default'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top font-medium text-slate-900 max-w-xs">
+                                                <div className="line-clamp-2" title={r.article_title || r.article_uuid}>
+                                                    {r.article_title || r.article_uuid}
+                                                </div>
+                                                <div className="text-xs text-slate-400 mt-1 font-mono">{r.article_uuid.slice(0, 8)}...</div>
+                                            </td>
+                                            <td className="px-6 py-4 align-top">
+                                                {renderResultContent(r.result_json)}
+                                            </td>
+                                            <td className="px-6 py-4 align-top text-xs font-mono text-slate-400 whitespace-nowrap">
+                                                {new Date(r.created_at).toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {filteredResults.length === 0 && !isLoading && (
+                                        <tr><td colSpan={4} className="text-center py-20 text-gray-400">
+                                            <div className="flex flex-col items-center">
+                                                <EyeIcon className="w-10 h-10 mb-2 opacity-20"/>
+                                                <p>暂无符合条件的分析结果</p>
+                                                {hideEmptyResults && <p className="text-xs mt-1">(已隐藏空结果)</p>}
+                                            </div>
+                                        </td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                         {resultTotal > 0 && (
-                            <div className="p-4 border-t flex justify-end gap-2 bg-white">
+                            <div className="p-4 border-t flex justify-end gap-2 bg-white flex-shrink-0">
                                 <button disabled={resultPage <= 1} onClick={() => setResultPage(p => p - 1)} className="px-3 py-1 border rounded text-xs hover:bg-slate-50 disabled:opacity-50">上一页</button>
                                 <span className="text-xs self-center px-2">{resultPage}</span>
                                 <button disabled={results.length < 20} onClick={() => setResultPage(p => p + 1)} className="px-3 py-1 border rounded text-xs hover:bg-slate-50 disabled:opacity-50">下一页</button>
