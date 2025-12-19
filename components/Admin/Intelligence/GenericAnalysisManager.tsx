@@ -32,16 +32,16 @@ const TemplateCard: React.FC<{ template: AnalysisTemplate; onDelete: () => void;
             </div>
             
             <div className="space-y-3">
-                <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Trigger Keywords</div>
-                    <div className="flex flex-wrap gap-1">
-                        {template.trigger_rules.keywords && template.trigger_rules.keywords.length > 0 ? (
-                            template.trigger_rules.keywords.map(k => (
+                {template.trigger_rules && template.trigger_rules.keywords && template.trigger_rules.keywords.length > 0 && (
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Trigger Keywords</div>
+                        <div className="flex flex-wrap gap-1">
+                            {template.trigger_rules.keywords.map(k => (
                                 <span key={k} className="text-xs bg-white px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-medium">{k}</span>
-                            ))
-                        ) : <span className="text-xs text-slate-400 italic">No keywords</span>}
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
                 
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                     <LightningBoltIcon className="w-3.5 h-3.5 text-purple-500" />
@@ -241,22 +241,19 @@ export const GenericAnalysisManager: React.FC = () => {
 
 const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) => void }> = ({ onClose, onSave }) => {
     const [name, setName] = useState('');
-    const [keywords, setKeywords] = useState('');
-    const [prompt, setPrompt] = useState('分析以下文章内容：\n标题：{{title}}\n内容：{{content}}\n\n请提取：...');
-    const [schema, setSchema] = useState('{\n  "type": "object",\n  "properties": {\n    "category": { "type": "string" },\n    "score": { "type": "number" }\n  }\n}');
+    const [prompt, setPrompt] = useState('请分析以下文章是否涉及新能源电池技术：\n标题：{{title}}\n链接：{{url}}\n内容：{{content}}');
+    const [schema, setSchema] = useState('{\n  "type": "object",\n  "properties": {\n    "is_tech": { "type": "boolean" },\n    "tech_name": { "type": "string" }\n  }\n}');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
             const parsedSchema = JSON.parse(schema);
-            const keywordList = keywords.split(',').map(k => k.trim()).filter(Boolean);
             
             onSave({
                 name,
                 prompt_template: prompt,
                 output_schema: parsedSchema,
-                trigger_rules: { keywords: keywordList },
                 target_model: 'glm-4.5-flash',
                 is_active: true
             });
@@ -267,9 +264,9 @@ const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) =
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+        <div className="fixed inset-0 z-[70] flex justify-end pointer-events-none">
+            <div className="bg-white w-full max-w-2xl h-full shadow-2xl flex flex-col pointer-events-auto border-l border-slate-200 animate-in slide-in-from-right duration-300">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50 flex-shrink-0">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-indigo-600" /> 新建分析模版
                     </h3>
@@ -279,26 +276,22 @@ const CreateTemplateModal: React.FC<{ onClose: () => void; onSave: (data: any) =
                 <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">模版名称</label>
-                        <input value={name} onChange={e => setName(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 技术趋势识别" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">触发关键词 (逗号分隔)</label>
-                        <input value={keywords} onChange={e => setKeywords(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 电池, 芯片, 自动驾驶" />
+                        <input value={name} onChange={e => setName(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="e.g. 新能源技术识别" />
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Prompt 模版</label>
                         <div className="relative">
                             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-32" />
-                            <div className="absolute top-2 right-2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 border border-slate-200">支持 {`{{title}}`}, {`{{content}}`}</div>
+                            <div className="absolute top-2 right-2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 border border-slate-200">支持 {`{{title}}`}, {`{{url}}`}, {`{{content}}`}</div>
                         </div>
                     </div>
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">输出 Schema (JSON)</label>
-                        <textarea value={schema} onChange={e => setSchema(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-32 bg-slate-50" />
+                        <textarea value={schema} onChange={e => setSchema(e.target.value)} className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono h-48 bg-slate-50" />
                     </div>
                 </div>
 
-                <div className="p-5 border-t bg-gray-50 flex justify-end gap-3">
+                <div className="p-5 border-t bg-gray-50 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-5 py-2.5 bg-white border border-gray-300 rounded-xl text-slate-600 font-bold text-sm hover:bg-gray-100 transition-colors">取消</button>
                     <button onClick={handleSubmit} disabled={isSubmitting || !name} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2 disabled:opacity-50">
                         {isSubmitting ? <Spinner /> : <CheckIcon className="w-4 h-4"/>} 保存模版

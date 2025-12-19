@@ -561,10 +561,6 @@ export interface CreateAnalysisTemplateRequest {
     name: string;
     prompt_template: string;
     output_schema: Record<string, any>;
-    trigger_rules: {
-        keywords?: string[];
-        source_uuids?: string[];
-    };
     target_model?: string;
     is_active?: boolean;
 }
