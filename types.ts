@@ -539,3 +539,43 @@ export interface GenericTask {
     end_time: string;
     created_at: string;
 }
+
+export interface AnalysisTemplate {
+    uuid: string;
+    user_uuid: string;
+    name: string;
+    prompt_template: string;
+    output_schema: Record<string, any>;
+    trigger_rules: {
+        keywords?: string[];
+        source_uuids?: string[];
+    };
+    target_model: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateAnalysisTemplateRequest {
+    user_uuid: string;
+    name: string;
+    prompt_template: string;
+    output_schema: Record<string, any>;
+    trigger_rules: {
+        keywords?: string[];
+        source_uuids?: string[];
+    };
+    target_model?: string;
+    is_active?: boolean;
+}
+
+export interface AnalysisResult {
+    uuid: string;
+    template_uuid: string;
+    article_uuid: string;
+    result_json: Record<string, any>;
+    model_used: string;
+    created_at: string;
+    article_title?: string; // Enriched
+    template_name?: string; // Enriched
+}

@@ -23,7 +23,10 @@ import {
     InfoItem,
     CreateIntelLlmTaskRequest,
     IntelLlmTask,
-    IntelligenceTaskPublic
+    IntelligenceTaskPublic,
+    AnalysisTemplate,
+    CreateAnalysisTemplateRequest,
+    AnalysisResult
 } from '../types';
 
 // --- Service Status & Stats ---
@@ -464,6 +467,49 @@ export const downloadIntelLlmTaskReport = async (taskUuid: string): Promise<Blob
     const response = await fetch(url, { headers });
     if (!response.ok) throw new Error('下载报告失败');
     return response.blob();
+};
+
+// --- Generic Analysis (New) ---
+
+export const createAnalysisTemplate = (data: CreateAnalysisTemplateRequest): Promise<AnalysisTemplate> => {
+    return apiFetch<AnalysisTemplate>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+};
+
+export const getAnalysisTemplates = (params: { user_uuid?: string } = {}): Promise<AnalysisTemplate[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<AnalysisTemplate[]>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates${query}`);
+};
+
+export const updateAnalysisTemplate = (uuid: string, data: Partial<CreateAnalysisTemplateRequest>): Promise<AnalysisTemplate> => {
+    return apiFetch<AnalysisTemplate>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates/${uuid}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteAnalysisTemplate = (uuid: string): Promise<void> => {
+    return apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates/${uuid}`, {
+        method: 'DELETE',
+    });
+};
+
+export const getAnalysisResults = (params: { article_uuid?: string; template_uuid?: string; user_uuid?: string; page?: number; page_size?: number } = {}): Promise<PaginatedResponse<AnalysisResult>> => {
+    const query = createApiQuery(params);
+    return apiFetch<PaginatedResponse<AnalysisResult>>(`${INTELSPIDER_SERVICE_PATH}/analysis/results${query}`);
+};
+
+export const triggerAnalysis = (articleUuid: string, templateUuid: string): Promise<{ message: string }> => {
+    // The endpoint provided in spec is /intelspider/analysis/trigger/{article_uuid}, but it needs template context.
+    // Assuming the spec implies a query param or body for template choice, or if it runs ALL active templates.
+    // Based on typical patterns, let's assume it runs all matching templates unless specified.
+    // If the API requires template selection, the spec might be simplified.
+    // Let's stick to the spec: POST /intelspider/analysis/trigger/{article_uuid}
+    return apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleUuid}`, {
+        method: 'POST'
+    });
 };
 
 // --- Proxies ---
