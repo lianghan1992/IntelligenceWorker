@@ -10,15 +10,20 @@ const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
  * 严格提取 HTML 字符串流
  */
 const extractStreamingHtml = (text: string): string => {
-    const key = '"html_report"';
-    const keyIndex = text.indexOf(key);
-    if (keyIndex === -1) return '';
+    // 尝试定位 JSON 中的 html_report 字段
+    const keyMatch = text.match(/"html_report"\s*:\s*"/);
+    if (!keyMatch || keyMatch.index === undefined) return '';
 
-    const afterKey = text.slice(keyIndex + key.length);
-    const startQuoteIndex = afterKey.indexOf('"');
-    if (startQuoteIndex === -1) return '';
-
-    const rawContent = afterKey.slice(startQuoteIndex + 1);
+    // 获取值开始的位置
+    const startIndex = keyMatch.index + keyMatch[0].length;
+    let rawContent = text.slice(startIndex);
+    
+    // 如果末尾包含了 JSON 的结束引号和括号，尝试去除（简单的流式处理）
+    // 注意：这只是为了视觉展示，最终解析依赖 parseLlmJson
+    const endMatch = rawContent.match(/"\s*}\s*$/);
+    if (endMatch) {
+        rawContent = rawContent.slice(0, endMatch.index);
+    }
     
     // 清理转义字符以便在终端中展示
     return rawContent
@@ -37,6 +42,7 @@ export const FinalRenderer: React.FC<{
     onComplete: () => void;
 }> = ({ taskId, scenario, markdown, isReady, onComplete }) => {
     const [htmlContent, setHtmlContent] = useState<string>('');
+    const [rawStream, setRawStream] = useState<string>(''); // 新增：原始流数据，用于兜底显示
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     
@@ -47,7 +53,7 @@ export const FinalRenderer: React.FC<{
         if (isSynthesizing && codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
         }
-    }, [htmlContent, isSynthesizing]);
+    }, [htmlContent, rawStream, isSynthesizing]);
 
     useEffect(() => {
         if (isReady && !htmlContent && !isSynthesizing) {
@@ -58,6 +64,7 @@ export const FinalRenderer: React.FC<{
     const synthesize = async () => {
         setIsSynthesizing(true);
         setHtmlContent(''); 
+        setRawStream('');
         let buffer = '';
         
         await streamGenerate(
@@ -70,6 +77,9 @@ export const FinalRenderer: React.FC<{
             },
             (chunk) => { 
                 buffer += chunk; 
+                setRawStream(buffer); // 实时更新原始流，确保界面有动静
+
+                // 尝试提取清洗后的 HTML 用于更好看的展示
                 const extracted = extractStreamingHtml(buffer);
                 if (extracted) {
                     setHtmlContent(extracted);
@@ -150,13 +160,14 @@ export const FinalRenderer: React.FC<{
                                 <CodeIcon className="w-4 h-4 text-cyan-400" />
                                 <span className="text-white text-[10px] font-black tracking-widest uppercase">Streaming HTML Buffer</span>
                             </div>
+                            {/* 优先显示提取出的 HTML，如果没有提取到（如还在输出 JSON 头部），则显示原始流，保证不卡顿 */}
                             <pre className="text-cyan-400/90 whitespace-pre-wrap break-all">
-                                {htmlContent || '> Initializing secure link to synthesis core...'}
+                                {htmlContent || rawStream || '> Initializing secure link to synthesis core...'}
                                 <span className="inline-block w-1.5 h-3.5 bg-cyan-400 ml-1 animate-pulse align-middle"></span>
                             </pre>
                         </div>
                         <div className="h-6 bg-[#020617] border-t border-white/5 flex items-center px-4 justify-between text-[9px] text-slate-600 font-mono">
-                            <span>TYPE: HTML_REPORT</span>
+                            <span>TYPE: HTML_REPORT / STREAM_V2</span>
                             <span>UTF-8</span>
                         </div>
                     </div>
