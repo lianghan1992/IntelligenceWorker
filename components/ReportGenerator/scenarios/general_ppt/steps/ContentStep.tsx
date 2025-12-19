@@ -72,11 +72,27 @@ export const ContentStep: React.FC<{
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     setPageThought(thought);
                     if (jsonPart && jsonPart.length > 5) setIsThinkingOpen(false);
-                    if (jsonPart) {
-                        const parsed = parseLlmJson<{title:string, content:string}>(jsonPart);
-                        if (parsed && parsed.content) {
-                             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, content_markdown: parsed.content } : p));
+                    
+                    // Streaming Logic: Extract 'content' field as it comes in
+                    let extractedContent = '';
+                    const parsed = parseLlmJson<{title:string, content:string}>(jsonPart);
+                    if (parsed && parsed.content) {
+                        extractedContent = parsed.content;
+                    } else {
+                        // Regex fallback for partial streaming
+                        const contentMatch = jsonPart.match(/"content"\s*:\s*"(.*?)$/s); // Match from key to end of string (simple)
+                        if (!contentMatch) {
+                            // Try harder regex if it's somewhere in middle
+                             const contentMidMatch = jsonPart.match(/"content"\s*:\s*"(.*?)"/s);
+                             if (contentMidMatch) extractedContent = contentMidMatch[1];
+                        } else {
+                            // Partial match, might contain escaped quotes
+                            extractedContent = contentMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
                         }
+                    }
+
+                    if (extractedContent) {
+                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, content_markdown: extractedContent } : p));
                     }
                 },
                 () => {

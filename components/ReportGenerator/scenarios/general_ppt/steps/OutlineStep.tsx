@@ -6,6 +6,36 @@ import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 
+// Helper to extract partial JSON data from stream
+const tryParseStreamingJson = (jsonString: string): { title?: string, pages: any[] } | null => {
+    try {
+        // 1. Try full parse first
+        return JSON.parse(jsonString);
+    } catch (e) {
+        // 2. Regex fallback for partial stream
+        const result: { title?: string, pages: any[] } = { pages: [] };
+        
+        // Extract Title
+        const titleMatch = jsonString.match(/"title"\s*:\s*"(.*?)"/);
+        if (titleMatch) result.title = titleMatch[1];
+
+        // Extract Pages (Robust regex to handle multiline content)
+        // Matches objects like { "title": "...", "content": "..." }
+        const pageRegex = /{\s*"title"\s*:\s*"(.*?)"\s*,\s*"(?:content|summary)"\s*:\s*"(.*?)"/g;
+        let match;
+        // Reset lastIndex because we might be reusing regex object (though here it's literal)
+        while ((match = pageRegex.exec(jsonString)) !== null) {
+            result.pages.push({
+                title: match[1],
+                content: match[2]
+            });
+        }
+        
+        if (result.title || result.pages.length > 0) return result;
+        return null;
+    }
+};
+
 export const OutlineStep: React.FC<{
     taskId: string;
     topic: string;
@@ -26,11 +56,15 @@ export const OutlineStep: React.FC<{
 
     const outlineData = useMemo(() => {
         if (!jsonPart) return null;
-        try {
-            const parsed = parseLlmJson<{title: string, pages: any[]}>(jsonPart);
-            if (parsed && parsed.title && Array.isArray(parsed.pages)) return parsed;
-            return null;
-        } catch (e) { return null; }
+        // Use the new partial parser
+        const partialData = tryParseStreamingJson(jsonPart);
+        if (partialData) {
+             return {
+                 title: partialData.title || '正在生成标题...',
+                 pages: partialData.pages
+             } as StratifyOutline;
+        }
+        return null;
     }, [jsonPart]);
 
     useEffect(() => {
@@ -51,7 +85,8 @@ export const OutlineStep: React.FC<{
                 setStreamContent(prev => {
                     const next = prev + chunk;
                     const { jsonPart } = extractThoughtAndJson(next);
-                    if (jsonPart && jsonPart.length > 20) setIsThinkingOpen(false);
+                    // Close modal earlier if we detect valid JSON structure start
+                    if (jsonPart && jsonPart.trim().startsWith('{')) setIsThinkingOpen(false);
                     return next;
                 });
             },
@@ -84,7 +119,7 @@ export const OutlineStep: React.FC<{
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-6">
                     {outlineData?.pages.map((page: any, idx: number) => (
-                        <div key={idx} className="group flex gap-6 p-6 rounded-3xl border border-slate-50 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all duration-300">
+                        <div key={idx} className="group flex gap-6 p-6 rounded-3xl border border-slate-50 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
                             <div className="flex-shrink-0 w-12 h-12 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-lg font-black text-slate-300 group-hover:text-indigo-600 group-hover:scale-110 transition-all">
                                 {idx + 1}
                             </div>
