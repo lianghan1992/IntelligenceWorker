@@ -1,5 +1,4 @@
 
-
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -106,10 +105,6 @@ export const getSpiderTasks = (params?: any): Promise<PaginatedResponse<Intellig
 
 export const getSpiderPointTasks = (pointUuid: string, params?: any): Promise<any> => {
     const query = createApiQuery(params);
-    // Since API doc for getting list of tasks for a point specifically is not explicitly different structure, 
-    // we use the general tasks endpoint filtered by point if needed, or assume it's supported.
-    // The previous implementation used a nested route which might not exist in new API.
-    // Switching to query param filtering based on API doc: GET /intelspider/tasks/?point_uuid=...
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/tasks?point_uuid=${pointUuid}${createApiQuery(params).replace('?', '&')}`);
 }
 
@@ -172,10 +167,10 @@ export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<A
 
 export const searchSemanticSegments = async (data: any): Promise<{ items: InfoItem[], total: number }> => {
     const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, { method: 'POST', body: JSON.stringify(data) });
-    // Map backend response (article_id) to frontend interface (id)
     const items = (res.items || []).map((item: any) => ({
         ...item,
-        id: item.article_id || item.id || '', // Ensure ID exists
+        // Ensure ID is a string, prioritizing article_id from backend
+        id: String(item.article_id || item.id || ''), 
     }));
     return {
         items,

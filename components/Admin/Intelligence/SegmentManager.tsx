@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { searchSemanticSegments } from '../../../api/intelligence';
 import { InfoItem } from '../../../types';
@@ -197,7 +198,7 @@ export const SegmentManager: React.FC = () => {
                         </div>
                         
                         {segments.map((seg, idx) => (
-                            <div key={`${seg.id}-${idx}`} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all group">
+                            <div key={`${seg.id || idx}-${idx}`} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all group">
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="flex-1 min-w-0 pr-4">
                                         <h4 className="font-bold text-gray-800 text-lg mb-1 truncate" title={seg.title}>
@@ -205,7 +206,7 @@ export const SegmentManager: React.FC = () => {
                                         </h4>
                                         <div className="flex items-center gap-3 text-xs text-gray-500">
                                             <span className="bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-medium">{seg.source_name || 'Unknown Source'}</span>
-                                            <span className="font-mono text-gray-400">ID: {seg.id.slice(0,8)}</span>
+                                            <span className="font-mono text-gray-400">ID: {(seg.id || '').slice(0,8)}</span>
                                             <span className="flex items-center gap-1">
                                                 <CalendarIcon className="w-3 h-3"/>
                                                 {new Date(seg.publish_date || seg.created_at).toLocaleDateString()}
