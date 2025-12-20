@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle } from '../../../types';
 import { 
@@ -185,6 +186,7 @@ export const ArticleList: React.FC = () => {
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
         try {
+            // Note: API doc says page_size, helper in api/intelligence.ts handles limit->page_size mapping for us.
             const res = await getSpiderArticles({ page, limit: 20 });
             setArticles(res.items);
             setTotal(res.total);
@@ -203,7 +205,7 @@ export const ArticleList: React.FC = () => {
 
     const toggleAll = () => {
         if (selectedIds.size === articles.length && articles.length > 0) setSelectedIds(new Set());
-        else setSelectedIds(new Set(articles.map(a => a.id)));
+        else setSelectedIds(new Set(articles.map(a => a.uuid))); // Use uuid from API
     };
 
     const handleDelete = async () => {
@@ -211,7 +213,7 @@ export const ArticleList: React.FC = () => {
         setIsDeleting(true);
         try {
             await deleteSpiderArticle(deleteId);
-            setArticles(prev => prev.filter(a => a.id !== deleteId));
+            setArticles(prev => prev.filter(a => a.uuid !== deleteId));
             setDeleteId(null);
         } catch (e: any) {
             alert('删除失败');
@@ -222,11 +224,11 @@ export const ArticleList: React.FC = () => {
 
     const handleGenerateHtml = async (article: SpiderArticle) => {
         if (generatingId) return;
-        setGeneratingId(article.id);
+        setGeneratingId(article.uuid);
         try {
-            await generateArticleHtml(article.id);
+            await generateArticleHtml(article.uuid);
             // Optimistically update
-            setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
+            setArticles(prev => prev.map(a => a.uuid === article.uuid ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
         } catch (e: any) {
             const msg = e.message || String(e);
@@ -246,7 +248,7 @@ export const ArticleList: React.FC = () => {
             await Promise.all(promises);
             
             // Optimistically update UI
-            setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
+            setArticles(prev => prev.map(a => selectedIds.has(a.uuid) ? { ...a, is_atomized: true } : a));
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
         } catch (e: any) {
@@ -257,10 +259,10 @@ export const ArticleList: React.FC = () => {
     };
 
     const handleDownloadPdf = async (article: SpiderArticle) => {
-        if (pdfDownloadingId === article.id) return;
-        setPdfDownloadingId(article.id);
+        if (pdfDownloadingId === article.uuid) return;
+        setPdfDownloadingId(article.uuid);
         try {
-            const blob = await downloadArticlePdf(article.id);
+            const blob = await downloadArticlePdf(article.uuid);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -279,9 +281,9 @@ export const ArticleList: React.FC = () => {
 
     const handleTriggerAnalysis = async (article: SpiderArticle) => {
         if (analyzingId) return;
-        setAnalyzingId(article.id);
+        setAnalyzingId(article.uuid);
         try {
-            await triggerAnalysis(article.id);
+            await triggerAnalysis(article.uuid);
             alert('通用分析任务已触发');
         } catch (e: any) {
             const msg = e.message || String(e);
@@ -375,13 +377,13 @@ export const ArticleList: React.FC = () => {
                                 <tr><td colSpan={7} className="text-center py-20 text-gray-400">暂无文章数据</td></tr>
                             ) : (
                                 articles.map(article => (
-                                    <tr key={article.id} className={`hover:bg-gray-50 group transition-colors ${selectedIds.has(article.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(article.id)}>
+                                    <tr key={article.uuid} className={`hover:bg-gray-50 group transition-colors ${selectedIds.has(article.uuid) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(article.uuid)}>
                                         <td className="p-4 text-center">
-                                            <input type="checkbox" checked={selectedIds.has(article.id)} onChange={() => toggleSelect(article.id)} onClick={e => e.stopPropagation()} className="w-4 h-4 text-indigo-600 rounded cursor-pointer" />
+                                            <input type="checkbox" checked={selectedIds.has(article.uuid)} onChange={() => toggleSelect(article.uuid)} onClick={e => e.stopPropagation()} className="w-4 h-4 text-indigo-600 rounded cursor-pointer" />
                                         </td>
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); setSelectedArticleUuid(article.id); }}
+                                                onClick={(e) => { e.stopPropagation(); setSelectedArticleUuid(article.uuid); }}
                                                 className="text-left hover:text-indigo-600 hover:underline line-clamp-1 max-w-md font-bold text-sm"
                                                 title={article.title}
                                             >
@@ -402,11 +404,11 @@ export const ArticleList: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {generatingId === article.id ? (
+                                            {generatingId === article.uuid ? (
                                                 <div className="flex justify-center"><Spinner /></div>
                                             ) : article.is_atomized ? (
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); setViewingHtmlId(article.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); setViewingHtmlId(article.uuid); }}
                                                     className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
                                                     title="查看 HTML"
                                                 >
@@ -431,20 +433,20 @@ export const ArticleList: React.FC = () => {
                                                     className="text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded p-1.5 transition-colors"
                                                     title="触发通用分析"
                                                 >
-                                                    {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                                    {analyzingId === article.uuid ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
                                                 </button>
                                                 {article.is_atomized && (
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
-                                                        disabled={pdfDownloadingId === article.id}
+                                                        disabled={pdfDownloadingId === article.uuid}
                                                         className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors disabled:opacity-50"
                                                         title="下载 PDF"
                                                     >
-                                                        {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                        {pdfDownloadingId === article.uuid ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
                                                     </button>
                                                 )}
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); setDeleteId(article.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); setDeleteId(article.uuid); }}
                                                     className="text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded p-1.5 transition-colors"
                                                     title="删除文章"
                                                 >
@@ -465,12 +467,12 @@ export const ArticleList: React.FC = () => {
                         <div className="text-center py-12 text-gray-400">暂无文章数据</div>
                     ) : (
                         articles.map(article => (
-                            <div key={article.id} className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative overflow-hidden ${selectedIds.has(article.id) ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}`} onClick={() => toggleSelect(article.id)}>
+                            <div key={article.uuid} className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative overflow-hidden ${selectedIds.has(article.uuid) ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}`} onClick={() => toggleSelect(article.uuid)}>
                                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                                    <input type="checkbox" checked={selectedIds.has(article.id)} onChange={() => toggleSelect(article.id)} className="w-5 h-5 text-indigo-600 rounded" />
+                                    <input type="checkbox" checked={selectedIds.has(article.uuid)} onChange={() => toggleSelect(article.uuid)} className="w-5 h-5 text-indigo-600 rounded" />
                                 </div>
                                 
-                                <div onClick={(e) => { e.stopPropagation(); setSelectedArticleUuid(article.id); }} className="cursor-pointer pr-8">
+                                <div onClick={(e) => { e.stopPropagation(); setSelectedArticleUuid(article.uuid); }} className="cursor-pointer pr-8">
                                     <h4 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
                                         {article.title}
                                     </h4>
@@ -495,11 +497,11 @@ export const ArticleList: React.FC = () => {
                                             className="p-1.5 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
                                             title="触发通用分析"
                                         >
-                                            {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                            {analyzingId === article.uuid ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
                                         </button>
                                         {article.is_atomized ? (
                                             <button 
-                                                onClick={() => setViewingHtmlId(article.id)}
+                                                onClick={() => setViewingHtmlId(article.uuid)}
                                                 className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 border border-indigo-100"
                                                 title="查看 HTML"
                                             >
@@ -508,27 +510,27 @@ export const ArticleList: React.FC = () => {
                                         ) : (
                                             <button 
                                                 onClick={() => handleGenerateHtml(article)}
-                                                disabled={generatingId === article.id}
+                                                disabled={generatingId === article.uuid}
                                                 className="p-1.5 rounded-lg text-slate-400 bg-slate-50 hover:text-purple-600 hover:bg-purple-50"
                                                 title="生成 HTML"
                                             >
-                                                {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
+                                                {generatingId === article.uuid ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
                                             </button>
                                         )}
                                         
                                         {article.is_atomized && (
                                             <button 
                                                 onClick={() => handleDownloadPdf(article)}
-                                                disabled={pdfDownloadingId === article.id}
+                                                disabled={pdfDownloadingId === article.uuid}
                                                 className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 rounded-lg disabled:opacity-50"
                                                 title="下载 PDF"
                                             >
-                                                {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                {pdfDownloadingId === article.uuid ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
                                             </button>
                                         )}
 
                                         <button 
-                                            onClick={() => setDeleteId(article.id)}
+                                            onClick={() => setDeleteId(article.uuid)}
                                             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg"
                                             title="删除"
                                         >

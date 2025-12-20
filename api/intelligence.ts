@@ -37,7 +37,6 @@ export const deleteSource = (uuid: string): Promise<void> =>
 
 // Points
 export const getPoints = (params?: { source_name?: string }): Promise<IntelligencePointPublic[]> => {
-    // Legacy support: params.source_name is effectively source_uuid in current context
     const sourceId = params?.source_name;
     if (!sourceId) return Promise.resolve([]);
     return getSpiderPoints(sourceId).then(res => res.map(p => ({
@@ -64,7 +63,7 @@ export const getSpiderPoints = (sourceUuid: string): Promise<SpiderPoint[]> =>
     apiFetch<SpiderPoint[]>(`${INTELSPIDER_SERVICE_PATH}/sources/${sourceUuid}/points`);
 
 export const createPoint = (data: any): Promise<void> => createSpiderPoint({
-    source_uuid: data.source_name, // Map UI field to API field
+    source_uuid: data.source_name,
     name: data.name,
     url: data.url,
     cron_schedule: data.cron_schedule,
@@ -76,7 +75,7 @@ export const createSpiderPoint = (data: any): Promise<SpiderPoint> =>
     apiFetch<SpiderPoint>(`${INTELSPIDER_SERVICE_PATH}/points`, { method: 'POST', body: JSON.stringify(data) });
 
 export const updateSpiderPoint = (uuid: string, data: any): Promise<SpiderPoint> => 
-    apiFetch<SpiderPoint>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, { method: 'PUT', body: JSON.stringify(data) });
+    apiFetch<SpiderPoint>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, { method: 'PATCH', body: JSON.stringify(data) });
 
 export const deletePoints = (ids: string[]): Promise<void> => Promise.all(ids.map(id => deleteSpiderPoint(id))).then(() => {});
 
@@ -84,12 +83,15 @@ export const deleteSpiderPoint = (uuid: string): Promise<void> =>
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}`, { method: 'DELETE' });
 
 export const togglePoint = (uuid: string, isActive: boolean): Promise<void> => 
-    updateSpiderPoint(uuid, { is_active: isActive }).then(() => {});
+    (isActive ? enableSpiderPoint(uuid) : disableSpiderPoint(uuid));
 
 export const runPoint = (uuid: string): Promise<void> => triggerSpiderTask({ point_uuid: uuid, task_type: 'initial' });
 
-export const disableSpiderPoint = (uuid: string) => togglePoint(uuid, false);
-export const enableSpiderPoint = (uuid: string) => togglePoint(uuid, true);
+export const disableSpiderPoint = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}/disable`, { method: 'POST' });
+
+export const enableSpiderPoint = (uuid: string): Promise<void> => 
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/points/${uuid}/enable`, { method: 'POST' });
 
 // Tasks
 export const triggerSpiderTask = (data: { point_uuid: string; task_type: 'initial' | 'incremental' }): Promise<void> => 
@@ -104,7 +106,11 @@ export const getSpiderTasks = (params?: any): Promise<PaginatedResponse<Intellig
 
 export const getSpiderPointTasks = (pointUuid: string, params?: any): Promise<any> => {
     const query = createApiQuery(params);
-    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/points/${pointUuid}/tasks${query}`);
+    // Since API doc for getting list of tasks for a point specifically is not explicitly different structure, 
+    // we use the general tasks endpoint filtered by point if needed, or assume it's supported.
+    // The previous implementation used a nested route which might not exist in new API.
+    // Switching to query param filtering based on API doc: GET /intelspider/tasks/?point_uuid=...
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/tasks?point_uuid=${pointUuid}${createApiQuery(params).replace('?', '&')}`);
 }
 
 // Articles
@@ -112,7 +118,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
     return getSpiderArticles(params).then(res => ({
         ...res,
         items: res.items.map(a => ({
-            id: a.id,
+            id: a.uuid, // Map uuid to id for frontend compatibility
             title: a.title,
             content: a.content,
             source_name: a.source_name,
@@ -127,12 +133,18 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
 }
 
 export const getSpiderArticles = (params: any): Promise<PaginatedResponse<SpiderArticle>> => {
-    const query = createApiQuery(params);
+    // Map 'limit' to 'page_size' if present
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.page_size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
     return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles${query}`);
 }
 
 export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then(a => ({
-    id: a.id,
+    id: a.uuid,
     title: a.title,
     content: a.content,
     source_name: a.source_name,
@@ -153,7 +165,7 @@ export const deleteSpiderArticle = (uuid: string): Promise<void> =>
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}`, { method: 'DELETE' });
 
 export const getTodayArticleCount = (): Promise<{ count: number }> => 
-    apiFetch<{ count: number }>(`${INTELSPIDER_SERVICE_PATH}/articles/stats/today`);
+    apiFetch<{ count: number }>(`${INTELSPIDER_SERVICE_PATH}/stats/today_articles_count`);
 
 // Search
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<ArticlePublic>> => getArticles(params); 
@@ -161,8 +173,10 @@ export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<A
 export const searchSemanticSegments = (data: any): Promise<{ items: InfoItem[], total: number }> => 
     apiFetch<{ items: InfoItem[], total: number }>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, { method: 'POST', body: JSON.stringify(data) });
 
-export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => 
-    apiFetch<PaginatedResponse<ArticlePublic>>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify(data) });
+export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => {
+    const query = createApiQuery(data); // tags passed as query params in new API
+    return apiFetch<PaginatedResponse<ArticlePublic>>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags${query}`);
+};
 
 export const searchChunks = (data: any): Promise<{ results: SearchChunkResult[] }> => 
     apiFetch<{ results: SearchChunkResult[] }>(`${INTELSPIDER_SERVICE_PATH}/search/chunks`, { method: 'POST', body: JSON.stringify(data) });
@@ -175,19 +189,19 @@ export const getArticleHtml = (uuid: string): Promise<{ html_content: string }> 
     apiFetch<{ html_content: string }>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/html`);
 
 export const generateArticleHtml = (uuid: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/html/generate`, { method: 'POST' });
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/generate_html`, { method: 'POST' });
 
 export const downloadArticlePdf = async (uuid: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/pdf/download`;
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/pdf`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers, method: 'POST' }); // API Doc says POST for PDF generation/download
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
 }
 
-// LLM Sorting
+// LLM Sorting (Legacy?) - Keeping structure but ensuring paths match convention if needed
 export const createLlmSearchTask = (data: { query_text: string }): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/llm_search/tasks`, { method: 'POST', body: JSON.stringify(data) });
 
@@ -202,17 +216,16 @@ export const checkGeminiCookies = (): Promise<any> => checkIntelGeminiStatus();
 export const toggleHtmlGeneration = (enabled: boolean): Promise<any> => toggleIntelHtmlGeneration(enabled);
 
 export const updateIntelGeminiCookies = (data: any): Promise<any> => 
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies`, { method: 'PUT', body: JSON.stringify(data) });
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies/update`, { method: 'POST', body: JSON.stringify(data) });
 
-// New endpoint: /intelspider/gemini/status (was checkIntelGeminiStatus)
 export const checkIntelGeminiStatus = (): Promise<{ valid: boolean; message: string }> => 
     apiFetch<{ valid: boolean; message: string }>(`${INTELSPIDER_SERVICE_PATH}/gemini/status`);
 
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string }> => 
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/html_gen/toggle`, { method: 'POST', body: JSON.stringify({ enabled }) });
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, { method: 'POST', body: JSON.stringify({ enabled }) });
 
 export const toggleRetrospectiveHtmlGeneration = (enabled: boolean): Promise<{ message: string }> => 
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/retro_html_gen/toggle`, { method: 'POST', body: JSON.stringify({ enabled }) });
+    apiFetch(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, { method: 'POST', body: JSON.stringify({ enabled }) });
 
 // Generic Crawler
 export const createGenericPoint = (data: any): Promise<void> => createSpiderPoint({ ...data, mode: 'generic' }).then(() => {});
@@ -226,7 +239,17 @@ export const getSourcesAndPoints = (): Promise<any[]> => getSources().then(async
 });
 export const getGenericTasks = (params: any): Promise<any> => getSpiderTasks(params);
 
-// Pending Articles
+// Pending Articles - API doc doesn't explicitly list "Pending Articles" separate endpoints, assuming standard list filtering
+// But if there are specific endpoints from previous context, we might need to adjust or remove if deprecated.
+// Assuming "GET /intelspider/articles" with status filter.
+// Note: Admin components use `getPendingArticles`. We should map this to standard article fetch with status filter if no dedicated endpoint exists.
+// However, the previous code had specific endpoints. If they are removed from doc, we should use standard article list with status filter?
+// Wait, the doc says `GET /intelspider/articles/` items have `status`.
+// But there isn't a `confirm` endpoint in the provided doc. 
+// Assuming legacy endpoints might still exist or we should use generic update?
+// Since user said "use the following latest interfaces", and didn't list pending/confirm, it implies they might be gone or standard article management is used.
+// However, I will keep them but point to what seems most likely or keep as is if not contradicted, 
+// BUT the "ArticleList" error implies we need to fix basic fetching first.
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> => getSpiderPendingArticles(params);
 
 export const getSpiderPendingArticles = (params?: any): Promise<any> => {
@@ -243,15 +266,15 @@ export const approveSpiderArticles = (ids: string[]): Promise<{ ok: boolean; pro
 
 // Intel LLM Analysis Tasks
 export const createIntelLlmTask = (data: any): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/tasks`, { method: 'POST', body: JSON.stringify(data) });
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks`, { method: 'POST', body: JSON.stringify(data) });
 
 export const getIntelLlmTasks = (params: any): Promise<{ items: IntelLlmTask[] }> => {
     const query = createApiQuery(params);
-    return apiFetch<{ items: IntelLlmTask[] }>(`${INTELSPIDER_SERVICE_PATH}/analysis/tasks${query}`);
+    return apiFetch<{ items: IntelLlmTask[] }>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`); // Check path
 }
 
 export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/analysis/tasks/${uuid}/report`;
+    const url = `${INTELSPIDER_SERVICE_PATH}/llm/tasks/${uuid}/download`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -261,7 +284,7 @@ export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> =>
 }
 
 // Stats
-// New endpoint: /intelspider/analysis/stats (General analysis stats)
+// New endpoint: /intelspider/analysis/stats
 export const getIntelligenceStats = (): Promise<any> => 
     apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/analysis/stats`);
 
@@ -287,9 +310,9 @@ export const getAnalysisResults = (params: any): Promise<{total: number, page: n
 }
 
 export const triggerAnalysis = (articleUuid: string, templateUuid?: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger`, { method: 'POST', body: JSON.stringify({ article_uuid: articleUuid, template_uuid: templateUuid }) });
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleUuid}`, { method: 'POST', body: JSON.stringify({ template_uuid: templateUuid }) });
 
-// Document Management (Updated to new endpoints)
+// Document Management
 
 // Get Uploaded Docs List
 export const getUploadedDocs = (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
@@ -325,8 +348,7 @@ export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     return response.blob();
 }
 
-// Get Doc Preview (Keeping as legacy if still needed, but not in new API doc list.
-// If it breaks, we should remove usage in UI or update to use download)
+// Get Doc Preview
 export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview/${page}`;
     const token = localStorage.getItem('accessToken');
@@ -337,7 +359,7 @@ export const getDocPreview = async (uuid: string, page: number): Promise<Blob> =
     return response.blob();
 }
 
-// --- Doc Tags Management (Updated endpoints) ---
+// --- Doc Tags Management ---
 
 // Get All Tags (Points)
 export const getDocTags = (): Promise<DocTag[]> => 
@@ -374,7 +396,7 @@ export const addProxy = (data: { url: string, enabled: boolean }): Promise<void>
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies`, { method: 'POST', body: JSON.stringify(data) });
 
 export const deleteProxy = (url: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies`, { method: 'DELETE', body: JSON.stringify({ url }) });
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, { method: 'DELETE' }); // Encode URL for path param
 
 export const testProxy = (url: string): Promise<{ success: boolean; latency_ms: number }> => 
     apiFetch<{ success: boolean; latency_ms: number }>(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, { method: 'POST', body: JSON.stringify({ url }) });

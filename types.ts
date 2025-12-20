@@ -176,8 +176,8 @@ export interface SpiderPoint {
 }
 
 export interface SpiderArticle {
-    id: string;
-    uuid: string;
+    id: string; // Used for UI key
+    uuid: string; // From API
     title: string;
     content: string;
     url: string;
@@ -494,7 +494,6 @@ export interface GenerateStreamParams {
     task_id?: string;
     phase_name?: string;
     session_id?: string;
-    // Fix: Added model_override to GenerateStreamParams to allow passing a specific model engine for generation requests.
     model_override?: string;
 }
 
@@ -505,7 +504,7 @@ export interface StratifyScenario {
     name: string;
     title: string;
     description: string;
-    default_model?: string; // New: Supports setting a default model for the scenario
+    default_model?: string;
     created_at: string;
     updated_at: string;
 }
@@ -514,7 +513,7 @@ export interface StratifyScenarioFile {
     id: string;
     name: string;
     content: string;
-    model?: string; // New: Supports specific model for this prompt file
+    model?: string;
     updated_at: string;
 }
 
@@ -564,24 +563,23 @@ export interface CreateAnalysisTemplateRequest {
     is_active?: boolean;
 }
 
-// Updated based on new API
 export interface AnalysisResult {
     uuid: string;
     article_uuid: string;
     status: string;
-    result_json: Record<string, any>;
+    result: Record<string, any>;
     created_at: string;
     
-    // Optional enriched fields (client-side mapping)
+    // Enriched fields
     article_title?: string;
     template_name?: string;
     username?: string;
     model_used?: string;
     completed_at?: string;
     duration?: string;
+    result_json?: Record<string, any>;
 }
 
-// Updated based on new API
 export interface UploadedDocument {
     uuid: string;
     original_filename: string;
@@ -598,8 +596,8 @@ export interface UploadedDocument {
     source_name?: string;
     
     // Status fields
-    status: string; // 'pending' | 'processing' | 'completed' | 'failed'
-    process_stage?: string; // e.g. 'queued', 'ocr', 'vectorize', 'finished'
+    status: string;
+    process_stage?: string;
     process_progress?: number;
     error_message?: string | null;
 }
