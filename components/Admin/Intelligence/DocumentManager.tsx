@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
-import { getUploadedDocs, getDocTags, downloadUploadedDoc } from '../../../api/intelligence';
+import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc } from '../../../api/intelligence';
 import { 
     CloudIcon, RefreshIcon, SearchIcon, FilterIcon, CalendarIcon, 
-    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon
+    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon
 } from '../../icons';
 import { DocUploadModal } from './DocUploadModal';
 import { DocMoveModal } from './DocMoveModal';
 import { DocPreviewModal } from './DocPreviewModal';
 import { DocTagManagerModal } from './DocTagManagerModal';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -45,6 +46,10 @@ export const DocumentManager: React.FC = () => {
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
     const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
     const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
+    
+    // Delete State
+    const [docToDelete, setDocToDelete] = useState<UploadedDocument | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchTags = async () => {
         try {
@@ -94,6 +99,21 @@ export const DocumentManager: React.FC = () => {
             window.URL.revokeObjectURL(url);
         } catch (e) {
             alert('下载失败');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!docToDelete) return;
+        setIsDeleting(true);
+        try {
+            await deleteUploadedDoc(docToDelete.uuid);
+            setDocToDelete(null);
+            fetchDocs();
+            fetchTags(); // Update counts
+        } catch (e: any) {
+            alert(`删除失败: ${e.message}`);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -217,7 +237,7 @@ export const DocumentManager: React.FC = () => {
                                     <th className="px-6 py-3 font-medium w-24">页数</th>
                                     <th className="px-6 py-3 font-medium w-40">发布时间</th>
                                     <th className="px-6 py-3 font-medium w-40">上传时间</th>
-                                    <th className="px-6 py-3 font-medium w-32 text-center">操作</th>
+                                    <th className="px-6 py-3 font-medium w-40 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -256,6 +276,13 @@ export const DocumentManager: React.FC = () => {
                                                         title="下载"
                                                     >
                                                         <DownloadIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => setDocToDelete(doc)}
+                                                        className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors" 
+                                                        title="删除"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -312,6 +339,18 @@ export const DocumentManager: React.FC = () => {
                     isOpen={!!previewDoc} 
                     doc={previewDoc} 
                     onClose={() => setPreviewDoc(null)} 
+                />
+            )}
+
+            {docToDelete && (
+                <ConfirmationModal
+                    title="删除文档"
+                    message={`确定要删除文档 "${docToDelete.original_filename}" 吗？此操作将永久删除文件及相关数据，不可恢复。`}
+                    onConfirm={handleDelete}
+                    onCancel={() => setDocToDelete(null)}
+                    confirmText="删除"
+                    variant="destructive"
+                    isLoading={isDeleting}
                 />
             )}
         </div>
