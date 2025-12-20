@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
@@ -57,6 +58,14 @@ const getTheme = (id: string) => {
     return cardThemes[sum % cardThemes.length];
 };
 
+const formatFileSize = (bytes?: number) => {
+    if (bytes === undefined || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+};
+
 // --- Component: Insight Card (Reference Style) ---
 const InsightCard: React.FC<{ 
     task: DeepInsightTask; 
@@ -66,8 +75,10 @@ const InsightCard: React.FC<{
     const theme = useMemo(() => getTheme(task.id), [task.id]);
     
     // Formatting
-    const dateStr = new Date(task.created_at).toISOString().split('T')[0];
+    const dateStr = new Date(task.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
     const isCompleted = task.status === 'completed';
+    // Display priority: task.category_name (from API) -> prop categoryName
+    const displayCategory = task.category_name || categoryName;
 
     return (
         <div 
@@ -75,7 +86,6 @@ const InsightCard: React.FC<{
             className="group relative flex flex-col overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer h-full"
         >
             {/* 1. Upper Visual Area (Gradient Cover) */}
-            {/* PC: Reduced height (h-32 -> h-28 or aspect ratio control in grid) */}
             <div className={`relative h-32 w-full overflow-hidden ${theme.bg}`}>
                 
                 {/* Abstract Blobs */}
@@ -92,16 +102,23 @@ const InsightCard: React.FC<{
                 <div className="relative z-10 flex flex-col justify-between h-full p-5">
                     <div className="flex justify-between items-start">
                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-[10px] font-bold ring-1 ring-inset ring-white/10 backdrop-blur-md ${theme.tagBg} ${theme.tagText}`}>
-                            {categoryName}
+                            {displayCategory}
                         </span>
-                        {task.file_type && (
-                            <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
-                                {task.file_type}
-                            </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                             {task.file_size && (
+                                <span className="text-[10px] font-mono text-white/50 tracking-wider">
+                                    {formatFileSize(task.file_size)}
+                                </span>
+                            )}
+                            {task.file_type && (
+                                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest bg-black/20 px-1 rounded">
+                                    {task.file_type}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     
-                    <h3 className="text-lg font-bold text-white leading-snug line-clamp-2 drop-shadow-md group-hover:text-white/90 transition-colors">
+                    <h3 className="text-lg font-bold text-white leading-snug line-clamp-2 drop-shadow-md group-hover:text-white/90 transition-colors" title={task.file_name}>
                         {task.file_name.replace(/\.(pdf|ppt|pptx)$/i, '')}
                     </h3>
                 </div>
@@ -131,16 +148,6 @@ const InsightCard: React.FC<{
                         )}
                     </div>
                 </div>
-                
-                {/* Progress Bar for Processing items */}
-                {!isCompleted && task.total_pages > 0 && (
-                    <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden mt-1">
-                        <div 
-                            className="h-full bg-indigo-500 transition-all duration-500" 
-                            style={{ width: `${(task.processed_pages / task.total_pages) * 100}%` }}
-                        ></div>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -164,7 +171,12 @@ export const DeepDives: React.FC = () => {
         try {
             const [cats, tasksRes] = await Promise.all([
                 getDeepInsightCategories().catch(() => []),
-                getDeepInsightTasks({ limit: 100, page: 1 }).catch(() => ({ items: [], total: 0 }))
+                getDeepInsightTasks({ 
+                    limit: 50, 
+                    page: 1, 
+                    category_id: selectedCategoryId, 
+                    search: searchQuery 
+                }).catch(() => ({ items: [], total: 0 }))
             ]);
             setCategories(cats);
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
@@ -174,21 +186,15 @@ export const DeepDives: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [selectedCategoryId, searchQuery]);
 
     useEffect(() => {
-        loadData();
+        // Debounce or simple effect for now
+        const timer = setTimeout(() => {
+            loadData();
+        }, 300);
+        return () => clearTimeout(timer);
     }, [loadData]);
-
-    const filteredTasks = useMemo(() => {
-        return tasks.filter(task => {
-            const matchesCategory = selectedCategoryId ? task.category_id === selectedCategoryId : true;
-            const matchesSearch = searchQuery 
-                ? task.file_name.toLowerCase().includes(searchQuery.toLowerCase()) 
-                : true;
-            return matchesCategory && matchesSearch;
-        });
-    }, [tasks, selectedCategoryId, searchQuery]);
 
     return (
         <div className="relative min-h-full bg-slate-50 font-sans text-slate-900 pb-20">
@@ -201,7 +207,7 @@ export const DeepDives: React.FC = () => {
                             <DocumentTextIcon className="w-5 h-5" />
                         </div>
                         <h1 className="text-lg font-bold text-slate-800 tracking-tight">深度洞察</h1>
-                        <span className="text-xs text-slate-400 font-medium px-2 py-0.5 bg-slate-100 rounded-full">{filteredTasks.length}</span>
+                        <span className="text-xs text-slate-400 font-medium px-2 py-0.5 bg-slate-100 rounded-full">{tasks.length}</span>
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar mask-image-r pb-1 md:pb-0">
@@ -259,20 +265,20 @@ export const DeepDives: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : filteredTasks.length === 0 ? (
+                    ) : tasks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">
                             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                                 <SearchIcon className="w-8 h-8 text-slate-300" />
                             </div>
                             <h3 className="text-base font-bold text-slate-600">暂无相关报告</h3>
                             <p className="text-slate-400 text-xs mt-1">尝试调整筛选条件或上传新文档</p>
-                            <button onClick={loadData} className="mt-4 text-indigo-600 font-bold text-xs hover:underline">
-                                刷新列表
+                            <button onClick={() => { setSearchQuery(''); setSelectedCategoryId(null); loadData(); }} className="mt-4 text-indigo-600 font-bold text-xs hover:underline">
+                                重置筛选
                             </button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-12">
-                            {filteredTasks.map((task) => {
+                            {tasks.map((task) => {
                                 const categoryName = categories.find(c => c.id === task.category_id)?.name || '未分类';
                                 return (
                                     <InsightCard

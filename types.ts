@@ -281,10 +281,12 @@ export interface DeepInsightTask {
     id: string;
     file_name: string;
     file_type: string;
+    file_size?: number;
     status: string;
     total_pages: number;
     processed_pages: number;
     category_id?: string;
+    category_name?: string; // New field for display
     created_at: string;
     updated_at: string;
 }

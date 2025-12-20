@@ -1,10 +1,11 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DeepInsightTask } from '../../types';
-import { downloadDeepInsightOriginalPdf, downloadDeepInsightBundle } from '../../api/deepInsight';
+import { downloadDeepInsightOriginalPdf, getDeepInsightPagePreviewUrl } from '../../api/deepInsight';
 import { 
-    CloseIcon, DownloadIcon, DocumentTextIcon, CloudIcon
+    CloseIcon, DownloadIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon,
+    RefreshIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
@@ -12,16 +13,66 @@ interface DeepDiveReaderProps {
     onClose: () => void;
 }
 
-const TechLoader: React.FC = () => (
-    <div className="flex flex-col items-center justify-center gap-4 text-white">
-        <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-        <p className="text-sm font-medium tracking-wide animate-pulse">LOADING DOCUMENT...</p>
-    </div>
-);
+// Single Page Image Component with Lazy Loading behavior
+const PageImage: React.FC<{ docId: string; pageNum: number }> = ({ docId, pageNum }) => {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(([entry]) => {
+            if (entry.isIntersecting) {
+                setIsVisible(true);
+                observer.disconnect();
+            }
+        }, { rootMargin: '200px' }); // Preload when close
+
+        if (ref.current) observer.observe(ref.current);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (!isVisible) return;
+        
+        let active = true;
+        setLoading(true);
+        getDeepInsightPagePreviewUrl(docId, pageNum)
+            .then(url => {
+                if (active) {
+                    if (url) setImageUrl(url);
+                    else setError(true);
+                }
+            })
+            .catch(() => { if (active) setError(true); })
+            .finally(() => { if (active) setLoading(false); });
+
+        return () => { active = false; if (imageUrl) URL.revokeObjectURL(imageUrl); };
+    }, [docId, pageNum, isVisible]);
+
+    return (
+        <div ref={ref} className="w-full mb-4 bg-white shadow-sm relative min-h-[500px] flex items-center justify-center border border-slate-100 rounded-lg overflow-hidden">
+            {loading ? (
+                <div className="flex flex-col items-center gap-2 text-slate-300">
+                    <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                    <span className="text-xs">Loading Page {pageNum}...</span>
+                </div>
+            ) : error ? (
+                <div className="text-xs text-red-400">Page {pageNum} failed to load</div>
+            ) : imageUrl ? (
+                <img src={imageUrl} alt={`Page ${pageNum}`} className="w-full h-auto object-contain block" loading="lazy" />
+            ) : null}
+            
+            {/* Page Number Overlay */}
+            <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded font-mono">
+                {pageNum}
+            </div>
+        </div>
+    );
+};
 
 export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose }) => {
-    const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-    const [isLoadingContent, setIsLoadingContent] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -34,38 +85,9 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         };
     }, []);
 
-    useEffect(() => {
-        if (pdfBlobUrl) {
-            URL.revokeObjectURL(pdfBlobUrl);
-            setPdfBlobUrl(null);
-        }
-
-        const loadContent = async () => {
-            setIsLoadingContent(true);
-            try {
-                // Use original PDF for preview
-                const blob = await downloadDeepInsightOriginalPdf(task.id);
-                const url = URL.createObjectURL(blob);
-                setPdfBlobUrl(url);
-            } catch (error) {
-                console.error("Failed to load content", error);
-            } finally {
-                setIsLoadingContent(false);
-            }
-        };
-
-        loadContent();
-        
-        return () => {
-            if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-        };
-    }, [task.id]);
-
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            // Both map to the same download endpoint in the new API usually, 
-            // but we keep the logic separating "Bundle" vs "Original" concept in API wrapper
             const blob = await downloadDeepInsightOriginalPdf(task.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -82,6 +104,8 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         }
     };
 
+    const pages = Array.from({ length: task.total_pages }, (_, i) => i + 1);
+
     return (
         <div className={`fixed inset-0 z-[100] flex flex-col transition-opacity duration-300 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
             
@@ -90,21 +114,23 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
 
             {/* Header (Floating) */}
             <div className={`absolute top-0 left-0 right-0 z-50 p-4 flex justify-center transition-transform duration-500 ${isMounted ? 'translate-y-0' : '-translate-y-full'}`}>
-                <div className="bg-white/10 backdrop-blur-md border border-white/10 shadow-xl rounded-full px-6 py-3 flex items-center justify-between w-full max-w-4xl gap-4">
+                <div className="bg-white/10 backdrop-blur-md border border-white/10 shadow-xl rounded-full px-4 md:px-6 py-3 flex items-center justify-between w-full max-w-4xl gap-4">
                     <div className="flex items-center gap-3 overflow-hidden">
                         <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white flex-shrink-0">
                             <DocumentTextIcon className="w-4 h-4" />
                         </div>
-                        <span className="text-white font-bold text-sm truncate">{task.file_name}</span>
+                        <div className="flex flex-col overflow-hidden">
+                            <span className="text-white font-bold text-sm truncate">{task.file_name}</span>
+                            <span className="text-white/50 text-xs truncate">{task.total_pages} Pages • {task.file_size ? `${(task.file_size / 1024 / 1024).toFixed(1)} MB` : ''}</span>
+                        </div>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
-                        {/* Desktop Download Button in Header */}
                         <button 
                             onClick={handleDownload}
-                            className="hidden md:flex items-center gap-2 px-4 py-1.5 bg-white text-indigo-900 rounded-full text-xs font-bold hover:bg-indigo-50 transition-colors shadow-sm"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-white text-indigo-900 rounded-full text-xs font-bold hover:bg-indigo-50 transition-colors shadow-sm"
                         >
                             {isDownloading ? <span className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span> : <DownloadIcon className="w-4 h-4" />}
-                            下载
+                            <span className="hidden md:inline">下载 PDF</span>
                         </button>
                         <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
                             <CloseIcon className="w-5 h-5" />
@@ -113,56 +139,31 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 relative z-40 flex items-center justify-center p-4 pt-24 pb-8 h-full">
-                
-                {/* 1. Mobile View (No Iframe, Card Only) */}
-                <div className="md:hidden w-full max-w-sm bg-white rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
-                    <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-                        <DocumentTextIcon className="w-10 h-10 text-indigo-600" />
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-900 mb-2 line-clamp-2">{task.file_name}</h3>
-                    <div className="text-xs text-slate-400 mb-6 bg-slate-50 px-3 py-1 rounded-full">PDF 文档</div>
-                    
-                    <p className="text-sm text-slate-500 mb-8 leading-relaxed">
-                        移动端暂不支持在线预览此 PDF。<br/>请点击下方按钮下载后查看。
-                    </p>
-                    
-                    <button 
-                        onClick={handleDownload}
-                        disabled={isDownloading}
-                        className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center justify-center gap-2"
-                    >
-                        {isDownloading ? (
-                            <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        ) : (
-                            <DownloadIcon className="w-5 h-5" />
-                        )}
-                        <span>{isDownloading ? '正在下载...' : '下载文件'}</span>
-                    </button>
-                </div>
-
-                {/* 2. Desktop View (Iframe) */}
-                <div className="hidden md:block w-full h-full max-w-6xl bg-slate-800 rounded-xl shadow-2xl overflow-hidden border border-white/10 relative">
-                    {isLoadingContent ? (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <TechLoader />
-                        </div>
-                    ) : pdfBlobUrl ? (
-                        <iframe 
-                            src={`${pdfBlobUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                            className="w-full h-full border-none bg-white"
-                            title="PDF Viewer"
-                        />
+            {/* Content Area - Image Based Reader */}
+            <div className="flex-1 relative z-40 flex items-start justify-center pt-24 pb-0 h-full overflow-y-auto custom-scrollbar-dark" onClick={(e) => e.stopPropagation()}>
+                <div className="w-full max-w-3xl px-4 md:px-0 pb-10">
+                    {pages.length > 0 ? (
+                        pages.map(page => (
+                            <PageImage key={page} docId={task.id} pageNum={page} />
+                        ))
                     ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                            <CloudIcon className="w-16 h-16 mb-4 opacity-50" />
-                            <p>无法加载预览，请尝试下载</p>
+                        <div className="flex flex-col items-center justify-center text-slate-500 py-20 bg-white/5 rounded-xl border border-white/10">
+                            <DocumentTextIcon className="w-16 h-16 opacity-20 mb-4" />
+                            <p>该文档暂无预览页面</p>
+                            <button onClick={handleDownload} className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm underline">
+                                尝试下载原文件
+                            </button>
                         </div>
                     )}
                 </div>
-
             </div>
+            
+            <style>{`
+                .custom-scrollbar-dark::-webkit-scrollbar { width: 8px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+            `}</style>
         </div>
     );
 };

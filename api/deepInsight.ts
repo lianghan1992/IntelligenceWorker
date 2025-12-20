@@ -41,10 +41,6 @@ export const deleteDeepInsightUpload = (fileName: string): Promise<{ message: st
     });
 
 export const uploadDeepInsightFiles = (files: File[]): Promise<void> => {
-    // This looks like the legacy separate upload step.
-    // The new flow suggests uploading directly to a tag (point).
-    // We will keep this as is for the Admin > FileManager view if it still uses the old service,
-    // OR we can adapt it to the new service if a default tag is provided.
     const uploadFormData = new FormData();
     files.forEach(f => uploadFormData.append('files', f));
     return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
@@ -53,32 +49,34 @@ export const uploadDeepInsightFiles = (files: File[]): Promise<void> => {
     });
 };
 
-// --- Tasks Core (Mapped to Uploaded Docs) ---
+// --- Tasks Core (Mapped to Uploaded Docs / Published Docs) ---
 
 export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
-    // Map params: category_id -> point_uuid
+    // Mapping params to new API structure
     const apiParams = {
-        ...params,
-        page_size: params.limit,
-        point_uuid: params.category_id
+        page: params.page || 1,
+        page_size: params.limit || 20,
+        point_uuid: params.category_id,
+        keyword: params.search
     };
-    delete apiParams.limit;
-    delete apiParams.category_id;
 
     const query = createApiQuery(apiParams);
-    const res = await apiFetch<{ items: UploadedDocument[], total: number, page: number, page_size: number }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+    // Use the specific endpoint for published docs (completed docs under tags)
+    const res = await apiFetch<{ items: any[], total: number, page: number, page_size: number }>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/docs${query}`);
     
-    // Map UploadedDocument to DeepInsightTask interface for UI compatibility
+    // Map response to DeepInsightTask interface for UI compatibility
     const items: DeepInsightTask[] = res.items.map(doc => ({
         id: doc.uuid,
         file_name: doc.original_filename,
-        file_type: doc.mime_type?.split('/')?.[1]?.toUpperCase() || 'PDF',
+        file_type: doc.original_filename.split('.').pop()?.toUpperCase() || 'PDF',
+        file_size: doc.file_size,
         status: doc.status,
         total_pages: doc.page_count,
-        processed_pages: Math.floor((doc.process_progress || 0) / 100 * doc.page_count),
-        category_id: doc.point_uuid,
-        created_at: doc.created_at,
-        updated_at: doc.created_at // fallback
+        processed_pages: doc.process_progress === 100 ? doc.page_count : 0, 
+        category_id: doc.point_uuid, 
+        category_name: doc.point_name,
+        created_at: doc.publish_date || doc.created_at, // Prefer publish_date
+        updated_at: doc.created_at
     }));
 
     return {
@@ -103,7 +101,6 @@ export const createDeepInsightTask = (fileName: string, category_id?: string): P
 
 // Start processing a task
 export const startDeepInsightTask = (taskId: string): Promise<{ message: string }> =>
-    // New system auto-starts, but we can keep this for compatibility if needed or no-op
     Promise.resolve({ message: "Task started" });
 
 // Convenience: Upload -> Create -> Start (New Flow)
@@ -128,29 +125,25 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         id: doc.uuid,
         file_name: doc.original_filename,
         file_type: doc.mime_type?.split('/')?.[1]?.toUpperCase() || 'PDF',
+        file_size: doc.file_size,
         status: doc.status,
         total_pages: doc.page_count,
         processed_pages: Math.floor((doc.process_progress || 0) / 100 * doc.page_count),
         category_id: doc.point_uuid,
-        created_at: doc.created_at,
+        category_name: doc.point_name,
+        created_at: doc.publish_date || doc.created_at,
         updated_at: doc.created_at
     };
 };
 
 export const getDeepInsightTaskPages = (taskId: string, page = 1, limit = 20): Promise<DeepInsightPagesResponse> =>
-    // Legacy endpoint, might need to implement page listing in new service if needed
-    // For now, fallback to old service or return empty
+    // Legacy endpoint fallback
     apiFetch<DeepInsightPagesResponse>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages${createApiQuery({ page, limit })}`)
     .catch(() => ({ items: [], total: 0 }));
 
-// --- Downloads (Updated Paths) ---
+// --- Downloads & Previews ---
 
 export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: number): Promise<Blob> => {
-    // Note: The new API doc provides preview image, but not explicit single page PDF download yet.
-    // We might need to stick to preview for page-level access or fallback.
-    // Assuming legacy support or update needed on backend. 
-    // Using the preview endpoint for now as a blob? No, preview is PNG.
-    // Let's try to fetch from the legacy path if it still exists, otherwise throw.
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/pdf`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
@@ -160,7 +153,6 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
     return response.blob();
 };
 
-// Fetch HTML content for a specific page
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
     const token = localStorage.getItem('accessToken');
@@ -174,7 +166,6 @@ export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number):
 };
 
 export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> => {
-    // If "bundle" is the full processed result, we might use the download endpoint
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}/download`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
@@ -194,29 +185,35 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
     return response.blob();
 };
 
-// Fetch cover image as Blob and return Object URL
+// Fetch cover image (using page 1 preview)
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
-    // Use the preview endpoint (page 1) as cover
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}/preview/1`;
+    return getDeepInsightPagePreviewUrl(taskId, 1);
+};
+
+// Fetch Page Preview Image (PNG)
+export const getDeepInsightPagePreview = async (docId: string, pageNum: number): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${docId}/preview/${pageNum}`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
     
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Preview failed');
+    return response.blob();
+};
+
+// Helper to get preview URL for an image (blob)
+export const getDeepInsightPagePreviewUrl = async (docId: string, pageNum: number): Promise<string | null> => {
     try {
-        const response = await fetch(url, { headers });
-        if (response.status === 404) return null;
-        if (!response.ok) return null;
-        const blob = await response.blob();
+        const blob = await getDeepInsightPagePreview(docId, pageNum);
         return URL.createObjectURL(blob);
     } catch (e) {
-        console.error("Failed to fetch cover", e);
         return null;
     }
-};
+}
 
 // --- Admin APIs (Stats & Management) ---
 export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
-    // Map to uploaded docs stats logic if available, or mock
     Promise.resolve({ total: 0, completed: 0, failed: 0, processing: 0, pending: 0 });
 
 export const deleteDeepInsightTask = (taskId: string): Promise<{ ok: boolean }> =>
