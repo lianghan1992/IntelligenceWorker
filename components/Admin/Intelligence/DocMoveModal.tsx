@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { DocTag } from '../../../types';
 import { batchUpdateDocsPoint } from '../../../api/intelligence';

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults, getSpiderArticleDetail } from '../../../api/intelligence';
@@ -143,11 +144,11 @@ export const GenericAnalysisManager: React.FC = () => {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     
     // Result State
-    const [results, setResults] = useState<any[]>([]); // Use any[] to handle flexible backend response
+    const [results, setResults] = useState<AnalysisResult[]>([]);
     const [resultPage, setResultPage] = useState(1);
     const [resultTotal, setResultTotal] = useState(0);
     const [filterTemplateId, setFilterTemplateId] = useState('');
-    const [viewingItem, setViewingItem] = useState<any | null>(null);
+    const [viewingItem, setViewingItem] = useState<AnalysisResult | null>(null);
     const [detailArticleUuid, setDetailArticleUuid] = useState<string | null>(null);
 
     // Article Cache (uuid -> Article Detail)
@@ -174,44 +175,31 @@ export const GenericAnalysisManager: React.FC = () => {
         try {
             const params: any = { 
                 page: resultPage, 
-                page_size: 50,
-                template_uuid: filterTemplateId || undefined
+                page_size: 50
             };
-
-            const res: any = await getAnalysisResults(params);
+            // Note: template filtering might be client side or need backend support
             
-            let rawItems: any[] = [];
-            let total = 0;
-
-            if (Array.isArray(res)) {
-                rawItems = res;
-                total = res.length;
-            } else if (res && typeof res === 'object') {
-                if (Array.isArray(res.items)) {
-                    rawItems = res.items;
-                    total = res.total || res.items.length;
-                } else if (Array.isArray(res.data)) {
-                    rawItems = res.data;
-                    total = res.total || res.data.length;
-                }
-            }
-
-            console.log("API Response Items:", rawItems);
+            // New API structure from update: { total, page, page_size, items }
+            const res = await getAnalysisResults(params);
+            
+            const rawItems = res.items || [];
+            const total = res.total || 0;
 
             const processedItems = rawItems.map(item => ({
                 ...item,
-                // Prioritize 'result' field as per user instruction, fallback to others
-                result_json: item.result || item.result_json || item.data || item.output || {},
-                uuid: item.uuid || item.id,
-                article_uuid: item.article_uuid || item.article_id, // Normalize ID
-                template_name: item.template_name || 'Unknown Template',
-                username: item.username || item.user_name || item.user_uuid || 'Unknown User',
-                model_used: item.model_used || 'default',
-                status: item.status || (Object.keys(item.result || item.result_json || {}).length > 0 ? 'completed' : 'pending'),
-                duration: calculateDuration(item.created_at, item.completed_at || item.end_time)
+                // Ensure field compatibility
+                result_json: item.result_json || (item as any).result || {},
+                status: item.status || 'completed',
+                duration: calculateDuration(item.created_at, item.completed_at)
             }));
 
-            setResults(processedItems);
+            // Client-side template filtering if backend doesn't support it yet
+            // (Assuming backend doesn't based on simple endpoint description, but good to check)
+            const filteredItems = filterTemplateId 
+                ? processedItems.filter(i => (i as any).template_uuid === filterTemplateId) // Assuming template_uuid exists in result
+                : processedItems;
+
+            setResults(filteredItems);
             setResultTotal(total);
         } catch (e) {
             console.error("GenericAnalysisManager fetchResults error:", e);
@@ -240,7 +228,6 @@ export const GenericAnalysisManager: React.FC = () => {
                     const detail = await getSpiderArticleDetail(id);
                     return { id, detail };
                 } catch (e) {
-                    // console.error(`Failed to fetch article ${id}`, e);
                     return { id, detail: { title: 'Unknown Article (Load Failed)', uuid: id } };
                 }
             });
@@ -257,7 +244,7 @@ export const GenericAnalysisManager: React.FC = () => {
         };
 
         loadDetails();
-    }, [results]); // Intentionally don't dep on articleCache to avoid loops
+    }, [results]);
 
     // Initial Load
     useEffect(() => {
@@ -387,7 +374,7 @@ export const GenericAnalysisManager: React.FC = () => {
                                         // Retrieve title from cache or fallback
                                         const cachedArticle = articleCache[r.article_uuid];
                                         const displayTitle = cachedArticle ? cachedArticle.title : (r.article_title && r.article_title !== 'Unknown Article' ? r.article_title : r.article_uuid);
-                                        const isCompleted = r.status === 'completed' || r.status === 'success';
+                                        const isCompleted = r.status === 'completed';
                                         
                                         return (
                                             <tr key={r.uuid} className="hover:bg-slate-50 transition-colors">

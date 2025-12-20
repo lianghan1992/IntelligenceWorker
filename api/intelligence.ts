@@ -1,4 +1,5 @@
 
+
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -203,8 +204,9 @@ export const toggleHtmlGeneration = (enabled: boolean): Promise<any> => toggleIn
 export const updateIntelGeminiCookies = (data: any): Promise<any> => 
     apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies`, { method: 'PUT', body: JSON.stringify(data) });
 
+// New endpoint: /intelspider/gemini/status (was checkIntelGeminiStatus)
 export const checkIntelGeminiStatus = (): Promise<{ valid: boolean; message: string }> => 
-    apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/status`);
+    apiFetch<{ valid: boolean; message: string }>(`${INTELSPIDER_SERVICE_PATH}/gemini/status`);
 
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string }> => 
     apiFetch(`${INTELSPIDER_SERVICE_PATH}/gemini/html_gen/toggle`, { method: 'POST', body: JSON.stringify({ enabled }) });
@@ -259,8 +261,9 @@ export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> =>
 }
 
 // Stats
+// New endpoint: /intelspider/analysis/stats (General analysis stats)
 export const getIntelligenceStats = (): Promise<any> => 
-    apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/stats/overview`);
+    apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/analysis/stats`);
 
 // Analysis Templates
 export const createAnalysisTemplate = (data: any): Promise<AnalysisTemplate> => 
@@ -277,31 +280,41 @@ export const updateAnalysisTemplate = (uuid: string, data: any): Promise<Analysi
 export const deleteAnalysisTemplate = (uuid: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates/${uuid}`, { method: 'DELETE' });
 
-export const getAnalysisResults = (params: any): Promise<AnalysisResult[]> => {
+// New endpoint: /intelspider/analysis/tasks (Get analysis results)
+export const getAnalysisResults = (params: any): Promise<{total: number, page: number, page_size: number, items: AnalysisResult[]}> => {
     const query = createApiQuery(params);
-    return apiFetch<AnalysisResult[]>(`${INTELSPIDER_SERVICE_PATH}/analysis/results${query}`);
+    return apiFetch<{total: number, page: number, page_size: number, items: AnalysisResult[]}>(`${INTELSPIDER_SERVICE_PATH}/analysis/tasks${query}`);
 }
 
 export const triggerAnalysis = (articleUuid: string, templateUuid?: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger`, { method: 'POST', body: JSON.stringify({ article_uuid: articleUuid, template_uuid: templateUuid }) });
 
-// Document Management
-export const getUploadedDocs = (params: any): Promise<PaginatedResponse<UploadedDocument>> => {
+// Document Management (Updated to new endpoints)
+
+// Get Uploaded Docs List
+export const getUploadedDocs = (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<UploadedDocument>>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+    return apiFetch<{total: number, page: number, page_size: number, items: UploadedDocument[]}>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
 }
 
-export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<void> => {
+// Get Doc Detail
+export const getUploadedDocDetail = (uuid: string): Promise<UploadedDocument> =>
+    apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
+
+// Upload Docs
+export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<UploadedDocument[]> => {
     const formData = new FormData();
     data.files.forEach(f => formData.append('files', f));
     formData.append('point_uuid', data.point_uuid);
     if (data.publish_date) formData.append('publish_date', data.publish_date);
-    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs`, { method: 'POST', body: formData });
+    return apiFetch<UploadedDocument[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
 }
 
-export const deleteUploadedDoc = (uuid: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
+// Delete Doc
+export const deleteUploadedDoc = (uuid: string): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
 
+// Download Doc
 export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/download`;
     const token = localStorage.getItem('accessToken');
@@ -312,6 +325,8 @@ export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     return response.blob();
 }
 
+// Get Doc Preview (Keeping as legacy if still needed, but not in new API doc list.
+// If it breaks, we should remove usage in UI or update to use download)
 export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview/${page}`;
     const token = localStorage.getItem('accessToken');
@@ -322,20 +337,31 @@ export const getDocPreview = async (uuid: string, page: number): Promise<Blob> =
     return response.blob();
 }
 
+// --- Doc Tags Management (Updated endpoints) ---
+
+// Get All Tags (Points)
 export const getDocTags = (): Promise<DocTag[]> => 
-    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/doc-tags`);
+    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
 
+// Create Tag
 export const createDocTag = (name: string): Promise<DocTag> => 
-    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/doc-tags`, { method: 'POST', body: JSON.stringify({ name }) });
+    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`, { method: 'POST', body: JSON.stringify({ name }) });
 
+// Update Tag
 export const updateDocTag = (uuid: string, name: string): Promise<DocTag> => 
-    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/${uuid}`, { method: 'PUT', body: JSON.stringify({ name }) });
+    apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'PUT', body: JSON.stringify({ name }) });
 
-export const deleteDocTag = (uuid: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/${uuid}`, { method: 'DELETE' });
+// Delete Tag
+export const deleteDocTag = (uuid: string): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'DELETE' });
 
-export const batchUpdateDocsPoint = (data: { old_point_uuid: string, new_point_uuid: string }): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-move`, { method: 'POST', body: JSON.stringify(data) });
+// Search Tags
+export const searchDocTags = (query: string): Promise<DocTag[]> =>
+    apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify({ query }) });
+
+// Batch Move Docs
+export const batchUpdateDocsPoint = (data: { old_point_uuid: string, new_point_uuid: string, doc_uuids?: string[] }): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-update-point`, { method: 'POST', body: JSON.stringify(data) });
 
 // Service Health & Proxies
 export const getServiceHealth = (): Promise<{ status: string }> => 

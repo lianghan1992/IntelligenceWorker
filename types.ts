@@ -1,4 +1,5 @@
 
+
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
 
 export interface User {
@@ -563,20 +564,28 @@ export interface CreateAnalysisTemplateRequest {
     is_active?: boolean;
 }
 
+// Updated based on new API
 export interface AnalysisResult {
     uuid: string;
-    template_uuid: string;
     article_uuid: string;
+    status: string;
     result_json: Record<string, any>;
-    model_used: string;
     created_at: string;
-    article_title?: string; // Enriched
-    template_name?: string; // Enriched
+    
+    // Optional enriched fields (client-side mapping)
+    article_title?: string;
+    template_name?: string;
+    username?: string;
+    model_used?: string;
+    completed_at?: string;
+    duration?: string;
 }
 
+// Updated based on new API
 export interface UploadedDocument {
     uuid: string;
     original_filename: string;
+    title?: string;
     file_size: number;
     mime_type: string;
     page_count: number;
@@ -586,6 +595,13 @@ export interface UploadedDocument {
     created_at: string;
     point_name: string;
     point_uuid?: string;
+    source_name?: string;
+    
+    // Status fields
+    status: string; // 'pending' | 'processing' | 'completed' | 'failed'
+    process_stage?: string; // e.g. 'queued', 'ocr', 'vectorize', 'finished'
+    process_progress?: number;
+    error_message?: string | null;
 }
 
 export interface DocTag {

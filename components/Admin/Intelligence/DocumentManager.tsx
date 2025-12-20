@@ -1,10 +1,11 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
 import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc } from '../../../api/intelligence';
 import { 
     CloudIcon, RefreshIcon, SearchIcon, FilterIcon, CalendarIcon, 
-    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon
+    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon
 } from '../../icons';
 import { DocUploadModal } from './DocUploadModal';
 import { DocMoveModal } from './DocMoveModal';
@@ -25,6 +26,28 @@ const formatSize = (bytes: number) => {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const getStatusBadge = (doc: UploadedDocument) => {
+    const status = doc.status.toLowerCase();
+    const stage = doc.process_stage ? doc.process_stage.toLowerCase() : '';
+    const progress = doc.process_progress || 0;
+
+    if (status === 'completed') {
+        return <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">完成</span>;
+    }
+    if (status === 'failed') {
+        return <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold" title={doc.error_message || ''}>失败</span>;
+    }
+    if (status === 'processing') {
+        return (
+            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-bold flex items-center gap-1">
+                <ClockIcon className="w-3 h-3 animate-pulse" />
+                {stage || '处理中'} {progress}%
+            </span>
+        );
+    }
+    return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">排队中</span>;
 };
 
 export const DocumentManager: React.FC = () => {
@@ -234,17 +257,18 @@ export const DocumentManager: React.FC = () => {
                                     <th className="px-6 py-3 font-medium">文件名</th>
                                     <th className="px-6 py-3 font-medium w-32">大小/类型</th>
                                     <th className="px-6 py-3 font-medium w-40">标签</th>
-                                    <th className="px-6 py-3 font-medium w-24">页数</th>
-                                    <th className="px-6 py-3 font-medium w-40">发布时间</th>
-                                    <th className="px-6 py-3 font-medium w-40">上传时间</th>
-                                    <th className="px-6 py-3 font-medium w-40 text-center">操作</th>
+                                    <th className="px-6 py-3 font-medium w-32 text-center">状态</th>
+                                    <th className="px-6 py-3 font-medium w-24 text-right">页数</th>
+                                    <th className="px-6 py-3 font-medium w-40 text-right">发布时间</th>
+                                    <th className="px-6 py-3 font-medium w-40 text-right">上传时间</th>
+                                    <th className="px-6 py-3 font-medium w-32 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {isLoading && docs.length === 0 ? (
-                                    <tr><td colSpan={7} className="py-20 text-center"><Spinner /></td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center"><Spinner /></td></tr>
                                 ) : docs.length === 0 ? (
-                                    <tr><td colSpan={7} className="py-20 text-center text-gray-400">暂无文档</td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400">暂无文档</td></tr>
                                 ) : (
                                     docs.map(doc => (
                                         <tr key={doc.uuid} className="hover:bg-slate-50 transition-colors group">
@@ -258,9 +282,12 @@ export const DocumentManager: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs border border-indigo-100">{doc.point_name || '未分类'}</span>
                                             </td>
-                                            <td className="px-6 py-4 font-mono text-xs">{doc.page_count} P</td>
-                                            <td className="px-6 py-4 text-xs font-mono">{new Date(doc.publish_date).toLocaleDateString()}</td>
-                                            <td className="px-6 py-4 text-xs font-mono text-gray-400">{new Date(doc.created_at).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                {getStatusBadge(doc)}
+                                            </td>
+                                            <td className="px-6 py-4 font-mono text-xs text-right">{doc.page_count} P</td>
+                                            <td className="px-6 py-4 text-xs font-mono text-right">{new Date(doc.publish_date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 text-xs font-mono text-gray-400 text-right">{new Date(doc.created_at).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                                     <button 
