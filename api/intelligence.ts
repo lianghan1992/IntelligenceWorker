@@ -244,17 +244,7 @@ export const getSourcesAndPoints = (): Promise<any[]> => getSources().then(async
 });
 export const getGenericTasks = (params: any): Promise<any> => getSpiderTasks(params);
 
-// Pending Articles - API doc doesn't explicitly list "Pending Articles" separate endpoints, assuming standard list filtering
-// But if there are specific endpoints from previous context, we might need to adjust or remove if deprecated.
-// Assuming "GET /intelspider/articles" with status filter.
-// Note: Admin components use `getPendingArticles`. We should map this to standard article fetch with status filter if no dedicated endpoint exists.
-// However, the previous code had specific endpoints. If they are removed from doc, we should use standard article list with status filter?
-// Wait, the doc says `GET /intelspider/articles/` items have `status`.
-// But there isn't a `confirm` endpoint in the provided doc. 
-// Assuming legacy endpoints might still exist or we should use generic update?
-// Since user said "use the following latest interfaces", and didn't list pending/confirm, it implies they might be gone or standard article management is used.
-// However, I will keep them but point to what seems most likely or keep as is if not contradicted, 
-// BUT the "ArticleList" error implies we need to fix basic fetching first.
+// Pending Articles
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> => getSpiderPendingArticles(params);
 
 export const getSpiderPendingArticles = (params?: any): Promise<any> => {
@@ -320,14 +310,27 @@ export const triggerAnalysis = (articleUuid: string, templateUuid?: string): Pro
 // Document Management
 
 // Get Uploaded Docs List
-export const getUploadedDocs = (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
+export const getUploadedDocs = async (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
     const query = createApiQuery(params);
-    return apiFetch<{total: number, page: number, page_size: number, items: UploadedDocument[]}>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+    const res = await apiFetch<{total: number, page: number, page_size: number, items: UploadedDocument[]}>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+    // Fix file size unit (KB -> Bytes) for frontend display consistency
+    if (res.items) {
+        res.items = res.items.map(item => ({
+            ...item,
+            file_size: (item.file_size || 0) * 1024
+        }));
+    }
+    return res;
 }
 
 // Get Doc Detail
-export const getUploadedDocDetail = (uuid: string): Promise<UploadedDocument> =>
-    apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
+export const getUploadedDocDetail = async (uuid: string): Promise<UploadedDocument> => {
+    const doc = await apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
+    return {
+        ...doc,
+        file_size: (doc.file_size || 0) * 1024
+    };
+}
 
 // Upload Docs
 export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<UploadedDocument[]> => {
