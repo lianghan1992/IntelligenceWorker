@@ -170,8 +170,18 @@ export const getTodayArticleCount = (): Promise<{ count: number }> =>
 // Search
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<ArticlePublic>> => getArticles(params); 
 
-export const searchSemanticSegments = (data: any): Promise<{ items: InfoItem[], total: number }> => 
-    apiFetch<{ items: InfoItem[], total: number }>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, { method: 'POST', body: JSON.stringify(data) });
+export const searchSemanticSegments = async (data: any): Promise<{ items: InfoItem[], total: number }> => {
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, { method: 'POST', body: JSON.stringify(data) });
+    // Map backend response (article_id) to frontend interface (id)
+    const items = (res.items || []).map((item: any) => ({
+        ...item,
+        id: item.article_id || item.id || '', // Ensure ID exists
+    }));
+    return {
+        items,
+        total: res.total_segments || res.total || 0
+    };
+};
 
 export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => {
     const query = createApiQuery(data); // tags passed as query params in new API
