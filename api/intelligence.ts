@@ -1,3 +1,4 @@
+
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -6,7 +7,7 @@ import {
     LlmSearchTaskItem, GenericPoint, GenericTask,
     PendingArticle, IntelligenceTaskPublic, SpiderTask, IntelLlmTask,
     AnalysisTemplate, AnalysisResult, UploadedDocument, DocTag,
-    SpiderProxy, IntelligenceSourcePublic
+    SpiderProxy, IntelligenceSourcePublic, ArticlePublic
 } from '../types';
 
 // Sources
@@ -106,7 +107,7 @@ export const getSpiderPointTasks = (pointUuid: string, params?: any): Promise<an
 }
 
 // Articles
-export const getArticles = (params: any): Promise<PaginatedResponse<InfoItem>> => {
+export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
     return getSpiderArticles(params).then(res => ({
         ...res,
         items: res.items.map(a => ({
@@ -154,13 +155,13 @@ export const getTodayArticleCount = (): Promise<{ count: number }> =>
     apiFetch<{ count: number }>(`${INTELSPIDER_SERVICE_PATH}/articles/stats/today`);
 
 // Search
-export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<InfoItem>> => getArticles(params); 
+export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<ArticlePublic>> => getArticles(params); 
 
 export const searchSemanticSegments = (data: any): Promise<{ items: InfoItem[], total: number }> => 
     apiFetch<{ items: InfoItem[], total: number }>(`${INTELSPIDER_SERVICE_PATH}/search/semantic`, { method: 'POST', body: JSON.stringify(data) });
 
-export const getArticlesByTags = (data: any): Promise<PaginatedResponse<InfoItem>> => 
-    apiFetch<PaginatedResponse<InfoItem>>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify(data) });
+export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => 
+    apiFetch<PaginatedResponse<ArticlePublic>>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify(data) });
 
 export const searchChunks = (data: any): Promise<{ results: SearchChunkResult[] }> => 
     apiFetch<{ results: SearchChunkResult[] }>(`${INTELSPIDER_SERVICE_PATH}/search/chunks`, { method: 'POST', body: JSON.stringify(data) });
@@ -226,9 +227,9 @@ export const getGenericTasks = (params: any): Promise<any> => getSpiderTasks(par
 // Pending Articles
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> => getSpiderPendingArticles(params);
 
-export const getSpiderPendingArticles = (params?: any): Promise<PaginatedResponse<PendingArticle>> => {
+export const getSpiderPendingArticles = (params?: any): Promise<any> => {
     const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<PendingArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles/pending${query}`);
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending${query}`);
 }
 
 export const confirmPendingArticles = (ids: string[]): Promise<void> => approveSpiderArticles(ids).then(() => {});

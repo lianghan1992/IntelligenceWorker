@@ -101,6 +101,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         try {
             const limit = 20;
             let response;
+            let currentPage = page;
 
             if (queryType === 'sublook' && (lookType === 'industry' || lookType === 'customer')) {
                 const tagResponse = await getArticlesByTags({
@@ -112,29 +113,35 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                 response = {
                     items: tagResponse.items as unknown as InfoItem[],
                     total: tagResponse.total,
-                    page: tagResponse.page,
-                    totalPages: tagResponse.totalPages
                 };
+                currentPage = tagResponse.page;
             }
             else if (queryValue === '*') {
                 const params: any = {
                     page,
                     limit: limit,
                 };
-                response = await searchArticlesFiltered(params);
+                const articleResponse = await searchArticlesFiltered(params);
+                response = {
+                    items: articleResponse.items,
+                    total: articleResponse.total
+                };
+                currentPage = articleResponse.page;
             } else {
-                response = await searchSemanticSegments({
+                const searchResponse = await searchSemanticSegments({
                     query_text: queryValue,
                     page,
                     page_size: limit,
                     similarity_threshold: 0.35
                 });
+                response = searchResponse;
+                // searchSemanticSegments does not return 'page' currently, so assume requested page
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
 
             setArticles(response.items || []);
-            setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
+            setPagination({ page: currentPage, totalPages: calculatedTotalPages, total: response.total });
             
             if (window.innerWidth >= 768) {
                 if (page === 1 && response.items && response.items.length > 0 && !selectedArticleRef.current) {

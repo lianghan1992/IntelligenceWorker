@@ -47,6 +47,7 @@ export const IntelligenceDataManager: React.FC = () => {
                 limit: pagination.limit,
                 ...filters
             });
+            // Ensure compatibility by mapping if necessary or casting
             setArticles(response.items || []);
             setPagination(prev => ({
                 ...prev,
