@@ -227,9 +227,9 @@ export const getGenericTasks = (params: any): Promise<any> => getSpiderTasks(par
 // Pending Articles
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> => getSpiderPendingArticles(params);
 
-export const getSpiderPendingArticles = (params?: any): Promise<any> => {
+export const getSpiderPendingArticles = (params?: any): Promise<PaginatedResponse<PendingArticle>> => {
     const query = createApiQuery(params);
-    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/pending${query}`);
+    return apiFetch<PaginatedResponse<PendingArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles/pending${query}`);
 }
 
 export const confirmPendingArticles = (ids: string[]): Promise<void> => approveSpiderArticles(ids).then(() => {});
@@ -311,6 +311,15 @@ export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     if (!response.ok) throw new Error('Download failed');
     return response.blob();
 }
+
+export const getUploadedDocStatus = (uuid: string): Promise<{
+    uuid: string;
+    status: string;
+    stage: string | null;
+    error_message: string | null;
+    updated_at: string;
+    is_vectorized: boolean;
+}> => apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/status`);
 
 export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview/${page}`;
