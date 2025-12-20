@@ -186,10 +186,16 @@ export const ArticleList: React.FC = () => {
         setIsLoading(true);
         try {
             const res = await getSpiderArticles({ page, limit: 20 });
-            setArticles(res.items);
-            setTotal(res.total);
+            // FIX: Ensure items is an array even if API returns unexpected structure
+            setArticles(Array.isArray(res?.items) ? res.items : []);
+            setTotal(res?.total || 0);
             setSelectedIds(new Set()); // Reset selection on page change
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e); 
+            // FIX: On error, ensure state is valid to prevent crashes
+            setArticles([]);
+            setTotal(0);
+        }
         finally { setIsLoading(false); }
     }, [page]);
 

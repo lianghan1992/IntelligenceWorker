@@ -54,8 +54,12 @@ export const DocumentManager: React.FC = () => {
     const fetchTags = async () => {
         try {
             const res = await getDocTags();
-            setTags(res);
-        } catch (e) { console.error(e); }
+            // FIX: Ensure tags is an array even if API fails silently or returns null
+            setTags(Array.isArray(res) ? res : []);
+        } catch (e) { 
+            console.error(e);
+            setTags([]);
+        }
     };
 
     const fetchDocs = useCallback(async () => {
@@ -69,10 +73,14 @@ export const DocumentManager: React.FC = () => {
                 start_date: startDate ? new Date(startDate).toISOString() : undefined,
                 end_date: endDate ? new Date(endDate).toISOString() : undefined
             });
-            setDocs(res.items);
-            setTotal(res.total);
+            // FIX: Ensure docs is an array even if API returns unexpected structure
+            setDocs(Array.isArray(res?.items) ? res.items : []);
+            setTotal(res?.total || 0);
         } catch (e) {
             console.error(e);
+            // FIX: On error, ensure state is valid to prevent crashes
+            setDocs([]);
+            setTotal(0);
         } finally {
             setIsLoading(false);
         }

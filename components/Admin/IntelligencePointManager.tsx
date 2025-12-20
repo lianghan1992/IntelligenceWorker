@@ -49,8 +49,11 @@ export const IntelligencePointManager: React.FC = () => {
         setError(null);
         try {
             const fetchedSources = await getSources();
+            // FIX: Ensure fetchedSources is an array
+            const safeSources = Array.isArray(fetchedSources) ? fetchedSources : [];
+            
             // Map IntelligenceSourcePublic to SystemSource
-            const mappedSources: SystemSource[] = fetchedSources.map(s => ({
+            const mappedSources: SystemSource[] = safeSources.map(s => ({
                 id: s.id,
                 source_name: s.name || s.source_name || '',
                 points_count: s.points_count || 0,
@@ -61,21 +64,29 @@ export const IntelligencePointManager: React.FC = () => {
             const pointsMap: Record<string, Subscription[]> = {};
             const initialExpanded = new Set<string>();
             
+            // Parallel fetch can fail if one fails, consider Promise.allSettled or try/catch inside map
             await Promise.all(mappedSources.map(async (source) => {
-                const points = await getPoints({ source_name: source.id }); // Using ID for new backend logic if possible, or name
-                // Map IntelligencePointPublic to Subscription
-                pointsMap[source.source_name] = points.map(p => ({
-                    id: p.id,
-                    source_id: p.source_uuid, 
-                    source_name: p.source_name || source.source_name || '',
-                    point_name: p.name || p.point_name || '',
-                    point_url: p.url || p.point_url || '',
-                    cron_schedule: p.cron_schedule,
-                    is_active: p.is_active,
-                    url_filters: p.url_filters,
-                    extra_hint: p.extra_hint
-                }));
-                initialExpanded.add(source.source_name);
+                try {
+                    const points = await getPoints({ source_name: source.id });
+                    // FIX: Ensure points is an array
+                    const safePoints = Array.isArray(points) ? points : [];
+                    
+                    pointsMap[source.source_name] = safePoints.map(p => ({
+                        id: p.id,
+                        source_id: p.source_uuid, 
+                        source_name: p.source_name || source.source_name || '',
+                        point_name: p.name || p.point_name || '',
+                        point_url: p.url || p.point_url || '',
+                        cron_schedule: p.cron_schedule,
+                        is_active: p.is_active,
+                        url_filters: p.url_filters,
+                        extra_hint: p.extra_hint
+                    }));
+                    initialExpanded.add(source.source_name);
+                } catch (err) {
+                    console.warn(`Failed to fetch points for ${source.source_name}`, err);
+                    pointsMap[source.source_name] = [];
+                }
             }));
             
             setPointsBySource(pointsMap);

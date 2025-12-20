@@ -11,19 +11,23 @@ import {
 } from '../types';
 
 // Sources
-export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSources().then(res => res.map(s => ({
-    id: s.uuid,
-    uuid: s.uuid,
-    name: s.name,
-    source_name: s.name,
-    main_url: s.main_url,
-    total_points: 0,
-    total_articles: 0,
-    points_count: 0,
-    articles_count: 0,
-    created_at: '',
-    updated_at: ''
-})));
+export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSources().then(res => {
+    // Defensive check: ensure res is an array
+    if (!Array.isArray(res)) return [];
+    return res.map(s => ({
+        id: s.uuid,
+        uuid: s.uuid,
+        name: s.name,
+        source_name: s.name,
+        main_url: s.main_url,
+        total_points: 0,
+        total_articles: 0,
+        points_count: 0,
+        articles_count: 0,
+        created_at: '',
+        updated_at: ''
+    }));
+});
 
 export const getSpiderSources = (): Promise<SpiderSource[]> => 
     apiFetch<SpiderSource[]>(`${INTELSPIDER_SERVICE_PATH}/sources`);
@@ -39,24 +43,28 @@ export const getPoints = (params?: { source_name?: string }): Promise<Intelligen
     // Legacy support: params.source_name is effectively source_uuid in current context
     const sourceId = params?.source_name;
     if (!sourceId) return Promise.resolve([]);
-    return getSpiderPoints(sourceId).then(res => res.map(p => ({
-        id: p.uuid,
-        uuid: p.uuid,
-        source_uuid: p.source_uuid,
-        source_name: p.source_name,
-        name: p.name,
-        url: p.url,
-        point_name: p.name,
-        point_url: p.url,
-        cron_schedule: p.cron_schedule,
-        is_active: p.is_active,
-        url_filters: [], 
-        extra_hint: '',
-        created_at: '',
-        updated_at: '',
-        status: p.is_active ? 'active' : 'inactive',
-        initial_pages: p.initial_pages
-    })));
+    return getSpiderPoints(sourceId).then(res => {
+        // Defensive check
+        if (!Array.isArray(res)) return [];
+        return res.map(p => ({
+            id: p.uuid,
+            uuid: p.uuid,
+            source_uuid: p.source_uuid,
+            source_name: p.source_name,
+            name: p.name,
+            url: p.url,
+            point_name: p.name,
+            point_url: p.url,
+            cron_schedule: p.cron_schedule,
+            is_active: p.is_active,
+            url_filters: [], 
+            extra_hint: '',
+            created_at: '',
+            updated_at: '',
+            status: p.is_active ? 'active' : 'inactive',
+            initial_pages: p.initial_pages
+        }));
+    });
 };
 
 export const getSpiderPoints = (sourceUuid: string): Promise<SpiderPoint[]> => 
@@ -110,7 +118,7 @@ export const getSpiderPointTasks = (pointUuid: string, params?: any): Promise<an
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
     return getSpiderArticles(params).then(res => ({
         ...res,
-        items: res.items.map(a => ({
+        items: (res.items || []).map(a => ({
             id: a.id,
             title: a.title,
             content: a.content,
@@ -217,8 +225,14 @@ export const createGenericPoint = (data: any): Promise<void> => createSpiderPoin
 export const updateGenericPoint = (uuid: string, data: any): Promise<void> => updateSpiderPoint(uuid, data).then(() => {});
 export const getSourcesAndPoints = (): Promise<any[]> => getSources().then(async sources => {
     const sourcesWithPoints = await Promise.all(sources.map(async s => {
-        const points = await getSpiderPoints(s.uuid);
-        return { ...s, points };
+        // Defensive: handle potential errors in getSpiderPoints individually
+        try {
+            const points = await getSpiderPoints(s.uuid);
+            return { ...s, points };
+        } catch (e) {
+            console.error(`Failed to fetch points for source ${s.uuid}`, e);
+            return { ...s, points: [] };
+        }
     }));
     return sourcesWithPoints;
 });
