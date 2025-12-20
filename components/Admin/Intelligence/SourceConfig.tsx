@@ -44,18 +44,12 @@ export const SourceConfig: React.FC = () => {
         setIsLoadingSources(true);
         try {
             const res = await getSpiderSources();
-            // FIX: Ensure sources is an array
-            const safeRes = Array.isArray(res) ? res : [];
-            setSources(safeRes);
-            if (safeRes.length > 0 && !selectedSource) {
-                setSelectedSource(safeRes[0]);
+            setSources(res);
+            if (res.length > 0 && !selectedSource) {
+                setSelectedSource(res[0]);
             }
-        } catch (e) { 
-            console.error(e);
-            setSources([]);
-        } finally { 
-            setIsLoadingSources(false); 
-        }
+        } catch (e) { console.error(e); }
+        finally { setIsLoadingSources(false); }
     }, [selectedSource]);
 
     const fetchPoints = useCallback(async () => {
@@ -66,14 +60,9 @@ export const SourceConfig: React.FC = () => {
         setIsLoadingPoints(true);
         try {
             const res = await getSpiderPoints(selectedSource.uuid);
-            // FIX: Ensure points is an array
-            setPoints(Array.isArray(res) ? res : []);
-        } catch (e) { 
-            console.error(e);
-            setPoints([]);
-        } finally { 
-            setIsLoadingPoints(false); 
-        }
+            setPoints(res);
+        } catch (e) { console.error(e); }
+        finally { setIsLoadingPoints(false); }
     }, [selectedSource]);
 
     useEffect(() => { fetchSources(); }, [fetchSources]);
