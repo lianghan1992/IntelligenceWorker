@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { DeepInsightTask } from '../../types';
 import { downloadDeepInsightOriginalPdf, downloadDeepInsightBundle } from '../../api/deepInsight';
@@ -42,9 +43,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         const loadContent = async () => {
             setIsLoadingContent(true);
             try {
-                // Determine whether to show Bundle or Original
-                // Usually we want to show original for preview if possible, 
-                // but bundle if processed. Let's stick to original for preview consistency.
+                // Use original PDF for preview
                 const blob = await downloadDeepInsightOriginalPdf(task.id);
                 const url = URL.createObjectURL(blob);
                 setPdfBlobUrl(url);
@@ -65,17 +64,17 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            const blob = task.status === 'completed' 
-                ? await downloadDeepInsightBundle(task.id)
-                : await downloadDeepInsightOriginalPdf(task.id);
-                
+            // Both map to the same download endpoint in the new API usually, 
+            // but we keep the logic separating "Bundle" vs "Original" concept in API wrapper
+            const blob = await downloadDeepInsightOriginalPdf(task.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${task.file_name}${task.status === 'completed' ? '_full_report.pdf' : '.pdf'}`;
+            a.download = `${task.file_name}`;
             document.body.appendChild(a);
             a.click();
             a.remove();
+            window.URL.revokeObjectURL(url);
         } catch (e) {
             alert('下载失败，请稍后重试');
         } finally {
