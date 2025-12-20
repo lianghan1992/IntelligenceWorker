@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
@@ -59,11 +58,13 @@ const getTheme = (id: string) => {
 };
 
 const formatFileSize = (bytes?: number) => {
-    if (bytes === undefined || bytes === 0) return '0 B';
+    if (bytes === undefined || bytes === null || bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    // Prevent index out of bounds for very large numbers
+    const safeIndex = Math.min(i, sizes.length - 1);
+    return parseFloat((bytes / Math.pow(k, safeIndex)).toFixed(1)) + ' ' + sizes[safeIndex];
 };
 
 // --- Component: Insight Card (Reference Style) ---
@@ -105,7 +106,7 @@ const InsightCard: React.FC<{
                             {displayCategory}
                         </span>
                         <div className="flex items-center gap-2">
-                             {task.file_size && (
+                             {task.file_size !== undefined && (
                                 <span className="text-[10px] font-mono text-white/50 tracking-wider">
                                     {formatFileSize(task.file_size)}
                                 </span>
@@ -206,8 +207,8 @@ export const DeepDives: React.FC = () => {
                         <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-sm">
                             <DocumentTextIcon className="w-5 h-5" />
                         </div>
-                        <h1 className="text-lg font-bold text-slate-800 tracking-tight">深度洞察</h1>
-                        <span className="text-xs text-slate-400 font-medium px-2 py-0.5 bg-slate-100 rounded-full">{tasks.length}</span>
+                        {/* Title Removed as requested */}
+                        <span className="text-xs text-slate-400 font-medium px-2 py-0.5 bg-slate-100 rounded-full">{tasks.length} 份报告</span>
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar mask-image-r pb-1 md:pb-0">
