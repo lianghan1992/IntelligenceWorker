@@ -207,7 +207,7 @@ export const DeepDives: React.FC = () => {
                         <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-sm">
                             <DocumentTextIcon className="w-5 h-5" />
                         </div>
-                        {/* Title Removed as requested */}
+                        {/* Removed Title as requested */}
                         <span className="text-xs text-slate-400 font-medium px-2 py-0.5 bg-slate-100 rounded-full">{tasks.length} 份报告</span>
                     </div>
 

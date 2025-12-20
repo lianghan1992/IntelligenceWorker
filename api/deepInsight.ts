@@ -69,7 +69,8 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         id: doc.uuid,
         file_name: doc.original_filename,
         file_type: doc.original_filename.split('.').pop()?.toUpperCase() || 'PDF',
-        file_size: doc.file_size,
+        // Backend returns KB, frontend expects Bytes for formatting. Multiply by 1024.
+        file_size: (doc.file_size || 0) * 1024,
         status: doc.status,
         total_pages: doc.page_count,
         processed_pages: doc.process_progress === 100 ? doc.page_count : 0, 
@@ -125,7 +126,8 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         id: doc.uuid,
         file_name: doc.original_filename,
         file_type: doc.mime_type?.split('/')?.[1]?.toUpperCase() || 'PDF',
-        file_size: doc.file_size,
+        // Backend returns KB, frontend expects Bytes.
+        file_size: (doc.file_size || 0) * 1024,
         status: doc.status,
         total_pages: doc.page_count,
         processed_pages: Math.floor((doc.process_progress || 0) / 100 * doc.page_count),
