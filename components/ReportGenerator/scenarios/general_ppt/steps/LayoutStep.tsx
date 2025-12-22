@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
@@ -88,18 +88,64 @@ const ZoomModal: React.FC<{
     html: string;
     onClose: () => void;
 }> = ({ html, onClose }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
+    
+    // Standard PPT Resolution base (HD)
+    const BASE_WIDTH = 1280;
+    const BASE_HEIGHT = 720;
+
+    // Calculate scale to fit the viewport while maintaining 16:9
+    useLayoutEffect(() => {
+        const updateScale = () => {
+            if (containerRef.current) {
+                // Available space (padding included in calculation)
+                const availableWidth = window.innerWidth * 0.9; 
+                const availableHeight = window.innerHeight * 0.9;
+                
+                const scaleX = availableWidth / BASE_WIDTH;
+                const scaleY = availableHeight / BASE_HEIGHT;
+                
+                // Fit within both dimensions
+                setScale(Math.min(scaleX, scaleY, 1.5)); // Max scale 1.5x
+            }
+        };
+        
+        updateScale();
+        window.addEventListener('resize', updateScale);
+        return () => window.removeEventListener('resize', updateScale);
+    }, []);
+
     return (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
-            <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
-                <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300" onClick={onClose}>
+            {/* Close Button - Fixed to top right */}
+            <button 
+                onClick={onClose}
+                className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:rotate-90 backdrop-blur-sm"
+            >
+                <CloseIcon className="w-8 h-8" />
+            </button>
+
+            {/* Container for the scaled iframe */}
+            <div 
+                ref={containerRef}
+                className="relative flex items-center justify-center transition-all duration-300"
+                onClick={e => e.stopPropagation()}
+                style={{
+                    width: `${BASE_WIDTH * scale}px`,
+                    height: `${BASE_HEIGHT * scale}px`
+                }}
+            >
+                {/* The actual content box */}
+                <div 
+                    className="absolute bg-white shadow-2xl rounded-lg overflow-hidden origin-center"
+                    style={{
+                        width: `${BASE_WIDTH}px`,
+                        height: `${BASE_HEIGHT}px`,
+                        transform: `scale(${scale})`,
+                    }}
                 >
-                    <CloseIcon className="w-8 h-8" />
-                </button>
-                {/* 16:9 Container limited by screen size */}
-                <div className="aspect-video w-full max-w-[90vw] max-h-[90vh] bg-white rounded-lg shadow-2xl overflow-hidden relative">
-                     <iframe 
+                    <iframe 
                         srcDoc={html} 
                         className="w-full h-full border-none bg-white" 
                         title="Full Preview"
@@ -198,7 +244,7 @@ const PageCard: React.FC<{
                             <span className="text-[8px] text-slate-400">Rendering HTML...</span>
                         </div>
                         <div ref={codeScrollRef} className="flex-1 overflow-hidden relative">
-                             <div className="absolute inset-0 overflow-y-auto custom-scrollbar-dark text-[8px] leading-relaxed break-all text-green-400/80">
+                             <div className="absolute inset-0 overflow-y-auto custom-scrollbar-dark text-[10px] leading-relaxed break-all text-green-400/90 font-mono">
                                  {streamHtml || <span className="opacity-50 text-slate-500">// Waiting for stream...</span>}
                                  <span className="inline-block w-1.5 h-3 bg-green-500 ml-0.5 animate-pulse align-middle"></span>
                              </div>
@@ -290,21 +336,22 @@ export const LayoutStep: React.FC<{
                     buffer += chunk;
                     const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     
-                    // Streaming HTML Logic: Extract partial "html" field value to show coding effect
+                    // Improved Streaming HTML Extraction:
+                    // Look for the "html" key and capture everything after it as partial content
                     const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
                     if (match && match.groups?.content) {
                         const rawContent = match.groups.content;
-                        // Light unescape for display
-                        const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ');
+                        // Light unescape for display in the "terminal"
+                        const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ').replace(/\\\\/g, '\\');
                         setCurrentStreamingHtml(displayHtml);
+                    } else if (buffer.length > 100 && !jsonPart && !thought) {
+                         // Fallback: if no valid JSON structure yet but buffer is growing, show raw buffer
+                         // This happens if the model output is raw text or malformed JSON start
+                         setCurrentStreamingHtml(buffer.slice(-500));
                     }
                     
-                    // If we have thought/reasoning but no JSON yet, show reasoning modal
-                    // Once JSON starts, we assume "Coding" phase and close modal or rely on card view
-                    if (!jsonPart && thought.trim().length > 0) {
-                       // setIsThinkingOpen(true); // Optional: Auto-open reasoning
-                    } else if (jsonPart) {
-                       setIsThinkingOpen(false);
+                    if (jsonPart && jsonPart.trim().length > 20) {
+                        setIsThinkingOpen(false);
                     }
                 },
                 () => {
@@ -324,13 +371,7 @@ export const LayoutStep: React.FC<{
                 },
                 undefined,
                 (reasoning) => {
-                    // Update reasoning stream for modal
                     setReasoningStream(prev => prev + reasoning);
-                    // If backend sends reasoning events, we can show them
-                    if (reasoning.trim().length > 0 && !currentStreamingHtml) {
-                        // Only auto-open if not already streaming HTML
-                        // setIsThinkingOpen(true); 
-                    }
                 }
             );
         };
@@ -348,8 +389,6 @@ export const LayoutStep: React.FC<{
     const handleExportPdf = async () => {
         setIsDownloading(true);
         try {
-            let allStyles = '';
-            // Just join HTMLs. The API handles page breaks via CSS usually or we can inject separator
             const processedPages = pages
                 .filter(p => p.status === 'done' && p.html_content)
                 .map(p => p.html_content!);
