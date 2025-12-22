@@ -85,6 +85,8 @@ export const ReportGenerator: React.FC = () => {
         try {
             const detail = await getStratifyTaskDetail(taskId);
             setTask(detail);
+            // 关键修复：确保使用 task 中的 scenario_name 来查找组件，即使它在本地 scenarios 列表里没加载到
+            // 后端返回的可能是 "tech_assessment"，这里直接使用它，registry 会处理映射
             setSelectedScenarioId(detail.scenario_name); 
             setViewState('workflow');
         } catch (e) {
@@ -93,12 +95,24 @@ export const ReportGenerator: React.FC = () => {
     };
 
     const renderScenarioWorkflow = () => {
+        // 允许 tech_assessment 通过
         const isSpecialized = isTechEvalScenario(selectedScenarioId);
+        
         // 如果是从历史记录加载，task 会有值。如果是新建且 specialized，task 可能初始为 null
         if (!task && !isSpecialized) return null;
         
         const ScenarioComponent = getScenarioComponent(selectedScenarioId);
-        if (!ScenarioComponent) return <div className="p-10 text-center text-gray-500">场景组件未找到 ({selectedScenarioId})</div>;
+        
+        if (!ScenarioComponent) {
+            return (
+                <div className="flex items-center justify-center h-full flex-col gap-4">
+                    <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+                        场景组件未找到 ({selectedScenarioId})
+                    </div>
+                    <button onClick={() => setViewState('picker')} className="text-sm text-blue-600 underline">返回首页</button>
+                </div>
+            );
+        }
 
         return (
             <ScenarioComponent 

@@ -27,15 +27,32 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
         if (initialTask) {
             setActiveTaskId(initialTask.id);
             setActiveSessionId(initialTask.session_id);
+            // 恢复输入框内容
             if (initialTask.input_text) setTargetTech(initialTask.input_text);
             
-            // 简单状态恢复逻辑
-            if (initialTask.status === 'completed') {
-                // 如果有最终结果，尝试进入 review 状态
-                // 这里假设 task 上下文或最后阶段包含结果。实际需要根据 phases 内容深度恢复
-                setWorkflowState('review'); 
-            } else if (initialTask.status === 'processing') {
-                setWorkflowState('processing');
+            // 深度状态恢复逻辑
+            if (initialTask.result?.phases) {
+                // 检查是否有任何阶段已开始
+                const hasStarted = Object.keys(initialTask.result.phases).length > 0;
+                
+                if (hasStarted) {
+                    // 如果有 phases 数据，说明已经进入处理流程，跳转到 processing 或 review
+                    // 检查是否所有关键步骤都已完成
+                    const phases = initialTask.result.phases;
+                    const stepsDone = 
+                        phases['03_TriggerGeneration_step1']?.status === 'completed' &&
+                        phases['03_TriggerGeneration_step2']?.status === 'completed' &&
+                        phases['03_TriggerGeneration_step3']?.status === 'completed';
+
+                    if (stepsDone) {
+                        setWorkflowState('review');
+                    } else {
+                        setWorkflowState('processing');
+                    }
+                }
+            } else if (initialTask.status === 'completed') {
+                 // 兜底：如果任务状态是 completed，即使没有 phases 数据（旧数据），也尝试进入 review
+                 setWorkflowState('review');
             }
         }
     }, [initialTask]);
@@ -108,6 +125,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                         workflowState={workflowState}
                         setWorkflowState={setWorkflowState}
                         onReviewComplete={handleReviewComplete}
+                        // 传入 initialTask 以供 Processor 内部恢复步骤状态
+                        initialTask={initialTask}
                     />
                 )}
 
