@@ -205,16 +205,38 @@ export const WorkflowProcessor: React.FC<{
         updateStep(stepId, { status: 'running' });
 
         return new Promise<void>((resolve, reject) => {
-            let buffer = '';
+            let fullContentBuffer = ''; // 用于累积 data.content 的所有内容
+            let apiReasoningBuffer = ''; // 用于累积 data.reasoning 的所有内容
+
             streamGenerate(
                 { prompt_name: promptName, variables: vars, scenario, session_id: sessionId, model_override: TARGET_MODEL },
                 (chunk) => {
-                    buffer += chunk;
-                    const content = extractContent(buffer, partKey);
-                    if (content) updateStep(stepId, { content });
+                    // onData: 接收 content 字段
+                    fullContentBuffer += chunk;
+                    
+                    // 1. 尝试从 content 缓冲区中分离出“思考内容”和“JSON部分”
+                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(fullContentBuffer);
+                    
+                    // 2. 尝试从 JSON 部分提取目标字段 (fallback to full buffer if regex allows partial match)
+                    const targetContent = extractContent(jsonPart || fullContentBuffer, partKey);
+                    
+                    // 3. 更新步骤状态 (合并 API reasoning 和 Content 中的 thought)
+                    setSteps(prev => prev.map(s => {
+                        if (s.id === stepId) {
+                            return { 
+                                ...s, 
+                                reasoning: apiReasoningBuffer + contentThought,
+                                content: targetContent || s.content
+                            };
+                        }
+                        return s;
+                    }));
                 },
                 () => {
-                    let finalContent = extractContent(buffer, partKey);
+                    // onDone
+                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(fullContentBuffer);
+                    let finalContent = extractContent(jsonPart || fullContentBuffer, partKey);
+                    
                     if (partKey === 'p4' && finalContent) {
                         try {
                             const refs = JSON.parse(finalContent);
@@ -223,7 +245,13 @@ export const WorkflowProcessor: React.FC<{
                             finalContent = md;
                         } catch (e) { }
                     }
-                    updateStep(stepId, { status: 'completed', content: finalContent || 'Completed' });
+
+                    updateStep(stepId, { 
+                        status: 'completed', 
+                        content: finalContent || 'Completed',
+                        reasoning: apiReasoningBuffer + contentThought
+                    });
+                    
                     if (partKey && finalContent) setSections(prev => ({ ...prev, [partKey]: finalContent }));
                     resolve();
                 },
@@ -232,15 +260,22 @@ export const WorkflowProcessor: React.FC<{
                     resolve(); 
                 },
                 (sid) => { if (sid) setSessionId(sid); },
-                (reasoning) => {
-                    setSteps(currentSteps => {
-                        return currentSteps.map(s => {
-                            if (s.id === stepId) {
-                                return { ...s, reasoning: s.reasoning + reasoning };
-                            }
-                            return s;
-                        });
-                    });
+                (reasoningChunk) => {
+                    // onReasoning: 接收 reasoning 字段 (DeepSeek-R1 style)
+                    apiReasoningBuffer += reasoningChunk;
+                    
+                    // 我们需要重新计算 contentThought，因为 fullContentBuffer 可能没有变，但需要保持 reasoning 的同步更新
+                    const { thought: contentThought } = extractThoughtAndJson(fullContentBuffer);
+                    
+                    setSteps(prev => prev.map(s => {
+                        if (s.id === stepId) {
+                            return { 
+                                ...s, 
+                                reasoning: apiReasoningBuffer + contentThought 
+                            };
+                        }
+                        return s;
+                    }));
                 }
             );
         });
