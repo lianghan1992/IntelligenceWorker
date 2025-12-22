@@ -7,9 +7,12 @@ import {
     LightningBoltIcon,
     ServerIcon,
     ClockIcon,
-    RefreshIcon
+    RefreshIcon,
+    DocumentTextIcon,
+    TrashIcon
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
+import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
 import { getScenarioFiles, getScenarios } from '../../../../../api/stratify';
 import { StratifyScenarioFile } from '../../../../../types';
 
@@ -42,7 +45,14 @@ export const InputCollector: React.FC<{
 }> = ({ scenarioId, initialTech, initialMaterials, isProcessing, onStart }) => {
     const [targetTech, setTargetTech] = useState(initialTech);
     const [manualMaterials, setManualMaterials] = useState(initialMaterials);
+    
+    // Additional Context State
+    const [referenceFiles, setReferenceFiles] = useState<Array<{ name: string; url: string; type: string }>>([]);
+    const [vectorSnippets, setVectorSnippets] = useState<Array<{ title: string; content: string }>>([]);
+
+    // Modals
     const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
+    const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
     
     // Model Config State
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
@@ -75,7 +85,25 @@ export const InputCollector: React.FC<{
 
     const handleStart = () => {
         if (!targetTech.trim()) return;
-        onStart({ targetTech, materials: manualMaterials });
+
+        // Combine all materials into one string for the Agent context
+        let combinedMaterials = manualMaterials;
+
+        if (vectorSnippets.length > 0) {
+            combinedMaterials += "\n\n--- 知识库检索参考 ---\n";
+            vectorSnippets.forEach((s, i) => {
+                combinedMaterials += `\n[Reference ${i + 1}: ${s.title}]\n${s.content}\n`;
+            });
+        }
+
+        if (referenceFiles.length > 0) {
+            combinedMaterials += "\n\n--- 附件文件参考 ---\n";
+            referenceFiles.forEach((f, i) => {
+                combinedMaterials += `\n[File ${i + 1}: ${f.name}] URL: ${f.url}\n`;
+            });
+        }
+
+        onStart({ targetTech, materials: combinedMaterials });
     };
 
     // Filter interesting phases for display
@@ -128,32 +156,67 @@ export const InputCollector: React.FC<{
                                 value={targetTech}
                                 onChange={e => setTargetTech(e.target.value)}
                                 placeholder="请输入具体的技术名称，例如：'小米SU7 800V 高压平台' 或 '特斯拉 FSD V12 端到端算法'..."
-                                className="w-full h-32 p-5 text-lg md:text-xl font-bold text-slate-800 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed font-sans bg-transparent"
+                                className="w-full h-32 p-5 text-sm md:text-base text-slate-600 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed font-sans bg-transparent"
                                 disabled={isProcessing}
                             />
                         </div>
 
                         {/* 2. Materials Input */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1 focus-within:ring-4 focus-within:ring-emerald-100 focus-within:border-emerald-300 transition-all">
-                            <div className="p-3 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center">
+                            <div className="p-3 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center flex-wrap gap-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 ml-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></span>
                                     Context & Data (参考资料)
                                 </label>
-                                <button 
-                                    onClick={() => setIsVectorModalOpen(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
-                                >
-                                    <PuzzleIcon className="w-3.5 h-3.5" /> 知识库检索
-                                </button>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setIsVectorModalOpen(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
+                                    >
+                                        <PuzzleIcon className="w-3.5 h-3.5" /> 知识库检索
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsLlmModalOpen(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
+                                    >
+                                        <SparklesIcon className="w-3.5 h-3.5" /> AI 检索
+                                    </button>
+                                </div>
                             </div>
-                            <textarea 
-                                value={manualMaterials}
-                                onChange={e => setManualMaterials(e.target.value)}
-                                placeholder="在此处粘贴相关技术参数、新闻报道或竞品分析资料。资料越详实，报告越深入..."
-                                className="w-full h-48 p-5 text-sm md:text-base text-slate-600 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed font-sans bg-transparent"
-                                disabled={isProcessing}
-                            />
+                            
+                            <div className="flex flex-col h-full">
+                                <textarea 
+                                    value={manualMaterials}
+                                    onChange={e => setManualMaterials(e.target.value)}
+                                    placeholder="在此处粘贴相关技术参数、新闻报道或竞品分析资料。资料越详实，报告越深入..."
+                                    className="w-full h-32 p-5 text-sm md:text-base text-slate-600 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed font-sans bg-transparent"
+                                    disabled={isProcessing}
+                                />
+                                
+                                {/* Selected Reference Chips */}
+                                {(vectorSnippets.length > 0 || referenceFiles.length > 0) && (
+                                    <div className="px-5 pb-4 flex flex-wrap gap-2 animate-in fade-in">
+                                        {referenceFiles.map((file, i) => (
+                                            <div key={`file-${i}`} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
+                                                <DocumentTextIcon className="w-3.5 h-3.5" />
+                                                <span className="max-w-[120px] truncate" title={file.name}>{file.name}</span>
+                                                <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-indigo-900 ml-1">
+                                                    <TrashIcon className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {vectorSnippets.map((snip, i) => (
+                                            <div key={`snip-${i}`} className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
+                                                <PuzzleIcon className="w-3.5 h-3.5" />
+                                                <span className="max-w-[120px] truncate" title={snip.title}>{snip.title}</span>
+                                                <button onClick={() => setVectorSnippets(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-emerald-900 ml-1">
+                                                    <TrashIcon className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                     </div>
@@ -248,7 +311,13 @@ export const InputCollector: React.FC<{
             <VectorSearchModal 
                 isOpen={isVectorModalOpen} 
                 onClose={() => setIsVectorModalOpen(false)} 
-                onAddSnippet={(s) => setManualMaterials(prev => (prev ? prev + "\n\n" : "") + `【参考资料：${s.title}】\n${s.content}`)} 
+                onAddSnippet={(s) => setVectorSnippets(prev => [...prev, s])}
+            />
+
+            <LlmRetrievalModal
+                isOpen={isLlmModalOpen}
+                onClose={() => setIsLlmModalOpen(false)}
+                onSuccess={(file) => setReferenceFiles(prev => [...prev, file])}
             />
         </div>
     );

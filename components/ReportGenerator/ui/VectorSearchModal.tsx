@@ -22,7 +22,8 @@ export const VectorSearchModal: React.FC<VectorSearchModalProps> = ({ isOpen, on
         try {
             const res = await searchSemanticSegments({
                 query_text: query,
-                page_size: 20,
+                page_size: 50, // Updated to 50
+                max_segments: 50, // Explicitly set max segments
                 similarity_threshold: 0.3,
             });
             setResults(res.items || []);
