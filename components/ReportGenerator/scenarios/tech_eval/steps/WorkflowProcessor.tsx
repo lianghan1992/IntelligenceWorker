@@ -6,7 +6,7 @@ import {
     BrainIcon, CheckIcon, SparklesIcon, 
     LockClosedIcon, BeakerIcon, 
     ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon,
-    PlayIcon, ClockIcon, ChartIcon, RefreshIcon
+    PlayIcon, ClockIcon, ChartIcon, RefreshIcon, PencilIcon
 } from '../../../../icons';
 import { WorkflowState } from '../TechEvalScenario';
 
@@ -90,17 +90,31 @@ const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ co
 };
 
 // 2. 结果预览卡片
-const ResultCard: React.FC<{ content: string }> = ({ content }) => {
+const ResultCard: React.FC<{ content: string; isRunning?: boolean }> = ({ content, isRunning }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // 自动滚动到底部逻辑
+    useEffect(() => {
+        if (isRunning && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [content, isRunning]);
+
     if (!content) return null;
+
     return (
         <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-50">
                 <DocumentTextIcon className="w-4 h-4 text-indigo-600" />
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Generated Output</span>
             </div>
-            {/* 修改：移除 line-clamp，改为固定最大高度 + 滚动条 */}
-            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto custom-scrollbar p-1">
+            {/* 修改：移除 line-clamp，改为固定最大高度 + 滚动条，并添加 ref 用于自动滚动 */}
+            <div 
+                ref={scrollRef}
+                className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto custom-scrollbar p-1 scroll-smooth"
+            >
                 {content}
+                {isRunning && <span className="inline-block w-1.5 h-4 bg-indigo-500 ml-1 align-middle animate-pulse"></span>}
             </div>
             <div className="mt-2 text-center">
                  <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded">Markdown Preview</span>
@@ -141,7 +155,8 @@ export const WorkflowProcessor: React.FC<{
     // Review Logic
     const [activeEditSection, setActiveEditSection] = useState<keyof ReportSections | null>(null);
     const [revisionInput, setRevisionInput] = useState('');
-    const [isRevising, setIsRevising] = useState(false);
+    // 使用 revisingKey 来精确控制哪个部分正在被 AI 修改
+    const [revisingKey, setRevisingKey] = useState<keyof ReportSections | null>(null);
     
     const hasStarted = useRef(false);
     const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -150,11 +165,9 @@ export const WorkflowProcessor: React.FC<{
     // 智能页面滚动：当步骤状态变化时，滚动到底部
     useEffect(() => {
         if (workflowState === 'processing' && timelineEndRef.current) {
-             // 只有当有新步骤开始或完成时，我们才希望页面滚动
-             // 我们不希望在 token 流式输出的每一帧都滚动，那样用户体验很差
              timelineEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-    }, [steps.map(s => s.status).join(',')]); // 依赖于状态组合字符串，而不是 steps 对象本身
+    }, [steps.map(s => s.status).join(',')]);
     
     // --- Logic: Pipeline Execution ---
     
@@ -198,7 +211,6 @@ export const WorkflowProcessor: React.FC<{
                 (chunk) => {
                     buffer += chunk;
                     const content = extractContent(buffer, partKey);
-                    // Update content in real-time if found, otherwise keep accumulating
                     if (content) updateStep(stepId, { content });
                 },
                 () => {
@@ -221,7 +233,6 @@ export const WorkflowProcessor: React.FC<{
                 },
                 (sid) => { if (sid) setSessionId(sid); },
                 (reasoning) => {
-                    // Critical: Using functional update to ensure we append to the LATEST state
                     setSteps(currentSteps => {
                         return currentSteps.map(s => {
                             if (s.id === stepId) {
@@ -325,12 +336,12 @@ export const WorkflowProcessor: React.FC<{
                                         {/* Card Body (Expandable) */}
                                         {(isRunning || (isCompleted && (step.reasoning || step.content))) && (
                                             <div className="px-4 pb-4 pt-0 animate-in fade-in slide-in-from-top-2">
-                                                {/* Reasoning Terminal - will auto hide if empty */}
+                                                {/* Reasoning Terminal */}
                                                 <ThinkingTerminal content={step.reasoning} isActive={isRunning} />
                                                 
                                                 {/* Result Preview (Only if not purely data ingestion) */}
                                                 {!['init', 'ingest'].includes(step.key) && (
-                                                    <ResultCard content={step.content} />
+                                                    <ResultCard content={step.content} isRunning={isRunning} />
                                                 )}
                                             </div>
                                         )}
@@ -355,9 +366,11 @@ export const WorkflowProcessor: React.FC<{
     };
 
     const handleReviseSection = async (key: keyof ReportSections) => {
-        if (!revisionInput.trim() || isRevising) return;
-        setIsRevising(true);
-        setActiveEditSection(null);
+        if (!revisionInput.trim() || revisingKey) return; // Prevent double submit
+        
+        // 设置正在修订的状态
+        setRevisingKey(key);
+        setActiveEditSection(null); // 关闭输入框，转为加载状态
         
         const currentContent = sections[key];
         
@@ -378,20 +391,31 @@ export const WorkflowProcessor: React.FC<{
                 (chunk) => {
                     buffer += chunk;
                     const { jsonPart } = extractThoughtAndJson(buffer);
+                    
+                    // 尝试解析 JSON 中的 content 字段
+                    // 使用更宽容的正则来支持流式片段
                     const match = jsonPart.match(/"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                    
                     if (match && match.groups?.content) {
                         const raw = match.groups.content;
+                        // 处理转义字符
                         const newContent = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
                         setSections(prev => ({ ...prev, [key]: newContent }));
+                    } else if (jsonPart && !jsonPart.includes('"content"')) {
+                         // 如果还没到 content 字段，可能是思考过程，暂时不更新正文
                     }
                 },
                 () => {
-                    setIsRevising(false);
+                    setRevisingKey(null);
                     setRevisionInput('');
+                },
+                (err) => {
+                     console.error("Revision failed", err);
+                     setRevisingKey(null);
                 }
             );
         } catch (e) {
-            setIsRevising(false);
+            setRevisingKey(null);
         }
     };
 
@@ -413,51 +437,75 @@ export const WorkflowProcessor: React.FC<{
                         <p className="text-slate-500 text-sm">点击任意段落进行手动编辑，或使用 AI 助手进行定点优化。</p>
                     </div>
 
-                    {(['p1', 'p2', 'p3', 'p4'] as Array<keyof ReportSections>).map((key) => (
-                        <div key={key} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
-                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                    <span className="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
-                                    {getSectionTitle(key)}
-                                </h3>
-                                <button 
-                                    onClick={() => setActiveEditSection(activeEditSection === key ? null : key)}
-                                    className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${activeEditSection === key ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-indigo-50 text-slate-500 hover:text-indigo-600'}`}
-                                >
-                                    <SparklesIcon className="w-3.5 h-3.5" /> AI Refine
-                                </button>
-                            </div>
+                    {(['p1', 'p2', 'p3', 'p4'] as Array<keyof ReportSections>).map((key) => {
+                        const isRevisingThis = revisingKey === key;
 
-                            {activeEditSection === key && (
-                                <div className="bg-indigo-50 p-4 border-b border-indigo-100 animate-in slide-in-from-top-2">
+                        return (
+                            <div key={key} className={`bg-white rounded-2xl border transition-all group overflow-hidden relative ${isRevisingThis ? 'border-indigo-400 shadow-md ring-2 ring-indigo-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
+                                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                        <span className={`w-1.5 h-4 rounded-full ${isRevisingThis ? 'bg-indigo-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                                        {getSectionTitle(key)}
+                                    </h3>
                                     <div className="flex gap-2">
-                                        <input 
-                                            autoFocus
-                                            className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-                                            placeholder={`告诉 AI 如何修改...`}
-                                            value={revisionInput}
-                                            onChange={e => setRevisionInput(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleReviseSection(key)}
-                                        />
-                                        <button 
-                                            onClick={() => handleReviseSection(key)}
-                                            disabled={isRevising || !revisionInput.trim()}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                                        >
-                                            {isRevising ? <RefreshIcon className="w-4 h-4 animate-spin"/> : '发送'}
-                                        </button>
+                                        {isRevisingThis ? (
+                                             <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-lg">
+                                                 <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> AI 撰写中...
+                                             </span>
+                                        ) : (
+                                            <button 
+                                                onClick={() => setActiveEditSection(activeEditSection === key ? null : key)}
+                                                className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${activeEditSection === key ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-indigo-50 text-slate-500 hover:text-indigo-600'}`}
+                                            >
+                                                <SparklesIcon className="w-3.5 h-3.5" /> AI Refine
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                            )}
 
-                            <textarea 
-                                className="w-full min-h-[200px] p-6 text-sm md:text-base text-slate-700 leading-relaxed resize-y outline-none focus:bg-slate-50 transition-colors font-sans"
-                                value={sections[key]}
-                                onChange={e => handleManualEdit(key, e.target.value)}
-                                spellCheck={false}
-                            />
-                        </div>
-                    ))}
+                                {/* Revision Input Box */}
+                                {activeEditSection === key && (
+                                    <div className="bg-indigo-50 p-4 border-b border-indigo-100 animate-in slide-in-from-top-2">
+                                        <div className="flex gap-2">
+                                            <input 
+                                                autoFocus
+                                                className="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                placeholder={`告诉 AI 如何修改 (例如："增加具体数据支撑" 或 "语气更严谨一些")...`}
+                                                value={revisionInput}
+                                                onChange={e => setRevisionInput(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && handleReviseSection(key)}
+                                            />
+                                            <button 
+                                                onClick={() => handleReviseSection(key)}
+                                                disabled={!revisionInput.trim()}
+                                                className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+                                            >
+                                                <SparklesIcon className="w-4 h-4"/> 发送
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="relative">
+                                    <textarea 
+                                        className={`w-full min-h-[200px] p-6 text-sm md:text-base text-slate-700 leading-relaxed resize-y outline-none transition-colors font-sans ${isRevisingThis ? 'bg-slate-50/50' : 'focus:bg-slate-50'}`}
+                                        value={sections[key]}
+                                        onChange={e => handleManualEdit(key, e.target.value)}
+                                        spellCheck={false}
+                                        disabled={isRevisingThis} // Disable manual edit while AI is writing
+                                    />
+                                    {isRevisingThis && (
+                                        <div className="absolute bottom-4 right-4 flex items-center gap-2 pointer-events-none">
+                                            <span className="relative flex h-3 w-3">
+                                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -466,7 +514,8 @@ export const WorkflowProcessor: React.FC<{
                      <div className="px-4 text-xs font-medium text-slate-500">满意当前内容？</div>
                      <button 
                         onClick={handleFinalConfirm}
-                        className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-indigo-600 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                        disabled={!!revisingKey}
+                        className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-indigo-600 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                          <CheckIcon className="w-4 h-4" /> 生成最终报告 (HTML)
                      </button>
