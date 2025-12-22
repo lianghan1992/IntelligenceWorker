@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createIntelLlmTask, getIntelLlmTasks, downloadIntelLlmTaskReport } from '../../../api/intelligence';
 import { uploadStratifyFile } from '../../../api/stratify';
 import { getMe } from '../../../api/auth';
-import { CloseIcon, SparklesIcon, RefreshIcon, CheckCircleIcon } from '../../icons';
+import { CloseIcon, SparklesIcon, RefreshIcon, CheckCircleIcon, CalendarIcon } from '../../icons';
 
 interface LlmRetrievalModalProps {
     isOpen: boolean;
@@ -14,6 +14,15 @@ interface LlmRetrievalModalProps {
 export const LlmRetrievalModal: React.FC<LlmRetrievalModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const [step, setStep] = useState<'input' | 'processing' | 'uploading'>('input');
     const [query, setQuery] = useState('');
+    
+    // Default: Last 1 month
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
     const [taskId, setTaskId] = useState<string | null>(null);
     const [progress, setProgress] = useState(0);
     const [statusText, setStatusText] = useState('');
@@ -27,8 +36,36 @@ export const LlmRetrievalModal: React.FC<LlmRetrievalModalProps> = ({ isOpen, on
         };
     }, []);
 
+    const validateDateRange = (start: string, end: string) => {
+        if (!start || !end) return false;
+        const s = new Date(start);
+        const e = new Date(end);
+        if (s > e) return false;
+        
+        // 3 months approximation (93 days)
+        const diffTime = Math.abs(e.getTime() - s.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        return diffDays <= 93;
+    };
+
     const handleStart = async () => {
         if (!query.trim()) return;
+        
+        if (!startDate || !endDate) {
+             setError('请选择时间范围');
+             return;
+        }
+
+        if (new Date(startDate) > new Date(endDate)) {
+            setError('开始日期不能晚于结束日期');
+            return;
+        }
+
+        if (!validateDateRange(startDate, endDate)) {
+            setError('时间范围不能超过 3 个月');
+            return;
+        }
+
         setStep('processing');
         setError('');
         setProgress(0);
@@ -40,7 +77,8 @@ export const LlmRetrievalModal: React.FC<LlmRetrievalModalProps> = ({ isOpen, on
             await createIntelLlmTask({
                 user_uuid: user.id,
                 description: query,
-                need_summary: true
+                need_summary: true,
+                time_range: `${startDate},${endDate}`
             });
 
             // Start Polling (Wait a bit for creation to propagate or just fetch latest)
@@ -123,6 +161,29 @@ export const LlmRetrievalModal: React.FC<LlmRetrievalModalProps> = ({ isOpen, on
                 <div className="p-6">
                     {step === 'input' ? (
                         <>
+                            <div className="mb-4 space-y-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                    <CalendarIcon className="w-3.5 h-3.5" /> 检索时间范围 (Max 3 Months)
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="date" 
+                                        value={startDate}
+                                        onChange={e => setStartDate(e.target.value)}
+                                        max={endDate}
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    />
+                                    <span className="text-slate-300">-</span>
+                                    <input 
+                                        type="date" 
+                                        value={endDate}
+                                        onChange={e => setEndDate(e.target.value)}
+                                        min={startDate}
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+
                             <textarea
                                 value={query}
                                 onChange={e => setQuery(e.target.value)}

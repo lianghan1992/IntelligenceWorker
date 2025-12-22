@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     PuzzleIcon, 
     BrainIcon,
@@ -9,11 +9,12 @@ import {
     ClockIcon,
     RefreshIcon,
     DocumentTextIcon,
-    TrashIcon
+    TrashIcon,
+    CloudIcon
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
-import { getScenarioFiles, getScenarios } from '../../../../../api/stratify';
+import { getScenarioFiles, getScenarios, uploadStratifyFile } from '../../../../../api/stratify';
 import { StratifyScenarioFile } from '../../../../../types';
 
 // Helper to format model names
@@ -54,6 +55,10 @@ export const InputCollector: React.FC<{
     const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
     const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
     
+    // Upload State
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
+
     // Model Config State
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
     const [defaultModel, setDefaultModel] = useState<string>('Loading...');
@@ -82,6 +87,21 @@ export const InputCollector: React.FC<{
         };
         loadConfig();
     }, [scenarioId]);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setIsUploading(true);
+        try {
+            const res = await uploadStratifyFile(file);
+            setReferenceFiles(prev => [...prev, { name: res.filename, url: res.url, type: res.type }]);
+        } catch (e) {
+            alert('文件上传失败');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const handleStart = () => {
         if (!targetTech.trim()) return;
@@ -180,6 +200,27 @@ export const InputCollector: React.FC<{
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
                                     >
                                         <SparklesIcon className="w-3.5 h-3.5" /> AI 检索
+                                    </button>
+                                    
+                                    {/* Upload Button */}
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        onChange={handleFileUpload} 
+                                        className="hidden" 
+                                        accept=".pdf,.md,.txt" 
+                                    />
+                                    <button 
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isUploading}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
+                                    >
+                                        {isUploading ? (
+                                            <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                            <CloudIcon className="w-3.5 h-3.5" />
+                                        )}
+                                        {isUploading ? '上传中...' : '上传文档'}
                                     </button>
                                 </div>
                             </div>
