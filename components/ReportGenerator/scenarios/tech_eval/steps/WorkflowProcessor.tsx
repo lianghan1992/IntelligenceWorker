@@ -32,7 +32,15 @@ interface StepData {
 
 const formatModelName = (model: string) => {
     if (!model) return 'Auto';
-    return model.includes('@') ? model.split('@')[1] : model;
+    // Remove channel prefix (e.g. "openrouter@")
+    let name = model.includes('@') ? model.split('@')[1] : model;
+    // Remove organization prefix if present (e.g. "mistralai/", "tngtech/") to make it cleaner
+    if (name.includes('/')) {
+        name = name.split('/')[1];
+    }
+    // Clean up version tags for cleaner display
+    name = name.replace(':free', '').replace(':beta', '');
+    return name;
 };
 
 // --- Sub-Components ---
@@ -142,7 +150,7 @@ export const WorkflowProcessor: React.FC<{
     
     // --- State ---
     const [sessionId, setSessionId] = useState(initialSessionId);
-    const [currentModel, setCurrentModel] = useState<string>('Loading...');
+    const [currentModel, setCurrentModel] = useState<string>('');
     
     // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
@@ -176,15 +184,27 @@ export const WorkflowProcessor: React.FC<{
 
     // Fetch scenario details to get default model
     useEffect(() => {
-        getScenarios().then(scenarios => {
-            const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-            if (current) {
-                setCurrentModel(current.default_model || 'System Default');
+        const fetchModelInfo = async () => {
+            try {
+                const scenarios = await getScenarios();
+                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+                if (current && current.default_model) {
+                    setCurrentModel(current.default_model);
+                } else {
+                    // Fallback to trying to match by name roughly if exact match failed
+                    const looseMatch = scenarios.find(s => scenario.includes(s.name) || s.name.includes(scenario));
+                     if (looseMatch && looseMatch.default_model) {
+                        setCurrentModel(looseMatch.default_model);
+                    } else {
+                        setCurrentModel('System Default');
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to fetch scenario details for model name", err);
+                setCurrentModel("Unknown");
             }
-        }).catch(err => {
-            console.warn("Failed to fetch scenario details for model name", err);
-            setCurrentModel("Unknown");
-        });
+        };
+        fetchModelInfo();
     }, [scenario]);
     
     // --- Logic: Pipeline Execution ---
@@ -232,18 +252,41 @@ export const WorkflowProcessor: React.FC<{
                     // onData: 接收 content 字段
                     fullContentBuffer += chunk;
                     
+                    // --- DeepSeek R1 <think> Handling ---
+                    let displayContent = fullContentBuffer;
+                    let extractedDeepSeekThought = '';
+                    
+                    const thinkStart = fullContentBuffer.indexOf('<think>');
+                    const thinkEnd = fullContentBuffer.indexOf('</think>');
+
+                    if (thinkStart !== -1) {
+                        if (thinkEnd !== -1) {
+                            // Completed think block
+                            extractedDeepSeekThought = fullContentBuffer.substring(thinkStart + 7, thinkEnd);
+                            // Remove the think block from content to show in UI
+                            displayContent = fullContentBuffer.substring(0, thinkStart) + fullContentBuffer.substring(thinkEnd + 8);
+                        } else {
+                            // Streaming think block (not closed yet)
+                            extractedDeepSeekThought = fullContentBuffer.substring(thinkStart + 7);
+                            displayContent = fullContentBuffer.substring(0, thinkStart); // Hide partial think content from main view
+                        }
+                    }
+
                     // 1. 尝试从 content 缓冲区中分离出“思考内容”和“JSON部分”
-                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(fullContentBuffer);
+                    // Pass the cleaned content (without <think> tags) to the JSON extractor
+                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(displayContent);
                     
-                    // 2. 尝试从 JSON 部分提取目标字段 (fallback to full buffer if regex allows partial match)
-                    const targetContent = extractContent(jsonPart || fullContentBuffer, partKey);
+                    // 2. 尝试从 JSON 部分提取目标字段
+                    const targetContent = extractContent(jsonPart || displayContent, partKey);
                     
-                    // 3. 更新步骤状态 (合并 API reasoning 和 Content 中的 thought)
+                    // 3. 更新步骤状态 (合并: API reasoning + DeepSeek tags + Standard Markdown blocks)
+                    const mergedReasoning = [apiReasoningBuffer, extractedDeepSeekThought, contentThought].filter(Boolean).join('\n');
+
                     setSteps(prev => prev.map(s => {
                         if (s.id === stepId) {
                             return { 
                                 ...s, 
-                                reasoning: apiReasoningBuffer + contentThought,
+                                reasoning: mergedReasoning,
                                 content: targetContent || s.content
                             };
                         }
@@ -251,10 +294,22 @@ export const WorkflowProcessor: React.FC<{
                     }));
                 },
                 () => {
-                    // onDone
-                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(fullContentBuffer);
-                    let finalContent = extractContent(jsonPart || fullContentBuffer, partKey);
+                    // onDone - Final cleanup similar to onData
+                    let displayContent = fullContentBuffer;
+                    let extractedDeepSeekThought = '';
+                    const thinkStart = fullContentBuffer.indexOf('<think>');
+                    const thinkEnd = fullContentBuffer.indexOf('</think>');
                     
+                    if (thinkStart !== -1 && thinkEnd !== -1) {
+                        extractedDeepSeekThought = fullContentBuffer.substring(thinkStart + 7, thinkEnd);
+                        displayContent = fullContentBuffer.substring(0, thinkStart) + fullContentBuffer.substring(thinkEnd + 8);
+                    }
+
+                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(displayContent);
+                    let finalContent = extractContent(jsonPart || displayContent, partKey);
+                    
+                    const mergedReasoning = [apiReasoningBuffer, extractedDeepSeekThought, contentThought].filter(Boolean).join('\n');
+
                     if (partKey === 'p4' && finalContent) {
                         try {
                             const refs = JSON.parse(finalContent);
@@ -267,7 +322,7 @@ export const WorkflowProcessor: React.FC<{
                     updateStep(stepId, { 
                         status: 'completed', 
                         content: finalContent || 'Completed',
-                        reasoning: apiReasoningBuffer + contentThought
+                        reasoning: mergedReasoning
                     });
                     
                     if (partKey && finalContent) setSections(prev => ({ ...prev, [partKey]: finalContent }));
@@ -279,18 +334,12 @@ export const WorkflowProcessor: React.FC<{
                 },
                 (sid) => { if (sid) setSessionId(sid); },
                 (reasoningChunk) => {
-                    // onReasoning: 接收 reasoning 字段 (DeepSeek-R1 style)
+                    // onReasoning: 接收 reasoning 字段 (DeepSeek-R1 style via specific providers)
                     apiReasoningBuffer += reasoningChunk;
-                    
-                    // 我们需要重新计算 contentThought，因为 fullContentBuffer 可能没有变，但需要保持 reasoning 的同步更新
-                    const { thought: contentThought } = extractThoughtAndJson(fullContentBuffer);
-                    
-                    setSteps(prev => prev.map(s => {
+                    // Trigger update to show reasoning even if content hasn't arrived
+                     setSteps(prev => prev.map(s => {
                         if (s.id === stepId) {
-                            return { 
-                                ...s, 
-                                reasoning: apiReasoningBuffer + contentThought 
-                            };
+                            return { ...s, reasoning: apiReasoningBuffer };
                         }
                         return s;
                     }));

@@ -16,7 +16,15 @@ const extractStreamingHtml = (text: string): string => {
 
 const formatModelName = (model: string) => {
     if (!model) return 'Auto';
-    return model.includes('@') ? model.split('@')[1] : model;
+    // Remove channel prefix (e.g. "openrouter@")
+    let name = model.includes('@') ? model.split('@')[1] : model;
+    // Remove organization prefix if present (e.g. "mistralai/", "tngtech/")
+    if (name.includes('/')) {
+        name = name.split('/')[1];
+    }
+    // Clean up version tags for cleaner display
+    name = name.replace(':free', '').replace(':beta', '');
+    return name;
 };
 
 export const FinalRenderer: React.FC<{
@@ -49,12 +57,27 @@ export const FinalRenderer: React.FC<{
 
     // Fetch scenario default model
     useEffect(() => {
-        getScenarios().then(scenarios => {
-            const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-            if (current) {
-                setCurrentModel(current.default_model || 'System Default');
+        const fetchModelInfo = async () => {
+            try {
+                const scenarios = await getScenarios();
+                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+                if (current && current.default_model) {
+                    setCurrentModel(current.default_model);
+                } else {
+                    // Fallback to trying to match by name roughly
+                    const looseMatch = scenarios.find(s => scenario.includes(s.name) || s.name.includes(scenario));
+                     if (looseMatch && looseMatch.default_model) {
+                        setCurrentModel(looseMatch.default_model);
+                    } else {
+                        setCurrentModel('System Default');
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to fetch scenario details for model name", err);
+                setCurrentModel("Unknown");
             }
-        }).catch(() => setCurrentModel("Unknown"));
+        };
+        fetchModelInfo();
     }, [scenario]);
 
     const synthesize = async () => {
