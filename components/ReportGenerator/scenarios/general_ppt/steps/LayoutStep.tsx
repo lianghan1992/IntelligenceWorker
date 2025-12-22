@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { ViewGridIcon, CheckIcon, BrainIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon, DownloadIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon, PencilIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 
-// --- HTML Cleaning & Extraction Pipeline ---
+// --- HTML Cleaning Utilities ---
 
 const unescapeHtml = (html: string) => {
     const txt = document.createElement("textarea");
@@ -18,35 +18,38 @@ const cleanHtmlContent = (raw: string): string => {
     if (!raw) return '';
     let clean = raw.trim();
     
-    // 1. Remove Markdown code blocks
+    // 1. Specific Fix for User's Issue: <\!DOCTYPE -> <!DOCTYPE
+    clean = clean.replace(/<\\!DOCTYPE/gi, '<!DOCTYPE');
+    clean = clean.replace(/<\\html/gi, '<html');
+    clean = clean.replace(/<\\body/gi, '<body');
+    clean = clean.replace(/<\\head/gi, '<head');
+    clean = clean.replace(/<\\div/gi, '<div');
+    clean = clean.replace(/<\\script/gi, '<script');
+    clean = clean.replace(/<\\style/gi, '<style');
+
+    // 2. Remove Markdown code blocks
     clean = clean.replace(/^```html\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '');
 
-    // 2. Handle double-escaped entities (Common LLM artifact: \&lt;)
+    // 3. Handle double-escaped entities (Common LLM artifact: \&lt;)
     clean = clean.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>');
     clean = clean.replace(/\\</g, '<').replace(/\\>/g, '>');
-    
-    // 3. Recursive Unescape: keep unescaping until we see a tag or hit limit
+    clean = clean.replace(/\\"/g, '"'); // Fix escaped quotes in attributes
+
+    // 4. Recursive Unescape: keep unescaping until we see a tag or hit limit
     let limit = 3;
     while ((clean.includes('&lt;') || clean.includes('&gt;')) && limit > 0) {
         clean = unescapeHtml(clean);
         limit--;
     }
     
-    // 4. Fallback: If model wrapped it in body text instead of returning pure HTML
-    // Scenario: <html><head></head><body>&lt;!DOCTYPE html&gt;...</body></html>
-    // We want the inner content.
-    if (clean.includes('&lt;!DOCTYPE') || clean.includes('<!DOCTYPE')) {
-         const bodyMatch = clean.match(/<body>([\s\S]*?)<\/body>/i);
-         if (bodyMatch) {
-             let bodyInner = bodyMatch[1].trim();
-             // Unescape the inner body content if needed
-             if (bodyInner.includes('&lt;') || bodyInner.includes('\\&lt;')) {
-                 bodyInner = unescapeHtml(bodyInner.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>'));
-             }
-             // If the inner content looks like a full HTML doc, use it
-             if (bodyInner.trim().startsWith('<!DOCTYPE') || bodyInner.trim().startsWith('<html')) {
-                 return bodyInner;
-             }
+    // 5. Fallback: If model wrapped it in body text instead of returning pure HTML
+    if (clean.includes('<!DOCTYPE') || clean.includes('<html')) {
+         // Try to find the start and end of the HTML document
+         const startIdx = Math.max(clean.indexOf('<!DOCTYPE'), clean.indexOf('<html'));
+         const endIdx = clean.lastIndexOf('</html>');
+         
+         if (startIdx !== -1 && endIdx !== -1) {
+             clean = clean.substring(startIdx, endIdx + 7);
          }
     }
 
@@ -66,19 +69,17 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
 
     // Strategy 2: Regex extraction from full text (if JSON failed or missing)
     if (!rawHtml) {
-        // Try to match "html": "..." pattern even if JSON is broken
         const jsonFieldMatch = fullText.match(/"html"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
         if (jsonFieldMatch && jsonFieldMatch[1]) {
             try { 
                 rawHtml = JSON.parse(`"${jsonFieldMatch[1]}"`); 
             } catch (e) { 
-                // Manual basic unescape if parse fails
                 rawHtml = jsonFieldMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'); 
             }
         }
     }
 
-    // Strategy 3: Raw HTML block detection (LLM forgot JSON)
+    // Strategy 3: Raw HTML block detection
     if (!rawHtml) {
         const rawHtmlMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
         if (rawHtmlMatch) rawHtml = rawHtmlMatch[0];
@@ -89,24 +90,19 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return cleanHtmlContent(rawHtml);
 };
 
-// --- Config Constants ---
-const CANVAS_WIDTH = 1600;
-const CANVAS_HEIGHT = 900;
-
 // --- Components ---
 
-// Scaled Preview Component (The Core Logic)
+// Scaled Preview Component
 const ScaledPreview: React.FC<{
     html: string;
     parentWidth: number;
     parentHeight: number;
 }> = ({ html, parentWidth, parentHeight }) => {
+    const CANVAS_WIDTH = 1600;
+    const CANVAS_HEIGHT = 900;
     
-    // Calculate Scale to FIT the parent container
     const scaleX = parentWidth / CANVAS_WIDTH;
     const scaleY = parentHeight / CANVAS_HEIGHT;
-    // Use the smaller scale to fit entirely, or larger to cover? Usually fit.
-    // For 16:9 cards, scaleX should roughly equal scaleY.
     const scale = Math.min(scaleX, scaleY);
 
     return (
@@ -117,7 +113,7 @@ const ScaledPreview: React.FC<{
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
                 backgroundColor: 'white', 
-                overflow: 'hidden' // Force crop anything outside 1600x900
+                overflow: 'hidden'
             }}
         >
             <iframe 
@@ -130,22 +126,21 @@ const ScaledPreview: React.FC<{
     );
 };
 
-// Zoom Modal for Full Preview
+// Zoom Modal
 const ZoomModal: React.FC<{
     html: string;
     onClose: () => void;
 }> = ({ html, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [dims, setDims] = useState({ w: 0, h: 0 });
+    const CANVAS_WIDTH = 1600;
+    const CANVAS_HEIGHT = 900;
     
     useLayoutEffect(() => {
         const updateDims = () => {
             if (containerRef.current) {
-                // Get available space with some padding
                 const maxWidth = window.innerWidth * 0.9;
                 const maxHeight = window.innerHeight * 0.9;
-                
-                // Determine target dimensions keeping 16:9 aspect ratio
                 let targetW = maxWidth;
                 let targetH = targetW * (9/16);
                 
@@ -153,11 +148,9 @@ const ZoomModal: React.FC<{
                     targetH = maxHeight;
                     targetW = targetH * (16/9);
                 }
-                
                 setDims({ w: targetW, h: targetH });
             }
         };
-        
         updateDims();
         window.addEventListener('resize', updateDims);
         return () => window.removeEventListener('resize', updateDims);
@@ -165,26 +158,54 @@ const ZoomModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300" onClick={onClose}>
-            <button 
-                onClick={onClose}
-                className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:rotate-90 backdrop-blur-sm"
-            >
+            <button onClick={onClose} className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-sm">
                 <CloseIcon className="w-8 h-8" />
             </button>
-
             <div 
                 ref={containerRef}
                 className="relative bg-white shadow-2xl overflow-hidden transition-all duration-300 rounded-lg"
                 onClick={e => e.stopPropagation()}
                 style={{ width: dims.w, height: dims.h }}
             >
-                 {dims.w > 0 && (
-                    <ScaledPreview 
-                        html={html} 
-                        parentWidth={dims.w} 
-                        parentHeight={dims.h} 
-                    />
-                 )}
+                 {dims.w > 0 && <ScaledPreview html={html} parentWidth={dims.w} parentHeight={dims.h} />}
+            </div>
+        </div>
+    );
+};
+
+// Revision Input Modal
+const RevisionModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (instruction: string) => void;
+}> = ({ isOpen, onClose, onConfirm }) => {
+    const [input, setInput] = useState('');
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in" onClick={onClose}>
+            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <PencilIcon className="w-5 h-5 text-indigo-600"/>
+                    页面微调指令
+                </h3>
+                <textarea
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-32"
+                    placeholder="请输入修改意见，例如：'把背景换成深蓝色'，'字体调大一点'..."
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    autoFocus
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200">取消</button>
+                    <button 
+                        onClick={() => { if(input.trim()) { onConfirm(input); onClose(); setInput(''); } }} 
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md"
+                        disabled={!input.trim()}
+                    >
+                        开始重做
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -192,12 +213,13 @@ const ZoomModal: React.FC<{
 
 // 16:9 Page Card
 const PageCard: React.FC<{
-    page: StratifyPage;
+    page: ExtendedStratifyPage;
     isGenerating: boolean;
     streamHtml?: string;
     onRetry: () => void;
     onZoom: () => void;
-}> = ({ page, isGenerating, streamHtml, onRetry, onZoom }) => {
+    onRevise: () => void;
+}> = ({ page, isGenerating, streamHtml, onRetry, onZoom, onRevise }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const codeScrollRef = useRef<HTMLDivElement>(null);
@@ -214,7 +236,6 @@ const PageCard: React.FC<{
         return () => obs.disconnect();
     }, []);
 
-    // Auto-scroll the code view
     useEffect(() => {
         if (codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
@@ -240,7 +261,7 @@ const PageCard: React.FC<{
                 onDoubleClick={page.status === 'done' ? onZoom : undefined}
                 className={`
                     relative w-full aspect-video rounded-xl border-2 transition-all duration-300 overflow-hidden shadow-sm bg-white
-                    ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 cursor-zoom-in' : 'border-dashed border-slate-300'}
+                    ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1' : 'border-dashed border-slate-300'}
                 `}
             >
                 {page.status === 'done' && page.html_content ? (
@@ -248,7 +269,6 @@ const PageCard: React.FC<{
                         <ScaledPreview 
                             html={page.html_content} 
                             parentWidth={containerWidth} 
-                            // Aspect video means height is width * 9/16
                             parentHeight={containerWidth * (9/16)} 
                         />
                     )
@@ -264,22 +284,20 @@ const PageCard: React.FC<{
                         </div>
                         <div ref={codeScrollRef} className="flex-1 overflow-hidden relative">
                              <div className="absolute inset-0 overflow-y-auto custom-scrollbar-dark text-[10px] leading-relaxed break-all text-green-400/90 font-mono">
-                                 {streamHtml || <span className="opacity-50 text-slate-500">// Waiting for stream...</span>}
+                                 {streamHtml || <span className="opacity-50 text-slate-500">// Connecting to renderer...</span>}
                                  <span className="inline-block w-1.5 h-3 bg-green-500 ml-0.5 animate-pulse align-middle"></span>
                              </div>
                         </div>
                     </div>
                 ) : page.status === 'failed' ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-red-50/50 text-center animate-in zoom-in-95">
-                        <div className="p-3 bg-red-100 rounded-full mb-3">
-                            <ShieldExclamationIcon className="w-6 h-6 text-red-500" />
-                        </div>
-                        <p className="text-[10px] font-bold text-red-700 mb-4 px-2 leading-tight">渲染失败</p>
+                        <ShieldExclamationIcon className="w-6 h-6 text-red-500 mb-2" />
+                        <p className="text-[10px] font-bold text-red-700 mb-2">渲染失败</p>
                         <button 
                             onClick={(e) => { e.stopPropagation(); onRetry(); }}
-                            className="px-4 py-2 bg-white border border-red-200 text-red-600 text-[10px] font-black rounded-xl shadow-sm hover:bg-red-50 transition-all flex items-center gap-1.5 active:scale-95"
+                            className="px-3 py-1 bg-white border border-red-200 text-red-600 text-[10px] font-bold rounded-lg shadow-sm hover:bg-red-50"
                         >
-                            <RefreshIcon className="w-3 h-3" /> 重试
+                            重试
                         </button>
                     </div>
                 ) : (
@@ -291,10 +309,21 @@ const PageCard: React.FC<{
                 
                 {/* Hover Action Overlay for Done state */}
                 {page.status === 'done' && (
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
-                         <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1.5">
-                            <EyeIcon className="w-3.5 h-3.5" /> 双击放大预览
-                         </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2">
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); onZoom(); }}
+                            className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:scale-110 transition-transform hover:text-indigo-600"
+                            title="放大预览"
+                         >
+                            <EyeIcon className="w-5 h-5" />
+                         </button>
+                         <button 
+                            onClick={(e) => { e.stopPropagation(); onRevise(); }}
+                            className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:scale-110 transition-transform hover:text-indigo-600"
+                            title="调整/重做"
+                         >
+                            <PencilIcon className="w-5 h-5" />
+                         </button>
                     </div>
                 )}
             </div>
@@ -302,15 +331,21 @@ const PageCard: React.FC<{
     );
 };
 
+// Extend StratifyPage to include session info
+interface ExtendedStratifyPage extends StratifyPage {
+    session_id?: string;
+}
+
 export const LayoutStep: React.FC<{
     taskId: string;
     pages: StratifyPage[];
     scenario: string;
     onComplete: (pages: StratifyPage[]) => void;
 }> = ({ taskId, pages: initialPages, scenario, onComplete }) => {
-    const [pages, setPages] = useState<StratifyPage[]>(initialPages.map(p => ({
+    const [pages, setPages] = useState<ExtendedStratifyPage[]>(initialPages.map(p => ({
         ...p,
-        status: p.status === 'done' ? 'pending' : p.status
+        status: p.status === 'done' ? 'pending' : p.status,
+        session_id: undefined // Initialize session storage
     })));
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
@@ -319,86 +354,114 @@ export const LayoutStep: React.FC<{
     const [currentStreamingHtml, setCurrentStreamingHtml] = useState<string>('');
     const [zoomedPageIdx, setZoomedPageIdx] = useState<number | null>(null);
     
+    // Revision State
+    const [revisingPageIdx, setRevisingPageIdx] = useState<number | null>(null);
+    
     const processingRef = useRef(false);
     const completedCount = pages.filter(p => p.status === 'done').length;
     const failedCount = pages.filter(p => p.status === 'failed').length;
     const isAllDone = pages.length > 0 && pages.every(p => p.status === 'done');
 
-    // Queue Processor
+    // Generic Generation Function
+    const triggerGeneration = async (pageIndex: number, revisionInstruction?: string) => {
+        const targetPage = pages.find(p => p.page_index === pageIndex);
+        if (!targetPage) return;
+
+        processingRef.current = true;
+        setPageThought('');
+        setReasoningStream('');
+        setCurrentStreamingHtml('');
+        
+        setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'generating' } : p));
+
+        let buffer = '';
+        
+        // Construct variables. If revising, we include instructions.
+        const vars: any = {
+            page_title: targetPage.title,
+            markdown_content: targetPage.content_markdown || ''
+        };
+        
+        if (revisionInstruction) {
+            vars.user_revision_request = revisionInstruction;
+        }
+
+        await streamGenerate(
+            {
+                prompt_name: revisionInstruction ? '05_revise_html' : '05_generate_html', // Assume revise prompt exists or use same one with instruction var
+                variables: vars,
+                scenario,
+                task_id: taskId,
+                phase_name: '05_generate_html', // Keep phase name consistent for tracking
+                // Crucial: Use existing session ID if available to maintain context
+                session_id: targetPage.session_id 
+            },
+            (chunk) => {
+                buffer += chunk;
+                const { thought, jsonPart } = extractThoughtAndJson(buffer);
+                
+                // Improved Streaming HTML Extraction
+                const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                if (match && match.groups?.content) {
+                    const rawContent = match.groups.content;
+                    const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ').replace(/\\\\/g, '\\');
+                    setCurrentStreamingHtml(displayHtml);
+                } else if (buffer.length > 100 && !jsonPart && !thought) {
+                     setCurrentStreamingHtml(buffer.slice(-500));
+                }
+                
+                if (jsonPart && jsonPart.trim().length > 20) {
+                    setIsThinkingOpen(false);
+                }
+            },
+            () => {
+                const { jsonPart } = extractThoughtAndJson(buffer);
+                const htmlContent = robustExtractHtml(buffer, jsonPart);
+                
+                if (htmlContent) {
+                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, html_content: htmlContent, status: 'done' } : p));
+                } else {
+                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'failed' } : p));
+                }
+                processingRef.current = false;
+            },
+            (err) => {
+                console.error("Layout generation error:", err);
+                setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'failed' } : p));
+                processingRef.current = false;
+            },
+            (sessionId) => {
+                // Save session ID for future revisions
+                if (sessionId) {
+                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, session_id: sessionId } : p));
+                }
+            },
+            (reasoning) => {
+                setReasoningStream(prev => prev + reasoning);
+            }
+        );
+    };
+
+    // Queue Processor (Initial Pass)
     useEffect(() => {
         if (processingRef.current) return;
         
         const nextPage = pages.find(p => p.status === 'pending');
         if (!nextPage) return;
 
-        const processPage = async (page: StratifyPage) => {
-            processingRef.current = true;
-            setPageThought('');
-            setReasoningStream('');
-            setCurrentStreamingHtml('');
-            
-            setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
-
-            let buffer = '';
-            await streamGenerate(
-                {
-                    prompt_name: '05_generate_html',
-                    variables: {
-                        page_title: page.title,
-                        markdown_content: page.content_markdown || ''
-                    },
-                    scenario,
-                    task_id: taskId,
-                    phase_name: '05_generate_html'
-                },
-                (chunk) => {
-                    buffer += chunk;
-                    const { thought, jsonPart } = extractThoughtAndJson(buffer);
-                    
-                    // Improved Streaming HTML Extraction:
-                    // Look for the "html" key and capture everything after it as partial content
-                    const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
-                    if (match && match.groups?.content) {
-                        const rawContent = match.groups.content;
-                        // Light unescape for display in the "terminal"
-                        const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ').replace(/\\\\/g, '\\');
-                        setCurrentStreamingHtml(displayHtml);
-                    } else if (buffer.length > 100 && !jsonPart && !thought) {
-                         // Fallback: if no valid JSON structure yet but buffer is growing, show raw buffer
-                         // This happens if the model output is raw text or malformed JSON start
-                         setCurrentStreamingHtml(buffer.slice(-500));
-                    }
-                    
-                    if (jsonPart && jsonPart.trim().length > 20) {
-                        setIsThinkingOpen(false);
-                    }
-                },
-                () => {
-                    const { jsonPart } = extractThoughtAndJson(buffer);
-                    const htmlContent = robustExtractHtml(buffer, jsonPart);
-                    if (htmlContent) {
-                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
-                    } else {
-                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
-                    }
-                    processingRef.current = false;
-                },
-                (err) => {
-                    console.error("Layout generation error:", err);
-                    setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
-                    processingRef.current = false;
-                },
-                undefined,
-                (reasoning) => {
-                    setReasoningStream(prev => prev + reasoning);
-                }
-            );
-        };
-        processPage(nextPage);
+        triggerGeneration(nextPage.page_index);
     }, [pages, scenario, taskId]);
 
     const handleRetry = (idx: number) => {
+        // Reset to pending to be picked up by effect
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, status: 'pending', html_content: null } : p));
+    };
+
+    const handleReviseConfirm = (instruction: string) => {
+        if (revisingPageIdx !== null) {
+            triggerGeneration(revisingPageIdx, instruction);
+            setRevisingPageIdx(null);
+        }
     };
 
     const handleRetryAll = () => {
@@ -445,6 +508,12 @@ export const LayoutStep: React.FC<{
                     onClose={() => setZoomedPageIdx(null)}
                 />
             )}
+
+            <RevisionModal 
+                isOpen={revisingPageIdx !== null}
+                onClose={() => setRevisingPageIdx(null)}
+                onConfirm={handleReviseConfirm}
+            />
 
             {/* Sticky Top Header */}
             <div className="flex-shrink-0 h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 z-40">
@@ -519,6 +588,7 @@ export const LayoutStep: React.FC<{
                             streamHtml={page.status === 'generating' ? currentStreamingHtml : undefined}
                             onRetry={() => handleRetry(page.page_index)}
                             onZoom={() => setZoomedPageIdx(page.page_index)}
+                            onRevise={() => setRevisingPageIdx(page.page_index)}
                         />
                     ))}
                     
