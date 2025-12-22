@@ -226,6 +226,9 @@ export const updateIntelGeminiCookies = (data: any): Promise<any> =>
 export const checkIntelGeminiStatus = (): Promise<{ valid: boolean; message: string }> => 
     apiFetch<{ valid: boolean; message: string }>(`${INTELSPIDER_SERVICE_PATH}/gemini/status`);
 
+export const checkGeminiCookieValidity = (): Promise<{ valid: boolean; message: string }> => 
+    apiFetch<{ valid: boolean; message: string }>(`${INTELSPIDER_SERVICE_PATH}/gemini/cookies/check`);
+
 export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: string }> => 
     apiFetch(`${INTELSPIDER_SERVICE_PATH}/html/generation/enable`, { method: 'POST', body: JSON.stringify({ enabled }) });
 

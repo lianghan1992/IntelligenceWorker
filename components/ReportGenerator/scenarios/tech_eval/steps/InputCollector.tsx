@@ -10,11 +10,14 @@ import {
     RefreshIcon,
     DocumentTextIcon,
     TrashIcon,
-    CloudIcon
+    CloudIcon,
+    CheckCircleIcon,
+    ShieldExclamationIcon
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
 import { getScenarioFiles, getScenarios, uploadStratifyFile } from '../../../../../api/stratify';
+import { checkGeminiCookieValidity } from '../../../../../api/intelligence';
 import { StratifyScenarioFile } from '../../../../../types';
 
 // Helper to format model names
@@ -63,6 +66,7 @@ export const InputCollector: React.FC<{
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
     const [defaultModel, setDefaultModel] = useState<string>('Loading...');
     const [isConfigLoading, setIsConfigLoading] = useState(false);
+    const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean } | null>(null);
 
     useEffect(() => { setTargetTech(initialTech); }, [initialTech]);
 
@@ -87,6 +91,20 @@ export const InputCollector: React.FC<{
         };
         loadConfig();
     }, [scenarioId]);
+
+    // Check Gemini Cookie Validity if any model uses gemini_cookie@
+    useEffect(() => {
+        const modelsToCheck = [defaultModel, ...files.map(f => f.model)].filter(Boolean);
+        const hasGeminiCookie = modelsToCheck.some(m => m?.startsWith('gemini_cookie@'));
+
+        if (hasGeminiCookie) {
+            checkGeminiCookieValidity()
+                .then(setGeminiStatus)
+                .catch(() => setGeminiStatus({ valid: false }));
+        } else {
+            setGeminiStatus(null);
+        }
+    }, [defaultModel, files]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -143,6 +161,15 @@ export const InputCollector: React.FC<{
             };
         });
     }, [files]);
+
+    const renderModelStatus = (modelName?: string) => {
+        if (!modelName?.startsWith('gemini_cookie@')) return null;
+        if (geminiStatus === null) return <span className="w-2 h-2 rounded-full bg-gray-300 animate-pulse ml-2" title="Checking status..."></span>;
+        
+        return geminiStatus.valid 
+            ? <span title="Gemini Cookie Valid"><CheckCircleIcon className="w-3.5 h-3.5 text-green-500 ml-1.5" /></span>
+            : <span title="Gemini Cookie Invalid"><ShieldExclamationIcon className="w-3.5 h-3.5 text-red-500 ml-1.5" /></span>;
+    };
 
     return (
         <div className="flex-1 bg-[#f8fafc] overflow-y-auto custom-scrollbar">
@@ -278,8 +305,9 @@ export const InputCollector: React.FC<{
                                 {/* Default Model */}
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Default Model</span>
-                                    <div className="text-xs font-mono bg-slate-100 text-slate-600 px-3 py-2 rounded-lg border border-slate-200 break-all">
+                                    <div className="text-xs font-mono bg-slate-100 text-slate-600 px-3 py-2 rounded-lg border border-slate-200 break-all flex items-center justify-between">
                                         {formatModelName(defaultModel)}
+                                        {renderModelStatus(defaultModel)}
                                     </div>
                                 </div>
 
@@ -292,8 +320,9 @@ export const InputCollector: React.FC<{
                                                 <div className={`w-1 h-1 rounded-full ${phase.model ? 'bg-indigo-500' : 'bg-slate-300'}`}></div>
                                                 {phase.label}
                                             </span>
-                                            <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${phase.model ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 italic'}`}>
+                                            <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded flex items-center ${phase.model ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 italic'}`}>
                                                 {phase.model ? formatModelName(phase.model) : 'Default'}
+                                                {phase.model && renderModelStatus(phase.model)}
                                             </span>
                                         </div>
                                     ))}
