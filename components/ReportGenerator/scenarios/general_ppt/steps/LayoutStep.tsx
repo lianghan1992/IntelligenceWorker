@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon, PencilIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
@@ -133,14 +133,15 @@ const ZoomModal: React.FC<{
 }> = ({ html, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [dims, setDims] = useState({ w: 0, h: 0 });
-    const CANVAS_WIDTH = 1600;
-    const CANVAS_HEIGHT = 900;
     
     useLayoutEffect(() => {
         const updateDims = () => {
             if (containerRef.current) {
+                // Get available space with some padding
+                // We use window dimensions directly to center properly in fixed overlay
                 const maxWidth = window.innerWidth * 0.9;
                 const maxHeight = window.innerHeight * 0.9;
+                
                 let targetW = maxWidth;
                 let targetH = targetW * (9/16);
                 
@@ -151,6 +152,7 @@ const ZoomModal: React.FC<{
                 setDims({ w: targetW, h: targetH });
             }
         };
+        
         updateDims();
         window.addEventListener('resize', updateDims);
         return () => window.removeEventListener('resize', updateDims);
@@ -158,12 +160,19 @@ const ZoomModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300" onClick={onClose}>
-            <button onClick={onClose} className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-sm">
+            {/* Close Button */}
+            <button 
+                onClick={onClose} 
+                className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:rotate-90 backdrop-blur-sm"
+                title="关闭预览"
+            >
                 <CloseIcon className="w-8 h-8" />
             </button>
+
+            {/* Container for Centering */}
             <div 
                 ref={containerRef}
-                className="relative bg-white shadow-2xl overflow-hidden transition-all duration-300 rounded-lg"
+                className="relative bg-white shadow-2xl overflow-hidden transition-all duration-300 rounded-lg flex items-center justify-center"
                 onClick={e => e.stopPropagation()}
                 style={{ width: dims.w, height: dims.h }}
             >
@@ -173,53 +182,14 @@ const ZoomModal: React.FC<{
     );
 };
 
-// Revision Input Modal
-const RevisionModal: React.FC<{
-    isOpen: boolean;
-    onClose: () => void;
-    onConfirm: (instruction: string) => void;
-}> = ({ isOpen, onClose, onConfirm }) => {
-    const [input, setInput] = useState('');
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm flex items-center justify-center animate-in fade-in" onClick={onClose}>
-            <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <PencilIcon className="w-5 h-5 text-indigo-600"/>
-                    页面微调指令
-                </h3>
-                <textarea
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-32"
-                    placeholder="请输入修改意见，例如：'把背景换成深蓝色'，'字体调大一点'..."
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    autoFocus
-                />
-                <div className="flex justify-end gap-3 mt-4">
-                    <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200">取消</button>
-                    <button 
-                        onClick={() => { if(input.trim()) { onConfirm(input); onClose(); setInput(''); } }} 
-                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md"
-                        disabled={!input.trim()}
-                    >
-                        开始重做
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 // 16:9 Page Card
 const PageCard: React.FC<{
-    page: ExtendedStratifyPage;
+    page: StratifyPage;
     isGenerating: boolean;
     streamHtml?: string;
     onRetry: () => void;
     onZoom: () => void;
-    onRevise: () => void;
-}> = ({ page, isGenerating, streamHtml, onRetry, onZoom, onRevise }) => {
+}> = ({ page, isGenerating, streamHtml, onRetry, onZoom }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerWidth, setContainerWidth] = useState(0);
     const codeScrollRef = useRef<HTMLDivElement>(null);
@@ -261,7 +231,7 @@ const PageCard: React.FC<{
                 onDoubleClick={page.status === 'done' ? onZoom : undefined}
                 className={`
                     relative w-full aspect-video rounded-xl border-2 transition-all duration-300 overflow-hidden shadow-sm bg-white
-                    ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1' : 'border-dashed border-slate-300'}
+                    ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 cursor-zoom-in' : 'border-dashed border-slate-300'}
                 `}
             >
                 {page.status === 'done' && page.html_content ? (
@@ -309,21 +279,10 @@ const PageCard: React.FC<{
                 
                 {/* Hover Action Overlay for Done state */}
                 {page.status === 'done' && (
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2">
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); onZoom(); }}
-                            className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:scale-110 transition-transform hover:text-indigo-600"
-                            title="放大预览"
-                         >
-                            <EyeIcon className="w-5 h-5" />
-                         </button>
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); onRevise(); }}
-                            className="bg-white/90 backdrop-blur text-slate-700 p-2 rounded-full shadow-lg hover:scale-110 transition-transform hover:text-indigo-600"
-                            title="调整/重做"
-                         >
-                            <PencilIcon className="w-5 h-5" />
-                         </button>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                         <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1.5">
+                            <EyeIcon className="w-3.5 h-3.5" /> 双击放大预览
+                         </div>
                     </div>
                 )}
             </div>
@@ -331,21 +290,15 @@ const PageCard: React.FC<{
     );
 };
 
-// Extend StratifyPage to include session info
-interface ExtendedStratifyPage extends StratifyPage {
-    session_id?: string;
-}
-
 export const LayoutStep: React.FC<{
     taskId: string;
     pages: StratifyPage[];
     scenario: string;
     onComplete: (pages: StratifyPage[]) => void;
 }> = ({ taskId, pages: initialPages, scenario, onComplete }) => {
-    const [pages, setPages] = useState<ExtendedStratifyPage[]>(initialPages.map(p => ({
+    const [pages, setPages] = useState<StratifyPage[]>(initialPages.map(p => ({
         ...p,
-        status: p.status === 'done' ? 'pending' : p.status,
-        session_id: undefined // Initialize session storage
+        status: p.status === 'done' ? 'pending' : p.status
     })));
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
@@ -354,114 +307,87 @@ export const LayoutStep: React.FC<{
     const [currentStreamingHtml, setCurrentStreamingHtml] = useState<string>('');
     const [zoomedPageIdx, setZoomedPageIdx] = useState<number | null>(null);
     
-    // Revision State
-    const [revisingPageIdx, setRevisingPageIdx] = useState<number | null>(null);
-    
     const processingRef = useRef(false);
     const completedCount = pages.filter(p => p.status === 'done').length;
     const failedCount = pages.filter(p => p.status === 'failed').length;
     const isAllDone = pages.length > 0 && pages.every(p => p.status === 'done');
 
-    // Generic Generation Function
-    const triggerGeneration = async (pageIndex: number, revisionInstruction?: string) => {
-        const targetPage = pages.find(p => p.page_index === pageIndex);
-        if (!targetPage) return;
-
-        processingRef.current = true;
-        setPageThought('');
-        setReasoningStream('');
-        setCurrentStreamingHtml('');
-        
-        setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'generating' } : p));
-
-        let buffer = '';
-        
-        // Construct variables. If revising, we include instructions.
-        const vars: any = {
-            page_title: targetPage.title,
-            markdown_content: targetPage.content_markdown || ''
-        };
-        
-        if (revisionInstruction) {
-            vars.user_revision_request = revisionInstruction;
-        }
-
-        await streamGenerate(
-            {
-                prompt_name: revisionInstruction ? '05_revise_html' : '05_generate_html', // Assume revise prompt exists or use same one with instruction var
-                variables: vars,
-                scenario,
-                task_id: taskId,
-                phase_name: '05_generate_html', // Keep phase name consistent for tracking
-                // Crucial: Use existing session ID if available to maintain context
-                session_id: targetPage.session_id 
-            },
-            (chunk) => {
-                buffer += chunk;
-                const { thought, jsonPart } = extractThoughtAndJson(buffer);
-                
-                // Improved Streaming HTML Extraction
-                const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
-                if (match && match.groups?.content) {
-                    const rawContent = match.groups.content;
-                    const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ').replace(/\\\\/g, '\\');
-                    setCurrentStreamingHtml(displayHtml);
-                } else if (buffer.length > 100 && !jsonPart && !thought) {
-                     setCurrentStreamingHtml(buffer.slice(-500));
-                }
-                
-                if (jsonPart && jsonPart.trim().length > 20) {
-                    setIsThinkingOpen(false);
-                }
-            },
-            () => {
-                const { jsonPart } = extractThoughtAndJson(buffer);
-                const htmlContent = robustExtractHtml(buffer, jsonPart);
-                
-                if (htmlContent) {
-                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, html_content: htmlContent, status: 'done' } : p));
-                } else {
-                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'failed' } : p));
-                }
-                processingRef.current = false;
-            },
-            (err) => {
-                console.error("Layout generation error:", err);
-                setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, status: 'failed' } : p));
-                processingRef.current = false;
-            },
-            (sessionId) => {
-                // Save session ID for future revisions
-                if (sessionId) {
-                    setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, session_id: sessionId } : p));
-                }
-            },
-            (reasoning) => {
-                setReasoningStream(prev => prev + reasoning);
-            }
-        );
-    };
-
-    // Queue Processor (Initial Pass)
+    // Queue Processor
     useEffect(() => {
         if (processingRef.current) return;
         
         const nextPage = pages.find(p => p.status === 'pending');
         if (!nextPage) return;
 
-        triggerGeneration(nextPage.page_index);
+        const processPage = async (page: StratifyPage) => {
+            processingRef.current = true;
+            setPageThought('');
+            setReasoningStream('');
+            setCurrentStreamingHtml('');
+            
+            setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
+
+            let buffer = '';
+            await streamGenerate(
+                {
+                    prompt_name: '05_generate_html',
+                    variables: {
+                        page_title: page.title,
+                        markdown_content: page.content_markdown || ''
+                    },
+                    scenario,
+                    task_id: taskId,
+                    phase_name: '05_generate_html'
+                },
+                (chunk) => {
+                    buffer += chunk;
+                    const { thought, jsonPart } = extractThoughtAndJson(buffer);
+                    
+                    // Improved Streaming HTML Extraction:
+                    // Look for the "html" key and capture everything after it as partial content
+                    const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                    if (match && match.groups?.content) {
+                        const rawContent = match.groups.content;
+                        // Light unescape for display in the "terminal"
+                        const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ').replace(/\\\\/g, '\\');
+                        setCurrentStreamingHtml(displayHtml);
+                    } else if (buffer.length > 100 && !jsonPart && !thought) {
+                         // Fallback: if no valid JSON structure yet but buffer is growing, show raw buffer
+                         // This happens if the model output is raw text or malformed JSON start
+                         // IMPORTANT: This ensures the terminal has content even if regex fails
+                         setCurrentStreamingHtml(buffer.slice(-500));
+                    }
+                    
+                    if (jsonPart && jsonPart.trim().length > 20) {
+                        setIsThinkingOpen(false);
+                    }
+                },
+                () => {
+                    const { jsonPart } = extractThoughtAndJson(buffer);
+                    const htmlContent = robustExtractHtml(buffer, jsonPart);
+                    if (htmlContent) {
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
+                    } else {
+                        setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                    }
+                    processingRef.current = false;
+                },
+                (err) => {
+                    console.error("Layout generation error:", err);
+                    setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
+                    processingRef.current = false;
+                },
+                undefined,
+                (reasoning) => {
+                    setReasoningStream(prev => prev + reasoning);
+                }
+            );
+        };
+        processPage(nextPage);
     }, [pages, scenario, taskId]);
 
     const handleRetry = (idx: number) => {
-        // Reset to pending to be picked up by effect
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, status: 'pending', html_content: null } : p));
-    };
-
-    const handleReviseConfirm = (instruction: string) => {
-        if (revisingPageIdx !== null) {
-            triggerGeneration(revisingPageIdx, instruction);
-            setRevisingPageIdx(null);
-        }
     };
 
     const handleRetryAll = () => {
@@ -508,12 +434,6 @@ export const LayoutStep: React.FC<{
                     onClose={() => setZoomedPageIdx(null)}
                 />
             )}
-
-            <RevisionModal 
-                isOpen={revisingPageIdx !== null}
-                onClose={() => setRevisingPageIdx(null)}
-                onConfirm={handleReviseConfirm}
-            />
 
             {/* Sticky Top Header */}
             <div className="flex-shrink-0 h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 z-40">
@@ -588,7 +508,6 @@ export const LayoutStep: React.FC<{
                             streamHtml={page.status === 'generating' ? currentStreamingHtml : undefined}
                             onRetry={() => handleRetry(page.page_index)}
                             onZoom={() => setZoomedPageIdx(page.page_index)}
-                            onRevise={() => setRevisingPageIdx(page.page_index)}
                         />
                     ))}
                     
