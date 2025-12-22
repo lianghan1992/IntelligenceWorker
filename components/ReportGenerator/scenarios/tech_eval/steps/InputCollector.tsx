@@ -238,7 +238,7 @@ export const InputCollector: React.FC<{
                         {/* Helper Text */}
                         <div className="bg-indigo-50/50 rounded-xl p-4 border border-indigo-100 text-xs text-indigo-800/80 leading-relaxed">
                             <p className="font-bold mb-1 flex items-center gap-1"><SparklesIcon className="w-3.5 h-3.5"/> 提示：</p>
-                            AI 将按照 <span className="font-bold">技术路线 -> 风险识别 -> 方案推荐</span> 的逻辑链进行推理，并最终生成 HTML 格式报告。
+                            AI 将按照 <span className="font-bold">技术路线 → 风险识别 → 方案推荐</span> 的逻辑链进行推理，并最终生成 HTML 格式报告。
                         </div>
 
                     </div>
