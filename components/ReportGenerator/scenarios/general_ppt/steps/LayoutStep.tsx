@@ -1,45 +1,53 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon, DownloadIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 
-// --- HTML Cleaning Utilities ---
+// --- HTML Cleaning & Extraction Pipeline ---
 
 const unescapeHtml = (html: string) => {
-    // Basic entity decoding using browser DOM
     const txt = document.createElement("textarea");
     txt.innerHTML = html;
     return txt.value;
 };
 
 const cleanHtmlContent = (raw: string): string => {
+    if (!raw) return '';
     let clean = raw.trim();
     
     // 1. Remove Markdown code blocks
     clean = clean.replace(/^```html\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '');
 
-    // 2. Handle double-escaped entities (Common LLM issue: \&lt;)
+    // 2. Handle double-escaped entities (Common LLM artifact: \&lt;)
     clean = clean.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>');
     clean = clean.replace(/\\</g, '<').replace(/\\>/g, '>');
     
-    // 3. Handle standard entities if the whole doc is escaped
-    if (clean.startsWith('&lt;') || clean.includes('&lt;html')) {
+    // 3. Recursive Unescape: keep unescaping until we see a tag or hit limit
+    let limit = 3;
+    while ((clean.includes('&lt;') || clean.includes('&gt;')) && limit > 0) {
         clean = unescapeHtml(clean);
+        limit--;
     }
     
     // 4. Fallback: If model wrapped it in body text instead of returning pure HTML
-    // Example: <html>...<body>&lt;!DOCTYPE...</body></html>
-    const bodyContentMatch = clean.match(/<body>([\s\S]*?)<\/body>/i);
-    if (bodyContentMatch && (bodyContentMatch[1].includes('&lt;!DOCTYPE') || bodyContentMatch[1].includes('<!DOCTYPE'))) {
-         let bodyInner = bodyContentMatch[1].trim();
-         // If inner content is escaped
-         if (bodyInner.startsWith('&lt;') || bodyInner.startsWith('\\&lt;')) {
-             bodyInner = unescapeHtml(bodyInner.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>'));
+    // Scenario: <html><head></head><body>&lt;!DOCTYPE html&gt;...</body></html>
+    // We want the inner content.
+    if (clean.includes('&lt;!DOCTYPE') || clean.includes('<!DOCTYPE')) {
+         const bodyMatch = clean.match(/<body>([\s\S]*?)<\/body>/i);
+         if (bodyMatch) {
+             let bodyInner = bodyMatch[1].trim();
+             // Unescape the inner body content if needed
+             if (bodyInner.includes('&lt;') || bodyInner.includes('\\&lt;')) {
+                 bodyInner = unescapeHtml(bodyInner.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>'));
+             }
+             // If the inner content looks like a full HTML doc, use it
+             if (bodyInner.trim().startsWith('<!DOCTYPE') || bodyInner.trim().startsWith('<html')) {
+                 return bodyInner;
+             }
          }
-         return bodyInner;
     }
 
     return clean;
@@ -48,7 +56,7 @@ const cleanHtmlContent = (raw: string): string => {
 const robustExtractHtml = (fullText: string, jsonPart: string): string | null => {
     let rawHtml = '';
     
-    // Priority 1: JSON Part parse
+    // Strategy 1: JSON Part parse
     if (jsonPart) {
         try {
             const parsed = parseLlmJson<{ html: string }>(jsonPart);
@@ -56,21 +64,21 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
         } catch (e) { /* continue */ }
     }
 
-    // Priority 2: Regex extraction from full text (if JSON failed or missing)
+    // Strategy 2: Regex extraction from full text (if JSON failed or missing)
     if (!rawHtml) {
+        // Try to match "html": "..." pattern even if JSON is broken
         const jsonFieldMatch = fullText.match(/"html"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
         if (jsonFieldMatch && jsonFieldMatch[1]) {
             try { 
-                // Construct a valid JSON string to parse safely
                 rawHtml = JSON.parse(`"${jsonFieldMatch[1]}"`); 
             } catch (e) { 
-                // Manual unescape if parse fails
+                // Manual basic unescape if parse fails
                 rawHtml = jsonFieldMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'); 
             }
         }
     }
 
-    // Priority 3: Raw HTML block detection
+    // Strategy 3: Raw HTML block detection (LLM forgot JSON)
     if (!rawHtml) {
         const rawHtmlMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
         if (rawHtmlMatch) rawHtml = rawHtmlMatch[0];
@@ -81,7 +89,46 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return cleanHtmlContent(rawHtml);
 };
 
+// --- Config Constants ---
+const CANVAS_WIDTH = 1600;
+const CANVAS_HEIGHT = 900;
+
 // --- Components ---
+
+// Scaled Preview Component (The Core Logic)
+const ScaledPreview: React.FC<{
+    html: string;
+    parentWidth: number;
+    parentHeight: number;
+}> = ({ html, parentWidth, parentHeight }) => {
+    
+    // Calculate Scale to FIT the parent container
+    const scaleX = parentWidth / CANVAS_WIDTH;
+    const scaleY = parentHeight / CANVAS_HEIGHT;
+    // Use the smaller scale to fit entirely, or larger to cover? Usually fit.
+    // For 16:9 cards, scaleX should roughly equal scaleY.
+    const scale = Math.min(scaleX, scaleY);
+
+    return (
+        <div 
+            style={{
+                width: CANVAS_WIDTH,
+                height: CANVAS_HEIGHT,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                backgroundColor: 'white', 
+                overflow: 'hidden' // Force crop anything outside 1600x900
+            }}
+        >
+            <iframe 
+                srcDoc={html} 
+                className="w-full h-full border-none pointer-events-none select-none"
+                title="Preview"
+                sandbox="allow-scripts"
+            />
+        </div>
+    );
+};
 
 // Zoom Modal for Full Preview
 const ZoomModal: React.FC<{
@@ -89,36 +136,35 @@ const ZoomModal: React.FC<{
     onClose: () => void;
 }> = ({ html, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(1);
+    const [dims, setDims] = useState({ w: 0, h: 0 });
     
-    // Standard PPT Resolution base (HD)
-    const BASE_WIDTH = 1280;
-    const BASE_HEIGHT = 720;
-
-    // Calculate scale to fit the viewport while maintaining 16:9
     useLayoutEffect(() => {
-        const updateScale = () => {
+        const updateDims = () => {
             if (containerRef.current) {
-                // Available space (padding included in calculation)
-                const availableWidth = window.innerWidth * 0.9; 
-                const availableHeight = window.innerHeight * 0.9;
+                // Get available space with some padding
+                const maxWidth = window.innerWidth * 0.9;
+                const maxHeight = window.innerHeight * 0.9;
                 
-                const scaleX = availableWidth / BASE_WIDTH;
-                const scaleY = availableHeight / BASE_HEIGHT;
+                // Determine target dimensions keeping 16:9 aspect ratio
+                let targetW = maxWidth;
+                let targetH = targetW * (9/16);
                 
-                // Fit within both dimensions
-                setScale(Math.min(scaleX, scaleY, 1.5)); // Max scale 1.5x
+                if (targetH > maxHeight) {
+                    targetH = maxHeight;
+                    targetW = targetH * (16/9);
+                }
+                
+                setDims({ w: targetW, h: targetH });
             }
         };
         
-        updateScale();
-        window.addEventListener('resize', updateScale);
-        return () => window.removeEventListener('resize', updateScale);
+        updateDims();
+        window.addEventListener('resize', updateDims);
+        return () => window.removeEventListener('resize', updateDims);
     }, []);
 
     return (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center animate-in fade-in duration-300" onClick={onClose}>
-            {/* Close Button - Fixed to top right */}
             <button 
                 onClick={onClose}
                 className="absolute top-6 right-6 z-[110] p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all hover:rotate-90 backdrop-blur-sm"
@@ -126,32 +172,19 @@ const ZoomModal: React.FC<{
                 <CloseIcon className="w-8 h-8" />
             </button>
 
-            {/* Container for the scaled iframe */}
             <div 
                 ref={containerRef}
-                className="relative flex items-center justify-center transition-all duration-300"
+                className="relative bg-white shadow-2xl overflow-hidden transition-all duration-300 rounded-lg"
                 onClick={e => e.stopPropagation()}
-                style={{
-                    width: `${BASE_WIDTH * scale}px`,
-                    height: `${BASE_HEIGHT * scale}px`
-                }}
+                style={{ width: dims.w, height: dims.h }}
             >
-                {/* The actual content box */}
-                <div 
-                    className="absolute bg-white shadow-2xl rounded-lg overflow-hidden origin-center"
-                    style={{
-                        width: `${BASE_WIDTH}px`,
-                        height: `${BASE_HEIGHT}px`,
-                        transform: `scale(${scale})`,
-                    }}
-                >
-                    <iframe 
-                        srcDoc={html} 
-                        className="w-full h-full border-none bg-white" 
-                        title="Full Preview"
-                        sandbox="allow-scripts"
+                 {dims.w > 0 && (
+                    <ScaledPreview 
+                        html={html} 
+                        parentWidth={dims.w} 
+                        parentHeight={dims.h} 
                     />
-                </div>
+                 )}
             </div>
         </div>
     );
@@ -166,22 +199,17 @@ const PageCard: React.FC<{
     onZoom: () => void;
 }> = ({ page, isGenerating, streamHtml, onRetry, onZoom }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(0.2);
+    const [containerWidth, setContainerWidth] = useState(0);
     const codeScrollRef = useRef<HTMLDivElement>(null);
     
-    // Standard PPT Resolution base (HD)
-    const BASE_WIDTH = 1280;
-    const BASE_HEIGHT = 720;
-
     useEffect(() => {
-        const updateScale = () => {
+        const updateWidth = () => {
             if (containerRef.current) {
-                const { offsetWidth } = containerRef.current;
-                setScale(offsetWidth / BASE_WIDTH);
+                setContainerWidth(containerRef.current.offsetWidth);
             }
         };
-        updateScale();
-        const obs = new ResizeObserver(updateScale);
+        updateWidth();
+        const obs = new ResizeObserver(updateWidth);
         if (containerRef.current) obs.observe(containerRef.current);
         return () => obs.disconnect();
     }, []);
@@ -211,28 +239,19 @@ const PageCard: React.FC<{
                 ref={containerRef}
                 onDoubleClick={page.status === 'done' ? onZoom : undefined}
                 className={`
-                    relative aspect-video w-full rounded-xl border-2 transition-all duration-300 overflow-hidden shadow-sm bg-white
+                    relative w-full aspect-video rounded-xl border-2 transition-all duration-300 overflow-hidden shadow-sm bg-white
                     ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 cursor-zoom-in' : 'border-dashed border-slate-300'}
                 `}
             >
                 {page.status === 'done' && page.html_content ? (
-                    <div 
-                        style={{ 
-                            width: `${BASE_WIDTH}px`, 
-                            height: `${BASE_HEIGHT}px`, 
-                            transform: `scale(${scale})`, 
-                            transformOrigin: 'top left',
-                            pointerEvents: 'none' // Interactivity disabled in thumbnail
-                        }}
-                        className="bg-white"
-                    >
-                        <iframe 
-                            srcDoc={page.html_content} 
-                            className="w-full h-full border-none bg-white" 
-                            title={`Slide ${page.page_index}`}
-                            sandbox="allow-scripts"
+                    containerWidth > 0 && (
+                        <ScaledPreview 
+                            html={page.html_content} 
+                            parentWidth={containerWidth} 
+                            // Aspect video means height is width * 9/16
+                            parentHeight={containerWidth * (9/16)} 
                         />
-                    </div>
+                    )
                 ) : page.status === 'generating' ? (
                     <div className="absolute inset-0 flex flex-col bg-[#1e1e1e] font-mono p-3">
                         <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
