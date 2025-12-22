@@ -9,7 +9,7 @@ import { ReasoningModal } from '../../../shared/ReasoningModal';
 // --- HTML Cleaning Utilities ---
 
 const unescapeHtml = (html: string) => {
-    // Basic entity decoding
+    // Basic entity decoding using browser DOM
     const txt = document.createElement("textarea");
     txt.innerHTML = html;
     return txt.value;
@@ -21,7 +21,7 @@ const cleanHtmlContent = (raw: string): string => {
     // 1. Remove Markdown code blocks
     clean = clean.replace(/^```html\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '');
 
-    // 2. Handle double-escaped entities (User reported \&lt;)
+    // 2. Handle double-escaped entities (Common LLM issue: \&lt;)
     clean = clean.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>');
     clean = clean.replace(/\\</g, '<').replace(/\\>/g, '>');
     
@@ -31,11 +31,11 @@ const cleanHtmlContent = (raw: string): string => {
     }
     
     // 4. Fallback: If model wrapped it in body text instead of returning pure HTML
-    // (User reported <html>...<body>\&lt;!DOCTYPE...</body></html>)
-    // We try to extract the inner HTML if the body content looks like an escaped doctype
-    const bodyContentMatch = clean.match(/<body>(.*?)<\/body>/s);
+    // Example: <html>...<body>&lt;!DOCTYPE...</body></html>
+    const bodyContentMatch = clean.match(/<body>([\s\S]*?)<\/body>/i);
     if (bodyContentMatch && (bodyContentMatch[1].includes('&lt;!DOCTYPE') || bodyContentMatch[1].includes('<!DOCTYPE'))) {
          let bodyInner = bodyContentMatch[1].trim();
+         // If inner content is escaped
          if (bodyInner.startsWith('&lt;') || bodyInner.startsWith('\\&lt;')) {
              bodyInner = unescapeHtml(bodyInner.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>'));
          }
@@ -48,7 +48,7 @@ const cleanHtmlContent = (raw: string): string => {
 const robustExtractHtml = (fullText: string, jsonPart: string): string | null => {
     let rawHtml = '';
     
-    // Priority 1: JSON Part
+    // Priority 1: JSON Part parse
     if (jsonPart) {
         try {
             const parsed = parseLlmJson<{ html: string }>(jsonPart);
@@ -61,8 +61,10 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
         const jsonFieldMatch = fullText.match(/"html"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
         if (jsonFieldMatch && jsonFieldMatch[1]) {
             try { 
+                // Construct a valid JSON string to parse safely
                 rawHtml = JSON.parse(`"${jsonFieldMatch[1]}"`); 
             } catch (e) { 
+                // Manual unescape if parse fails
                 rawHtml = jsonFieldMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'); 
             }
         }
@@ -87,20 +89,23 @@ const ZoomModal: React.FC<{
     onClose: () => void;
 }> = ({ html, onClose }) => {
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
-            <div className="relative w-full max-w-[90vw] max-h-[90vh] aspect-video bg-white rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+            <div className="relative w-full h-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
                 <button 
                     onClick={onClose}
-                    className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+                    className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
                 >
-                    <CloseIcon className="w-6 h-6" />
+                    <CloseIcon className="w-8 h-8" />
                 </button>
-                <iframe 
-                    srcDoc={html} 
-                    className="w-full h-full border-none bg-white" 
-                    title="Full Preview"
-                    sandbox="allow-scripts"
-                />
+                {/* 16:9 Container limited by screen size */}
+                <div className="aspect-video w-full max-w-[90vw] max-h-[90vh] bg-white rounded-lg shadow-2xl overflow-hidden relative">
+                     <iframe 
+                        srcDoc={html} 
+                        className="w-full h-full border-none bg-white" 
+                        title="Full Preview"
+                        sandbox="allow-scripts"
+                    />
+                </div>
             </div>
         </div>
     );
@@ -118,7 +123,7 @@ const PageCard: React.FC<{
     const [scale, setScale] = useState(0.2);
     const codeScrollRef = useRef<HTMLDivElement>(null);
     
-    // Standard PPT Resolution base
+    // Standard PPT Resolution base (HD)
     const BASE_WIDTH = 1280;
     const BASE_HEIGHT = 720;
 
@@ -135,6 +140,7 @@ const PageCard: React.FC<{
         return () => obs.disconnect();
     }, []);
 
+    // Auto-scroll the code view
     useEffect(() => {
         if (codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
@@ -142,11 +148,11 @@ const PageCard: React.FC<{
     }, [streamHtml]);
 
     return (
-        <div className="flex flex-col gap-3 group animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="flex flex-col gap-2 group animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
-                        Slide {page.page_index}
+                        Page {page.page_index}
                     </span>
                     <h4 className="text-xs font-bold text-slate-600 truncate max-w-[150px]" title={page.title}>
                         {page.title}
@@ -182,19 +188,20 @@ const PageCard: React.FC<{
                         />
                     </div>
                 ) : page.status === 'generating' ? (
-                    <div className="absolute inset-0 flex flex-col bg-[#0f172a]">
-                        <div className="flex-1 overflow-hidden p-2">
-                             <div ref={codeScrollRef} className="h-full overflow-y-auto font-mono text-[8px] text-cyan-400/70 custom-scrollbar-dark leading-tight break-all">
-                                 <div className="flex items-center gap-1 mb-2 opacity-50">
-                                     <CodeIcon className="w-3 h-3"/>
-                                     <span className="uppercase tracking-widest font-black">Layout_Stream</span>
-                                 </div>
-                                 {streamHtml || '// Starting synthesis...'}
-                                 <span className="inline-block w-1 h-3 bg-cyan-400 ml-0.5 animate-pulse"></span>
-                             </div>
+                    <div className="absolute inset-0 flex flex-col bg-[#1e1e1e] font-mono p-3">
+                        <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
+                            <div className="flex gap-1">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            </div>
+                            <span className="text-[8px] text-slate-400">Rendering HTML...</span>
                         </div>
-                        <div className="h-1 bg-indigo-500/20">
-                            <div className="h-full bg-indigo-500 animate-[grow_2s_infinite]"></div>
+                        <div ref={codeScrollRef} className="flex-1 overflow-hidden relative">
+                             <div className="absolute inset-0 overflow-y-auto custom-scrollbar-dark text-[8px] leading-relaxed break-all text-green-400/80">
+                                 {streamHtml || <span className="opacity-50 text-slate-500">// Waiting for stream...</span>}
+                                 <span className="inline-block w-1.5 h-3 bg-green-500 ml-0.5 animate-pulse align-middle"></span>
+                             </div>
                         </div>
                     </div>
                 ) : page.status === 'failed' ? (
@@ -202,12 +209,12 @@ const PageCard: React.FC<{
                         <div className="p-3 bg-red-100 rounded-full mb-3">
                             <ShieldExclamationIcon className="w-6 h-6 text-red-500" />
                         </div>
-                        <p className="text-[10px] font-bold text-red-700 mb-4 px-2 leading-tight">页面设计中断</p>
+                        <p className="text-[10px] font-bold text-red-700 mb-4 px-2 leading-tight">渲染失败</p>
                         <button 
                             onClick={(e) => { e.stopPropagation(); onRetry(); }}
                             className="px-4 py-2 bg-white border border-red-200 text-red-600 text-[10px] font-black rounded-xl shadow-sm hover:bg-red-50 transition-all flex items-center gap-1.5 active:scale-95"
                         >
-                            <RefreshIcon className="w-3 h-3" /> 重试本页
+                            <RefreshIcon className="w-3 h-3" /> 重试
                         </button>
                     </div>
                 ) : (
@@ -221,7 +228,7 @@ const PageCard: React.FC<{
                 {page.status === 'done' && (
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
                          <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1.5">
-                            <EyeIcon className="w-3.5 h-3.5" /> 双击预览
+                            <EyeIcon className="w-3.5 h-3.5" /> 双击放大预览
                          </div>
                     </div>
                 )}
@@ -281,15 +288,24 @@ export const LayoutStep: React.FC<{
                 },
                 (chunk) => {
                     buffer += chunk;
-                    const { jsonPart } = extractThoughtAndJson(buffer);
+                    const { thought, jsonPart } = extractThoughtAndJson(buffer);
                     
-                    // Real-time HTML code extraction for visual terminal
+                    // Streaming HTML Logic: Extract partial "html" field value to show coding effect
                     const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
                     if (match && match.groups?.content) {
-                        setCurrentStreamingHtml(match.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'));
+                        const rawContent = match.groups.content;
+                        // Light unescape for display
+                        const displayHtml = rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '  ');
+                        setCurrentStreamingHtml(displayHtml);
                     }
                     
-                    if (jsonPart && jsonPart.trim().length > 20) setIsThinkingOpen(false);
+                    // If we have thought/reasoning but no JSON yet, show reasoning modal
+                    // Once JSON starts, we assume "Coding" phase and close modal or rely on card view
+                    if (!jsonPart && thought.trim().length > 0) {
+                       // setIsThinkingOpen(true); // Optional: Auto-open reasoning
+                    } else if (jsonPart) {
+                       setIsThinkingOpen(false);
+                    }
                 },
                 () => {
                     const { jsonPart } = extractThoughtAndJson(buffer);
@@ -308,8 +324,13 @@ export const LayoutStep: React.FC<{
                 },
                 undefined,
                 (reasoning) => {
-                    setIsThinkingOpen(true);
+                    // Update reasoning stream for modal
                     setReasoningStream(prev => prev + reasoning);
+                    // If backend sends reasoning events, we can show them
+                    if (reasoning.trim().length > 0 && !currentStreamingHtml) {
+                        // Only auto-open if not already streaming HTML
+                        // setIsThinkingOpen(true); 
+                    }
                 }
             );
         };
@@ -328,17 +349,11 @@ export const LayoutStep: React.FC<{
         setIsDownloading(true);
         try {
             let allStyles = '';
+            // Just join HTMLs. The API handles page breaks via CSS usually or we can inject separator
             const processedPages = pages
                 .filter(p => p.status === 'done' && p.html_content)
-                .map(p => {
-                    const html = p.html_content!;
-                    // Extract styles to deduplicate if needed, but for PDF gen usually simple concat works
-                    // unless styles clash. We assume atomic styles.
-                    return html;
-                });
+                .map(p => p.html_content!);
             
-            // Simple concatenation for PDF generation service
-            // The service handles page breaks
             const combinedContent = processedPages.join('<div style="page-break-after: always;"></div>');
 
             const blob = await generatePdf(combinedContent, `AI_Report_${taskId.slice(0,6)}.pdf`);
