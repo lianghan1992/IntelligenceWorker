@@ -2,27 +2,45 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson, generatePdf, getScenarios, getScenarioFiles } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon, LightningBoltIcon } from '../../../../icons';
+import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon, LightningBoltIcon, RefreshIcon, ShieldExclamationIcon } from '../../../../icons';
 
-const extractStreamingHtml = (text: string): string => {
-    const keyMatch = text.match(/"html_report"\s*:\s*"/);
-    if (!keyMatch || keyMatch.index === undefined) return '';
-    const startIndex = keyMatch.index + keyMatch[0].length;
-    let rawContent = text.slice(startIndex);
-    const endMatch = rawContent.match(/"\s*}\s*$/);
-    if (endMatch) rawContent = rawContent.slice(0, endMatch.index);
-    return rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\').replace(/\\$/, ''); 
+// 增强后的 HTML 提取逻辑
+const robustExtractHtml = (fullText: string, jsonPart: string): string | null => {
+    // 1. 尝试从 JSON 对象中解析 (标准路径)
+    if (jsonPart) {
+        try {
+            const parsed = parseLlmJson<{ html_report: string }>(jsonPart);
+            if (parsed && parsed.html_report) return parsed.html_report;
+        } catch (e) { /* continue */ }
+    }
+
+    // 2. 尝试正则提取 JSON 字段 (应对 JSON 截断或格式微瑕疵)
+    const keyMatch = fullText.match(/"html_report"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+    if (keyMatch && keyMatch.groups?.content) {
+        try {
+             return JSON.parse(`"${keyMatch.groups.content}"`);
+        } catch(e) {
+             return keyMatch.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
+        }
+    }
+
+    // 3. 尝试提取 Markdown 代码块 (模型有时会忽略 JSON 约束直接输出代码)
+    const codeBlockMatch = fullText.match(/```html\s*([\s\S]*?)```/i);
+    if (codeBlockMatch) return codeBlockMatch[1];
+
+    // 4. 尝试提取纯 HTML 标签 (最坏情况兜底)
+    const htmlTagMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
+    if (htmlTagMatch) return htmlTagMatch[0];
+
+    return null;
 };
 
 const formatModelName = (model: string) => {
     if (!model) return 'Auto';
-    // Remove channel prefix (e.g. "openrouter@")
     let name = model.includes('@') ? model.split('@')[1] : model;
-    // Remove organization prefix if present (e.g. "mistralai/", "tngtech/")
     if (name.includes('/')) {
         name = name.split('/')[1];
     }
-    // Clean up version tags for cleaner display
     name = name.replace(':free', '').replace(':beta', '');
     return name;
 };
@@ -42,8 +60,11 @@ export const FinalRenderer: React.FC<{
     const [currentModel, setCurrentModel] = useState<string>('Loading...');
     const [renderModel, setRenderModel] = useState<string>('');
     const [isModelLoaded, setIsModelLoaded] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showRawDebug, setShowRawDebug] = useState(false);
     
     const codeScrollRef = useRef<HTMLDivElement>(null);
+    const hasStartedRef = useRef(false);
 
     useEffect(() => {
         if (isSynthesizing && codeScrollRef.current) {
@@ -51,7 +72,7 @@ export const FinalRenderer: React.FC<{
         }
     }, [htmlContent, rawStream, isSynthesizing]);
 
-    // Fetch scenario info to get model configs first
+    // Fetch scenario info
     useEffect(() => {
         const fetchModelInfo = async () => {
             try {
@@ -59,11 +80,8 @@ export const FinalRenderer: React.FC<{
                 const current = scenarios.find(s => s.id === scenario || s.name === scenario);
                 if (current) {
                     const defModel = current.default_model || 'System Default';
-                    
-                    // Try to find if 04_Markdown2Html has a specific override
                     const files = await getScenarioFiles(current.id);
                     const renderPromptFile = files.find(f => f.name.includes('04_Markdown2Html'));
-                    
                     const specificModel = renderPromptFile?.model || defModel;
                     setRenderModel(specificModel);
                     setCurrentModel(specificModel);
@@ -71,7 +89,7 @@ export const FinalRenderer: React.FC<{
                     setCurrentModel('Unknown');
                 }
             } catch (err) {
-                console.warn("Failed to fetch scenario details for model name", err);
+                console.warn("Failed to fetch scenario details", err);
                 setCurrentModel("Unknown");
             } finally {
                 setIsModelLoaded(true);
@@ -80,40 +98,68 @@ export const FinalRenderer: React.FC<{
         fetchModelInfo();
     }, [scenario]);
 
-    // Trigger synthesis only when ready AND model info is loaded
+    // Trigger synthesis
     useEffect(() => {
-        if (isReady && !htmlContent && !isSynthesizing && isModelLoaded) {
+        if (isReady && isModelLoaded && !htmlContent && !isSynthesizing && !hasStartedRef.current) {
             synthesize();
         }
     }, [isReady, isModelLoaded]);
 
     const synthesize = async () => {
+        hasStartedRef.current = true;
         setIsSynthesizing(true);
         setHtmlContent(''); 
         setRawStream('');
+        setError(null);
         let buffer = '';
         
-        await streamGenerate(
-            { 
-                prompt_name: '04_Markdown2Html', 
-                variables: { markdown_report: markdown }, 
-                scenario, 
-                session_id: undefined, // Final renderer typically doesn't need prev context
-                model_override: renderModel || undefined // Pass explicit model if found
-            },
-            (chunk) => { 
-                buffer += chunk; 
-                setRawStream(buffer);
-                const extracted = extractStreamingHtml(buffer);
-                if (extracted) setHtmlContent(extracted);
-            },
-            () => {
-                const { jsonPart } = extractThoughtAndJson(buffer);
-                const parsed = parseLlmJson<any>(jsonPart);
-                if (parsed && parsed.html_report) setHtmlContent(parsed.html_report);
-                setIsSynthesizing(false);
-            }
-        );
+        try {
+            await streamGenerate(
+                { 
+                    prompt_name: '04_Markdown2Html', 
+                    variables: { markdown_report: markdown }, 
+                    scenario, 
+                    session_id: undefined, 
+                    model_override: renderModel || undefined
+                },
+                (chunk) => { 
+                    buffer += chunk; 
+                    setRawStream(buffer);
+                    
+                    // 实时尝试提取 (如果模型是流式输出 JSON)
+                    const { jsonPart } = extractThoughtAndJson(buffer);
+                    const extracted = robustExtractHtml(buffer, jsonPart);
+                    if (extracted) {
+                        setHtmlContent(extracted);
+                    }
+                },
+                () => {
+                    // 完成时的最终提取尝试
+                    const { jsonPart } = extractThoughtAndJson(buffer);
+                    const finalHtml = robustExtractHtml(buffer, jsonPart);
+                    
+                    if (finalHtml) {
+                        setHtmlContent(finalHtml);
+                    } else {
+                        // 如果最后还是空的，说明提取失败
+                        setError("生成完成，但未能识别有效的 HTML 结构。请点击右下角查看原始输出。");
+                    }
+                    setIsSynthesizing(false);
+                },
+                (err) => {
+                    setError(`生成中断: ${err.message || '未知错误'}`);
+                    setIsSynthesizing(false);
+                }
+            );
+        } catch (e: any) {
+            setError(`调用失败: ${e.message}`);
+            setIsSynthesizing(false);
+        }
+    };
+
+    const handleRetry = () => {
+        hasStartedRef.current = false;
+        synthesize();
     };
 
     const handleDownload = async () => {
@@ -153,6 +199,15 @@ export const FinalRenderer: React.FC<{
                 </div>
                 
                 <div className="flex items-center gap-3">
+                    {!isSynthesizing && (htmlContent.length > 0 || error) && (
+                         <button 
+                            onClick={handleRetry}
+                            className="p-2 text-slate-400 hover:text-white transition-colors"
+                            title="Retry"
+                        >
+                            <RefreshIcon className="w-4 h-4" />
+                        </button>
+                    )}
                     {!isSynthesizing && htmlContent.length > 0 && (
                         <button 
                             onClick={handleDownload}
@@ -184,7 +239,7 @@ export const FinalRenderer: React.FC<{
                             </pre>
                         </div>
                     </div>
-                ) : htmlContent.length > 0 ? (
+                ) : htmlContent.length > 0 && !showRawDebug ? (
                     <div className="flex-1 w-full h-full relative overflow-hidden animate-in fade-in duration-1000">
                         <iframe 
                             srcDoc={htmlContent}
@@ -192,19 +247,60 @@ export const FinalRenderer: React.FC<{
                             title="Final HTML Synthesis"
                             sandbox="allow-scripts allow-same-origin"
                         />
-                        <div className="absolute bottom-6 right-6 pointer-events-none">
-                            <div className="flex items-center gap-2 bg-black/80 backdrop-blur px-4 py-2 rounded-full border border-white/10 text-xs font-bold text-white shadow-2xl opacity-0 animate-in fade-in delay-1000 fill-mode-forwards slide-in-from-bottom-4">
+                        <div className="absolute bottom-6 right-6 pointer-events-none flex gap-2">
+                             {/* Debug Toggle */}
+                             <button 
+                                onClick={() => setShowRawDebug(true)}
+                                className="pointer-events-auto flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-bold text-slate-400 hover:text-white transition-colors"
+                            >
+                                <CodeIcon className="w-3 h-3" /> Raw Code
+                            </button>
+                            <div className="flex items-center gap-2 bg-black/80 backdrop-blur px-4 py-2 rounded-full border border-white/10 text-xs font-bold text-white shadow-2xl">
                                 <EyeIcon className="w-3.5 h-3.5 text-green-400" />
                                 Preview Mode Active
                             </div>
                         </div>
                     </div>
                 ) : (
-                     <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
-                        <div className="relative">
-                            <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-700 animate-spin"></div>
-                        </div>
-                        <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Awaiting Input...</p>
+                     <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 p-10">
+                        {error ? (
+                            <div className="max-w-xl w-full bg-red-900/20 border border-red-500/30 rounded-2xl p-8 backdrop-blur-sm">
+                                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
+                                    <ShieldExclamationIcon className="w-8 h-8 text-red-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-red-200 mb-2">生成异常</h3>
+                                <p className="text-sm text-red-300/80 mb-6">{error}</p>
+                                <div className="flex justify-center gap-3">
+                                    <button onClick={handleRetry} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold transition-colors">
+                                        重试
+                                    </button>
+                                    <button onClick={() => setShowRawDebug(true)} className="px-6 py-2 bg-transparent border border-red-500/30 hover:bg-red-500/10 text-red-300 rounded-lg text-xs font-bold transition-colors">
+                                        查看原始输出
+                                    </button>
+                                </div>
+                            </div>
+                        ) : showRawDebug ? (
+                             <div className="flex-1 w-full h-full flex flex-col min-h-0 relative">
+                                <div className="absolute top-4 right-4 z-10">
+                                    <button onClick={() => setShowRawDebug(false)} className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded border border-white/20">
+                                        Close Raw View
+                                    </button>
+                                </div>
+                                <div className="flex-1 overflow-auto p-8 font-mono text-[11px] leading-relaxed custom-scrollbar-dark bg-[#0a0f1c] text-slate-300 w-full text-left">
+                                    <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Raw LLM Output Stream</div>
+                                    <pre className="whitespace-pre-wrap break-all">{rawStream}</pre>
+                                </div>
+                             </div>
+                        ) : (
+                            // Loading or Waiting State
+                            <div className="relative">
+                                <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-700 animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-slate-500 rounded-full"></div>
+                                </div>
+                            </div>
+                        )}
+                        {!error && !showRawDebug && <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Initializing Environment...</p>}
                     </div>
                 )}
             </div>
