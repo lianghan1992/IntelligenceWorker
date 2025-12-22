@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon } from '../../../../icons';
+import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon, LightningBoltIcon } from '../../../../icons';
 
 const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
@@ -14,6 +14,10 @@ const extractStreamingHtml = (text: string): string => {
     const endMatch = rawContent.match(/"\s*}\s*$/);
     if (endMatch) rawContent = rawContent.slice(0, endMatch.index);
     return rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\').replace(/\\$/, ''); 
+};
+
+const formatModelName = (model: string) => {
+    return model.includes('@') ? model.split('@')[1] : model;
 };
 
 export const FinalRenderer: React.FC<{
@@ -99,7 +103,13 @@ export const FinalRenderer: React.FC<{
                          ← Back to Edit
                     </button>
                     <div className="h-4 w-px bg-white/10"></div>
-                    <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Synthesis Engine</span>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] leading-none">Synthesis Engine</span>
+                        <span className="text-[9px] text-indigo-400 font-mono mt-0.5 flex items-center gap-1">
+                            <LightningBoltIcon className="w-2.5 h-2.5" />
+                            {formatModelName(TARGET_MODEL)}
+                        </span>
+                    </div>
                 </div>
                 
                 <div className="flex items-center gap-3">

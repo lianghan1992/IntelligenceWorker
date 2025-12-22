@@ -6,7 +6,8 @@ import {
     BrainIcon, CheckIcon, SparklesIcon, 
     LockClosedIcon, BeakerIcon, 
     ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon,
-    PlayIcon, ClockIcon, ChartIcon, RefreshIcon, PencilIcon
+    PlayIcon, ClockIcon, ChartIcon, RefreshIcon, PencilIcon,
+    LightningBoltIcon
 } from '../../../../icons';
 import { WorkflowState } from '../TechEvalScenario';
 
@@ -30,6 +31,10 @@ interface StepData {
 }
 
 const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
+
+const formatModelName = (model: string) => {
+    return model.includes('@') ? model.split('@')[1] : model;
+};
 
 // --- Sub-Components ---
 
@@ -357,9 +362,19 @@ export const WorkflowProcessor: React.FC<{
                                                 <div className={`p-2 rounded-lg ${isRunning ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
                                                     <step.icon className="w-5 h-5" />
                                                 </div>
-                                                <h3 className={`font-bold text-base ${isRunning ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                                    {step.label}
-                                                </h3>
+                                                <div>
+                                                    <h3 className={`font-bold text-base ${isRunning ? 'text-indigo-900' : 'text-slate-700'}`}>
+                                                        {step.label}
+                                                    </h3>
+                                                    {(isRunning || isCompleted) && (
+                                                        <div className="flex items-center gap-1 mt-0.5 animate-in fade-in">
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                                                <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
+                                                                {formatModelName(TARGET_MODEL)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="text-xs font-bold">
                                                 {isRunning && <span className="text-indigo-500 flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> Processing</span>}
@@ -482,7 +497,13 @@ export const WorkflowProcessor: React.FC<{
                                         <span className={`w-1.5 h-4 rounded-full ${isRevisingThis ? 'bg-indigo-500 animate-pulse' : 'bg-slate-400'}`}></span>
                                         {getSectionTitle(key)}
                                     </h3>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 items-center">
+                                        {isRevisingThis && (
+                                            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white text-slate-400 border border-slate-200 mr-2">
+                                                <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
+                                                {formatModelName(TARGET_MODEL)}
+                                            </span>
+                                        )}
                                         {isRevisingThis ? (
                                              <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-lg">
                                                  <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> AI 撰写中...
