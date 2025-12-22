@@ -41,6 +41,7 @@ export const FinalRenderer: React.FC<{
     const [isDownloading, setIsDownloading] = useState(false);
     const [currentModel, setCurrentModel] = useState<string>('Loading...');
     const [renderModel, setRenderModel] = useState<string>('');
+    const [isModelLoaded, setIsModelLoaded] = useState(false);
     
     const codeScrollRef = useRef<HTMLDivElement>(null);
 
@@ -50,13 +51,7 @@ export const FinalRenderer: React.FC<{
         }
     }, [htmlContent, rawStream, isSynthesizing]);
 
-    useEffect(() => {
-        if (isReady && !htmlContent && !isSynthesizing) {
-            synthesize();
-        }
-    }, [isReady]);
-
-    // Fetch scenario info to get model configs
+    // Fetch scenario info to get model configs first
     useEffect(() => {
         const fetchModelInfo = async () => {
             try {
@@ -78,10 +73,19 @@ export const FinalRenderer: React.FC<{
             } catch (err) {
                 console.warn("Failed to fetch scenario details for model name", err);
                 setCurrentModel("Unknown");
+            } finally {
+                setIsModelLoaded(true);
             }
         };
         fetchModelInfo();
     }, [scenario]);
+
+    // Trigger synthesis only when ready AND model info is loaded
+    useEffect(() => {
+        if (isReady && !htmlContent && !isSynthesizing && isModelLoaded) {
+            synthesize();
+        }
+    }, [isReady, isModelLoaded]);
 
     const synthesize = async () => {
         setIsSynthesizing(true);
@@ -94,7 +98,7 @@ export const FinalRenderer: React.FC<{
                 prompt_name: '04_Markdown2Html', 
                 variables: { markdown_report: markdown }, 
                 scenario, 
-                session_id: undefined,
+                session_id: undefined, // Final renderer typically doesn't need prev context
                 model_override: renderModel || undefined // Pass explicit model if found
             },
             (chunk) => { 

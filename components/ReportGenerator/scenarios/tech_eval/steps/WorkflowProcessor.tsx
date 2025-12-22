@@ -29,6 +29,7 @@ interface StepData {
     status: 'pending' | 'running' | 'completed' | 'error';
     reasoning: string;
     content: string;
+    model?: string; // Added to track specific model used
 }
 
 const formatModelName = (model: string) => {
@@ -42,9 +43,6 @@ const formatModelName = (model: string) => {
 };
 
 // --- Sub-Components ---
-// ... (ThinkingTerminal and ResultCard remain the same, ommitted for brevity as they don't need changes) 
-// BUT for XML replacement to work correctly, I must include them or use a smarter diff. 
-// I will include the full file content to ensure safety.
 
 // 1. 思考终端组件
 const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ content, isActive }) => {
@@ -148,11 +146,14 @@ export const WorkflowProcessor: React.FC<{
 }> = ({ taskId, scenario, initialSessionId, targetTech, materials, workflowState, setWorkflowState, onReviewComplete, initialTask }) => {
     
     // --- State ---
-    const [sessionId, setSessionId] = useState(initialSessionId);
     const [currentModel, setCurrentModel] = useState<string>('Initializing...');
     const [scenarioFiles, setScenarioFiles] = useState<StratifyScenarioFile[]>([]);
     const [defaultScenarioModel, setDefaultScenarioModel] = useState<string>('');
     
+    // Refs to maintain state across closures in async functions
+    const sessionRef = useRef(initialSessionId);
+    const configRef = useRef<{ files: StratifyScenarioFile[], defaultModel: string }>({ files: [], defaultModel: '' });
+
     // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
     
@@ -175,6 +176,11 @@ export const WorkflowProcessor: React.FC<{
     const mainScrollRef = useRef<HTMLDivElement>(null);
     const timelineEndRef = useRef<HTMLDivElement>(null);
 
+    // Update session ref when initial prop changes
+    useEffect(() => {
+        if (initialSessionId) sessionRef.current = initialSessionId;
+    }, [initialSessionId]);
+
     // 智能页面滚动：当步骤状态变化时，滚动到底部
     useEffect(() => {
         if (workflowState === 'processing' && timelineEndRef.current) {
@@ -182,37 +188,43 @@ export const WorkflowProcessor: React.FC<{
         }
     }, [steps.map(s => s.status).join(',')]);
 
-    // Fetch scenario details
-    useEffect(() => {
-        const fetchScenarioInfo = async () => {
-            try {
-                const scenarios = await getScenarios();
-                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+    // Fetch scenario details helper
+    const ensureScenarioConfig = async () => {
+        // Return if already loaded
+        if (configRef.current.files.length > 0) return;
+
+        try {
+            const scenarios = await getScenarios();
+            const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+            
+            if (current) {
+                const defModel = current.default_model || 'System Default';
+                setDefaultScenarioModel(defModel);
+                setCurrentModel(defModel);
                 
-                if (current) {
-                    const defModel = current.default_model || 'System Default';
-                    setDefaultScenarioModel(defModel);
-                    setCurrentModel(defModel);
-                    const files = await getScenarioFiles(current.id);
-                    setScenarioFiles(files);
-                }
-            } catch (err) {
-                console.warn("Failed to fetch scenario details", err);
-                setCurrentModel("Unknown");
+                const files = await getScenarioFiles(current.id);
+                setScenarioFiles(files);
+                
+                // Update refs
+                configRef.current = {
+                    files: files,
+                    defaultModel: defModel
+                };
             }
-        };
-        fetchScenarioInfo();
+        } catch (err) {
+            console.warn("Failed to fetch scenario details", err);
+        }
+    };
+
+    // Trigger fetch on mount/change
+    useEffect(() => {
+        ensureScenarioConfig();
     }, [scenario]);
 
     // --- State Restoration Logic ---
     useEffect(() => {
         if (initialTask && initialTask.result?.phases) {
             const phases = initialTask.result.phases;
-            
-            // Map backend phase keys to frontend step IDs
-            // Backend Phase Names: '03_TriggerGeneration_step1' etc.
-            // Frontend Steps: p1 (id 3), p2 (id 4), p3 (id 5), p4 (id 6)
-            
             const newSteps = [...steps];
             const newSections = { ...sections };
 
@@ -220,17 +232,13 @@ export const WorkflowProcessor: React.FC<{
             const restoreStep = (stepIdx: number, phaseKey: string, sectionKey: keyof ReportSections | null) => {
                 const phase = phases[phaseKey];
                 if (phase && phase.status === 'completed' && phase.content) {
-                    // Try to parse content from JSON if it was stored as JSON string
                     let content = phase.content;
                     try {
                         const parsed = JSON.parse(content);
-                        // Extract value from keys like "第一部分..."
                         const val = Object.values(parsed)[0] as string;
                         if (val) content = val;
                     } catch(e) {
-                        // Content might be raw string or parsing failed, verify extraction logic
                         if (sectionKey) {
-                            // Re-use extractContent logic for safety if raw content is a full JSON string
                              const extracted = extractContent(content, sectionKey);
                              if (extracted) content = extracted;
                         }
@@ -248,8 +256,6 @@ export const WorkflowProcessor: React.FC<{
                 }
             };
 
-            // Init & Ingest are usually ephemeral or implicit in backend task context, 
-            // mark them complete if we have later phases
             if (Object.keys(phases).length > 0) {
                 newSteps[0].status = 'completed'; // Init
                 newSteps[1].status = 'completed'; // Ingest
@@ -266,7 +272,7 @@ export const WorkflowProcessor: React.FC<{
             // Prevent auto-run if we restored
             hasStarted.current = true;
         }
-    }, [initialTask]); // Only run when initialTask changes/loads
+    }, [initialTask]);
     
     // --- Logic: Pipeline Execution ---
     
@@ -301,13 +307,16 @@ export const WorkflowProcessor: React.FC<{
 
     const runStep = async (stepIndex: number, promptName: string, vars: any, partKey?: keyof ReportSections) => {
         const stepId = stepIndex + 1;
-        updateStep(stepId, { status: 'running' });
-
-        let stepModel = defaultScenarioModel;
-        const fileConfig = scenarioFiles.find(f => f.name.includes(promptName));
+        
+        // Determine model using Ref to ensure access in async closure
+        let stepModel = configRef.current.defaultModel;
+        const fileConfig = configRef.current.files.find(f => f.name.includes(promptName));
         if (fileConfig && fileConfig.model) {
             stepModel = fileConfig.model;
         }
+        
+        // Update UI
+        updateStep(stepId, { status: 'running', model: stepModel });
         setCurrentModel(stepModel);
 
         return new Promise<void>((resolve, reject) => {
@@ -319,7 +328,7 @@ export const WorkflowProcessor: React.FC<{
                     prompt_name: promptName, 
                     variables: vars, 
                     scenario, 
-                    session_id: sessionId,
+                    session_id: sessionRef.current, // Use ref for current session
                     model_override: stepModel, 
                     task_id: taskId,             
                     phase_name: promptName       
@@ -396,7 +405,11 @@ export const WorkflowProcessor: React.FC<{
                     updateStep(stepId, { status: 'error', content: 'Generation failed.' });
                     resolve(); 
                 },
-                (sid) => { if (sid) setSessionId(sid); },
+                (sid) => { 
+                    if (sid) {
+                        sessionRef.current = sid; // Update session ref
+                    }
+                },
                 (reasoningChunk) => {
                     apiReasoningBuffer += reasoningChunk;
                      setSteps(prev => prev.map(s => {
@@ -412,6 +425,9 @@ export const WorkflowProcessor: React.FC<{
 
     const runPipeline = async () => {
         try {
+            // Ensure config is loaded before starting
+            await ensureScenarioConfig();
+
             await runStep(0, '01_Role_ProtocolSetup', {});
             await runStep(1, '02_DataIngestion', { reference_materials: materials });
             await runStep(2, '03_TriggerGeneration_step1', { target_tech: targetTech }, 'p1');
@@ -456,6 +472,7 @@ export const WorkflowProcessor: React.FC<{
                             const isCompleted = step.status === 'completed';
                             const isPending = step.status === 'pending';
                             const isError = step.status === 'error';
+                            const displayModel = step.model || currentModel;
 
                             return (
                                 <div key={step.id} className="relative pl-8 md:pl-12 transition-all duration-500">
@@ -488,7 +505,7 @@ export const WorkflowProcessor: React.FC<{
                                                         <div className="flex items-center gap-1 mt-0.5 animate-in fade-in">
                                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
                                                                 <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
-                                                                {formatModelName(currentModel)}
+                                                                {formatModelName(displayModel)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -521,8 +538,6 @@ export const WorkflowProcessor: React.FC<{
     }
 
     // --- View Mode 2: Review & Edit ---
-    // ... (rest of the file for View Mode 2 remains unchanged) ...
-    // BUT since I have to return the full file content, I'll include it.
     
     const getSectionTitle = (key: string) => {
         const map: any = { p1: '技术路线分析', p2: '潜在风险识别', p3: '方案推荐', p4: '参考资料' };
@@ -535,21 +550,31 @@ export const WorkflowProcessor: React.FC<{
         setRevisingKey(key);
         setActiveEditSection(null); 
         
+        // Ensure config loaded for review model
+        await ensureScenarioConfig();
+        
+        // Determine model for review (can reuse last step model or default)
+        const promptName = '04_revise_content';
+        let stepModel = configRef.current.defaultModel;
+        const fileConfig = configRef.current.files.find(f => f.name.includes(promptName));
+        if (fileConfig && fileConfig.model) stepModel = fileConfig.model;
+        setCurrentModel(stepModel);
+        
         const currentContent = sections[key];
         
         try {
             let buffer = '';
             await streamGenerate(
                 {
-                    prompt_name: '04_revise_content',
+                    prompt_name: promptName,
                     variables: {
                         page_title: getSectionTitle(key),
                         current_content: currentContent,
                         user_revision_request: revisionInput
                     },
                     scenario,
-                    session_id: sessionId,
-                    model_override: currentModel, 
+                    session_id: sessionRef.current, // Use ref
+                    model_override: stepModel, 
                     task_id: taskId,
                     phase_name: '04_revise_content'
                 },
@@ -571,7 +596,8 @@ export const WorkflowProcessor: React.FC<{
                 (err) => {
                      console.error("Revision failed", err);
                      setRevisingKey(null);
-                }
+                },
+                (sid) => { if(sid) sessionRef.current = sid; }
             );
         } catch (e) {
             setRevisingKey(null);
