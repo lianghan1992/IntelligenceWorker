@@ -45,10 +45,11 @@ const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ co
         }
     }, [content, isActive]);
 
-    if (!content && !isActive) return null;
+    // 修改：如果没有思考内容，直接不渲染（隐藏黑色框）
+    if (!content) return null;
 
     return (
-        <div className="mt-4 rounded-xl overflow-hidden bg-[#1e1e1e] border border-slate-800 shadow-inner relative group">
+        <div className="mt-4 rounded-xl overflow-hidden bg-[#1e1e1e] border border-slate-800 shadow-inner relative group animate-in fade-in slide-in-from-top-2">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 bg-[#2d2d2d] border-b border-black/20">
                 <div className="flex items-center gap-2">
@@ -97,7 +98,8 @@ const ResultCard: React.FC<{ content: string }> = ({ content }) => {
                 <DocumentTextIcon className="w-4 h-4 text-indigo-600" />
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Generated Output</span>
             </div>
-            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap line-clamp-[10]">
+            {/* 修改：移除 line-clamp，改为固定最大高度 + 滚动条 */}
+            <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto custom-scrollbar p-1">
                 {content}
             </div>
             <div className="mt-2 text-center">
@@ -123,7 +125,7 @@ export const WorkflowProcessor: React.FC<{
     // --- State ---
     const [sessionId, setSessionId] = useState(initialSessionId);
     
-    // Data Store (Ref helps avoid closure staleness in streams if needed, but state works fine here for display)
+    // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
     
     // UI State
@@ -142,6 +144,17 @@ export const WorkflowProcessor: React.FC<{
     const [isRevising, setIsRevising] = useState(false);
     
     const hasStarted = useRef(false);
+    const mainScrollRef = useRef<HTMLDivElement>(null);
+    const timelineEndRef = useRef<HTMLDivElement>(null);
+
+    // 智能页面滚动：当步骤状态变化时，滚动到底部
+    useEffect(() => {
+        if (workflowState === 'processing' && timelineEndRef.current) {
+             // 只有当有新步骤开始或完成时，我们才希望页面滚动
+             // 我们不希望在 token 流式输出的每一帧都滚动，那样用户体验很差
+             timelineEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, [steps.map(s => s.status).join(',')]); // 依赖于状态组合字符串，而不是 steps 对象本身
     
     // --- Logic: Pipeline Execution ---
     
@@ -249,7 +262,7 @@ export const WorkflowProcessor: React.FC<{
     
     if (workflowState === 'processing') {
         return (
-            <div className="flex-1 overflow-y-auto bg-slate-50 p-6 md:p-16 relative scroll-smooth h-full custom-scrollbar">
+            <div ref={mainScrollRef} className="flex-1 w-full h-full overflow-y-auto bg-slate-50 p-6 md:p-16 relative scroll-smooth custom-scrollbar">
                 <div className="max-w-3xl mx-auto pb-32">
                     
                     {/* Header */}
@@ -312,7 +325,7 @@ export const WorkflowProcessor: React.FC<{
                                         {/* Card Body (Expandable) */}
                                         {(isRunning || (isCompleted && (step.reasoning || step.content))) && (
                                             <div className="px-4 pb-4 pt-0 animate-in fade-in slide-in-from-top-2">
-                                                {/* Reasoning Terminal */}
+                                                {/* Reasoning Terminal - will auto hide if empty */}
                                                 <ThinkingTerminal content={step.reasoning} isActive={isRunning} />
                                                 
                                                 {/* Result Preview (Only if not purely data ingestion) */}
@@ -326,6 +339,8 @@ export const WorkflowProcessor: React.FC<{
                             );
                         })}
                     </div>
+                    {/* 滚动锚点 */}
+                    <div ref={timelineEndRef} className="h-10 w-full" />
                 </div>
             </div>
         );

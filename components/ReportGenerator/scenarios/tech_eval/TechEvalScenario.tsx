@@ -47,7 +47,7 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] font-sans overflow-hidden">
             {/* 顶部导航栏 (Minimalist Header) */}
-            <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between px-6 z-50 sticky top-0">
+            <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between px-6 z-50 sticky top-0 flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200">
                         <BrainIcon className="w-5 h-5" />
@@ -69,8 +69,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                 </div>
             </header>
 
-            {/* 主内容区 */}
-            <div className="flex-1 overflow-hidden relative">
+            {/* 主内容区 - 使用 flex-col 和 min-h-0 确保子元素滚动条生效 */}
+            <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
                 {workflowState === 'input' && (
                     <InputCollector 
                         initialTech={targetTech}
