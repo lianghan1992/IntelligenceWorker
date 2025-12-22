@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewGridIcon, CheckIcon, MenuIcon, BrainIcon, CodeIcon, DownloadIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, MenuIcon, BrainIcon, CodeIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
@@ -26,10 +26,8 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
 
 // Helper to clean streaming JSON to show pure HTML code in the terminal window
 const extractStreamingHtmlContent = (text: string): string => {
-    // 1. Try to find the start of the "html" field value in the JSON stream
     const match = text.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
     if (match && match.groups?.content) {
-        // Unescape JSON string characters to show real HTML code (e.g. \n -> newline)
         return match.groups.content
             .replace(/\\n/g, '\n')
             .replace(/\\"/g, '"')
@@ -41,8 +39,7 @@ const extractStreamingHtmlContent = (text: string): string => {
 
 // Helper: Intent Sniffing for Status Text
 const detectAction = (buffer: string) => {
-    const tail = buffer.slice(-500); // Only analyze the last 500 characters
-    
+    const tail = buffer.slice(-500);
     if (tail.match(/<svg|<path|<rect|<circle|<defs/i)) {
         return { title: '正在绘制矢量图形', sub: 'Rendering Vector Assets • SVG Optimization' };
     }
@@ -64,12 +61,9 @@ const detectAction = (buffer: string) => {
     if (tail.match(/<h1|<h2|<p|<span/i)) {
         return { title: '正在排版文本内容', sub: 'Typesetting • Semantic Structure' };
     }
-    
-    // Default State
     return { title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' };
 };
 
-// --- Scaled Preview Component ---
 const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
@@ -77,22 +71,15 @@ const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }
     useEffect(() => {
         const updateScale = () => {
             if (containerRef.current) {
-                // Target width: 1600px
                 const availableWidth = containerRef.current.offsetWidth;
-                // Calculate scale to fit width
                 const scaleW = availableWidth / 1600;
-                // Use scaleW to fit width, maybe deduct a little padding
                 setScale(Math.min(scaleW, 1) * 0.95);
             }
         };
-
         window.addEventListener('resize', updateScale);
-        updateScale(); // Initial call
-        
-        // ResizeObserver for more robustness if parent changes size
+        updateScale();
         const observer = new ResizeObserver(updateScale);
         if (containerRef.current) observer.observe(containerRef.current);
-
         return () => {
             window.removeEventListener('resize', updateScale);
             observer.disconnect();
@@ -106,13 +93,12 @@ const ScaledPreview: React.FC<{ htmlContent: string | null }> = ({ htmlContent }
             <div 
                 style={{
                     width: '1600px',
-                    height: '900px', // Base height for a slide, but content can overflow in HTML
+                    height: '900px',
                     minHeight: '900px',
                     transform: `scale(${scale})`,
                     transformOrigin: 'top center',
                     boxShadow: '0 0 50px rgba(0,0,0,0.15)',
                     backgroundColor: 'white',
-                    // Let HTML determine its own scrolling or overflow
                 }}
             >
                 <iframe 
@@ -143,28 +129,22 @@ export const LayoutStep: React.FC<{
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    
-    // Dynamic Status State
     const [statusInfo, setStatusInfo] = useState({ title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' });
-    const lastUpdateRef = useRef(0);
     
+    const lastUpdateRef = useRef(0);
     const processingRef = useRef(false);
-    const codeScrollRef = useRef<HTMLDivElement>(null); // Ref for auto-scrolling code window
+    const codeScrollRef = useRef<HTMLDivElement>(null);
     const completedCount = pages.filter(p => p.status === 'done').length;
 
-    // Auto-scroll the code window when buffer updates
     useEffect(() => {
         if (codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
         }
     }, [htmlStreamBuffer]);
     
-    // Dynamic Status Update Logic
     useEffect(() => {
         if (!htmlStreamBuffer) return;
-        
         const now = Date.now();
-        // Throttle updates to avoid flickering (update at most every 800ms)
         if (now - lastUpdateRef.current > 800) {
             const info = detectAction(htmlStreamBuffer);
             setStatusInfo(info);
@@ -174,24 +154,20 @@ export const LayoutStep: React.FC<{
 
     useEffect(() => {
         if (processingRef.current) return;
-        
         const nextPage = pages.find(p => p.status === 'pending');
         if (!nextPage) return;
 
         const processPage = async (page: StratifyPage) => {
             processingRef.current = true;
             setActivePageIdx(page.page_index);
-            
             setPageThought('');
             setReasoningStream('');
             setHtmlStreamBuffer(''); 
             setStatusInfo({ title: 'AI 架构师正在设计', sub: '构建布局 • 生成矢量图形 • 优化排版' });
             setIsThinkingOpen(true);
-            
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
 
             let fullBuffer = '';
-            
             await streamGenerate(
                 {
                     prompt_name: '05_generate_html',
@@ -205,34 +181,19 @@ export const LayoutStep: React.FC<{
                 (chunk) => {
                     fullBuffer += chunk;
                     const { thought, jsonPart } = extractThoughtAndJson(fullBuffer);
-                    
-                    // Update Thought for Modal (Only reasoning)
                     setPageThought(thought);
-                    
-                    // Extract purely HTML content for the fancy display
-                    // This separates the raw LLM output into "Thought" (Modal) and "Code" (Preview)
                     const cleanHtml = extractStreamingHtmlContent(jsonPart);
-                    if (cleanHtml) {
-                         setHtmlStreamBuffer(cleanHtml);
-                    }
-                    
-                    // If JSON starts, close the reasoning modal to indicate transition
-                    if (jsonPart && jsonPart.trim().length > 5) {
-                        setIsThinkingOpen(false);
-                    }
+                    if (cleanHtml) setHtmlStreamBuffer(cleanHtml);
+                    if (jsonPart && jsonPart.trim().length > 5) setIsThinkingOpen(false);
                 },
                 () => {
                     const { thought, jsonPart } = extractThoughtAndJson(fullBuffer);
                     setPageThought(thought); 
                     setIsThinkingOpen(false);
-
-                    // Robust extraction from final buffer
                     const htmlContent = robustExtractHtml(fullBuffer, jsonPart);
-
                     if (htmlContent) {
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
                     } else {
-                        console.warn('Failed to parse HTML from response');
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     }
                     processingRef.current = false;
@@ -244,32 +205,31 @@ export const LayoutStep: React.FC<{
                     setIsThinkingOpen(false);
                 },
                 undefined,
-                (chunk) => {
-                    setReasoningStream(prev => prev + chunk);
-                }
+                (chunk) => setReasoningStream(prev => prev + chunk)
             );
         };
-
         processPage(nextPage);
-
     }, [pages, scenario]);
+
+    const handleRetry = (idx: number) => {
+        setPages(prev => prev.map(p => p.page_index === idx ? { ...p, status: 'pending', html_content: null } : p));
+    };
+
+    const handleRetryAll = () => {
+        setPages(prev => prev.map(p => p.status === 'failed' ? { ...p, status: 'pending', html_content: null } : p));
+    };
 
     const handleExportPdf = async () => {
         setIsDownloading(true);
         try {
             let combinedContent = '';
             let allStyles = '';
-            
             const processedPages = pages
                 .filter(p => p.status === 'done' && p.html_content)
                 .map(p => {
                     const html = p.html_content!;
-                    // Extract styles to merge them or keep them scoped (simple merge here)
                     const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
-                    if (styleMatch) {
-                        allStyles += styleMatch[1] + '\n';
-                    }
-                    // Extract body content
+                    if (styleMatch) allStyles += styleMatch[1] + '\n';
                     const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
                     return bodyMatch ? bodyMatch[1] : html;
                 });
@@ -295,7 +255,6 @@ export const LayoutStep: React.FC<{
                 </body>
                 </html>
             `;
-
             const blob = await generatePdf(combinedContent, `AI_Report_${taskId.slice(0,6)}.pdf`);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -307,7 +266,6 @@ export const LayoutStep: React.FC<{
             window.URL.revokeObjectURL(url);
         } catch (e) {
             alert('导出 PDF 失败，请稍后重试');
-            console.error(e);
         } finally {
             setIsDownloading(false);
         }
@@ -315,7 +273,7 @@ export const LayoutStep: React.FC<{
 
     const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
     const displayThought = reasoningStream || pageThought;
-    const isAllLayoutDone = pages.every(p => p.status === 'done');
+    const isAllLayoutDone = pages.length > 0 && pages.every(p => p.status === 'done');
 
     return (
         <div className="flex h-full bg-slate-50 overflow-hidden relative">
@@ -326,24 +284,12 @@ export const LayoutStep: React.FC<{
                 status="AI 架构师正在设计..."
             />
 
-            {/* Mobile Backdrop */}
-            {isSidebarOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
-                    onClick={() => setIsSidebarOpen(false)}
-                ></div>
-            )}
+            {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>}
 
-            {/* Left Sidebar */}
-            <div className={`
-                fixed inset-y-0 left-0 z-30 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-xl md:shadow-none
-                md:relative md:translate-x-0
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            `}>
+            <div className={`fixed inset-y-0 left-0 z-30 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-xl md:shadow-none md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-5 bg-white border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <ViewGridIcon className="w-4 h-4 text-purple-600" />
-                        页面结构
+                        <ViewGridIcon className="w-4 h-4 text-purple-600" /> 页面结构
                     </h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
@@ -351,11 +297,7 @@ export const LayoutStep: React.FC<{
                         <button
                             key={p.page_index}
                             onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
-                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${
-                                activePageIdx === p.page_index 
-                                    ? 'bg-purple-50 text-purple-700 shadow-sm ring-1 ring-purple-100' 
-                                    : 'text-slate-600 hover:bg-slate-50'
-                            }`}
+                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${activePageIdx === p.page_index ? 'bg-purple-50 text-purple-700 shadow-sm ring-1 ring-purple-100' : 'text-slate-600 hover:bg-slate-50'}`}
                         >
                             <span className="truncate flex-1">{p.page_index}. {p.title}</span>
                             {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
@@ -368,6 +310,14 @@ export const LayoutStep: React.FC<{
                     <div className="w-full text-center text-xs text-slate-400 mb-3 font-medium">
                         {completedCount === pages.length ? "排版完成" : `正在设计 (${completedCount}/${pages.length})...`}
                     </div>
+                    {!isAllLayoutDone && pages.some(p => p.status === 'failed') && (
+                         <button 
+                            onClick={handleRetryAll}
+                            className="w-full mb-2 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                        >
+                            <RefreshIcon className="w-3 h-3" /> 重试所有失败项
+                        </button>
+                    )}
                     {isAllLayoutDone && (
                         <div className="space-y-2">
                              <button 
@@ -375,151 +325,87 @@ export const LayoutStep: React.FC<{
                                 disabled={isDownloading}
                                 className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
                             >
-                                {isDownloading ? (
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                ) : (
-                                    <DownloadIcon className="w-4 h-4" />
-                                )}
+                                {isDownloading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <DownloadIcon className="w-4 h-4" />}
                                 导出 PDF 合稿
                             </button>
-                            <button 
-                                onClick={() => onComplete(pages)}
-                                className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                            >
-                                <CheckIcon className="w-4 h-4" />
-                                完成任务
+                            <button onClick={() => onComplete(pages)} className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                                <CheckIcon className="w-4 h-4" /> 完成任务
                             </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Right Main Area */}
             <div className="flex-1 flex flex-col relative overflow-hidden bg-[#eef2f6]">
-                {/* Preview Window Container */}
                 <div className="flex-1 p-0 md:p-8 flex flex-col overflow-hidden items-center justify-center">
-                    
                     <div className="w-full h-full bg-white rounded-2xl shadow-2xl border border-slate-300/60 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
-                        
-                        {/* Browser-like Toolbar */}
                         <div className="h-12 bg-slate-100 border-b border-slate-200 flex items-center px-5 gap-4 select-none flex-shrink-0 z-10">
-                            {/* Mobile Menu Button */}
-                            <button 
-                                className="md:hidden text-slate-500 hover:text-indigo-600"
-                                onClick={() => setIsSidebarOpen(true)}
-                            >
-                                <MenuIcon className="w-5 h-5" />
-                            </button>
-
+                            <button className="md:hidden text-slate-500 hover:text-indigo-600" onClick={() => setIsSidebarOpen(true)}><MenuIcon className="w-5 h-5" /></button>
                             <div className="hidden md:flex gap-2">
                                 <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]"></div>
                                 <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]"></div>
                                 <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]"></div>
                             </div>
-                            
                             <div className="flex-1 flex justify-center">
                                 {activePage.status === 'generating' && (
                                     <div className="relative w-full max-w-md h-7 rounded-full bg-white overflow-hidden border border-indigo-100 shadow-inner">
-                                         {/* Liquid Background */}
                                          <div className="absolute inset-0 w-full h-full bg-indigo-50/50"></div>
-                                         
-                                         {/* Moving Stream Texture */}
-                                         <div 
-                                            className="absolute inset-0 w-full h-full opacity-30"
-                                            style={{
-                                                backgroundImage: 'repeating-linear-gradient(-45deg, #6366f1 0, #6366f1 10px, transparent 10px, transparent 20px)',
-                                                backgroundSize: '28px 28px',
-                                                animation: 'flow-stream 1s linear infinite'
-                                            }}
-                                         ></div>
-
-                                         {/* Text */}
+                                         <div className="absolute inset-0 w-full h-full opacity-30" style={{backgroundImage: 'repeating-linear-gradient(-45deg, #6366f1 0, #6366f1 10px, transparent 10px, transparent 20px)', backgroundSize: '28px 28px', animation: 'flow-stream 1s linear infinite'}}></div>
                                          <div className="absolute inset-0 flex items-center justify-center z-10 gap-2">
                                              <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-ping"></div>
                                              <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-widest">Designing Layout...</span>
                                          </div>
-
-                                         <style>{`
-                                            @keyframes flow-stream {
-                                                0% { background-position: 0 0; }
-                                                100% { background-position: 28px 0; }
-                                            }
-                                         `}</style>
+                                         <style>{`@keyframes flow-stream { 0% { background-position: 0 0; } 100% { background-position: 28px 0; } }`}</style>
                                     </div>
                                 )}
                             </div>
-                            
-                            <button 
-                                onClick={() => setIsThinkingOpen(true)}
-                                className="text-slate-400 hover:text-purple-600 transition-colors p-2 hover:bg-white rounded-lg"
-                                title="查看设计思路"
-                            >
-                                <BrainIcon className="w-5 h-5" />
-                            </button>
+                            <button onClick={() => setIsThinkingOpen(true)} className="text-slate-400 hover:text-purple-600 transition-colors p-2 hover:bg-white rounded-lg" title="查看设计思路"><BrainIcon className="w-5 h-5" /></button>
                         </div>
 
-                        {/* Content Display: Scaled Preview with No Flashing */}
                         <div className="flex-1 relative bg-gray-100 overflow-hidden">
                             {activePage.html_content && activePage.status === 'done' ? (
                                 <ScaledPreview htmlContent={activePage.html_content} />
                             ) : (
-                                /* Pending or Generating State */
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
                                     {activePage.status === 'pending' ? (
                                         <>
-                                            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                                                <ViewGridIcon className="w-10 h-10 opacity-20" />
-                                            </div>
+                                            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6"><ViewGridIcon className="w-10 h-10 opacity-20" /></div>
                                             <p className="text-base font-medium">等待排版引擎启动...</p>
                                         </>
                                     ) : activePage.status === 'generating' ? (
                                         <div className="flex flex-col items-center w-full max-w-2xl px-6 animate-in fade-in duration-700">
-                                            {/* Top: Branding / Status - Moved Up slightly via margin-bottom adjustment in container above */}
                                             <div className="mb-8 text-center -mt-24">
                                                 <div className="relative mb-4 mx-auto w-20 h-20">
                                                     <div className="absolute inset-0 rounded-full border-4 border-purple-100 animate-ping opacity-20"></div>
                                                     <div className="absolute inset-2 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
-                                                    <div className="absolute inset-0 flex items-center justify-center">
-                                                        <ViewGridIcon className="w-8 h-8 text-purple-500" />
-                                                    </div>
+                                                    <div className="absolute inset-0 flex items-center justify-center"><ViewGridIcon className="w-8 h-8 text-purple-500" /></div>
                                                 </div>
-                                                <h3 className="text-xl font-bold text-slate-700 mb-2 transition-all duration-300">
-                                                    {statusInfo.title}
-                                                </h3>
-                                                <p className="text-sm text-slate-500 transition-all duration-300">
-                                                    {statusInfo.sub}
-                                                </p>
+                                                <h3 className="text-xl font-bold text-slate-700 mb-2 transition-all duration-300">{statusInfo.title}</h3>
+                                                <p className="text-sm text-slate-500 transition-all duration-300">{statusInfo.sub}</p>
                                             </div>
-
-                                            {/* Bottom: Code Window */}
                                             <div className="w-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl border border-slate-700 font-mono text-xs relative transform translate-y-4">
-                                                {/* Fake Title Bar */}
                                                 <div className="bg-[#2d2d2d] px-4 py-2 flex items-center gap-2 border-b border-black/50">
-                                                    <div className="flex gap-1.5">
-                                                        <div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
-                                                        <div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
-                                                        <div className="w-3 h-3 rounded-full bg-[#27c93f]"></div>
-                                                    </div>
-                                                    <span className="ml-2 text-slate-400 font-sans font-bold text-[10px] uppercase tracking-wide">
-                                                        Layout_Engine.exe — Generating HTML
-                                                    </span>
+                                                    <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-[#ff5f56]"></div><div className="w-3 h-3 rounded-full bg-[#ffbd2e]"></div><div className="w-3 h-3 rounded-full bg-[#27c93f]"></div></div>
+                                                    <span className="ml-2 text-slate-400 font-sans font-bold text-[10px] uppercase tracking-wide">Layout_Engine.exe — Generating HTML</span>
                                                 </div>
-                                                
-                                                {/* Code Content */}
-                                                <div 
-                                                    ref={codeScrollRef} 
-                                                    className="h-48 md:h-64 overflow-y-auto p-4 custom-scrollbar-dark text-blue-300"
-                                                >
-                                                    <pre className="whitespace-pre-wrap break-all leading-relaxed">
-                                                        {htmlStreamBuffer || <span className="opacity-50 text-slate-500">// Initializing stream connection...</span>}
-                                                        <span className="inline-block w-2 h-4 bg-blue-400 ml-1 animate-pulse align-middle"></span>
-                                                    </pre>
+                                                <div ref={codeScrollRef} className="h-48 md:h-64 overflow-y-auto p-4 custom-scrollbar-dark text-blue-300">
+                                                    <pre className="whitespace-pre-wrap break-all leading-relaxed">{htmlStreamBuffer || <span className="opacity-50 text-slate-500">// Initializing stream connection...</span>}<span className="inline-block w-2 h-4 bg-blue-400 ml-1 animate-pulse align-middle"></span></pre>
                                                 </div>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center text-red-400">
-                                            <p>生成失败</p>
+                                        <div className="text-center animate-in fade-in zoom-in duration-300">
+                                            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 mx-auto border border-red-100 shadow-sm">
+                                                <ShieldExclamationIcon className="w-8 h-8 text-red-500" />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-slate-700 mb-2">生成解析失败</h3>
+                                            <p className="text-sm text-slate-400 mb-6 max-w-xs mx-auto">可能由于网络波动或模型响应异常导致，您可以尝试重新生成该页。</p>
+                                            <button 
+                                                onClick={() => handleRetry(activePage.page_index)}
+                                                className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 mx-auto active:scale-95"
+                                            >
+                                                <RefreshIcon className="w-4 h-4" /> 重试该章节
+                                            </button>
                                         </div>
                                     )}
                                 </div>
