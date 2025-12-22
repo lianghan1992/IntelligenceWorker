@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewGridIcon, CheckIcon, MenuIcon, BrainIcon, CodeIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
@@ -23,6 +24,112 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
     return null;
 };
 
+// Component: 16:9 Page Card with scaling and retry
+const PageCard: React.FC<{
+    page: StratifyPage;
+    isGenerating: boolean;
+    streamHtml?: string;
+    onRetry: () => void;
+}> = ({ page, isGenerating, streamHtml, onRetry }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(0.2);
+    const codeScrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const updateScale = () => {
+            if (containerRef.current) {
+                const { offsetWidth } = containerRef.current;
+                setScale(offsetWidth / 1600); // 1600 is our base PPT width
+            }
+        };
+        updateScale();
+        const obs = new ResizeObserver(updateScale);
+        if (containerRef.current) obs.observe(containerRef.current);
+        return () => obs.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (codeScrollRef.current) {
+            codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
+        }
+    }, [streamHtml]);
+
+    return (
+        <div className="flex flex-col gap-3 group animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">
+                        Slide {page.page_index}
+                    </span>
+                    <h4 className="text-xs font-bold text-slate-600 truncate max-w-[150px]" title={page.title}>
+                        {page.title}
+                    </h4>
+                </div>
+                {page.status === 'done' && <CheckIcon className="w-3.5 h-3.5 text-green-500" />}
+            </div>
+
+            <div 
+                ref={containerRef}
+                className={`
+                    relative aspect-video w-full rounded-2xl border-2 transition-all duration-300 overflow-hidden shadow-sm
+                    ${page.status === 'done' ? 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1' : 'bg-slate-50 border-dashed border-slate-300'}
+                `}
+            >
+                {page.status === 'done' && page.html_content ? (
+                    <div 
+                        style={{ 
+                            width: '1600px', 
+                            height: '900px', 
+                            transform: `scale(${scale})`, 
+                            transformOrigin: 'top left',
+                            pointerEvents: 'none'
+                        }}
+                    >
+                        <iframe 
+                            srcDoc={page.html_content} 
+                            className="w-full h-full border-none bg-white" 
+                            title={`Slide ${page.page_index}`}
+                        />
+                    </div>
+                ) : page.status === 'generating' ? (
+                    <div className="absolute inset-0 flex flex-col bg-[#0f172a]">
+                        <div className="flex-1 overflow-hidden p-2">
+                             <div ref={codeScrollRef} className="h-full overflow-y-auto font-mono text-[8px] text-cyan-400/70 custom-scrollbar-dark leading-tight break-all">
+                                 <div className="flex items-center gap-1 mb-2 opacity-50">
+                                     <CodeIcon className="w-3 h-3"/>
+                                     <span className="uppercase tracking-widest font-black">Layout_Stream</span>
+                                 </div>
+                                 {streamHtml || '// Starting synthesis...'}
+                                 <span className="inline-block w-1 h-3 bg-cyan-400 ml-0.5 animate-pulse"></span>
+                             </div>
+                        </div>
+                        <div className="h-1 bg-indigo-500/20">
+                            <div className="h-full bg-indigo-500 animate-[grow_2s_infinite]"></div>
+                        </div>
+                    </div>
+                ) : page.status === 'failed' ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-red-50/50 text-center animate-in zoom-in-95">
+                        <div className="p-3 bg-red-100 rounded-full mb-3">
+                            <ShieldExclamationIcon className="w-6 h-6 text-red-500" />
+                        </div>
+                        <p className="text-[10px] font-bold text-red-700 mb-4 px-2 leading-tight">页面设计中断</p>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onRetry(); }}
+                            className="px-4 py-2 bg-white border border-red-200 text-red-600 text-[10px] font-black rounded-xl shadow-sm hover:bg-red-50 transition-all flex items-center gap-1.5 active:scale-95"
+                        >
+                            <RefreshIcon className="w-3 h-3" /> 重试本页
+                        </button>
+                    </div>
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20">
+                        <ViewGridIcon className="w-10 h-10 text-slate-400" />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export const LayoutStep: React.FC<{
     taskId: string;
     pages: StratifyPage[];
@@ -33,17 +140,18 @@ export const LayoutStep: React.FC<{
         ...p,
         status: p.status === 'done' ? 'pending' : p.status
     })));
-    const [activePageIdx, setActivePageIdx] = useState(1);
     const [pageThought, setPageThought] = useState(''); 
     const [reasoningStream, setReasoningStream] = useState('');
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [currentStreamingHtml, setCurrentStreamingHtml] = useState<string>('');
     
     const processingRef = useRef(false);
     const completedCount = pages.filter(p => p.status === 'done').length;
+    const failedCount = pages.filter(p => p.status === 'failed').length;
+    const isAllDone = pages.length > 0 && pages.every(p => p.status === 'done');
 
-    // 自动触发下一页 HTML 生成
+    // Queue Processor
     useEffect(() => {
         if (processingRef.current) return;
         
@@ -52,16 +160,13 @@ export const LayoutStep: React.FC<{
 
         const processPage = async (page: StratifyPage) => {
             processingRef.current = true;
-            setActivePageIdx(page.page_index);
-            
             setPageThought('');
             setReasoningStream('');
-            setIsThinkingOpen(true);
+            setCurrentStreamingHtml('');
             
             setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'generating' } : p));
 
             let buffer = '';
-            
             await streamGenerate(
                 {
                     prompt_name: '05_generate_html',
@@ -69,51 +174,47 @@ export const LayoutStep: React.FC<{
                         page_title: page.title,
                         markdown_content: page.content_markdown || ''
                     },
-                    session_id: undefined, 
-                    scenario
+                    scenario,
+                    task_id: taskId,
+                    phase_name: '05_generate_html'
                 },
                 (chunk) => {
                     buffer += chunk;
-                    
                     const { jsonPart } = extractThoughtAndJson(buffer);
-                    if (jsonPart && jsonPart.trim().length > 5) {
-                        setIsThinkingOpen(false);
+                    
+                    // Real-time HTML code extraction for visual terminal
+                    const match = jsonPart.match(/"html"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                    if (match && match.groups?.content) {
+                        setCurrentStreamingHtml(match.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'));
                     }
-                    else if (buffer.includes('<!DOCTYPE html>') || buffer.includes('<html')) {
-                        setIsThinkingOpen(false);
-                    }
+                    
+                    // Auto-close reasoning modal when content starts appearing
+                    if (jsonPart && jsonPart.trim().length > 20) setIsThinkingOpen(false);
                 },
                 () => {
-                    const { thought, jsonPart } = extractThoughtAndJson(buffer);
-                    setPageThought(thought); 
-                    setIsThinkingOpen(false);
-
+                    const { jsonPart } = extractThoughtAndJson(buffer);
                     const htmlContent = robustExtractHtml(buffer, jsonPart);
-
                     if (htmlContent) {
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, html_content: htmlContent, status: 'done' } : p));
                     } else {
-                        console.warn('Failed to parse HTML from response');
                         setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     }
                     processingRef.current = false;
                 },
                 (err) => {
-                    console.error(err);
+                    console.error("Layout generation error:", err);
                     setPages(prev => prev.map(p => p.page_index === page.page_index ? { ...p, status: 'failed' } : p));
                     processingRef.current = false;
-                    setIsThinkingOpen(false);
                 },
                 undefined,
-                (chunk) => {
-                    setReasoningStream(prev => prev + chunk);
+                (reasoning) => {
+                    setIsThinkingOpen(true);
+                    setReasoningStream(prev => prev + reasoning);
                 }
             );
         };
-
         processPage(nextPage);
-
-    }, [pages, scenario]);
+    }, [pages, scenario, taskId]);
 
     const handleRetry = (idx: number) => {
         setPages(prev => prev.map(p => p.page_index === idx ? { ...p, status: 'pending', html_content: null } : p));
@@ -126,7 +227,6 @@ export const LayoutStep: React.FC<{
     const handleExportPdf = async () => {
         setIsDownloading(true);
         try {
-            let combinedContent = '';
             let allStyles = '';
             const processedPages = pages
                 .filter(p => p.status === 'done' && p.html_content)
@@ -138,7 +238,7 @@ export const LayoutStep: React.FC<{
                     return bodyMatch ? bodyMatch[1] : html;
                 });
                 
-            combinedContent = `
+            const combinedContent = `
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -175,173 +275,116 @@ export const LayoutStep: React.FC<{
         }
     };
 
-    const activePage = pages.find(p => p.page_index === activePageIdx) || pages[0];
-    const displayThought = reasoningStream || pageThought;
-    const isAllLayoutDone = pages.every(p => p.status === 'done');
-
     return (
-        <div className="flex h-full bg-slate-50 overflow-hidden relative">
+        <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden relative">
             <ReasoningModal 
                 isOpen={isThinkingOpen} 
                 onClose={() => setIsThinkingOpen(false)} 
-                content={displayThought}
-                status="AI 架构师正在设计..."
+                content={reasoningStream || pageThought}
+                status="AI 架构师正在设计思考..."
             />
 
-            {/* Mobile Backdrop */}
-            {isSidebarOpen && (
-                <div 
-                    className="fixed inset-0 bg-black/50 z-20 md:hidden backdrop-blur-sm"
-                    onClick={() => setIsSidebarOpen(false)}
-                ></div>
-            )}
-
-            {/* Left Sidebar */}
-            <div className={`
-                fixed inset-y-0 left-0 z-30 w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 shadow-xl md:shadow-none
-                md:relative md:translate-x-0
-                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            `}>
-                <div className="p-5 bg-white border-b border-slate-100">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                        <ViewGridIcon className="w-4 h-4 text-purple-600" />
-                        页面结构
-                    </h3>
-                </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
-                    {pages.map(p => (
-                        <button
-                            key={p.page_index}
-                            onClick={() => { setActivePageIdx(p.page_index); setIsSidebarOpen(false); }}
-                            className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-between group ${
-                                activePageIdx === p.page_index 
-                                    ? 'bg-purple-50 text-purple-700 shadow-sm ring-1 ring-purple-100' 
-                                    : 'text-slate-600 hover:bg-slate-50'
-                            }`}
-                        >
-                            <span className="truncate flex-1">{p.page_index}. {p.title}</span>
-                            {p.status === 'generating' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
-                            {p.status === 'done' && <CheckIcon className="w-4 h-4 text-green-500" />}
-                            {p.status === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
-                        </button>
-                    ))}
-                </div>
-                <div className="p-5 border-t border-slate-100 bg-slate-50/50">
-                    <div className="w-full text-center text-xs text-slate-400 mb-3 font-medium">
-                        {completedCount === pages.length ? "排版完成" : `正在设计 (${completedCount}/${pages.length})...`}
+            {/* Sticky Top Header */}
+            <div className="flex-shrink-0 h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 z-40">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-100 animate-in fade-in slide-in-from-left-4">
+                        <SparklesIcon className="w-6 h-6" />
                     </div>
-                    
-                    {!isAllLayoutDone && pages.some(p => p.status === 'failed') && (
-                         <button 
+                    <div>
+                        <h2 className="text-xl font-black text-slate-800 tracking-tight leading-none mb-1.5">智能排版全景预览</h2>
+                        <div className="flex items-center gap-2">
+                             <div className="h-1.5 w-32 bg-slate-100 rounded-full overflow-hidden">
+                                 <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(completedCount/pages.length)*100}%` }}></div>
+                             </div>
+                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {completedCount}/{pages.length} Pages Processed
+                             </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    {failedCount > 0 && (
+                        <button 
                             onClick={handleRetryAll}
-                            className="w-full mb-3 py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs font-bold hover:bg-red-100 transition-all flex items-center justify-center gap-2"
+                            className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs font-black hover:bg-red-100 transition-all shadow-sm active:scale-95"
                         >
-                            <RefreshIcon className="w-3 h-3" /> 重试所有失败项
+                            <RefreshIcon className="w-4 h-4" />
+                            重试所有失败项 ({failedCount})
                         </button>
                     )}
+                    
+                    <button 
+                        onClick={() => setIsThinkingOpen(true)}
+                        className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
+                        title="查看架构思考过程"
+                    >
+                        <BrainIcon className="w-5 h-5" />
+                    </button>
 
-                    {isAllLayoutDone && (
-                        <div className="space-y-2">
+                    <div className="h-8 w-px bg-slate-200 mx-1"></div>
+                    
+                    {isAllDone && (
+                        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-right-6 duration-700">
                             <button 
                                 onClick={handleExportPdf}
                                 disabled={isDownloading}
-                                className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl text-sm shadow-md hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
+                                className="flex items-center gap-2 px-8 py-3 bg-slate-900 text-white font-black rounded-xl text-sm shadow-2xl shadow-slate-300 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50"
                             >
                                 {isDownloading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <DownloadIcon className="w-4 h-4" />}
-                                导出 PDF 合稿
+                                导出完整 PDF
                             </button>
-                            <button onClick={() => onComplete(pages)} className="w-full py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
-                                <CheckIcon className="w-4 h-4" /> 完成任务
+                            <button 
+                                onClick={() => onComplete(pages)}
+                                className="flex items-center gap-2 px-8 py-3 bg-green-600 text-white font-black rounded-xl text-sm shadow-2xl shadow-green-100 hover:bg-green-700 transition-all active:scale-95"
+                            >
+                                <CheckIcon className="w-4 h-4" />
+                                完成任务
                             </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Right Main Area */}
-            <div className="flex-1 flex flex-col relative overflow-hidden bg-[#eef2f6]">
-                {/* Preview Window Container */}
-                <div className="flex-1 p-4 md:p-10 flex flex-col overflow-hidden items-center justify-center">
+            {/* Grid Preview Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-slate-100/50">
+                <div className="max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12 pb-20">
+                    {pages.map(page => (
+                        <PageCard 
+                            key={page.page_index} 
+                            page={page} 
+                            isGenerating={page.status === 'generating'}
+                            streamHtml={page.status === 'generating' ? currentStreamingHtml : undefined}
+                            onRetry={() => handleRetry(page.page_index)}
+                        />
+                    ))}
                     
-                    <div className="w-full max-w-[1400px] h-full bg-white rounded-2xl shadow-2xl border border-slate-300/60 overflow-hidden flex flex-col ring-1 ring-black/5 relative">
-                        
-                        {/* Browser-like Toolbar */}
-                        <div className="h-12 bg-slate-100 border-b border-slate-200 flex items-center px-5 gap-4 select-none">
-                            {/* Mobile Menu Button */}
-                            <button 
-                                className="md:hidden text-slate-500 hover:text-indigo-600"
-                                onClick={() => setIsSidebarOpen(true)}
-                            >
-                                <MenuIcon className="w-5 h-5" />
-                            </button>
-
-                            <div className="hidden md:flex gap-2">
-                                <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]"></div>
-                                <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]"></div>
-                                <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]"></div>
-                            </div>
-                            
-                            <div className="flex-1 flex justify-center">
-                                <div className="bg-white border border-slate-200 text-xs text-slate-500 font-medium px-4 py-1.5 rounded-lg flex items-center gap-2 w-full max-w-md justify-center shadow-sm">
-                                    <span className={`w-2 h-2 rounded-full ${activePage.status === 'generating' ? 'bg-purple-500 animate-pulse' : activePage.status === 'done' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                                    {activePage.status === 'generating' ? 'designing_layout...' : activePage.status === 'failed' ? 'layout_error.err' : `preview_page_${activePage.page_index}.html`}
-                                </div>
-                            </div>
-                            
-                            <button 
-                                onClick={() => setIsThinkingOpen(true)}
-                                className="text-slate-400 hover:text-purple-600 transition-colors p-2 hover:bg-white rounded-lg"
-                                title="查看设计思路"
-                            >
-                                <BrainIcon className="w-5 h-5" />
-                            </button>
+                    {!isAllDone && (
+                        <div className="border-2 border-dashed border-slate-200 rounded-[32px] aspect-video flex flex-col items-center justify-center opacity-30 bg-white/50">
+                             <div className="w-10 h-10 rounded-full bg-slate-200 mb-3 animate-pulse"></div>
+                             <div className="h-2.5 w-32 bg-slate-200 rounded animate-pulse"></div>
                         </div>
-
-                        {/* Preview Iframe */}
-                        <div className="flex-1 relative bg-white overflow-hidden">
-                            {activePage.html_content && activePage.status === 'done' ? (
-                                <iframe 
-                                    srcDoc={activePage.html_content} 
-                                    className="w-full h-full border-none" 
-                                    title={`Preview ${activePage.page_index}`}
-                                    sandbox="allow-scripts"
-                                />
-                            ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/30 text-slate-400">
-                                    {activePage.status === 'pending' ? (
-                                        <>
-                                            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                                                <ViewGridIcon className="w-10 h-10 opacity-20" />
-                                            </div>
-                                            <p className="text-base font-medium">等待排版引擎启动...</p>
-                                        </>
-                                    ) : activePage.status === 'generating' ? (
-                                        <div className="text-center">
-                                            <div className="w-16 h-16 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-8 mx-auto"></div>
-                                            <h3 className="text-xl font-bold text-slate-700 mb-2">AI 架构师正在设计</h3>
-                                            <p className="text-sm text-slate-500">构建布局 • 生成矢量图形 • 优化排版</p>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center animate-in fade-in zoom-in duration-300 px-6">
-                                            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4 mx-auto border border-red-100 shadow-sm">
-                                                <ShieldExclamationIcon className="w-8 h-8 text-red-500" />
-                                            </div>
-                                            <h3 className="text-lg font-bold text-slate-700 mb-2">排版生成失败</h3>
-                                            <p className="text-sm text-slate-400 mb-6 max-w-xs mx-auto">可能由于网络波动或模型响应异常导致，您可以尝试重新生成该页。</p>
-                                            <button 
-                                                onClick={() => handleRetry(activePage.page_index)}
-                                                className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2 mx-auto active:scale-95"
-                                            >
-                                                <RefreshIcon className="w-4 h-4" /> 重试该章节
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
+
+            {/* Bottom Progress Bar Overlay */}
+            {!isAllDone && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-700">
+                    <div className="bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-full px-8 py-4 flex items-center gap-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-white/20">
+                         <div className="flex items-center gap-3">
+                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-ping"></div>
+                            <span className="text-white text-xs font-black tracking-[0.2em] uppercase">Layout Engine Active</span>
+                         </div>
+                         <div className="w-32 bg-white/10 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-indigo-500 h-full transition-all duration-1000 ease-out" style={{ width: `${(completedCount/pages.length)*100}%` }}></div>
+                         </div>
+                         <div className="text-[10px] font-mono text-indigo-300 font-bold">
+                             {completedCount} / {pages.length}
+                         </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
