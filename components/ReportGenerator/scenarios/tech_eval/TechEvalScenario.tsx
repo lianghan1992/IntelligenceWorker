@@ -108,6 +108,7 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
             <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
                 {workflowState === 'input' && (
                     <InputCollector 
+                        scenarioId={scenario}
                         initialTech={targetTech}
                         initialMaterials={materials}
                         isProcessing={false}
