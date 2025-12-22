@@ -4,10 +4,9 @@ import { ScenarioProps } from '../registry';
 import { createStratifyTask } from '../../../../api/stratify';
 import { InputCollector } from './steps/InputCollector';
 import { WorkflowProcessor } from './steps/WorkflowProcessor';
-import { FinalRenderer } from './steps/FinalRenderer';
-import { BrainIcon, SparklesIcon, ChevronRightIcon } from '../../../icons';
+import { BrainIcon, ChevronRightIcon } from '../../../icons';
 
-export type WorkflowState = 'input' | 'processing' | 'review' | 'finalizing' | 'done';
+export type WorkflowState = 'input' | 'processing' | 'review' | 'done';
 
 export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskId, scenario, onComplete, initialTask }) => {
     // 核心数据状态
@@ -19,9 +18,6 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
     // 流程控制
     const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
     
-    // 最终用于渲染的 Markdown
-    const [finalMarkdown, setFinalMarkdown] = useState('');
-
     // 历史恢复逻辑
     useEffect(() => {
         if (initialTask) {
@@ -36,23 +32,18 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                 const hasStarted = Object.keys(initialTask.result.phases).length > 0;
                 
                 if (hasStarted) {
-                    // 如果有 phases 数据，说明已经进入处理流程，跳转到 processing 或 review
-                    // 检查是否所有关键步骤都已完成
+                    // 如果有 phases 数据，说明已经进入处理流程
+                    // 检查是否HTML生成步骤已完成
                     const phases = initialTask.result.phases;
-                    const stepsDone = 
-                        phases['03_TriggerGeneration_step1']?.status === 'completed' &&
-                        phases['03_TriggerGeneration_step2']?.status === 'completed' &&
-                        phases['03_TriggerGeneration_step3']?.status === 'completed';
-
-                    if (stepsDone) {
-                        setWorkflowState('review');
+                    const htmlDone = phases['04_Markdown2Html']?.status === 'completed';
+                    
+                    if (htmlDone) {
+                        setWorkflowState('done');
                     } else {
+                        // 只要开始了，就进入 processing/review 混合状态，由 Processor 内部控制步骤
                         setWorkflowState('processing');
                     }
                 }
-            } else if (initialTask.status === 'completed') {
-                 // 兜底：如果任务状态是 completed，即使没有 phases 数据（旧数据），也尝试进入 review
-                 setWorkflowState('review');
             }
         }
     }, [initialTask]);
@@ -74,11 +65,6 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
         }
     };
 
-    const handleReviewComplete = (markdown: string) => {
-        setFinalMarkdown(markdown);
-        setWorkflowState('finalizing');
-    };
-
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] font-sans overflow-hidden">
             {/* 顶部导航栏 (Minimalist Header) */}
@@ -98,8 +84,6 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                     <ChevronRightIcon className="w-3 h-3 text-slate-300" />
                     <StepIndicator state={workflowState} target="processing" label="Analysis" />
                     <ChevronRightIcon className="w-3 h-3 text-slate-300" />
-                    <StepIndicator state={workflowState} target="review" label="Review" />
-                    <ChevronRightIcon className="w-3 h-3 text-slate-300" />
                     <StepIndicator state={workflowState} target="done" label="Report" />
                 </div>
             </header>
@@ -116,7 +100,7 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                     />
                 )}
 
-                {(workflowState === 'processing' || workflowState === 'review') && (
+                {(workflowState === 'processing' || workflowState === 'review' || workflowState === 'done') && (
                     <WorkflowProcessor 
                         taskId={activeTaskId || ''}
                         scenario={scenario}
@@ -125,20 +109,8 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                         materials={materials}
                         workflowState={workflowState}
                         setWorkflowState={setWorkflowState}
-                        onReviewComplete={handleReviewComplete}
-                        // 传入 initialTask 以供 Processor 内部恢复步骤状态
+                        onReviewComplete={() => setWorkflowState('done')}
                         initialTask={initialTask}
-                    />
-                )}
-
-                {(workflowState === 'finalizing' || workflowState === 'done') && (
-                    <FinalRenderer 
-                        taskId={activeTaskId || ''}
-                        scenario={scenario}
-                        markdown={finalMarkdown}
-                        isReady={workflowState === 'finalizing'} // minimizing prop overlap
-                        onComplete={onComplete}
-                        onBack={() => setWorkflowState('review')}
                     />
                 )}
             </div>
@@ -147,8 +119,11 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
 };
 
 const StepIndicator: React.FC<{ state: WorkflowState, target: string, label: string }> = ({ state, target, label }) => {
-    const order = ['input', 'processing', 'review', 'finalizing', 'done'];
-    const currIdx = order.indexOf(state === 'finalizing' ? 'done' : state); // finalizing map to done for visual
+    const order = ['input', 'processing', 'done'];
+    // Map 'review' to 'processing' visual state for simplicity in header
+    const visualState = state === 'review' ? 'processing' : state;
+    
+    const currIdx = order.indexOf(visualState);
     const targetIdx = order.indexOf(target);
     
     const isActive = currIdx === targetIdx;

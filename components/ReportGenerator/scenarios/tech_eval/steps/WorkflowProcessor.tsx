@@ -1,13 +1,16 @@
 
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { streamGenerate, getScenarios, getScenarioFiles } from '../../../../../api/stratify';
+import React, { useState, useEffect, useRef } from 'react';
+import { streamGenerate, getScenarios, getScenarioFiles, generatePdf, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, CheckIcon, SparklesIcon, 
     LockClosedIcon, BeakerIcon, 
     ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon,
-    PlayIcon, ClockIcon, ChartIcon, RefreshIcon, PencilIcon,
-    LightningBoltIcon
+    ChartIcon, RefreshIcon,
+    LightningBoltIcon,
+    EyeIcon,
+    DownloadIcon,
+    CloseIcon
 } from '../../../../icons';
 import { WorkflowState } from '../TechEvalScenario';
 import { StratifyScenarioFile, StratifyTask } from '../../../../../types';
@@ -29,7 +32,8 @@ interface StepData {
     status: 'pending' | 'running' | 'completed' | 'error';
     reasoning: string;
     content: string;
-    model?: string; // Added to track specific model used
+    model?: string;
+    isHtml?: boolean; // Flag to identify HTML step
 }
 
 const formatModelName = (model: string) => {
@@ -100,9 +104,15 @@ const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ co
     );
 };
 
-// 2. 结果预览卡片
-const ResultCard: React.FC<{ content: string; isRunning?: boolean }> = ({ content, isRunning }) => {
+// 2. 结果预览卡片 (Text & HTML Thumbnail)
+const ResultCard: React.FC<{ 
+    content: string; 
+    isRunning?: boolean; 
+    isHtml?: boolean; 
+    onZoom?: () => void; 
+}> = ({ content, isRunning, isHtml, onZoom }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (isRunning && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -110,6 +120,34 @@ const ResultCard: React.FC<{ content: string; isRunning?: boolean }> = ({ conten
     }, [content, isRunning]);
 
     if (!content) return null;
+
+    if (isHtml) {
+        return (
+            <div className="mt-4 animate-in fade-in slide-in-from-bottom-2 duration-500 group relative">
+                {/* Thumbnail Container */}
+                <div className="w-full aspect-video bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative cursor-pointer hover:shadow-lg transition-all hover:border-indigo-300" onClick={onZoom}>
+                    <div className="w-[1280px] h-[720px] origin-top-left transform scale-[0.25] sm:scale-[0.35] md:scale-[0.45] pointer-events-none select-none bg-white">
+                         <iframe 
+                            srcDoc={content}
+                            className="w-full h-full border-none"
+                            title="HTML Thumbnail"
+                            sandbox="allow-scripts"
+                         />
+                    </div>
+                    {/* Overlay Hint */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                        <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+                            <EyeIcon className="w-4 h-4" /> 双击或点击全屏
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-2 text-center flex justify-between items-center px-1">
+                     <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded">HTML Report (A4)</span>
+                     {isRunning && <span className="text-[10px] text-indigo-500 animate-pulse">Rendering...</span>}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -131,6 +169,65 @@ const ResultCard: React.FC<{ content: string; isRunning?: boolean }> = ({ conten
     );
 };
 
+// 3. Fullscreen Zoom Modal
+const ZoomModal: React.FC<{ html: string; onClose: () => void; taskId: string }> = ({ html, onClose, taskId }) => {
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const handleDownload = async () => {
+        setIsDownloading(true);
+        try {
+            const blob = await generatePdf(html, `TECH_REPORT_${taskId.slice(0,8)}.pdf`);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `技术评估报告_${new Date().toISOString().slice(0,10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch(e) {
+            alert('下载失败');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+            <div className="relative w-full h-full flex flex-col">
+                {/* Toolbar */}
+                <div className="h-14 bg-black/50 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-6 z-10">
+                    <h3 className="text-white font-bold text-sm flex items-center gap-2">
+                        <SparklesIcon className="w-4 h-4 text-indigo-400"/> 最终报告预览
+                    </h3>
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={handleDownload}
+                            disabled={isDownloading}
+                            className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                        >
+                            {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                            导出 PDF
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors">
+                            <CloseIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+                </div>
+                {/* Iframe */}
+                <div className="flex-1 bg-white overflow-hidden relative">
+                     <iframe 
+                        srcDoc={html} 
+                        className="w-full h-full border-none"
+                        title="Full Report"
+                        sandbox="allow-scripts allow-same-origin"
+                     />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- Main Processor ---
 
 export const WorkflowProcessor: React.FC<{
@@ -142,7 +239,7 @@ export const WorkflowProcessor: React.FC<{
     workflowState: WorkflowState;
     setWorkflowState: (s: WorkflowState) => void;
     onReviewComplete: (markdown: string) => void;
-    initialTask?: StratifyTask | null; // Added prop
+    initialTask?: StratifyTask | null; 
 }> = ({ taskId, scenario, initialSessionId, targetTech, materials, workflowState, setWorkflowState, onReviewComplete, initialTask }) => {
     
     // --- State ---
@@ -157,7 +254,7 @@ export const WorkflowProcessor: React.FC<{
     // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
     
-    // UI State
+    // UI State - Updated with Step 7 (HTML Gen)
     const [steps, setSteps] = useState<StepData[]>([
         { id: 1, key: 'init', label: '初始化分析协议', icon: LockClosedIcon, status: 'pending', reasoning: '', content: '' },
         { id: 2, key: 'ingest', label: '知识库注入', icon: BeakerIcon, status: 'pending', reasoning: '', content: '' },
@@ -165,12 +262,15 @@ export const WorkflowProcessor: React.FC<{
         { id: 4, key: 'p2', label: '识别潜在风险', icon: ShieldExclamationIcon, status: 'pending', reasoning: '', content: '' },
         { id: 5, key: 'p3', label: '构建推荐方案', icon: LightBulbIcon, status: 'pending', reasoning: '', content: '' },
         { id: 6, key: 'p4', label: '溯源引用资料', icon: DocumentTextIcon, status: 'pending', reasoning: '', content: '' },
+        { id: 7, key: 'html_gen', label: '生成视觉报告', icon: SparklesIcon, status: 'pending', reasoning: '', content: '', isHtml: true },
     ]);
 
     // Review Logic
     const [activeEditSection, setActiveEditSection] = useState<keyof ReportSections | null>(null);
     const [revisionInput, setRevisionInput] = useState('');
     const [revisingKey, setRevisingKey] = useState<keyof ReportSections | null>(null);
+    
+    const [zoomedHtml, setZoomedHtml] = useState<string | null>(null);
     
     const hasStarted = useRef(false);
     const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -181,7 +281,7 @@ export const WorkflowProcessor: React.FC<{
         if (initialSessionId) sessionRef.current = initialSessionId;
     }, [initialSessionId]);
 
-    // 智能页面滚动：当步骤状态变化时，滚动到底部
+    // 智能页面滚动
     useEffect(() => {
         if (workflowState === 'processing' && timelineEndRef.current) {
              timelineEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -190,36 +290,22 @@ export const WorkflowProcessor: React.FC<{
 
     // Fetch scenario details helper
     const ensureScenarioConfig = async () => {
-        // Return if already loaded
         if (configRef.current.files.length > 0) return;
-
         try {
             const scenarios = await getScenarios();
             const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-            
             if (current) {
                 const defModel = current.default_model || 'System Default';
                 setDefaultScenarioModel(defModel);
                 setCurrentModel(defModel);
-                
                 const files = await getScenarioFiles(current.id);
                 setScenarioFiles(files);
-                
-                // Update refs
-                configRef.current = {
-                    files: files,
-                    defaultModel: defModel
-                };
+                configRef.current = { files: files, defaultModel: defModel };
             }
-        } catch (err) {
-            console.warn("Failed to fetch scenario details", err);
-        }
+        } catch (err) { console.warn("Failed to fetch scenario details", err); }
     };
 
-    // Trigger fetch on mount/change
-    useEffect(() => {
-        ensureScenarioConfig();
-    }, [scenario]);
+    useEffect(() => { ensureScenarioConfig(); }, [scenario]);
 
     // --- State Restoration Logic ---
     useEffect(() => {
@@ -228,48 +314,49 @@ export const WorkflowProcessor: React.FC<{
             const newSteps = [...steps];
             const newSections = { ...sections };
 
-            // Helper to update a step based on phase data
-            const restoreStep = (stepIdx: number, phaseKey: string, sectionKey: keyof ReportSections | null) => {
+            const restoreStep = (stepIdx: number, phaseKey: string, sectionKey: keyof ReportSections | null, isHtml = false) => {
                 const phase = phases[phaseKey];
                 if (phase && phase.status === 'completed' && phase.content) {
                     let content = phase.content;
-                    try {
-                        const parsed = JSON.parse(content);
-                        const val = Object.values(parsed)[0] as string;
-                        if (val) content = val;
-                    } catch(e) {
-                        if (sectionKey) {
-                             const extracted = extractContent(content, sectionKey);
-                             if (extracted) content = extracted;
+                    
+                    if (isHtml) {
+                         // HTML Restoration
+                         try {
+                            const parsed = JSON.parse(content);
+                            if (parsed.html_report) content = parsed.html_report;
+                         } catch (e) { /* use raw content if parse fails, likely raw html */ }
+                    } else {
+                        // Markdown Restoration
+                        try {
+                            const parsed = JSON.parse(content);
+                            const val = Object.values(parsed)[0] as string;
+                            if (val) content = val;
+                        } catch(e) {
+                            if (sectionKey) {
+                                 const extracted = extractContent(content, sectionKey);
+                                 if (extracted) content = extracted;
+                            }
                         }
                     }
 
-                    newSteps[stepIdx] = {
-                        ...newSteps[stepIdx],
-                        status: 'completed',
-                        content: content
-                    };
-                    
-                    if (sectionKey) {
-                        newSections[sectionKey] = content;
-                    }
+                    newSteps[stepIdx] = { ...newSteps[stepIdx], status: 'completed', content: content };
+                    if (sectionKey) newSections[sectionKey] = content;
                 }
             };
 
             if (Object.keys(phases).length > 0) {
-                newSteps[0].status = 'completed'; // Init
-                newSteps[1].status = 'completed'; // Ingest
+                newSteps[0].status = 'completed'; 
+                newSteps[1].status = 'completed'; 
             }
 
             restoreStep(2, '03_TriggerGeneration_step1', 'p1');
             restoreStep(3, '03_TriggerGeneration_step2', 'p2');
             restoreStep(4, '03_TriggerGeneration_step3', 'p3');
             restoreStep(5, '03_TriggerGeneration_step4', 'p4');
+            restoreStep(6, '04_Markdown2Html', null, true); // Restore HTML Step
 
             setSteps(newSteps);
             setSections(newSections);
-            
-            // Prevent auto-run if we restored
             hasStarted.current = true;
         }
     }, [initialTask]);
@@ -288,7 +375,6 @@ export const WorkflowProcessor: React.FC<{
             p3: /"第三部分_行业技术方案推荐"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s,
             p4: /{(?<content>.*)}/s 
         };
-
         if (partKey === 'p4') {
              const lastBrace = text.lastIndexOf('}');
              const firstBrace = text.indexOf('{');
@@ -297,7 +383,6 @@ export const WorkflowProcessor: React.FC<{
              }
              return '';
         }
-
         const match = text.match(regexMap[partKey]);
         if (match && match.groups?.content) {
             return match.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
@@ -305,17 +390,39 @@ export const WorkflowProcessor: React.FC<{
         return '';
     };
 
-    const runStep = async (stepIndex: number, promptName: string, vars: any, partKey?: keyof ReportSections) => {
+    // Helper for HTML Extraction
+    const extractHtmlContent = (text: string, jsonPart: string): string | null => {
+        // 1. Try JSON
+        if (jsonPart) {
+            try {
+                const parsed = parseLlmJson<{ html_report: string }>(jsonPart);
+                if (parsed && parsed.html_report) return parsed.html_report;
+            } catch (e) { }
+        }
+        // 2. Regex for JSON property
+        const keyMatch = text.match(/"html_report"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+        if (keyMatch && keyMatch.groups?.content) {
+             try { return JSON.parse(`"${keyMatch.groups.content}"`); } 
+             catch(e) { return keyMatch.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
+        }
+        // 3. Regex for code block
+        const codeBlockMatch = text.match(/```html\s*([\s\S]*?)```/i);
+        if (codeBlockMatch) return codeBlockMatch[1];
+        // 4. Raw HTML fallback
+        const htmlTagMatch = text.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
+        if (htmlTagMatch) return htmlTagMatch[0];
+        return null;
+    };
+
+    const runStep = async (stepIndex: number, promptName: string, vars: any, partKey?: keyof ReportSections, isHtmlStep = false) => {
         const stepId = stepIndex + 1;
         
-        // Determine model using Ref to ensure access in async closure
         let stepModel = configRef.current.defaultModel;
         const fileConfig = configRef.current.files.find(f => f.name.includes(promptName));
         if (fileConfig && fileConfig.model) {
             stepModel = fileConfig.model;
         }
         
-        // Update UI
         updateStep(stepId, { status: 'running', model: stepModel });
         setCurrentModel(stepModel);
 
@@ -328,7 +435,7 @@ export const WorkflowProcessor: React.FC<{
                     prompt_name: promptName, 
                     variables: vars, 
                     scenario, 
-                    session_id: sessionRef.current, // Use ref for current session
+                    session_id: isHtmlStep ? undefined : sessionRef.current, // HTML step often stateless or new session
                     model_override: stepModel, 
                     task_id: taskId,             
                     phase_name: promptName       
@@ -353,8 +460,15 @@ export const WorkflowProcessor: React.FC<{
                     }
 
                     const { thought: contentThought, jsonPart } = extractThoughtAndJson(displayContent);
-                    const targetContent = extractContent(jsonPart || displayContent, partKey);
                     const mergedReasoning = [apiReasoningBuffer, extractedDeepSeekThought, contentThought].filter(Boolean).join('\n');
+
+                    // Extract content based on step type
+                    let targetContent = '';
+                    if (isHtmlStep) {
+                        targetContent = extractHtmlContent(displayContent, jsonPart) || displayContent; // Fallback to raw if extract fails mid-stream
+                    } else {
+                        targetContent = extractContent(jsonPart || displayContent, partKey);
+                    }
 
                     setSteps(prev => prev.map(s => {
                         if (s.id === stepId) {
@@ -368,20 +482,24 @@ export const WorkflowProcessor: React.FC<{
                     }));
                 },
                 () => {
-                    let displayContent = fullContentBuffer;
-                    let extractedDeepSeekThought = '';
-                    const thinkStart = fullContentBuffer.indexOf('<think>');
-                    const thinkEnd = fullContentBuffer.indexOf('</think>');
-                    
-                    if (thinkStart !== -1 && thinkEnd !== -1) {
-                        extractedDeepSeekThought = fullContentBuffer.substring(thinkStart + 7, thinkEnd);
-                        displayContent = fullContentBuffer.substring(0, thinkStart) + fullContentBuffer.substring(thinkEnd + 8);
-                    }
-
-                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(displayContent);
-                    let finalContent = extractContent(jsonPart || displayContent, partKey);
-                    
+                    // Final Processing
+                    const { thought: contentThought, jsonPart } = extractThoughtAndJson(fullContentBuffer);
+                    const extractedDeepSeekThought = fullContentBuffer.includes('<think>') && fullContentBuffer.includes('</think>') 
+                        ? fullContentBuffer.substring(fullContentBuffer.indexOf('<think>')+7, fullContentBuffer.indexOf('</think>'))
+                        : '';
                     const mergedReasoning = [apiReasoningBuffer, extractedDeepSeekThought, contentThought].filter(Boolean).join('\n');
+
+                    let finalContent = '';
+                    if (isHtmlStep) {
+                         finalContent = extractHtmlContent(fullContentBuffer, jsonPart) || '';
+                         // Error handling for HTML
+                         if (!finalContent && fullContentBuffer.length > 0) {
+                             // Try to use full buffer if regex failed but we have data
+                             finalContent = fullContentBuffer; 
+                         }
+                    } else {
+                         finalContent = extractContent(jsonPart || fullContentBuffer, partKey);
+                    }
 
                     if (partKey === 'p4' && finalContent) {
                         try {
@@ -406,8 +524,8 @@ export const WorkflowProcessor: React.FC<{
                     resolve(); 
                 },
                 (sid) => { 
-                    if (sid) {
-                        sessionRef.current = sid; // Update session ref
+                    if (sid && !isHtmlStep) {
+                        sessionRef.current = sid;
                     }
                 },
                 (reasoningChunk) => {
@@ -425,9 +543,7 @@ export const WorkflowProcessor: React.FC<{
 
     const runPipeline = async () => {
         try {
-            // Ensure config is loaded before starting
             await ensureScenarioConfig();
-
             await runStep(0, '01_Role_ProtocolSetup', {});
             await runStep(1, '02_DataIngestion', { reference_materials: materials });
             await runStep(2, '03_TriggerGeneration_step1', { target_tech: targetTech }, 'p1');
@@ -435,23 +551,102 @@ export const WorkflowProcessor: React.FC<{
             await runStep(4, '03_TriggerGeneration_step3', {}, 'p3');
             await runStep(5, '03_TriggerGeneration_step4', {}, 'p4');
             
-            setTimeout(() => setWorkflowState('review'), 1000);
+            // Switch to review mode before final generation
+            setWorkflowState('review');
         } catch (e) {
             console.error("Pipeline breakdown", e);
         }
     };
 
     useEffect(() => {
+        // Auto-start if in processing state and not started
         if (workflowState === 'processing' && !hasStarted.current) {
             hasStarted.current = true;
             runPipeline();
         }
     }, [workflowState]);
 
+    const handleGenerateFinalHtml = async () => {
+        setWorkflowState('processing'); // Go back to processing/timeline view
+        
+        // Construct full markdown
+        const md = `## 技术路线与当前所处阶段分析\n\n${sections.p1}\n\n## 当前技术潜在风险识别与分析\n\n${sections.p2}\n\n## 行业技术方案推荐\n\n${sections.p3}\n\n${sections.p4}`;
+        
+        // Trigger Step 7
+        try {
+            await ensureScenarioConfig();
+            await runStep(6, '04_Markdown2Html', { markdown_report: md }, undefined, true);
+            setWorkflowState('done');
+            onReviewComplete(md); // Notify parent done
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
-    // --- View Mode 1: Timeline Processing ---
-    
-    if (workflowState === 'processing') {
+    // === NEW HELPER FUNCTIONS ===
+
+    const getSectionTitle = (key: string) => {
+        const map: Record<string, string> = {
+            p1: '技术路线与当前所处阶段分析',
+            p2: '当前技术潜在风险识别与分析',
+            p3: '行业技术方案推荐',
+            p4: '引用资料来源'
+        };
+        return map[key] || key;
+    };
+
+    const handleManualEdit = (key: keyof ReportSections, value: string) => {
+        setSections(prev => ({ ...prev, [key]: value }));
+    };
+
+    const handleReviseSection = (key: keyof ReportSections) => {
+        if (!revisionInput.trim()) return;
+        setRevisingKey(key);
+        
+        let buffer = '';
+        streamGenerate(
+            {
+                prompt_name: '04_revise_content',
+                variables: {
+                    current_content: sections[key],
+                    user_revision_request: revisionInput,
+                    page_title: getSectionTitle(key)
+                },
+                scenario,
+                session_id: sessionRef.current
+            },
+            (chunk) => {
+                buffer += chunk;
+                const { jsonPart } = extractThoughtAndJson(buffer);
+                
+                if (jsonPart) {
+                    const parsed = parseLlmJson<{ content: string }>(jsonPart);
+                    if (parsed && parsed.content) {
+                        setSections(prev => ({ ...prev, [key]: parsed.content }));
+                    } else {
+                         const match = jsonPart.match(/"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                         if (match && match.groups?.content) {
+                             const content = match.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t');
+                             setSections(prev => ({ ...prev, [key]: content }));
+                         }
+                    }
+                }
+            },
+            () => {
+                setRevisingKey(null);
+                setRevisionInput('');
+                setActiveEditSection(null);
+            },
+            (err) => {
+                console.error(err);
+                setRevisingKey(null);
+                alert("修订生成失败");
+            }
+        );
+    };
+
+    // --- View Mode 1: Timeline Processing (Input, Processing, Done) ---
+    if (workflowState === 'processing' || workflowState === 'done') {
         return (
             <div ref={mainScrollRef} className="flex-1 w-full h-full overflow-y-auto bg-slate-50 p-6 md:p-16 relative scroll-smooth custom-scrollbar">
                 <div className="max-w-3xl mx-auto pb-32">
@@ -521,8 +716,17 @@ export const WorkflowProcessor: React.FC<{
                                         {(isRunning || (isCompleted && (step.reasoning || step.content))) && (
                                             <div className="px-4 pb-4 pt-0 animate-in fade-in slide-in-from-top-2">
                                                 <ThinkingTerminal content={step.reasoning} isActive={isRunning} />
-                                                {!['init', 'ingest'].includes(step.key) && (
-                                                    <ResultCard content={step.content} isRunning={isRunning} />
+                                                {step.isHtml ? (
+                                                    <ResultCard 
+                                                        content={step.content} 
+                                                        isRunning={isRunning} 
+                                                        isHtml={true}
+                                                        onZoom={() => setZoomedHtml(step.content)}
+                                                    />
+                                                ) : (
+                                                    !['init', 'ingest'].includes(step.key) && (
+                                                        <ResultCard content={step.content} isRunning={isRunning} />
+                                                    )
                                                 )}
                                             </div>
                                         )}
@@ -533,86 +737,20 @@ export const WorkflowProcessor: React.FC<{
                     </div>
                     <div ref={timelineEndRef} className="h-10 w-full" />
                 </div>
+                {/* Zoom Modal */}
+                {zoomedHtml && (
+                    <ZoomModal 
+                        html={zoomedHtml} 
+                        onClose={() => setZoomedHtml(null)} 
+                        taskId={taskId}
+                    />
+                )}
             </div>
         );
     }
 
     // --- View Mode 2: Review & Edit ---
     
-    const getSectionTitle = (key: string) => {
-        const map: any = { p1: '技术路线分析', p2: '潜在风险识别', p3: '方案推荐', p4: '参考资料' };
-        return map[key] || 'Section';
-    };
-
-    const handleReviseSection = async (key: keyof ReportSections) => {
-        if (!revisionInput.trim() || revisingKey) return; 
-        
-        setRevisingKey(key);
-        setActiveEditSection(null); 
-        
-        // Ensure config loaded for review model
-        await ensureScenarioConfig();
-        
-        // Determine model for review (can reuse last step model or default)
-        const promptName = '04_revise_content';
-        let stepModel = configRef.current.defaultModel;
-        const fileConfig = configRef.current.files.find(f => f.name.includes(promptName));
-        if (fileConfig && fileConfig.model) stepModel = fileConfig.model;
-        setCurrentModel(stepModel);
-        
-        const currentContent = sections[key];
-        
-        try {
-            let buffer = '';
-            await streamGenerate(
-                {
-                    prompt_name: promptName,
-                    variables: {
-                        page_title: getSectionTitle(key),
-                        current_content: currentContent,
-                        user_revision_request: revisionInput
-                    },
-                    scenario,
-                    session_id: sessionRef.current, // Use ref
-                    model_override: stepModel, 
-                    task_id: taskId,
-                    phase_name: '04_revise_content'
-                },
-                (chunk) => {
-                    buffer += chunk;
-                    const { jsonPart } = extractThoughtAndJson(buffer);
-                    const match = jsonPart.match(/"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
-                    
-                    if (match && match.groups?.content) {
-                        const raw = match.groups.content;
-                        const newContent = raw.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\');
-                        setSections(prev => ({ ...prev, [key]: newContent }));
-                    }
-                },
-                () => {
-                    setRevisingKey(null);
-                    setRevisionInput('');
-                },
-                (err) => {
-                     console.error("Revision failed", err);
-                     setRevisingKey(null);
-                },
-                (sid) => { if(sid) sessionRef.current = sid; }
-            );
-        } catch (e) {
-            setRevisingKey(null);
-        }
-    };
-
-    const handleManualEdit = (key: keyof ReportSections, value: string) => {
-        setSections(prev => ({ ...prev, [key]: value }));
-    };
-
-    const handleFinalConfirm = () => {
-        const md = `## 技术路线与当前所处阶段分析\n\n${sections.p1}\n\n## 当前技术潜在风险识别与分析\n\n${sections.p2}\n\n## 行业技术方案推荐\n\n${sections.p3}\n\n${sections.p4}`;
-        onReviewComplete(md);
-    };
-
     return (
         <div className="flex-1 flex overflow-hidden bg-[#f8fafc]">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 md:p-12">
@@ -624,6 +762,7 @@ export const WorkflowProcessor: React.FC<{
 
                     {(['p1', 'p2', 'p3', 'p4'] as Array<keyof ReportSections>).map((key) => {
                         const isRevisingThis = revisingKey === key;
+                        const isFilled = !!sections[key];
 
                         return (
                             <div key={key} className={`bg-white rounded-2xl border transition-all group overflow-hidden relative ${isRevisingThis ? 'border-indigo-400 shadow-md ring-2 ring-indigo-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
@@ -633,12 +772,6 @@ export const WorkflowProcessor: React.FC<{
                                         {getSectionTitle(key)}
                                     </h3>
                                     <div className="flex gap-2 items-center">
-                                        {isRevisingThis && (
-                                            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white text-slate-400 border border-slate-200 mr-2">
-                                                <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
-                                                {formatModelName(currentModel)}
-                                            </span>
-                                        )}
                                         {isRevisingThis ? (
                                              <span className="text-xs font-bold text-indigo-600 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-lg">
                                                  <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> AI 撰写中...
@@ -703,11 +836,11 @@ export const WorkflowProcessor: React.FC<{
                 <div className="bg-white/90 backdrop-blur-xl border border-slate-200 p-2 rounded-2xl shadow-2xl pointer-events-auto flex items-center gap-4">
                      <div className="px-4 text-xs font-medium text-slate-500">满意当前内容？</div>
                      <button 
-                        onClick={handleFinalConfirm}
+                        onClick={handleGenerateFinalHtml}
                         disabled={!!revisingKey}
                         className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold text-sm hover:bg-indigo-600 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
-                         <CheckIcon className="w-4 h-4" /> 生成最终报告 (HTML)
+                         <CheckIcon className="w-4 h-4" /> 生成视觉报告 (HTML)
                      </button>
                 </div>
             </div>
