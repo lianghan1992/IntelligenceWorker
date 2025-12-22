@@ -137,7 +137,7 @@ const ResultCard: React.FC<{
                     {/* Overlay Hint */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
                         <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                            <EyeIcon className="w-4 h-4" /> 双击或点击全屏
+                            <EyeIcon className="w-4 h-4" /> 点击全屏预览
                         </div>
                     </div>
                 </div>
@@ -169,7 +169,7 @@ const ResultCard: React.FC<{
     );
 };
 
-// 3. Fullscreen Zoom Modal
+// 3. Fullscreen Zoom Modal (A4 Paper Style)
 const ZoomModal: React.FC<{ html: string; onClose: () => void; taskId: string }> = ({ html, onClose, taskId }) => {
     const [isDownloading, setIsDownloading] = useState(false);
 
@@ -193,35 +193,56 @@ const ZoomModal: React.FC<{ html: string; onClose: () => void; taskId: string }>
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
-            <div className="relative w-full h-full flex flex-col">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-300">
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={onClose}></div>
+            
+            {/* Modal Container */}
+            <div className="relative w-full max-w-5xl h-[85vh] bg-slate-100 rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-white/10 ring-1 ring-black/20 z-10 animate-in zoom-in-95 duration-300">
+                
                 {/* Toolbar */}
-                <div className="h-14 bg-black/50 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-6 z-10">
-                    <h3 className="text-white font-bold text-sm flex items-center gap-2">
-                        <SparklesIcon className="w-4 h-4 text-indigo-400"/> 最终报告预览
-                    </h3>
-                    <div className="flex items-center gap-4">
+                <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shadow-sm flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
+                            <SparklesIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-slate-800 font-bold text-sm">生成报告预览</h3>
+                            <p className="text-[10px] text-slate-400 font-medium">A4 打印布局</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading}
-                            className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                            className="flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 shadow-md hover:shadow-lg active:scale-95"
                         >
                             {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <DownloadIcon className="w-3.5 h-3.5" />}
                             导出 PDF
                         </button>
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-colors">
+                        <div className="h-6 w-px bg-slate-200 mx-1"></div>
+                        <button 
+                            onClick={onClose} 
+                            className="p-2 hover:bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"
+                            title="关闭"
+                        >
                             <CloseIcon className="w-6 h-6" />
                         </button>
                     </div>
                 </div>
-                {/* Iframe */}
-                <div className="flex-1 bg-white overflow-hidden relative">
-                     <iframe 
-                        srcDoc={html} 
-                        className="w-full h-full border-none"
-                        title="Full Report"
-                        sandbox="allow-scripts allow-same-origin"
-                     />
+
+                {/* Content Area (Paper Viewer) */}
+                <div className="flex-1 overflow-y-auto bg-slate-100 p-6 md:p-10 custom-scrollbar flex justify-center">
+                    {/* Simulated A4 Paper */}
+                    <div className="bg-white shadow-xl w-full max-w-[210mm] min-h-[297mm] transition-shadow duration-300">
+                         <iframe 
+                            srcDoc={html} 
+                            className="w-full h-full min-h-[calc(85vh-140px)] border-none bg-white"
+                            title="Full Report"
+                            sandbox="allow-scripts allow-same-origin"
+                         />
+                    </div>
                 </div>
             </div>
         </div>
