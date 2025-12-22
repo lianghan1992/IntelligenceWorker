@@ -1,10 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
+import { streamGenerate, parseLlmJson, generatePdf, getScenarios } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon, LightningBoltIcon } from '../../../../icons';
-
-const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
 const extractStreamingHtml = (text: string): string => {
     const keyMatch = text.match(/"html_report"\s*:\s*"/);
@@ -17,6 +15,7 @@ const extractStreamingHtml = (text: string): string => {
 };
 
 const formatModelName = (model: string) => {
+    if (!model) return 'Auto';
     return model.includes('@') ? model.split('@')[1] : model;
 };
 
@@ -26,12 +25,13 @@ export const FinalRenderer: React.FC<{
     markdown: string;
     isReady: boolean;
     onComplete: () => void;
-    onBack: () => void; // New prop
+    onBack: () => void; 
 }> = ({ taskId, scenario, markdown, isReady, onComplete, onBack }) => {
     const [htmlContent, setHtmlContent] = useState<string>('');
     const [rawStream, setRawStream] = useState<string>('');
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [currentModel, setCurrentModel] = useState<string>('Loading...');
     
     const codeScrollRef = useRef<HTMLDivElement>(null);
 
@@ -47,6 +47,16 @@ export const FinalRenderer: React.FC<{
         }
     }, [isReady]);
 
+    // Fetch scenario default model
+    useEffect(() => {
+        getScenarios().then(scenarios => {
+            const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+            if (current) {
+                setCurrentModel(current.default_model || 'System Default');
+            }
+        }).catch(() => setCurrentModel("Unknown"));
+    }, [scenario]);
+
     const synthesize = async () => {
         setIsSynthesizing(true);
         setHtmlContent(''); 
@@ -58,8 +68,7 @@ export const FinalRenderer: React.FC<{
                 prompt_name: '04_Markdown2Html', 
                 variables: { markdown_report: markdown }, 
                 scenario, 
-                session_id: undefined, 
-                model_override: TARGET_MODEL 
+                session_id: undefined,
             },
             (chunk) => { 
                 buffer += chunk; 
@@ -107,7 +116,7 @@ export const FinalRenderer: React.FC<{
                         <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] leading-none">Synthesis Engine</span>
                         <span className="text-[9px] text-indigo-400 font-mono mt-0.5 flex items-center gap-1">
                             <LightningBoltIcon className="w-2.5 h-2.5" />
-                            {formatModelName(TARGET_MODEL)}
+                            {formatModelName(currentModel)}
                         </span>
                     </div>
                 </div>

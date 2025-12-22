@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { streamGenerate } from '../../../../../api/stratify';
+import { streamGenerate, getScenarios } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, CheckIcon, SparklesIcon, 
@@ -30,9 +30,8 @@ interface StepData {
     content: string;
 }
 
-const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
-
 const formatModelName = (model: string) => {
+    if (!model) return 'Auto';
     return model.includes('@') ? model.split('@')[1] : model;
 };
 
@@ -143,6 +142,7 @@ export const WorkflowProcessor: React.FC<{
     
     // --- State ---
     const [sessionId, setSessionId] = useState(initialSessionId);
+    const [currentModel, setCurrentModel] = useState<string>('Loading...');
     
     // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
@@ -173,6 +173,19 @@ export const WorkflowProcessor: React.FC<{
              timelineEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }, [steps.map(s => s.status).join(',')]);
+
+    // Fetch scenario details to get default model
+    useEffect(() => {
+        getScenarios().then(scenarios => {
+            const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+            if (current) {
+                setCurrentModel(current.default_model || 'System Default');
+            }
+        }).catch(err => {
+            console.warn("Failed to fetch scenario details for model name", err);
+            setCurrentModel("Unknown");
+        });
+    }, [scenario]);
     
     // --- Logic: Pipeline Execution ---
     
@@ -214,7 +227,7 @@ export const WorkflowProcessor: React.FC<{
             let apiReasoningBuffer = ''; // 用于累积 data.reasoning 的所有内容
 
             streamGenerate(
-                { prompt_name: promptName, variables: vars, scenario, session_id: sessionId, model_override: TARGET_MODEL },
+                { prompt_name: promptName, variables: vars, scenario, session_id: sessionId },
                 (chunk) => {
                     // onData: 接收 content 字段
                     fullContentBuffer += chunk;
@@ -370,7 +383,7 @@ export const WorkflowProcessor: React.FC<{
                                                         <div className="flex items-center gap-1 mt-0.5 animate-in fade-in">
                                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
                                                                 <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
-                                                                {formatModelName(TARGET_MODEL)}
+                                                                {formatModelName(currentModel)}
                                                             </span>
                                                         </div>
                                                     )}
@@ -436,7 +449,6 @@ export const WorkflowProcessor: React.FC<{
                     },
                     scenario,
                     session_id: sessionId,
-                    model_override: TARGET_MODEL
                 },
                 (chunk) => {
                     buffer += chunk;
@@ -501,7 +513,7 @@ export const WorkflowProcessor: React.FC<{
                                         {isRevisingThis && (
                                             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white text-slate-400 border border-slate-200 mr-2">
                                                 <LightningBoltIcon className="w-2.5 h-2.5 text-indigo-400" />
-                                                {formatModelName(TARGET_MODEL)}
+                                                {formatModelName(currentModel)}
                                             </span>
                                         )}
                                         {isRevisingThis ? (
