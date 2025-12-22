@@ -31,6 +31,7 @@ export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
     // 新技术评估场景
     '50de3a59-0502-4202-9ddb-36ceb07fb3f1': TechEvalScenario,
     'tech_evaluation': TechEvalScenario,
+    'tech_assessment': TechEvalScenario, // 兼容历史数据中的命名
     '新技术评估': TechEvalScenario,
 };
 

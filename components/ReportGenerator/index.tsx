@@ -29,6 +29,12 @@ export const ReportGenerator: React.FC = () => {
         }
     }, [view]);
 
+    const isTechEvalScenario = (id: string) => {
+        return id === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || 
+               id === 'tech_evaluation' || 
+               id === 'tech_assessment';
+    };
+
     const handleScenarioSelect = (id: string) => {
         const scenario = scenarios.find(s => s.id === id);
         if (!scenario || !isScenarioSupported(scenario)) return;
@@ -36,7 +42,7 @@ export const ReportGenerator: React.FC = () => {
         setSelectedScenarioId(id);
         
         // 特殊定制场景（如新技术评估）直接进入工作台
-        if (id === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || id === 'tech_evaluation') {
+        if (isTechEvalScenario(id)) {
             setTask(null);
             setViewState('workflow');
         } else {
@@ -87,7 +93,7 @@ export const ReportGenerator: React.FC = () => {
     };
 
     const renderScenarioWorkflow = () => {
-        const isSpecialized = selectedScenarioId === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || selectedScenarioId === 'tech_evaluation';
+        const isSpecialized = isTechEvalScenario(selectedScenarioId);
         // 如果是从历史记录加载，task 会有值。如果是新建且 specialized，task 可能初始为 null
         if (!task && !isSpecialized) return null;
         
