@@ -2,36 +2,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
-import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon } from '../../../../icons';
+import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon } from '../../../../icons';
 
 const TARGET_MODEL = "openrouter@mistralai/devstral-2512:free";
 
-/**
- * 严格提取 HTML 字符串流
- */
 const extractStreamingHtml = (text: string): string => {
-    // 尝试定位 JSON 中的 html_report 字段
     const keyMatch = text.match(/"html_report"\s*:\s*"/);
     if (!keyMatch || keyMatch.index === undefined) return '';
-
-    // 获取值开始的位置
     const startIndex = keyMatch.index + keyMatch[0].length;
     let rawContent = text.slice(startIndex);
-    
-    // 如果末尾包含了 JSON 的结束引号和括号，尝试去除（简单的流式处理）
-    // 注意：这只是为了视觉展示，最终解析依赖 parseLlmJson
     const endMatch = rawContent.match(/"\s*}\s*$/);
-    if (endMatch) {
-        rawContent = rawContent.slice(0, endMatch.index);
-    }
-    
-    // 清理转义字符以便在终端中展示
-    return rawContent
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\t/g, '\t')
-        .replace(/\\\\/g, '\\')
-        .replace(/\\$/, ''); // 移除末尾可能的挂起转义符
+    if (endMatch) rawContent = rawContent.slice(0, endMatch.index);
+    return rawContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\').replace(/\\$/, ''); 
 };
 
 export const FinalRenderer: React.FC<{
@@ -40,15 +22,15 @@ export const FinalRenderer: React.FC<{
     markdown: string;
     isReady: boolean;
     onComplete: () => void;
-}> = ({ taskId, scenario, markdown, isReady, onComplete }) => {
+    onBack: () => void; // New prop
+}> = ({ taskId, scenario, markdown, isReady, onComplete, onBack }) => {
     const [htmlContent, setHtmlContent] = useState<string>('');
-    const [rawStream, setRawStream] = useState<string>(''); // 新增：原始流数据，用于兜底显示
+    const [rawStream, setRawStream] = useState<string>('');
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     
     const codeScrollRef = useRef<HTMLDivElement>(null);
 
-    // 终端模式下自动滚动到底部
     useEffect(() => {
         if (isSynthesizing && codeScrollRef.current) {
             codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
@@ -77,25 +59,14 @@ export const FinalRenderer: React.FC<{
             },
             (chunk) => { 
                 buffer += chunk; 
-                setRawStream(buffer); // 实时更新原始流，确保界面有动静
-
-                // 尝试提取清洗后的 HTML 用于更好看的展示
+                setRawStream(buffer);
                 const extracted = extractStreamingHtml(buffer);
-                if (extracted) {
-                    setHtmlContent(extracted);
-                }
+                if (extracted) setHtmlContent(extracted);
             },
             () => {
-                // 生成完全结束后，进行最终解析
                 const { jsonPart } = extractThoughtAndJson(buffer);
                 const parsed = parseLlmJson<any>(jsonPart);
-                
-                if (parsed && parsed.html_report) {
-                    setHtmlContent(parsed.html_report);
-                }
-                
-                // 关键点：只有在这里才关闭 Synthesizing 状态
-                // 状态切换后，iframe 才会挂载，此时接收到的是完整的 HTML，CSS 样式会瞬间正确加载
+                if (parsed && parsed.html_report) setHtmlContent(parsed.html_report);
                 setIsSynthesizing(false);
             }
         );
@@ -120,17 +91,15 @@ export const FinalRenderer: React.FC<{
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#020617] overflow-hidden relative border-l border-white/5">
+        <div className="h-full flex flex-col bg-[#0f172a] overflow-hidden relative">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between z-30 bg-[#020617]/90 backdrop-blur-xl">
+            <div className="h-14 px-6 border-b border-white/10 flex items-center justify-between z-30 bg-[#0f172a]/90 backdrop-blur-xl">
                 <div className="flex items-center gap-4">
+                    <button onClick={onBack} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1 text-xs font-bold uppercase tracking-wide">
+                         ← Back to Edit
+                    </button>
+                    <div className="h-4 w-px bg-white/10"></div>
                     <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Synthesis Engine</span>
-                    <div className="flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${isSynthesizing ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_#22d3ee]' : 'bg-green-500 shadow-[0_0_8px_#22c55e]'}`}></div>
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${isSynthesizing ? 'text-cyan-400' : 'text-green-500'}`}>
-                            {isSynthesizing ? 'Outputting Source...' : 'Render Complete'}
-                        </span>
-                    </div>
                 </div>
                 
                 <div className="flex items-center gap-3">
@@ -144,35 +113,28 @@ export const FinalRenderer: React.FC<{
                             EXPORT PDF
                         </button>
                     )}
-                    <button onClick={onComplete} className="text-slate-500 hover:text-white p-1 transition-colors">
+                    <button onClick={onComplete} className="text-slate-500 hover:text-white p-1 transition-colors" title="Close">
                         <CloseIcon className="w-5 h-5" />
                     </button>
                 </div>
             </div>
 
             {/* Content Area */}
-            <div className="flex-1 relative bg-[#020617] flex flex-col overflow-hidden">
+            <div className="flex-1 relative bg-[#0f172a] flex flex-col overflow-hidden">
                 {isSynthesizing ? (
-                    /* 阶段一：深色终端代码流模式 */
                     <div className="flex-1 flex flex-col min-h-0 relative">
                         <div ref={codeScrollRef} className="flex-1 overflow-auto p-8 font-mono text-[11px] leading-relaxed custom-scrollbar-dark selection:bg-cyan-500/30">
-                            <div className="flex items-center gap-2 mb-6 opacity-30">
+                            <div className="flex items-center gap-2 mb-6 opacity-50">
                                 <CodeIcon className="w-4 h-4 text-cyan-400" />
-                                <span className="text-white text-[10px] font-black tracking-widest uppercase">Streaming HTML Buffer</span>
+                                <span className="text-white text-[10px] font-black tracking-widest uppercase">Generating HTML Structure...</span>
                             </div>
-                            {/* 优先显示提取出的 HTML，如果没有提取到（如还在输出 JSON 头部），则显示原始流，保证不卡顿 */}
                             <pre className="text-cyan-400/90 whitespace-pre-wrap break-all">
                                 {htmlContent || rawStream || '> Initializing secure link to synthesis core...'}
                                 <span className="inline-block w-1.5 h-3.5 bg-cyan-400 ml-1 animate-pulse align-middle"></span>
                             </pre>
                         </div>
-                        <div className="h-6 bg-[#020617] border-t border-white/5 flex items-center px-4 justify-between text-[9px] text-slate-600 font-mono">
-                            <span>TYPE: HTML_REPORT / STREAM_V2</span>
-                            <span>UTF-8</span>
-                        </div>
                     </div>
                 ) : htmlContent.length > 0 ? (
-                    /* 阶段二：代码接收完毕后的预览渲染 */
                     <div className="flex-1 w-full h-full relative overflow-hidden animate-in fade-in duration-1000">
                         <iframe 
                             srcDoc={htmlContent}
@@ -180,27 +142,19 @@ export const FinalRenderer: React.FC<{
                             title="Final HTML Synthesis"
                             sandbox="allow-scripts allow-same-origin"
                         />
-                        {/* 渲染完成提示浮层 */}
-                        <div className="absolute top-4 right-4 pointer-events-none">
-                            <div className="flex items-center gap-2 bg-black/80 backdrop-blur px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black text-white uppercase tracking-widest shadow-2xl opacity-0 animate-in fade-in delay-1000 fill-mode-forwards">
-                                <EyeIcon className="w-3 h-3 text-green-400" />
-                                Interactive View
+                        <div className="absolute bottom-6 right-6 pointer-events-none">
+                            <div className="flex items-center gap-2 bg-black/80 backdrop-blur px-4 py-2 rounded-full border border-white/10 text-xs font-bold text-white shadow-2xl opacity-0 animate-in fade-in delay-1000 fill-mode-forwards slide-in-from-bottom-4">
+                                <EyeIcon className="w-3.5 h-3.5 text-green-400" />
+                                Preview Mode Active
                             </div>
                         </div>
                     </div>
                 ) : (
-                    /* 初始等待状态 */
-                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
+                     <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6">
                         <div className="relative">
-                            <div className="w-24 h-24 rounded-full border-2 border-dashed border-indigo-500/10 animate-spin"></div>
-                            <CodeIcon className="w-10 h-10 text-slate-800 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20" />
+                            <div className="w-16 h-16 rounded-full border-2 border-dashed border-slate-700 animate-spin"></div>
                         </div>
-                        <div className="space-y-1 opacity-20">
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em]">Synthesis Engine</p>
-                            <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">
-                                Awaiting Pipeline Trigger...
-                            </p>
-                        </div>
+                        <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Awaiting Input...</p>
                     </div>
                 )}
             </div>

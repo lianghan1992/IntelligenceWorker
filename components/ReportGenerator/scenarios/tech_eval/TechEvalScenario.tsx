@@ -5,17 +5,22 @@ import { createStratifyTask } from '../../../../api/stratify';
 import { InputCollector } from './steps/InputCollector';
 import { WorkflowProcessor } from './steps/WorkflowProcessor';
 import { FinalRenderer } from './steps/FinalRenderer';
-import { BrainIcon, SparklesIcon } from '../../../icons';
+import { BrainIcon, SparklesIcon, ChevronRightIcon } from '../../../icons';
+
+export type WorkflowState = 'input' | 'processing' | 'review' | 'finalizing' | 'done';
 
 export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskId, scenario, onComplete }) => {
+    // 核心数据状态
     const [targetTech, setTargetTech] = useState('');
     const [materials, setMaterials] = useState('');
     const [activeTaskId, setActiveTaskId] = useState(initialTaskId);
     const [activeSessionId, setActiveSessionId] = useState('');
     
-    // 状态流: 'idle' -> 'processing' -> 'done'
-    const [workflowState, setWorkflowState] = useState<'idle' | 'processing' | 'done'>('idle');
-    const [markdownContent, setMarkdownContent] = useState('');
+    // 流程控制
+    const [workflowState, setWorkflowState] = useState<WorkflowState>('input');
+    
+    // 最终用于渲染的 Markdown
+    const [finalMarkdown, setFinalMarkdown] = useState('');
 
     const handleStart = async (config: { targetTech: string; materials: string }) => {
         setTargetTech(config.targetTech);
@@ -29,69 +34,92 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
                 setActiveSessionId(newTask.session_id);
             }
         } catch (e) {
-            setWorkflowState('idle');
+            setWorkflowState('input');
+            alert("任务初始化失败，请重试");
         }
     };
 
-    return (
-        <div className="flex-1 flex flex-col h-full bg-[#f8fafc] overflow-hidden font-sans">
-            {/* Header */}
-            <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-50">
-                <div className="flex items-center gap-3">
-                    <BrainIcon className="w-4 h-4 text-indigo-600" />
-                    <span className="text-[10px] font-black text-slate-900 uppercase tracking-[0.3em]">Intelligence_WB</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full ${workflowState === 'processing' ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`}></div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{workflowState}</span>
-                </div>
-            </div>
+    const handleReviewComplete = (markdown: string) => {
+        setFinalMarkdown(markdown);
+        setWorkflowState('finalizing');
+    };
 
-            <div className="flex-1 flex overflow-hidden">
-                {/* 1. 左栏：控制中心 (20%) */}
-                <div className="w-[20%] border-r border-slate-200 bg-white z-20 flex flex-col">
+    return (
+        <div className="flex flex-col h-full bg-[#f8fafc] font-sans overflow-hidden">
+            {/* 顶部导航栏 (Minimalist Header) */}
+            <header className="h-14 bg-white/80 backdrop-blur-md border-b border-slate-200/60 flex items-center justify-between px-6 z-50 sticky top-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                        <BrainIcon className="w-5 h-5" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-800 tracking-tight">技术评估 Agent</span>
+                    <span className="text-slate-300 text-xs">/</span>
+                    <span className="text-xs text-slate-500 font-medium">Tech Evaluation</span>
+                </div>
+                
+                {/* 步骤指示器 */}
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+                    <StepIndicator state={workflowState} target="input" label="Input" />
+                    <ChevronRightIcon className="w-3 h-3 text-slate-300" />
+                    <StepIndicator state={workflowState} target="processing" label="Analysis" />
+                    <ChevronRightIcon className="w-3 h-3 text-slate-300" />
+                    <StepIndicator state={workflowState} target="review" label="Review" />
+                    <ChevronRightIcon className="w-3 h-3 text-slate-300" />
+                    <StepIndicator state={workflowState} target="done" label="Report" />
+                </div>
+            </header>
+
+            {/* 主内容区 */}
+            <div className="flex-1 overflow-hidden relative">
+                {workflowState === 'input' && (
                     <InputCollector 
                         initialTech={targetTech}
                         initialMaterials={materials}
-                        isProcessing={workflowState === 'processing'}
+                        isProcessing={false}
                         onStart={handleStart}
                     />
-                </div>
+                )}
 
-                {/* 2. 中栏：内容生成与 Agent 对话 (45%) */}
-                <div className="w-[45%] flex flex-col relative z-10 bg-white overflow-hidden border-r border-slate-100 shadow-[inset_-1px_0_0_rgba(0,0,0,0.05)]">
-                    {activeTaskId ? (
-                        <WorkflowProcessor 
-                            taskId={activeTaskId}
-                            scenario={scenario}
-                            initialSessionId={activeSessionId}
-                            targetTech={targetTech}
-                            materials={materials}
-                            workflowState={workflowState}
-                            setWorkflowState={setWorkflowState}
-                            markdownContent={markdownContent}
-                            setMarkdownContent={setMarkdownContent}
-                            onConfirm={() => setWorkflowState('done')}
-                        />
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center opacity-10">
-                            <SparklesIcon className="w-24 h-24 mb-4" />
-                            <p className="text-xs font-black uppercase tracking-[0.5em]">System Standby</p>
-                        </div>
-                    )}
-                </div>
+                {(workflowState === 'processing' || workflowState === 'review') && (
+                    <WorkflowProcessor 
+                        taskId={activeTaskId || ''}
+                        scenario={scenario}
+                        initialSessionId={activeSessionId}
+                        targetTech={targetTech}
+                        materials={materials}
+                        workflowState={workflowState}
+                        setWorkflowState={setWorkflowState}
+                        onReviewComplete={handleReviewComplete}
+                    />
+                )}
 
-                {/* 3. 右栏：实时合成预览 (35%) */}
-                <div className="w-[35%] bg-slate-950 z-20 flex flex-col shadow-[-1px_0_10px_rgba(0,0,0,0.05)]">
+                {(workflowState === 'finalizing' || workflowState === 'done') && (
                     <FinalRenderer 
                         taskId={activeTaskId || ''}
                         scenario={scenario}
-                        markdown={markdownContent}
-                        isReady={workflowState === 'done'}
+                        markdown={finalMarkdown}
+                        isReady={workflowState === 'finalizing'} // minimizing prop overlap
                         onComplete={onComplete}
+                        onBack={() => setWorkflowState('review')}
                     />
-                </div>
+                )}
             </div>
+        </div>
+    );
+};
+
+const StepIndicator: React.FC<{ state: WorkflowState, target: string, label: string }> = ({ state, target, label }) => {
+    const order = ['input', 'processing', 'review', 'finalizing', 'done'];
+    const currIdx = order.indexOf(state === 'finalizing' ? 'done' : state); // finalizing map to done for visual
+    const targetIdx = order.indexOf(target);
+    
+    const isActive = currIdx === targetIdx;
+    const isPast = currIdx > targetIdx;
+
+    return (
+        <div className={`flex items-center gap-1.5 transition-colors duration-300 ${isActive ? 'text-indigo-600' : isPast ? 'text-slate-800' : 'text-slate-300'}`}>
+            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-indigo-600 animate-pulse' : isPast ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
+            <span>{label}</span>
         </div>
     );
 };
