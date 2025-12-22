@@ -1,45 +1,132 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon } from '../../../../icons';
+import { ViewGridIcon, CheckIcon, BrainIcon, DownloadIcon, RefreshIcon, ShieldExclamationIcon, SparklesIcon, CodeIcon, CloseIcon, EyeIcon } from '../../../../icons';
 import { StratifyPage } from '../../../../../types';
 import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { ReasoningModal } from '../../../shared/ReasoningModal';
 
-// Helper to robustly extract HTML
+// --- HTML Cleaning Utilities ---
+
+const unescapeHtml = (html: string) => {
+    // Basic entity decoding
+    const txt = document.createElement("textarea");
+    txt.innerHTML = html;
+    return txt.value;
+};
+
+const cleanHtmlContent = (raw: string): string => {
+    let clean = raw.trim();
+    
+    // 1. Remove Markdown code blocks
+    clean = clean.replace(/^```html\s*/i, '').replace(/^```\s*/, '').replace(/```$/, '');
+
+    // 2. Handle double-escaped entities (User reported \&lt;)
+    clean = clean.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>');
+    clean = clean.replace(/\\</g, '<').replace(/\\>/g, '>');
+    
+    // 3. Handle standard entities if the whole doc is escaped
+    if (clean.startsWith('&lt;') || clean.includes('&lt;html')) {
+        clean = unescapeHtml(clean);
+    }
+    
+    // 4. Fallback: If model wrapped it in body text instead of returning pure HTML
+    // (User reported <html>...<body>\&lt;!DOCTYPE...</body></html>)
+    // We try to extract the inner HTML if the body content looks like an escaped doctype
+    const bodyContentMatch = clean.match(/<body>(.*?)<\/body>/s);
+    if (bodyContentMatch && (bodyContentMatch[1].includes('&lt;!DOCTYPE') || bodyContentMatch[1].includes('<!DOCTYPE'))) {
+         let bodyInner = bodyContentMatch[1].trim();
+         if (bodyInner.startsWith('&lt;') || bodyInner.startsWith('\\&lt;')) {
+             bodyInner = unescapeHtml(bodyInner.replace(/\\&lt;/g, '<').replace(/\\&gt;/g, '>'));
+         }
+         return bodyInner;
+    }
+
+    return clean;
+};
+
 const robustExtractHtml = (fullText: string, jsonPart: string): string | null => {
+    let rawHtml = '';
+    
+    // Priority 1: JSON Part
     if (jsonPart) {
         try {
             const parsed = parseLlmJson<{ html: string }>(jsonPart);
-            if (parsed && parsed.html) return parsed.html;
+            if (parsed && parsed.html) rawHtml = parsed.html;
         } catch (e) { /* continue */ }
     }
-    const jsonFieldMatch = fullText.match(/"html"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
-    if (jsonFieldMatch && jsonFieldMatch[1]) {
-        try { return JSON.parse(`"${jsonFieldMatch[1]}"`); } 
-        catch (e) { return jsonFieldMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'); }
+
+    // Priority 2: Regex extraction from full text (if JSON failed or missing)
+    if (!rawHtml) {
+        const jsonFieldMatch = fullText.match(/"html"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+        if (jsonFieldMatch && jsonFieldMatch[1]) {
+            try { 
+                rawHtml = JSON.parse(`"${jsonFieldMatch[1]}"`); 
+            } catch (e) { 
+                rawHtml = jsonFieldMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'); 
+            }
+        }
     }
-    const rawHtmlMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
-    if (rawHtmlMatch) return rawHtmlMatch[0];
-    return null;
+
+    // Priority 3: Raw HTML block detection
+    if (!rawHtml) {
+        const rawHtmlMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
+        if (rawHtmlMatch) rawHtml = rawHtmlMatch[0];
+    }
+    
+    if (!rawHtml) return null;
+
+    return cleanHtmlContent(rawHtml);
 };
 
-// Component: 16:9 Page Card with scaling and retry
+// --- Components ---
+
+// Zoom Modal for Full Preview
+const ZoomModal: React.FC<{
+    html: string;
+    onClose: () => void;
+}> = ({ html, onClose }) => {
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={onClose}>
+            <div className="relative w-full max-w-[90vw] max-h-[90vh] aspect-video bg-white rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 z-50 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+                >
+                    <CloseIcon className="w-6 h-6" />
+                </button>
+                <iframe 
+                    srcDoc={html} 
+                    className="w-full h-full border-none bg-white" 
+                    title="Full Preview"
+                    sandbox="allow-scripts"
+                />
+            </div>
+        </div>
+    );
+};
+
+// 16:9 Page Card
 const PageCard: React.FC<{
     page: StratifyPage;
     isGenerating: boolean;
     streamHtml?: string;
     onRetry: () => void;
-}> = ({ page, isGenerating, streamHtml, onRetry }) => {
+    onZoom: () => void;
+}> = ({ page, isGenerating, streamHtml, onRetry, onZoom }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.2);
     const codeScrollRef = useRef<HTMLDivElement>(null);
+    
+    // Standard PPT Resolution base
+    const BASE_WIDTH = 1280;
+    const BASE_HEIGHT = 720;
 
     useEffect(() => {
         const updateScale = () => {
             if (containerRef.current) {
                 const { offsetWidth } = containerRef.current;
-                setScale(offsetWidth / 1600); // 1600 is our base PPT width
+                setScale(offsetWidth / BASE_WIDTH);
             }
         };
         updateScale();
@@ -70,25 +157,28 @@ const PageCard: React.FC<{
 
             <div 
                 ref={containerRef}
+                onDoubleClick={page.status === 'done' ? onZoom : undefined}
                 className={`
-                    relative aspect-video w-full rounded-2xl border-2 transition-all duration-300 overflow-hidden shadow-sm
-                    ${page.status === 'done' ? 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1' : 'bg-slate-50 border-dashed border-slate-300'}
+                    relative aspect-video w-full rounded-xl border-2 transition-all duration-300 overflow-hidden shadow-sm bg-white
+                    ${page.status === 'done' ? 'border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 cursor-zoom-in' : 'border-dashed border-slate-300'}
                 `}
             >
                 {page.status === 'done' && page.html_content ? (
                     <div 
                         style={{ 
-                            width: '1600px', 
-                            height: '900px', 
+                            width: `${BASE_WIDTH}px`, 
+                            height: `${BASE_HEIGHT}px`, 
                             transform: `scale(${scale})`, 
                             transformOrigin: 'top left',
-                            pointerEvents: 'none'
+                            pointerEvents: 'none' // Interactivity disabled in thumbnail
                         }}
+                        className="bg-white"
                     >
                         <iframe 
                             srcDoc={page.html_content} 
                             className="w-full h-full border-none bg-white" 
                             title={`Slide ${page.page_index}`}
+                            sandbox="allow-scripts"
                         />
                     </div>
                 ) : page.status === 'generating' ? (
@@ -123,6 +213,16 @@ const PageCard: React.FC<{
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20">
                         <ViewGridIcon className="w-10 h-10 text-slate-400" />
+                        <p className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-widest">Waiting</p>
+                    </div>
+                )}
+                
+                {/* Hover Action Overlay for Done state */}
+                {page.status === 'done' && (
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                         <div className="bg-white/90 backdrop-blur text-slate-800 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1.5">
+                            <EyeIcon className="w-3.5 h-3.5" /> 双击预览
+                         </div>
                     </div>
                 )}
             </div>
@@ -145,6 +245,7 @@ export const LayoutStep: React.FC<{
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [currentStreamingHtml, setCurrentStreamingHtml] = useState<string>('');
+    const [zoomedPageIdx, setZoomedPageIdx] = useState<number | null>(null);
     
     const processingRef = useRef(false);
     const completedCount = pages.filter(p => p.status === 'done').length;
@@ -188,7 +289,6 @@ export const LayoutStep: React.FC<{
                         setCurrentStreamingHtml(match.groups.content.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\t/g, '\t').replace(/\\\\/g, '\\'));
                     }
                     
-                    // Auto-close reasoning modal when content starts appearing
                     if (jsonPart && jsonPart.trim().length > 20) setIsThinkingOpen(false);
                 },
                 () => {
@@ -232,33 +332,15 @@ export const LayoutStep: React.FC<{
                 .filter(p => p.status === 'done' && p.html_content)
                 .map(p => {
                     const html = p.html_content!;
-                    const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
-                    if (styleMatch) allStyles += styleMatch[1] + '\n';
-                    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-                    return bodyMatch ? bodyMatch[1] : html;
+                    // Extract styles to deduplicate if needed, but for PDF gen usually simple concat works
+                    // unless styles clash. We assume atomic styles.
+                    return html;
                 });
-                
-            const combinedContent = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <script src="https://cdn.tailwindcss.com"></script>
-                    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-                    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-                    <style>
-                        ${allStyles}
-                        @media print {
-                            .page-break { page-break-after: always; }
-                            body { margin: 0; padding: 0; }
-                        }
-                    </style>
-                </head>
-                <body class="bg-white">
-                    ${processedPages.map(content => `<div class="page-break" style="width: 1600px; height: 900px; overflow: hidden; position: relative;">${content}</div>`).join('')}
-                </body>
-                </html>
-            `;
+            
+            // Simple concatenation for PDF generation service
+            // The service handles page breaks
+            const combinedContent = processedPages.join('<div style="page-break-after: always;"></div>');
+
             const blob = await generatePdf(combinedContent, `AI_Report_${taskId.slice(0,6)}.pdf`);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -283,6 +365,13 @@ export const LayoutStep: React.FC<{
                 content={reasoningStream || pageThought}
                 status="AI 架构师正在设计思考..."
             />
+            
+            {zoomedPageIdx !== null && (
+                <ZoomModal 
+                    html={pages.find(p => p.page_index === zoomedPageIdx)?.html_content || ''}
+                    onClose={() => setZoomedPageIdx(null)}
+                />
+            )}
 
             {/* Sticky Top Header */}
             <div className="flex-shrink-0 h-20 border-b border-slate-200 bg-white/80 backdrop-blur-xl flex items-center justify-between px-8 z-40">
@@ -356,11 +445,12 @@ export const LayoutStep: React.FC<{
                             isGenerating={page.status === 'generating'}
                             streamHtml={page.status === 'generating' ? currentStreamingHtml : undefined}
                             onRetry={() => handleRetry(page.page_index)}
+                            onZoom={() => setZoomedPageIdx(page.page_index)}
                         />
                     ))}
                     
                     {!isAllDone && (
-                        <div className="border-2 border-dashed border-slate-200 rounded-[32px] aspect-video flex flex-col items-center justify-center opacity-30 bg-white/50">
+                        <div className="border-2 border-dashed border-slate-200 rounded-xl aspect-video flex flex-col items-center justify-center opacity-30 bg-white/50">
                              <div className="w-10 h-10 rounded-full bg-slate-200 mb-3 animate-pulse"></div>
                              <div className="h-2.5 w-32 bg-slate-200 rounded animate-pulse"></div>
                         </div>
