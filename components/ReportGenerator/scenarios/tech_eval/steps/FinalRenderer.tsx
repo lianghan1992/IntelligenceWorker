@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { streamGenerate, parseLlmJson, generatePdf, getScenarios } from '../../../../../api/stratify';
+import { streamGenerate, parseLlmJson, generatePdf, getScenarios, getScenarioFiles } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { DownloadIcon, CloseIcon, CodeIcon, EyeIcon, ArrowRightIcon, LightningBoltIcon } from '../../../../icons';
 
@@ -40,6 +40,7 @@ export const FinalRenderer: React.FC<{
     const [isSynthesizing, setIsSynthesizing] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
     const [currentModel, setCurrentModel] = useState<string>('Loading...');
+    const [renderModel, setRenderModel] = useState<string>('');
     
     const codeScrollRef = useRef<HTMLDivElement>(null);
 
@@ -55,22 +56,24 @@ export const FinalRenderer: React.FC<{
         }
     }, [isReady]);
 
-    // Fetch scenario default model
+    // Fetch scenario info to get model configs
     useEffect(() => {
         const fetchModelInfo = async () => {
             try {
                 const scenarios = await getScenarios();
                 const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-                if (current && current.default_model) {
-                    setCurrentModel(current.default_model);
+                if (current) {
+                    const defModel = current.default_model || 'System Default';
+                    
+                    // Try to find if 04_Markdown2Html has a specific override
+                    const files = await getScenarioFiles(current.id);
+                    const renderPromptFile = files.find(f => f.name.includes('04_Markdown2Html'));
+                    
+                    const specificModel = renderPromptFile?.model || defModel;
+                    setRenderModel(specificModel);
+                    setCurrentModel(specificModel);
                 } else {
-                    // Fallback to trying to match by name roughly
-                    const looseMatch = scenarios.find(s => scenario.includes(s.name) || s.name.includes(scenario));
-                     if (looseMatch && looseMatch.default_model) {
-                        setCurrentModel(looseMatch.default_model);
-                    } else {
-                        setCurrentModel('System Default');
-                    }
+                    setCurrentModel('Unknown');
                 }
             } catch (err) {
                 console.warn("Failed to fetch scenario details for model name", err);
@@ -92,6 +95,7 @@ export const FinalRenderer: React.FC<{
                 variables: { markdown_report: markdown }, 
                 scenario, 
                 session_id: undefined,
+                model_override: renderModel || undefined // Pass explicit model if found
             },
             (chunk) => { 
                 buffer += chunk; 

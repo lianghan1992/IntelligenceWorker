@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { streamGenerate, getScenarios } from '../../../../../api/stratify';
+import { streamGenerate, getScenarios, getScenarioFiles } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, CheckIcon, SparklesIcon, 
@@ -10,6 +10,7 @@ import {
     LightningBoltIcon
 } from '../../../../icons';
 import { WorkflowState } from '../TechEvalScenario';
+import { StratifyScenarioFile } from '../../../../../types';
 
 // --- Types ---
 
@@ -34,7 +35,7 @@ const formatModelName = (model: string) => {
     if (!model) return 'Auto';
     // Remove channel prefix (e.g. "openrouter@")
     let name = model.includes('@') ? model.split('@')[1] : model;
-    // Remove organization prefix if present (e.g. "mistralai/", "tngtech/") to make it cleaner
+    // Remove organization prefix if present (e.g. "mistralai/", "tngtech/")
     if (name.includes('/')) {
         name = name.split('/')[1];
     }
@@ -45,17 +46,26 @@ const formatModelName = (model: string) => {
 
 // --- Sub-Components ---
 
-// 1. 思考终端组件 (解决滚动问题的核心)
+// 1. 思考终端组件 (修复滚动问题)
 const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ content, isActive }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const [userHasScrolled, setUserHasScrolled] = useState(false);
 
-    // 智能滚动逻辑：只要内容变化且处于激活状态，就滚到底部
-    useLayoutEffect(() => {
-        if (isActive && bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    // 检测用户是否手动向上滚动
+    const handleScroll = () => {
+        if (!scrollRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+        // 如果距离底部超过 20px，认为用户向上滚动了
+        const isAtBottom = scrollHeight - scrollTop - clientHeight <= 20;
+        setUserHasScrolled(!isAtBottom);
+    };
+
+    // 智能滚动逻辑：仅在用户未手动干预时自动滚到底部
+    useEffect(() => {
+        if (isActive && !userHasScrolled && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [content, isActive]);
+    }, [content, isActive, userHasScrolled]);
 
     // 修改：如果没有思考内容，直接不渲染（隐藏黑色框）
     if (!content) return null;
@@ -84,6 +94,7 @@ const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ co
             {/* Terminal Body */}
             <div 
                 ref={scrollRef}
+                onScroll={handleScroll}
                 className="p-4 max-h-[300px] overflow-y-auto custom-scrollbar-dark font-mono text-xs leading-relaxed text-slate-300"
             >
                 <div className="whitespace-pre-wrap break-words">
@@ -92,7 +103,6 @@ const ThinkingTerminal: React.FC<{ content: string; isActive: boolean }> = ({ co
                         <span className="inline-block w-2 h-4 bg-green-500 ml-1 align-middle animate-pulse"></span>
                     )}
                 </div>
-                <div ref={bottomRef} className="h-4" /> {/* Scroll Anchor */}
             </div>
             
             {/* Gradient Mask for top */}
@@ -150,7 +160,9 @@ export const WorkflowProcessor: React.FC<{
     
     // --- State ---
     const [sessionId, setSessionId] = useState(initialSessionId);
-    const [currentModel, setCurrentModel] = useState<string>('');
+    const [currentModel, setCurrentModel] = useState<string>('Initializing...');
+    const [scenarioFiles, setScenarioFiles] = useState<StratifyScenarioFile[]>([]);
+    const [defaultScenarioModel, setDefaultScenarioModel] = useState<string>('');
     
     // Data Store
     const [sections, setSections] = useState<ReportSections>({ p1: '', p2: '', p3: '', p4: '' });
@@ -182,29 +194,28 @@ export const WorkflowProcessor: React.FC<{
         }
     }, [steps.map(s => s.status).join(',')]);
 
-    // Fetch scenario details to get default model
+    // Fetch scenario details and files to get correct model config
     useEffect(() => {
-        const fetchModelInfo = async () => {
+        const fetchScenarioInfo = async () => {
             try {
                 const scenarios = await getScenarios();
                 const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-                if (current && current.default_model) {
-                    setCurrentModel(current.default_model);
-                } else {
-                    // Fallback to trying to match by name roughly if exact match failed
-                    const looseMatch = scenarios.find(s => scenario.includes(s.name) || s.name.includes(scenario));
-                     if (looseMatch && looseMatch.default_model) {
-                        setCurrentModel(looseMatch.default_model);
-                    } else {
-                        setCurrentModel('System Default');
-                    }
+                
+                if (current) {
+                    const defModel = current.default_model || 'System Default';
+                    setDefaultScenarioModel(defModel);
+                    setCurrentModel(defModel); // Initial display
+                    
+                    // Fetch files for per-step model config
+                    const files = await getScenarioFiles(current.id);
+                    setScenarioFiles(files);
                 }
             } catch (err) {
-                console.warn("Failed to fetch scenario details for model name", err);
+                console.warn("Failed to fetch scenario details", err);
                 setCurrentModel("Unknown");
             }
         };
-        fetchModelInfo();
+        fetchScenarioInfo();
     }, [scenario]);
     
     // --- Logic: Pipeline Execution ---
@@ -242,12 +253,27 @@ export const WorkflowProcessor: React.FC<{
         const stepId = stepIndex + 1;
         updateStep(stepId, { status: 'running' });
 
+        // Determine specific model for this step
+        let stepModel = defaultScenarioModel;
+        // Try to match partial filename
+        const fileConfig = scenarioFiles.find(f => f.name.includes(promptName));
+        if (fileConfig && fileConfig.model) {
+            stepModel = fileConfig.model;
+        }
+        setCurrentModel(stepModel);
+
         return new Promise<void>((resolve, reject) => {
             let fullContentBuffer = ''; // 用于累积 data.content 的所有内容
             let apiReasoningBuffer = ''; // 用于累积 data.reasoning 的所有内容
 
             streamGenerate(
-                { prompt_name: promptName, variables: vars, scenario, session_id: sessionId },
+                { 
+                    prompt_name: promptName, 
+                    variables: vars, 
+                    scenario, 
+                    session_id: sessionId,
+                    model_override: stepModel // Pass explicit model to backend
+                },
                 (chunk) => {
                     // onData: 接收 content 字段
                     fullContentBuffer += chunk;
@@ -498,6 +524,7 @@ export const WorkflowProcessor: React.FC<{
                     },
                     scenario,
                     session_id: sessionId,
+                    model_override: currentModel // Pass the context-aware model
                 },
                 (chunk) => {
                     buffer += chunk;
