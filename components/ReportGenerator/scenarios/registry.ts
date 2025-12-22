@@ -2,7 +2,7 @@
 import React from 'react';
 import { TechEvalScenario } from './tech_eval/TechEvalScenario';
 import { GeneralPptScenario } from './general_ppt/GeneralPptScenario';
-import { StratifyScenario } from '../../../types';
+import { StratifyScenario, StratifyTask } from '../../../types';
 
 // 场景组件的 Props 定义
 export interface ScenarioProps {
@@ -12,6 +12,7 @@ export interface ScenarioProps {
     sessionId: string;
     context?: any;
     onComplete: () => void;
+    initialTask?: StratifyTask | null; // 新增：用于传入历史任务数据进行状态恢复
 }
 
 /**

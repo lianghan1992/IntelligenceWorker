@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScenarioProps } from '../registry';
 import { createStratifyTask } from '../../../../api/stratify';
 import { InputCollector } from './steps/InputCollector';
@@ -9,7 +9,7 @@ import { BrainIcon, SparklesIcon, ChevronRightIcon } from '../../../icons';
 
 export type WorkflowState = 'input' | 'processing' | 'review' | 'finalizing' | 'done';
 
-export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskId, scenario, onComplete }) => {
+export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskId, scenario, onComplete, initialTask }) => {
     // 核心数据状态
     const [targetTech, setTargetTech] = useState('');
     const [materials, setMaterials] = useState('');
@@ -21,6 +21,24 @@ export const TechEvalScenario: React.FC<ScenarioProps> = ({ taskId: initialTaskI
     
     // 最终用于渲染的 Markdown
     const [finalMarkdown, setFinalMarkdown] = useState('');
+
+    // 历史恢复逻辑
+    useEffect(() => {
+        if (initialTask) {
+            setActiveTaskId(initialTask.id);
+            setActiveSessionId(initialTask.session_id);
+            if (initialTask.input_text) setTargetTech(initialTask.input_text);
+            
+            // 简单状态恢复逻辑
+            if (initialTask.status === 'completed') {
+                // 如果有最终结果，尝试进入 review 状态
+                // 这里假设 task 上下文或最后阶段包含结果。实际需要根据 phases 内容深度恢复
+                setWorkflowState('review'); 
+            } else if (initialTask.status === 'processing') {
+                setWorkflowState('processing');
+            }
+        }
+    }, [initialTask]);
 
     const handleStart = async (config: { targetTech: string; materials: string }) => {
         setTargetTech(config.targetTech);

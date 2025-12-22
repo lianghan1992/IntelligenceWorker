@@ -83,7 +83,9 @@ export const ContentStep: React.FC<{
                         page_summary: outline.pages[page.page_index - 1].content
                     },
                     session_id: initialSessionId || undefined,
-                    scenario
+                    scenario,
+                    task_id: taskId, // Persistence: Link to Task
+                    phase_name: '03_generate_content' // Persistence: Phase Name (Note: Backend appends, assumes sequential)
                 },
                 (chunk) => {
                     buffer += chunk;
@@ -118,7 +120,7 @@ export const ContentStep: React.FC<{
             );
         };
         processPage(nextPage);
-    }, [pages, outline, initialSessionId, scenario, isRevising]);
+    }, [pages, outline, initialSessionId, scenario, isRevising, taskId]);
 
     const handleRevisePage = () => {
         if (!activePage || !activePage.content_markdown || !revisionInput.trim()) return;
@@ -139,7 +141,9 @@ export const ContentStep: React.FC<{
                     user_revision_request: revisionInput
                 },
                 session_id: initialSessionId || undefined,
-                scenario
+                scenario,
+                task_id: taskId,
+                phase_name: '04_revise_content'
             },
             (chunk) => {
                 buffer += chunk;
@@ -239,7 +243,7 @@ export const ContentStep: React.FC<{
                     </div>
                 </div>
                 <div className="absolute bottom-6 left-6 right-6 z-20">
-                    <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl rounded-2xl p-3 flex flex-col md:flex-row gap-3 items-center max-w-4xl mx-auto ring-1 ring-slate-100">
+                    <div className="bg-white/90 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-indigo-500/10 rounded-2xl p-3 flex flex-col md:flex-row gap-3 items-center max-w-4xl mx-auto ring-1 ring-slate-100">
                         <div className="w-full md:flex-1 relative">
                             <input type="text" value={revisionInput} onChange={(e) => setRevisionInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && activePage.status === 'done' && handleRevisePage()} placeholder="输入修改指令..." className="w-full bg-slate-100 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 rounded-xl pl-4 pr-12 py-3 text-sm transition-all outline-none" disabled={activePage.status === 'generating'} />
                             <button onClick={handleRevisePage} disabled={activePage.status === 'generating' || !revisionInput.trim()} className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-white border border-slate-200 rounded-lg text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><ArrowRightIcon className="w-4 h-4" /></button>

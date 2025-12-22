@@ -156,7 +156,7 @@ export const WorkflowProcessor: React.FC<{
     workflowState: WorkflowState;
     setWorkflowState: (s: WorkflowState) => void;
     onReviewComplete: (markdown: string) => void;
-}> = ({ scenario, initialSessionId, targetTech, materials, workflowState, setWorkflowState, onReviewComplete }) => {
+}> = ({ taskId, scenario, initialSessionId, targetTech, materials, workflowState, setWorkflowState, onReviewComplete }) => {
     
     // --- State ---
     const [sessionId, setSessionId] = useState(initialSessionId);
@@ -272,7 +272,9 @@ export const WorkflowProcessor: React.FC<{
                     variables: vars, 
                     scenario, 
                     session_id: sessionId,
-                    model_override: stepModel // Pass explicit model to backend
+                    model_override: stepModel, // Pass explicit model to backend
+                    task_id: taskId,             // Persistence: Link to Task
+                    phase_name: promptName       // Persistence: Phase Name as prompt name for Tech Eval
                 },
                 (chunk) => {
                     // onData: 接收 content 字段
@@ -524,7 +526,9 @@ export const WorkflowProcessor: React.FC<{
                     },
                     scenario,
                     session_id: sessionId,
-                    model_override: currentModel // Pass the context-aware model
+                    model_override: currentModel, // Pass the context-aware model
+                    task_id: taskId,
+                    phase_name: '04_revise_content'
                 },
                 (chunk) => {
                     buffer += chunk;

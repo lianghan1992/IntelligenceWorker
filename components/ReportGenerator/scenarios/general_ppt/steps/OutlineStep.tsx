@@ -80,7 +80,14 @@ export const OutlineStep: React.FC<{
         setIsThinkingOpen(true);
         
         streamGenerate(
-            { prompt_name: promptName, variables: vars, scenario, session_id: activeSessionId || undefined },
+            { 
+                prompt_name: promptName, 
+                variables: vars, 
+                scenario, 
+                session_id: activeSessionId || undefined,
+                task_id: taskId,               // Persistence: Link to Task
+                phase_name: '01_generate_outline' // Persistence: Phase Name
+            },
             (chunk) => {
                 setStreamContent(prev => {
                     const next = prev + chunk;

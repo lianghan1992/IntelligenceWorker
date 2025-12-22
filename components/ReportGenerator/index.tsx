@@ -88,10 +88,11 @@ export const ReportGenerator: React.FC = () => {
 
     const renderScenarioWorkflow = () => {
         const isSpecialized = selectedScenarioId === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || selectedScenarioId === 'tech_evaluation';
+        // 如果是从历史记录加载，task 会有值。如果是新建且 specialized，task 可能初始为 null
         if (!task && !isSpecialized) return null;
         
         const ScenarioComponent = getScenarioComponent(selectedScenarioId);
-        if (!ScenarioComponent) return null;
+        if (!ScenarioComponent) return <div className="p-10 text-center text-gray-500">场景组件未找到 ({selectedScenarioId})</div>;
 
         return (
             <ScenarioComponent 
@@ -100,6 +101,7 @@ export const ReportGenerator: React.FC = () => {
                 scenario={selectedScenarioId}
                 sessionId={task?.session_id || ''}
                 context={task?.context}
+                initialTask={task} // 传递完整任务对象用于恢复状态
                 onComplete={() => setViewState('done')}
             />
         );
