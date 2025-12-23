@@ -2,6 +2,7 @@
 import React from 'react';
 import { TechEvalScenario } from './tech_eval/TechEvalScenario';
 import { GeneralPptScenario } from './general_ppt/GeneralPptScenario';
+import { InnovationTechScenario } from './innovation_tech/InnovationTechScenario';
 import { StratifyScenario, StratifyTask } from '../../../types';
 
 // 场景组件的 Props 定义
@@ -33,6 +34,11 @@ export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
     'tech_evaluation': TechEvalScenario,
     'tech_assessment': TechEvalScenario, // 修复：兼容历史数据的命名
     '新技术评估': TechEvalScenario,
+
+    // 创新技术分析场景 (New)
+    '43a73bc4-0fae-4aa7-8854-e4fdfaf89a07': InnovationTechScenario,
+    'innovation_tech_analysis': InnovationTechScenario,
+    '创新技术分析': InnovationTechScenario,
 };
 
 /**
