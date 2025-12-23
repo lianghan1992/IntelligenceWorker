@@ -21,7 +21,9 @@ StratifyAI 服务采用“前端驱动业务，后端提供能力”的架构。
 [
   "zhipu@glm-4-flash",
   "openrouter@tngtech/deepseek-r1t2-chimera:free",
-  "gemini_cookie@gemini"
+  "gemini_cookie@gemini-2.5-flash",
+  "gemini_cookie@gemini-2.5-pro",
+  "gemini_api@gemini-1.5-flash"
 ]
 ```
 
@@ -60,14 +62,13 @@ StratifyAI 服务采用“前端驱动业务，后端提供能力”的架构。
 }
 ```
 
-**支持的 `prompt_name`**:
-*注意：以下仅为 default 场景的示例，实际可用的 prompt 取决于场景目录下的文件。*
-- `00_analyze_input`: 意图识别与分析。
-- `01_generate_outline`: 生成大纲。
-- `02_revise_outline`: 修改大纲。
-- `03_generate_content`: 生成单页内容。
-- `04_revise_content`: 修改内容。
-- `05_generate_html`: 生成HTML。
+**模型选择优先级**:
+1. `model_override` (请求参数)
+2. `prompt.model` (提示词文件配置)
+3. `scenario.default_model` (场景默认配置)
+4. 系统默认逻辑 (analyze_input/outline/content 等专用默认)
+5. `session.model` (会话历史模型)
+6. 兜底默认 (zhipu@glm-4-flash)
 
 **响应数据**:
 SSE 事件流。
@@ -79,7 +80,12 @@ data: {"session_id": "sess_123abc..."}
 ```json
 data: {"content": "这"}
 data: {"content": "是"}
-data: {"reasoning": "思考过程..."} // 如果模型支持 DeepSeek-R1 等思考输出
+data: {"content": "正文内容", "reasoning": "思考过程..."} 
+```
+> **注意**: `reasoning` 字段仅在支持思考的模型（如 DeepSeek-R1, Gemini-2.5-Flash 等）中才会返回。对于 Gemini Cookie 渠道，需确保选择了正确的思考模型（如 `gemini-2.5-flash`）。
+
+3. **结束消息**:
+```
 data: [DONE]
 ```
 
@@ -121,6 +127,7 @@ data: [DONE]
     "name": "default",
     "title": "通用PPT生成",
     "description": "通用的汽车行业报告PPT生成场景",
+    "default_model": "zhipu@glm-4-flash",
     "created_at": "...",
     "updated_at": "..."
   },
@@ -128,7 +135,8 @@ data: [DONE]
     "id": "uuid-...",
     "name": "tech_eval",
     "title": "新技术评估",
-    "description": "..."
+    "description": "...",
+    "default_model": "openrouter@anthropic/claude-3-5-sonnet"
   }
 ]
 ```
@@ -182,6 +190,9 @@ data: [DONE]
 
 #### 2.6.1 获取提示词文件
 - **URL**: `GET /prompts/scenarios/{scenario_id}/files/{filename}`
+- **参数**:
+  - `scenario_id`: 场景的 UUID
+  - `filename`: 提示词文件名 (e.g., "00_analyze_input.md")
 - **响应示例**:
 ```json
 {
@@ -194,15 +205,19 @@ data: [DONE]
 }
 ```
 
-#### 2.6.2 创建/修改提示词文件
+#### 2.6.2 创建/修改提示词文件 (PUT)
 - **URL**: `PUT /prompts/scenarios/{scenario_id}/files/{filename}`
-- **说明**: 如果文件不存在则创建，存在则更新。
-- **Request Body**:
+- **功能**: 如果文件不存在则创建，存在则更新。此接口为主要的保存接口。
+- **Request Body 字段**:
+  - `name`: (string) 文件名，需与 URL 中的 filename 一致（或用于重命名）。
+  - `content`: (string) 提示词的文本内容 (支持 Jinja2 模板语法)。
+  - `model`: (string, optional) 为该提示词指定特定模型 (格式: `channel@model`)。如果不指定或为 null，将使用场景默认模型。
+- **请求示例**:
 ```json
 {
-  "name": "00_analyze_input.md", // 文件名，需与 URL 中的 filename 一致（或用于重命名）
-  "content": "Updated prompt content...",
-  "model": "openrouter@google/gemini-pro-1.5" // (Optional) 为该提示词指定特定模型。如果不指定或为 null，将使用场景默认模型。
+  "name": "00_analyze_input.md", 
+  "content": "请分析以下输入：{{ user_input }}...",
+  "model": "openrouter@google/gemini-pro-1.5"
 }
 ```
 - **Response**:
@@ -212,8 +227,9 @@ data: [DONE]
 }
 ```
 
-#### 2.6.3 显式创建提示词文件
+#### 2.6.3 显式创建提示词文件 (POST)
 - **URL**: `POST /prompts/scenarios/{scenario_id}/files`
+- **功能**: 显式创建新文件，如果文件名冲突会报错。
 - **Request Body**:
 ```json
 {
@@ -222,10 +238,24 @@ data: [DONE]
   "model": "zhipu@glm-4-air" // (Optional)
 }
 ```
+- **Response**:
+```json
+{
+  "id": "uuid-...",
+  "name": "new_prompt.md",
+  ...
+}
+```
 
 #### 2.6.4 删除提示词文件
 - **URL**: `DELETE /prompts/scenarios/{scenario_id}/files/{filename}`
 - **说明**: 物理删除该提示词记录。
+- **Response**:
+```json
+{
+  "message": "File 00_analyze_input.md deleted"
+}
+```
 
 ---
 
