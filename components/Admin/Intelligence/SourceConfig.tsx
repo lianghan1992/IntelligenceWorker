@@ -147,8 +147,7 @@ export const SourceConfig: React.FC = () => {
             extra_hint: '',
             status: p.is_active ? 'active' : 'inactive',
             created_at: '',
-            updated_at: '',
-            source_name: p.source_name || ''
+            updated_at: ''
         };
     };
 

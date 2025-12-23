@@ -42,7 +42,7 @@ export const getPoints = (params?: { source_name?: string }): Promise<Intelligen
         id: p.uuid,
         uuid: p.uuid,
         source_uuid: p.source_uuid,
-        source_name: p.source_name || '',
+        source_name: p.source_name,
         name: p.name,
         url: p.url,
         point_name: p.name,

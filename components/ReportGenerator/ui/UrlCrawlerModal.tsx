@@ -1,302 +1,287 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
     CloseIcon, GlobeIcon, LinkIcon, RefreshIcon, 
     CheckCircleIcon, ShieldExclamationIcon, EyeIcon, 
-    CloudIcon, DocumentTextIcon, ArrowRightIcon
+    ChevronRightIcon, ClockIcon 
 } from '../../icons';
-import { uploadStratifyFile } from '../../../api/stratify';
 
-interface CrawlTask {
+interface CrawledArticle {
     id: string;
     url: string;
     title: string;
     content: string;
-    status: 'pending' | 'running' | 'uploading' | 'success' | 'error' | 'retrying';
+    status: 'pending' | 'running' | 'success' | 'error' | 'retrying';
     errorMessage?: string;
-    attachmentUrl?: string;
-    tokens?: number;
 }
 
 interface UrlCrawlerModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (files: Array<{ name: string; url: string; tokens: number }>) => void;
+    onSuccess: (articles: Array<{ title: string; url: string; content: string }>) => void;
 }
 
-const MAX_CONCURRENCY = 3; // Reduced concurrency slightly for stability
-const MAX_RETRIES = 2;
+// 并发限制常量
+const MAX_CONCURRENCY = 10;
+const MAX_RETRIES = 3;
 
 export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClose, onSuccess }) => {
     const [urlInput, setUrlInput] = useState('');
-    const [tasks, setTasks] = useState<CrawlTask[]>([]);
+    const [taskQueue, setTaskQueue] = useState<CrawledArticle[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [previewContent, setPreviewContent] = useState<{ title: string; html: string } | null>(null);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [previewArticle, setPreviewArticle] = useState<CrawledArticle | null>(null);
+    
+    // 使用 Ref 追踪任务状态，避免闭包问题
+    const queueRef = useRef<CrawledArticle[]>([]);
 
-    const estimateTokens = (text: string) => Math.ceil(text.length / 1.5);
+    const updateTaskStatus = (id: string, updates: Partial<CrawledArticle>) => {
+        setTaskQueue(prev => {
+            const next = prev.map(t => t.id === id ? { ...t, ...updates } : t);
+            queueRef.current = next;
+            return next;
+        });
+    };
 
-    const processTask = async (task: CrawlTask, retryCount = 0) => {
-        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'running' } : t));
+    const fetchUrl = async (task: CrawledArticle, retryCount = 0): Promise<void> => {
+        updateTaskStatus(task.id, { status: 'running' });
 
         try {
             const response = await fetch(`https://r.jina.ai/${task.url}`, {
-                headers: { 
-                    'X-Return-Format': 'markdown',
-                    'X-No-Cache': 'true' 
-                }
+                headers: { 'X-Return-Format': 'markdown' }
             });
 
-            if (response.status === 429 && retryCount < MAX_RETRIES) {
-                setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'retrying', errorMessage: `限流重试 (${retryCount + 1})...` } : t));
-                await new Promise(r => setTimeout(r, 3000 * (retryCount + 1)));
-                return processTask(task, retryCount + 1);
+            if (response.status === 429) {
+                if (retryCount < MAX_RETRIES) {
+                    updateTaskStatus(task.id, { status: 'retrying', errorMessage: `触发限流，${(retryCount + 1) * 3}s 后重试...` });
+                    await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 3000));
+                    return fetchUrl(task, retryCount + 1);
+                } else {
+                    throw new Error('超出重试次数 (Jina RPM Limit)');
+                }
             }
 
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
             const content = await response.text();
             
+            // 提取标题：寻找第一个 # 标题
+            let title = task.url;
             const titleMatch = content.match(/^#\s+(.*)$/m);
-            const title = titleMatch ? titleMatch[1].trim().slice(0, 50) : task.url.slice(0, 50);
-            const tokens = estimateTokens(content);
+            if (titleMatch && titleMatch[1]) {
+                title = titleMatch[1].trim();
+            } else {
+                // 兜底：截取前 30 个字符
+                title = content.substring(0, 50).split('\n')[0] || task.url;
+            }
 
-            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'uploading', content, title, tokens } : t));
-            
-            const file = new File([content], `${title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.md`, { type: 'text/markdown' });
-            const uploadRes = await uploadStratifyFile(file);
-
-            setTasks(prev => prev.map(t => t.id === task.id ? { 
-                ...t, 
-                status: 'success', 
-                attachmentUrl: uploadRes.url,
-                errorMessage: undefined 
-            } : t));
-
+            updateTaskStatus(task.id, { status: 'success', title, content });
         } catch (error: any) {
-            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'error', errorMessage: error.message || '抓取失败' } : t));
+            updateTaskStatus(task.id, { status: 'error', errorMessage: error.message || '抓取失败' });
         }
     };
 
-    useEffect(() => {
-        if (!isProcessing) return;
+    const handleStartCrawl = async () => {
+        const urls = urlInput
+            .split('\n')
+            .map(u => u.trim())
+            .filter(u => u.startsWith('http'));
 
-        const pendingTasks = tasks.filter(t => t.status === 'pending');
-        const activeTasks = tasks.filter(t => ['running', 'uploading', 'retrying'].includes(t.status));
-
-        if (pendingTasks.length === 0 && activeTasks.length === 0) {
-            setIsProcessing(false);
+        if (urls.length === 0) {
+            alert('请输入有效的 URL 链接');
             return;
         }
 
-        if (pendingTasks.length > 0 && activeTasks.length < MAX_CONCURRENCY) {
-            const nextTask = pendingTasks[0];
-            processTask(nextTask);
-        }
-    }, [tasks, isProcessing]);
-
-    const handleStart = () => {
-        const urls = Array.from(new Set(
-            urlInput.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'))
-        ));
-        
-        if (urls.length === 0) return;
-
-        // Use random random ID to ensure uniqueness across batches
-        const newTasks: CrawlTask[] = urls.map((u) => ({
-            id: `crawl-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            url: u,
-            title: u,
+        const initialTasks: CrawledArticle[] = urls.map((url, index) => ({
+            id: `task-${Date.now()}-${index}`,
+            url,
+            title: url,
             content: '',
             status: 'pending'
         }));
 
-        setTasks(newTasks);
+        setTaskQueue(initialTasks);
+        queueRef.current = initialTasks;
         setIsProcessing(true);
-        setUrlInput(''); 
-    };
 
-    const handlePreview = (task: CrawlTask) => {
-        if (!window.marked) return;
-        setPreviewContent({
-            title: task.title,
-            html: window.marked.parse(task.content)
-        });
+        // 并发执行逻辑
+        const pool = [...initialTasks];
+        const executing = new Set<Promise<void>>();
+
+        for (const task of pool) {
+            // 如果并发数达到上限，等待其中一个完成
+            if (executing.size >= MAX_CONCURRENCY) {
+                await Promise.race(executing);
+            }
+
+            const p = fetchUrl(task).then(() => {
+                executing.delete(p);
+            });
+            executing.add(p);
+        }
+
+        await Promise.all(executing);
+        setIsProcessing(false);
     };
 
     const handleConfirm = () => {
-        const results = tasks
-            .filter(t => t.status === 'success' && t.attachmentUrl)
-            .map(t => ({ name: t.title, url: t.attachmentUrl!, tokens: t.tokens || 0 }));
-        onSuccess(results);
-        onClose();
+        const successful = taskQueue.filter(t => t.status === 'success');
+        if (successful.length > 0) {
+            onSuccess(successful.map(t => ({ title: t.title, url: t.url, content: t.content })));
+            onClose();
+        }
     };
-
-    const successCount = tasks.filter(t => t.status === 'success').length;
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 relative border border-slate-100 ring-1 ring-black/5">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white w-full max-w-4xl h-[85vh] rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95">
                 {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white z-10">
+                <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100 shadow-sm">
-                            <GlobeIcon className="w-5 h-5" />
+                        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shadow-inner">
+                            <GlobeIcon className="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-snug">URL 批量采集</h3>
-                            <p className="text-xs text-slate-500 font-medium">Jina Reader 驱动 • 自动正文提取 • Token 估算</p>
+                            <h3 className="text-xl font-black text-slate-800 tracking-tight">从网页提取参考资料</h3>
+                            <p className="text-xs text-slate-500 font-medium">使用 JINA Reader 将外部文章转化为 Markdown 上下文</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 hover:text-slate-600">
-                        <CloseIcon className="w-6 h-6" />
+                    <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors border border-transparent hover:border-slate-200">
+                        <CloseIcon className="w-6 h-6 text-slate-400" />
                     </button>
                 </div>
 
-                <div className="flex-1 flex overflow-hidden">
-                    {/* Left: Input Area */}
-                    <div className="w-[350px] flex-shrink-0 border-r border-slate-100 bg-slate-50 flex flex-col z-10">
-                        <div className="p-5 flex-1 flex flex-col">
-                            <div className="flex justify-between items-center mb-3">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                    <LinkIcon className="w-3.5 h-3.5" /> 输入网址
-                                </label>
-                                <span className="text-[10px] text-slate-400">每行一个 URL</span>
-                            </div>
-                            <div className="flex-1 relative group bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden focus-within:ring-2 ring-indigo-100 transition-all">
-                                <textarea 
-                                    ref={textareaRef}
-                                    value={urlInput}
-                                    onChange={e => setUrlInput(e.target.value)}
-                                    className="w-full h-full p-4 bg-transparent border-none outline-none text-sm font-mono leading-relaxed resize-none text-slate-600 placeholder:text-slate-300"
-                                    placeholder="https://article-1.com&#10;https://article-2.com"
-                                    disabled={isProcessing}
-                                />
-                            </div>
-                        </div>
-                        <div className="p-5 pt-0">
-                            <button 
-                                onClick={handleStart}
-                                disabled={isProcessing || !urlInput.trim()}
-                                className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-600 hover:shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none active:scale-95"
-                            >
-                                {isProcessing ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <ArrowRightIcon className="w-4 h-4" />}
-                                {isProcessing ? '采集中...' : '开始抓取'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Right: Task List */}
-                    <div className="flex-1 bg-white overflow-hidden flex flex-col relative">
-                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
-                        
-                         <div className="px-6 py-4 border-b border-slate-50 flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">任务队列</h4>
-                             {tasks.length > 0 && (
-                                <div className="flex gap-2">
-                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 rounded text-slate-500">Total: {tasks.length}</span>
-                                    {successCount > 0 && <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100">Success: {successCount}</span>}
-                                </div>
-                             )}
-                         </div>
-                         
-                        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative z-0">
-                            {tasks.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
-                                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">
-                                        <CloudIcon className="w-8 h-8 opacity-20" />
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-sm font-medium text-slate-400">暂无采集任务</p>
-                                        <p className="text-xs mt-1 opacity-70">请在左侧输入 URL 并开始</p>
-                                    </div>
+                <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+                    {/* Left: Input Side */}
+                    <div className={`flex-1 p-8 flex flex-col border-r border-slate-100 transition-all ${isProcessing ? 'bg-slate-50/50' : 'bg-white'}`}>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">输入文章链接 (每行一个)</label>
+                        <textarea
+                            value={urlInput}
+                            onChange={e => setUrlInput(e.target.value)}
+                            placeholder="https://example.com/article/1&#10;https://techcrunch.com/2024/..."
+                            className="flex-1 w-full p-6 bg-slate-50 border-2 border-transparent focus:border-blue-500 focus:bg-white rounded-[24px] outline-none transition-all text-sm font-mono leading-relaxed shadow-inner resize-none"
+                            disabled={isProcessing}
+                        />
+                        <div className="mt-6 flex gap-3">
+                            {isProcessing ? (
+                                <div className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-2xl font-bold flex items-center justify-center gap-3">
+                                    <RefreshIcon className="w-5 h-5 animate-spin" />
+                                    <span>引擎正在处理中...</span>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-3">
-                                    {tasks.map(task => (
-                                        <div key={task.id} className="group bg-white p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all flex items-start justify-between gap-4">
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1.5">
-                                                    <h4 className="text-sm font-bold text-slate-700 truncate" title={task.title}>{task.title || task.url}</h4>
-                                                    {task.tokens ? (
-                                                        <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                                                            {task.tokens.toLocaleString()} tok
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-                                                <p className="text-[11px] text-slate-400 truncate font-mono">{task.url}</p>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-3 pt-1">
-                                                {task.status === 'success' ? (
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md flex items-center gap-1 border border-green-100">
-                                                            <CheckCircleIcon className="w-3 h-3"/> 成功
-                                                        </span>
-                                                        <button 
-                                                            onClick={() => handlePreview(task)}
-                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
-                                                            title="预览内容"
-                                                        >
-                                                            <EyeIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-24 text-right">
-                                                        {task.status === 'running' && <span className="text-[10px] font-bold text-blue-500 animate-pulse flex items-center justify-end gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 抓取中</span>}
-                                                        {task.status === 'uploading' && <span className="text-[10px] font-bold text-purple-500 animate-pulse flex items-center justify-end gap-1"><CloudIcon className="w-3 h-3 animate-bounce"/> 上传中</span>}
-                                                        {task.status === 'error' && <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded flex items-center justify-end gap-1 truncate max-w-full" title={task.errorMessage}><ShieldExclamationIcon className="w-3 h-3"/> 失败</span>}
-                                                        {task.status === 'retrying' && <span className="text-[10px] font-bold text-amber-500">重试中...</span>}
-                                                        {task.status === 'pending' && <span className="text-[10px] font-bold text-slate-300">等待中</span>}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <button
+                                    onClick={handleStartCrawl}
+                                    disabled={!urlInput.trim()}
+                                    className="flex-1 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-blue-600 shadow-xl transition-all active:scale-95 disabled:opacity-30 flex items-center justify-center gap-2"
+                                >
+                                    <LinkIcon className="w-5 h-5" />
+                                    开始批量加载
+                                </button>
                             )}
                         </div>
                     </div>
-                </div>
 
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-100 flex justify-between items-center bg-white z-10">
-                    <p className="text-[10px] text-slate-400 font-medium">支持多线程并发采集 • 自动去重</p>
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="px-5 py-2 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-lg transition-colors">取消</button>
-                        <button 
-                            onClick={handleConfirm}
-                            disabled={isProcessing || successCount === 0}
-                            className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-30 disabled:shadow-none transition-all flex items-center gap-2"
-                        >
-                            <CheckCircleIcon className="w-4 h-4" />
-                            确认添加 ({successCount})
-                        </button>
+                    {/* Right: Results Side */}
+                    <div className="w-full md:w-[400px] bg-slate-50/30 flex flex-col overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white/50">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">抓取队列 ({taskQueue.length})</span>
+                            {taskQueue.some(t => t.status === 'success') && (
+                                <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                                    {taskQueue.filter(t => t.status === 'success').length} 成功
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                            {taskQueue.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-300 text-center px-8">
+                                    <ClockIcon className="w-12 h-12 mb-3 opacity-20" />
+                                    <p className="text-xs font-medium leading-relaxed">待解析的链接将在此处显示进度</p>
+                                </div>
+                            ) : (
+                                taskQueue.map(task => (
+                                    <div key={task.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm animate-in slide-in-from-right-4">
+                                        <div className="flex justify-between items-start gap-2 mb-2">
+                                            <h4 className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug flex-1" title={task.title}>
+                                                {task.title}
+                                            </h4>
+                                            <div className="flex-shrink-0">
+                                                {task.status === 'running' && <RefreshIcon className="w-4 h-4 text-blue-500 animate-spin" />}
+                                                {task.status === 'success' && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
+                                                {task.status === 'error' && <ShieldExclamationIcon className="w-4 h-4 text-red-500" />}
+                                                {task.status === 'retrying' && <RefreshIcon className="w-4 h-4 text-amber-500 animate-spin" />}
+                                                {task.status === 'pending' && <div className="w-4 h-4 border-2 border-slate-200 rounded-full"></div>}
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 truncate mb-3 font-mono">{task.url}</p>
+                                        
+                                        <div className="flex justify-between items-center">
+                                            <div className="text-[10px] font-bold">
+                                                {task.status === 'error' && <span className="text-red-500">{task.errorMessage}</span>}
+                                                {task.status === 'retrying' && <span className="text-amber-600">{task.errorMessage}</span>}
+                                                {task.status === 'success' && <span className="text-green-600">已就绪</span>}
+                                            </div>
+                                            {task.status === 'success' && (
+                                                <button 
+                                                    onClick={() => setPreviewArticle(task)}
+                                                    className="flex items-center gap-1 text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-600 hover:text-white transition-all uppercase tracking-wider"
+                                                >
+                                                    <EyeIcon className="w-3 h-3" /> Preview
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-4 bg-white border-t border-slate-100">
+                             <button 
+                                onClick={handleConfirm}
+                                disabled={!taskQueue.some(t => t.status === 'success') || isProcessing}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-30 disabled:shadow-none transition-all active:scale-95"
+                             >
+                                加入参考资料 ({taskQueue.filter(t => t.status === 'success').length})
+                             </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Preview Overlay */}
-                {previewContent && (
-                    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
-                        <div className="px-6 py-3 border-b flex justify-between items-center bg-white shadow-sm z-10">
+                {/* Markdown Preview Overlay */}
+                {previewArticle && (
+                    <div className="absolute inset-0 z-20 bg-white animate-in slide-in-from-bottom duration-300 flex flex-col">
+                        <div className="px-8 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 backdrop-blur-md">
                             <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="p-1.5 bg-indigo-50 rounded-lg border border-indigo-100"><DocumentTextIcon className="w-4 h-4 text-indigo-600" /></div>
-                                <h3 className="font-bold text-slate-800 truncate text-sm">{previewContent.title}</h3>
+                                <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm text-blue-600">
+                                    <GlobeIcon className="w-5 h-5" />
+                                </div>
+                                <h3 className="font-bold text-slate-800 truncate text-sm">{previewArticle.title}</h3>
                             </div>
-                            <button onClick={() => setPreviewContent(null)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
-                                <CloseIcon className="w-5 h-5" />
+                            <button 
+                                onClick={() => setPreviewArticle(null)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all"
+                            >
+                                <ChevronRightIcon className="w-4 h-4 rotate-180" /> 返回列表
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50">
+                        <div className="flex-1 overflow-y-auto p-8 md:p-12 custom-scrollbar bg-white">
                             <article 
-                                className="prose prose-sm prose-slate max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-slate-200"
-                                dangerouslySetInnerHTML={{ __html: previewContent.html }}
+                                className="prose prose-slate prose-sm md:prose-base max-w-4xl mx-auto"
+                                dangerouslySetInnerHTML={{ 
+                                    __html: window.marked ? window.marked.parse(previewArticle.content) : `<pre>${previewArticle.content}</pre>` 
+                                }}
                             />
                         </div>
                     </div>
                 )}
             </div>
+            
+            <style>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .custom-scrollbar-dark::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+                .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+            `}</style>
         </div>
     );
 };

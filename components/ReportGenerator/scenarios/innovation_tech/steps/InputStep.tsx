@@ -55,15 +55,6 @@ export const InputStep: React.FC<{
         onStart(topic, combined);
     };
 
-    // Remove by index to be safe against duplicate files
-    const removeFile = (index: number) => {
-        setReferenceFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const removeSnippet = (index: number) => {
-        setVectorSnippets(prev => prev.filter((_, i) => i !== index));
-    };
-
     return (
         <div className="h-full overflow-y-auto custom-scrollbar bg-slate-50 flex justify-center p-6 md:p-12">
             <div className="w-full max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -95,14 +86,14 @@ export const InputStep: React.FC<{
                     <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex flex-wrap gap-2 items-center justify-between">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-2">补充情报资料</label>
                         <div className="flex gap-2">
-                            <button onClick={() => setIsVectorOpen(true)} className="input-tool-btn text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100">
+                            <button onClick={() => setIsVectorOpen(true)} className="input-tool-btn text-emerald-600 bg-emerald-50 border-emerald-100">
                                 <PuzzleIcon className="w-3.5 h-3.5" /> 知识库
                             </button>
-                            <button onClick={() => setIsLlmOpen(true)} className="input-tool-btn text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100">
+                            <button onClick={() => setIsLlmOpen(true)} className="input-tool-btn text-indigo-600 bg-indigo-50 border-indigo-100">
                                 <SparklesIcon className="w-3.5 h-3.5" /> AI 检索
                             </button>
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                            <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="input-tool-btn text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100">
+                            <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="input-tool-btn text-blue-600 bg-blue-50 border-blue-100">
                                 {isUploading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <CloudIcon className="w-3.5 h-3.5"/>} 本地文件
                             </button>
                         </div>
@@ -120,17 +111,15 @@ export const InputStep: React.FC<{
                         {(referenceFiles.length > 0 || vectorSnippets.length > 0) && (
                             <div className="flex flex-wrap gap-2 px-4 pb-4">
                                 {referenceFiles.map((f, i) => (
-                                    <div key={`${f.url}-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
-                                        <DocumentTextIcon className="w-3 h-3 flex-shrink-0" /> 
-                                        <span className="truncate max-w-[200px]">{f.name}</span>
-                                        <button onClick={() => removeFile(i)} className="ml-1 p-0.5 hover:bg-blue-200 rounded-full"><TrashIcon className="w-3 h-3"/></button>
+                                    <div key={`f-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
+                                        <DocumentTextIcon className="w-3 h-3" /> {f.name}
+                                        <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
                                     </div>
                                 ))}
                                 {vectorSnippets.map((s, i) => (
                                     <div key={`s-${i}`} className="chip bg-emerald-50 text-emerald-700 border-emerald-100">
-                                        <PuzzleIcon className="w-3 h-3 flex-shrink-0" /> 
-                                        <span className="truncate max-w-[200px]">{s.title}</span>
-                                        <button onClick={() => removeSnippet(i)} className="ml-1 p-0.5 hover:bg-emerald-200 rounded-full"><TrashIcon className="w-3 h-3"/></button>
+                                        <PuzzleIcon className="w-3 h-3" /> {s.title}
+                                        <button onClick={() => setVectorSnippets(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
                                     </div>
                                 ))}
                             </div>
@@ -148,8 +137,8 @@ export const InputStep: React.FC<{
             </div>
 
             <style>{`
-                .input-tool-btn { @apply px-3 py-1.5 rounded-lg text-xs font-bold border transition-all active:scale-95 flex items-center gap-1.5; }
-                .chip { @apply px-2 py-1 rounded-md text-xs font-bold border flex items-center gap-2 animate-in zoom-in-95; }
+                .input-tool-btn { @apply px-3 py-1.5 rounded-lg text-xs font-bold border transition-all hover:brightness-95 active:scale-95 flex items-center gap-1.5; }
+                .chip { @apply px-2 py-1 rounded-md text-xs font-bold border flex items-center gap-2 animate-in zoom-in; }
             `}</style>
 
             <VectorSearchModal isOpen={isVectorOpen} onClose={() => setIsVectorOpen(false)} onAddSnippet={s => setVectorSnippets(p => [...p, s])} />
