@@ -313,6 +313,13 @@ export const ExternalLinkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     </Icon>
 );
 
+// Added LinkIcon which was missing and causing build errors in ReportGenerator components.
+export const LinkIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <Icon {...props} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+    </Icon>
+);
+
 export const LightningBoltIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <Icon {...props} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
