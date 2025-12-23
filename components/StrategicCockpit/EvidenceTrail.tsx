@@ -50,7 +50,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                 try {
                     const detail = await getSpiderArticleDetail(selectedArticle.id);
                     if (active) {
-                        if (detail.url) setArticleUrl(detail.url);
+                        if (detail.original_url) setArticleUrl(detail.original_url);
                         if (detail.content) setFullContent(detail.content);
                     }
                 } catch(e) {

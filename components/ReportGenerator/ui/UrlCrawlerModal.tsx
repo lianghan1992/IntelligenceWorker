@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     CloseIcon, GlobeIcon, LinkIcon, RefreshIcon, 
     CheckCircleIcon, ShieldExclamationIcon, EyeIcon, 
-    ChevronRightIcon, ClockIcon, CloudIcon, DocumentTextIcon
+    CloudIcon, DocumentTextIcon
 } from '../../icons';
 import { uploadStratifyFile } from '../../../api/stratify';
 
@@ -24,7 +24,7 @@ interface UrlCrawlerModalProps {
     onSuccess: (files: Array<{ name: string; url: string; tokens: number }>) => void;
 }
 
-const MAX_CONCURRENCY = 10;
+const MAX_CONCURRENCY = 5; // 控制并发数，避免瞬间请求过多
 const MAX_RETRIES = 2;
 
 export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -33,26 +33,26 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewContent, setPreviewContent] = useState<{ title: string; html: string } | null>(null);
     
-    // 进度追踪
-    const runningCount = tasks.filter(t => t.status === 'running' || t.status === 'uploading').length;
-
-    const updateTask = (id: string, updates: Partial<CrawlTask>) => {
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-    };
-
+    // 简单的 Token 估算：中英文混合环境下，平均 1.5 字符 ≈ 1 Token
     const estimateTokens = (text: string) => Math.ceil(text.length / 1.5);
 
+    // 核心处理逻辑
     const processTask = async (task: CrawlTask, retryCount = 0) => {
-        updateTask(task.id, { status: 'running' });
+        // 更新状态为抓取中
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'running' } : t));
 
         try {
-            // 1. 抓取阶段
+            // 1. 调用 Jina Reader 获取 Markdown
             const response = await fetch(`https://r.jina.ai/${task.url}`, {
-                headers: { 'X-Return-Format': 'markdown' }
+                headers: { 
+                    'X-Return-Format': 'markdown',
+                    'X-No-Cache': 'true' 
+                }
             });
 
             if (response.status === 429 && retryCount < MAX_RETRIES) {
-                updateTask(task.id, { status: 'retrying' });
+                // 限流重试
+                setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'retrying', errorMessage: `限流重试 (${retryCount + 1})...` } : t));
                 await new Promise(r => setTimeout(r, 3000 * (retryCount + 1)));
                 return processTask(task, retryCount + 1);
             }
@@ -60,46 +60,54 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const content = await response.text();
             
-            // 提取标题
+            // 提取标题 (查找第一个 H1，或者使用 URL)
             const titleMatch = content.match(/^#\s+(.*)$/m);
-            const title = titleMatch ? titleMatch[1].trim() : task.url;
+            const title = titleMatch ? titleMatch[1].trim().slice(0, 50) : task.url.slice(0, 50);
             const tokens = estimateTokens(content);
 
-            // 2. 上传阶段 (转化为附件)
-            updateTask(task.id, { status: 'uploading', content, title, tokens });
+            // 2. 上传为文件 (为了获取 URL 传给 Attachments)
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'uploading', content, title, tokens } : t));
             
-            const file = new File([content], `${title.slice(0, 20)}.md`, { type: 'text/markdown' });
+            const file = new File([content], `${title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.md`, { type: 'text/markdown' });
             const uploadRes = await uploadStratifyFile(file);
 
-            updateTask(task.id, { 
+            // 3. 完成
+            setTasks(prev => prev.map(t => t.id === task.id ? { 
+                ...t, 
                 status: 'success', 
-                attachmentUrl: uploadRes.url 
-            });
+                attachmentUrl: uploadRes.url,
+                errorMessage: undefined 
+            } : t));
 
         } catch (error: any) {
-            updateTask(task.id, { status: 'error', errorMessage: error.message || '抓取失败' });
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'error', errorMessage: error.message || '抓取失败' } : t));
         }
     };
 
-    // 核心并发控制逻辑
+    // 任务调度器 Effect
     useEffect(() => {
         if (!isProcessing) return;
 
-        const pending = tasks.filter(t => t.status === 'pending');
-        const active = tasks.filter(t => ['running', 'uploading', 'retrying'].includes(t.status));
+        const pendingTasks = tasks.filter(t => t.status === 'pending');
+        const activeTasks = tasks.filter(t => ['running', 'uploading', 'retrying'].includes(t.status));
 
-        if (pending.length > 0 && active.length < MAX_CONCURRENCY) {
-            const nextBatch = pending.slice(0, MAX_CONCURRENCY - active.length);
-            nextBatch.forEach(task => processTask(task));
+        if (pendingTasks.length === 0 && activeTasks.length === 0) {
+            setIsProcessing(false);
+            return;
         }
 
-        if (tasks.length > 0 && tasks.every(t => ['success', 'error'].includes(t.status))) {
-            setIsProcessing(false);
+        if (pendingTasks.length > 0 && activeTasks.length < MAX_CONCURRENCY) {
+            // 启动新任务填补并发空缺
+            const nextTask = pendingTasks[0];
+            processTask(nextTask);
         }
     }, [tasks, isProcessing]);
 
     const handleStart = () => {
-        const urls = Array.from(new Set(urlInput.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'))));
+        const urls = Array.from(new Set(
+            urlInput.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'))
+        ));
+        
         if (urls.length === 0) return;
 
         setTasks(urls.map((u, i) => ({
@@ -128,6 +136,9 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
         onClose();
     };
 
+    const runningCount = tasks.filter(t => ['running', 'uploading', 'retrying'].includes(t.status)).length;
+    const successCount = tasks.filter(t => t.status === 'success').length;
+
     if (!isOpen) return null;
 
     return (
@@ -141,7 +152,7 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-slate-800 tracking-tight">批量文章抓取</h3>
-                            <p className="text-xs text-slate-500 font-medium">支持并发处理与实时 Markdown 预览</p>
+                            <p className="text-xs text-slate-500 font-medium">输入 URL，AI 将自动提取内容并估算 Token</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -150,8 +161,8 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                 </div>
 
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Left: Editor */}
-                    <div className="w-1/3 p-6 border-r border-slate-100 flex flex-col">
+                    {/* Left: Input */}
+                    <div className="w-1/3 p-6 border-r border-slate-100 flex flex-col bg-white">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">输入 URL (每行一个)</label>
                         <textarea 
                             value={urlInput}
@@ -163,10 +174,10 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                         <button 
                             onClick={handleStart}
                             disabled={isProcessing || !urlInput.trim()}
-                            className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+                            className="mt-4 w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {isProcessing ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
-                            {isProcessing ? `正在处理 (${runningCount}/10)...` : '开始加载'}
+                            {isProcessing ? `正在处理 (${runningCount})...` : '开始抓取'}
                         </button>
                     </div>
 
@@ -175,16 +186,20 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                         {tasks.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-300">
                                 <LinkIcon className="w-16 h-16 mb-4 opacity-20" />
-                                <p className="text-sm font-bold">待解析的链接将在此列出</p>
+                                <p className="text-sm font-bold">任务队列空闲</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-3">
                                 {tasks.map(task => (
-                                    <div key={task.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group transition-all hover:border-blue-300">
+                                    <div key={task.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between group">
                                         <div className="flex-1 min-w-0 pr-4">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h4 className="text-sm font-bold text-slate-800 truncate" title={task.title}>{task.title}</h4>
-                                                {task.tokens && <span className="text-[10px] font-mono text-indigo-500 bg-indigo-50 px-1.5 rounded">~{task.tokens} tokens</span>}
+                                                {task.tokens ? (
+                                                    <span className="text-[10px] font-mono text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                                        {task.tokens.toLocaleString()} tokens
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <p className="text-[10px] text-slate-400 truncate font-mono">{task.url}</p>
                                         </div>
@@ -202,9 +217,10 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                                             <div className="w-24 text-right">
                                                 {task.status === 'running' && <span className="text-[10px] font-bold text-blue-500 animate-pulse flex items-center justify-end gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 抓取中</span>}
                                                 {task.status === 'uploading' && <span className="text-[10px] font-bold text-indigo-500 animate-pulse flex items-center justify-end gap-1"><CloudIcon className="w-3 h-3 animate-bounce"/> 上传中</span>}
-                                                {task.status === 'success' && <span className="text-[10px] font-bold text-green-600 flex items-center justify-end gap-1"><CheckCircleIcon className="w-3 h-3"/> 已就绪</span>}
-                                                {task.status === 'error' && <span className="text-[10px] font-bold text-red-500" title={task.errorMessage}>抓取失败</span>}
-                                                {task.status === 'pending' && <span className="text-[10px] font-bold text-slate-300">排队中</span>}
+                                                {task.status === 'success' && <span className="text-[10px] font-bold text-green-600 flex items-center justify-end gap-1"><CheckCircleIcon className="w-3 h-3"/> 已完成</span>}
+                                                {task.status === 'error' && <span className="text-[10px] font-bold text-red-500" title={task.errorMessage}>失败</span>}
+                                                {task.status === 'retrying' && <span className="text-[10px] font-bold text-amber-500">重试中</span>}
+                                                {task.status === 'pending' && <span className="text-[10px] font-bold text-slate-300">等待中</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -216,26 +232,26 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
                 {/* Footer */}
                 <div className="px-8 py-4 border-t border-slate-100 flex justify-between items-center bg-white">
-                    <p className="text-[10px] text-slate-400 font-medium">支持最大 10 并发，已就绪的文档将作为附件注入 Agent 上下文</p>
+                    <p className="text-[10px] text-slate-400 font-medium">支持 Markdown 自动转换 • Token 智能估算</p>
                     <div className="flex gap-3">
-                        <button onClick={onClose} className="px-6 py-2 text-slate-500 font-bold text-sm">取消</button>
+                        <button onClick={onClose} className="px-6 py-2 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-lg transition-colors">取消</button>
                         <button 
                             onClick={handleConfirm}
-                            disabled={isProcessing || !tasks.some(t => t.status === 'success')}
-                            className="px-8 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-700 disabled:opacity-30"
+                            disabled={isProcessing || successCount === 0}
+                            className="px-8 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-indigo-700 disabled:opacity-30 transition-all"
                         >
-                            加入资料 ({tasks.filter(t => t.status === 'success').length})
+                            确认添加 ({successCount})
                         </button>
                     </div>
                 </div>
 
-                {/* Markdown Preview Overlay */}
+                {/* Preview Overlay */}
                 {previewContent && (
-                    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom">
+                    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom duration-300">
                         <div className="px-8 py-4 border-b flex justify-between items-center bg-slate-50">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 overflow-hidden">
                                 <div className="p-2 bg-white rounded-lg border border-slate-200"><DocumentTextIcon className="w-5 h-5 text-indigo-600" /></div>
-                                <h3 className="font-bold text-slate-800 truncate max-w-2xl">{previewContent.title}</h3>
+                                <h3 className="font-bold text-slate-800 truncate">{previewContent.title}</h3>
                             </div>
                             <button onClick={() => setPreviewContent(null)} className="p-2 hover:bg-slate-200 rounded-full">
                                 <CloseIcon className="w-6 h-6 text-slate-400" />

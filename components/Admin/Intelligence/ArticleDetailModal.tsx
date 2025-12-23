@@ -71,7 +71,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
                             <span className="flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                                 <ClockIcon className="w-3 h-3" /> 采集: {formatBeijingTime(article.created_at)}
                             </span>
-                            <a href={article.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                            <a href={article.original_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
                                 <ExternalLinkIcon className="w-3 h-3"/> 原文链接
                             </a>
                         </div>

@@ -20,6 +20,7 @@ const formatModelName = (model?: string) => {
     return name.replace(':free', '').replace(':beta', '');
 };
 
+// Phase Mapping
 const PHASE_LABELS: Record<string, string> = {
     '00_analyze_input': '意图分析',
     '01_Role_ProtocolSetup': '角色初始化',
@@ -31,6 +32,13 @@ const PHASE_LABELS: Record<string, string> = {
     '04_Markdown2Html': '视觉渲染引擎'
 };
 
+interface AttachedFile {
+    name: string;
+    url: string;
+    type?: string;
+    tokens: number; // Add token tracking
+}
+
 export const InputCollector: React.FC<{
     scenarioId: string;
     initialTech: string;
@@ -41,12 +49,12 @@ export const InputCollector: React.FC<{
     const [targetTech, setTargetTech] = useState(initialTech);
     const [manualMaterials, setManualMaterials] = useState(initialMaterials);
     
-    // 资料状态
-    const [referenceFiles, setReferenceFiles] = useState<Array<{ name: string; url: string; tokens: number }>>([]);
+    // Attachments State
+    const [referenceFiles, setReferenceFiles] = useState<AttachedFile[]>([]);
     const [vectorSnippets, setVectorSnippets] = useState<Array<{ title: string; content: string }>>([]);
-    const [urlAttachments, setUrlAttachments] = useState<Array<{ name: string; url: string; tokens: number }>>([]);
+    const [urlAttachments, setUrlAttachments] = useState<AttachedFile[]>([]);
 
-    // 模态框
+    // Modals
     const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
     const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
     const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
@@ -54,20 +62,27 @@ export const InputCollector: React.FC<{
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
 
-    // 模型配置
+    // Config State
     const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
     const [defaultModel, setDefaultModel] = useState<string>('Loading...');
     const [isConfigLoading, setIsConfigLoading] = useState(false);
     const [geminiStatus, setGeminiStatus] = useState<{ valid: boolean } | null>(null);
 
-    // Token 估算核心逻辑
+    // --- Token Calculation ---
     const totalTokens = useMemo(() => {
+        // Simple Heuristic: 1.5 chars per token for text
         const textTokens = Math.ceil((targetTech.length + manualMaterials.length) / 1.5);
+        
+        // Vector Snippets
         const snippetTokens = vectorSnippets.reduce((acc, s) => acc + Math.ceil(s.content.length / 1.5), 0);
+        
+        // Files & URLs (Pre-calculated when added)
         const fileTokens = referenceFiles.reduce((acc, f) => acc + f.tokens, 0);
         const urlTokens = urlAttachments.reduce((acc, u) => acc + u.tokens, 0);
+
         return textTokens + snippetTokens + fileTokens + urlTokens;
     }, [targetTech, manualMaterials, vectorSnippets, referenceFiles, urlAttachments]);
+
 
     useEffect(() => { setTargetTech(initialTech); }, [initialTech]);
 
@@ -105,7 +120,13 @@ export const InputCollector: React.FC<{
         setIsUploading(true);
         try {
             const res = await uploadStratifyFile(file);
-            setReferenceFiles(prev => [...prev, { name: res.filename, url: res.url, tokens: 0 }]); // 本地 PDF Token 暂定为 0
+            // Local files: estimate tokens based on size (rough approx for PDF/Text) or 0 if unknown
+            // Here assuming 1KB approx 300 tokens for text files, simplified
+            const estTokens = file.type.includes('text') || file.name.endsWith('.md') 
+                ? Math.ceil(file.size / 3) 
+                : 0; // Binary files treated as 0 for now (images handled separately by vision model)
+            
+            setReferenceFiles(prev => [...prev, { name: res.filename, url: res.url, type: res.type, tokens: estTokens }]);
         } catch (e) {
             alert('文件上传失败');
         } finally {
@@ -123,7 +144,7 @@ export const InputCollector: React.FC<{
             vectorSnippets.forEach((s, i) => combinedMaterials += `\n[Reference ${i + 1}: ${s.title}]\n${s.content}\n`);
         }
 
-        // 构造 attachments 数组
+        // Construct attachments array for API
         const attachments = [
             ...referenceFiles.map(f => ({ type: 'file' as const, url: f.url })),
             ...urlAttachments.map(u => ({ type: 'file' as const, url: u.url }))
@@ -148,7 +169,7 @@ export const InputCollector: React.FC<{
                     <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4 leading-tight">
                         技术评估 <span className="text-indigo-600">Agent</span>
                     </h1>
-                    <p className="text-slate-500 text-sm md:text-base font-medium">输入目标技术，Agent 将自动调用知识库，并利用抓取的网页附件进行深度深度对标。</p>
+                    <p className="text-slate-500 text-sm md:text-base font-medium">输入目标技术，Agent 将自动调用知识库，并结合多模态附件进行深度对标。</p>
                 </div>
 
                 <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -202,6 +223,7 @@ export const InputCollector: React.FC<{
                                             <div key={`url-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
                                                 <LinkIcon className="w-3 h-3" />
                                                 <span className="max-w-[120px] truncate">{file.name}</span>
+                                                <span className="text-[10px] opacity-60">({file.tokens}t)</span>
                                                 <button onClick={() => setUrlAttachments(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
@@ -209,6 +231,7 @@ export const InputCollector: React.FC<{
                                             <div key={`file-${i}`} className="chip bg-indigo-50 text-indigo-700 border-indigo-100">
                                                 <DocumentTextIcon className="w-3 h-3" />
                                                 <span className="max-w-[120px] truncate">{file.name}</span>
+                                                {file.tokens > 0 && <span className="text-[10px] opacity-60">({file.tokens}t)</span>}
                                                 <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
@@ -224,25 +247,23 @@ export const InputCollector: React.FC<{
                             </div>
                         </div>
 
-                        {/* Token Capacity Gauge */}
+                        {/* Token Capacity Counter (Simplified) */}
                         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Context Capacity (上下文容量)</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Token Usage (Estimated)</span>
                                 <div className="flex items-baseline gap-2">
-                                    <span className={`text-3xl font-black ${totalTokens > 32000 ? 'text-amber-500' : 'text-slate-800'}`}>
+                                    <span className="text-3xl font-black text-slate-800">
                                         {totalTokens.toLocaleString()}
                                     </span>
-                                    <span className="text-xs font-bold text-slate-400">/ Estimated Tokens</span>
+                                    <span className="text-xs font-bold text-slate-400">Tokens</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-[10px] text-slate-400 font-medium mb-2">资源分布情况</span>
-                                <div className="flex gap-1">
-                                    <div className="w-2 h-6 bg-blue-400 rounded-sm" title="URLs"></div>
-                                    <div className="w-2 h-6 bg-indigo-400 rounded-sm" title="Files"></div>
-                                    <div className="w-2 h-6 bg-emerald-400 rounded-sm" title="Knowledge Base"></div>
-                                    <div className="w-2 h-6 bg-slate-200 rounded-sm" title="Manual Text"></div>
+                            {/* Visual Bar only, no blocking logic */}
+                            <div className="flex flex-col items-end w-48">
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden flex">
+                                    <div className="bg-indigo-500 h-full transition-all duration-500" style={{ width: '100%' }}></div>
                                 </div>
+                                <span className="text-[10px] text-slate-400 mt-2 font-medium">当前上下文总量</span>
                             </div>
                         </div>
                     </div>
@@ -282,9 +303,21 @@ export const InputCollector: React.FC<{
                 </div>
             </div>
 
-            <UrlCrawlerModal isOpen={isUrlModalOpen} onClose={() => setIsUrlModalOpen(false)} onSuccess={files => setUrlAttachments(prev => [...prev, ...files])} />
-            <VectorSearchModal isOpen={isVectorModalOpen} onClose={() => setIsVectorModalOpen(false)} onAddSnippet={s => setVectorSnippets(prev => [...prev, s])} />
-            <LlmRetrievalModal isOpen={isLlmModalOpen} onClose={() => setIsLlmModalOpen(false)} onSuccess={file => setReferenceFiles(prev => [...prev, { ...file, tokens: 0 }])} />
+            <UrlCrawlerModal 
+                isOpen={isUrlModalOpen} 
+                onClose={() => setIsUrlModalOpen(false)} 
+                onSuccess={files => setUrlAttachments(prev => [...prev, ...files])} 
+            />
+            <VectorSearchModal 
+                isOpen={isVectorModalOpen} 
+                onClose={() => setIsVectorModalOpen(false)} 
+                onAddSnippet={s => setVectorSnippets(prev => [...prev, s])} 
+            />
+            <LlmRetrievalModal 
+                isOpen={isLlmModalOpen} 
+                onClose={() => setIsLlmModalOpen(false)} 
+                onSuccess={file => setReferenceFiles(prev => [...prev, { ...file, tokens: 0 }])} 
+            />
             
             <style>{`
                 .input-tool-btn { @apply flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95; }

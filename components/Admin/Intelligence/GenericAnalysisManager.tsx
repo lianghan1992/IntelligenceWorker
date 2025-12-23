@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnalysisTemplate, AnalysisResult } from '../../../types';
 import { createAnalysisTemplate, getAnalysisTemplates, updateAnalysisTemplate, deleteAnalysisTemplate, getAnalysisResults, getSpiderArticleDetail } from '../../../api/intelligence';
@@ -187,7 +189,7 @@ export const GenericAnalysisManager: React.FC = () => {
             const processedItems = rawItems.map(item => ({
                 ...item,
                 // Ensure field compatibility
-                result_json: item.result_json || {},
+                result_json: item.result_json || item.result || {},
                 status: item.status || 'completed',
                 duration: calculateDuration(item.created_at, item.completed_at)
             }));

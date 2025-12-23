@@ -133,26 +133,21 @@ export const SourceConfig: React.FC = () => {
         }
     };
 
+    /**
+     * Fix: Helper to map SpiderPoint to IntelligencePointPublic.
+     */
     const getMappedPointToEdit = (p: SpiderPoint | null): IntelligencePointPublic | null => {
         if (!p) return null;
         return {
+            ...p,
             id: p.uuid,
-            uuid: p.uuid,
-            source_uuid: p.source_uuid,
-            source_name: p.source_name,
-            name: p.name,
-            url: p.url,
             point_name: p.name,
             point_url: p.url,
-            cron_schedule: p.cron_schedule,
-            is_active: p.is_active,
             url_filters: [],
             extra_hint: '',
             status: p.is_active ? 'active' : 'inactive',
             created_at: '',
-            updated_at: '',
-            initial_pages: p.initial_pages || 0,
-            last_crawled_at: p.last_crawled_at
+            updated_at: ''
         };
     };
 
