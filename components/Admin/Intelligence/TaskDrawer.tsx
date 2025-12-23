@@ -35,7 +35,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
         s === 'done' ? <CheckCircleIcon className="w-3 h-3" /> :
         s === 'running' ? <PlayIcon className="w-3 h-3" /> :
         s === 'error' ? <ShieldExclamationIcon className="w-3 h-3" /> :
-        // Fix: Added missing closing quote for className attribute
         <ClockIcon className="w-3 h-3" />;
 
     return (
@@ -164,11 +163,11 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
                                                     </div>
                                                 )}
                                                 <div className="sm:hidden text-[10px] text-gray-400 mt-1 font-mono">
-                                                    {new Date(task.created_at).toLocaleString()}
+                                                    {task.created_at ? new Date(task.created_at).toLocaleString() : '-'}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3 text-right text-xs text-gray-400 font-mono align-top hidden sm:table-cell">
-                                                {new Date(task.created_at).toLocaleString()}
+                                                {task.created_at ? new Date(task.created_at).toLocaleString() : '-'}
                                             </td>
                                         </tr>
                                     );
