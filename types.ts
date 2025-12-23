@@ -266,6 +266,8 @@ export interface IntelligenceTaskPublic {
   start_time: string;
   end_time: string;
   articles_collected: number;
+  created_at: string;
+  page_number?: number;
 }
 
 export interface SpiderTask extends IntelligenceTaskPublic {}

@@ -54,7 +54,7 @@ export const getPoints = (params?: { source_name?: string }): Promise<Intelligen
         created_at: '',
         updated_at: '',
         status: p.is_active ? 'active' : 'inactive',
-        initial_pages: p.initial_pages
+        initial_pages: p.initial_pages || 0
     })));
 };
 

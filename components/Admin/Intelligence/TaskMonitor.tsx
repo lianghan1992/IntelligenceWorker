@@ -64,7 +64,7 @@ export const TaskMonitor: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap"><span className="text-xs font-medium bg-slate-100 px-2 py-0.5 rounded">{task.task_type}</span></td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={task.status} /></td>
                                     <td className="px-6 py-4 max-w-xs truncate text-xs text-red-500" title={task.error_message || undefined}>{task.error_message || '-'}</td>
-                                    <td className="px-6 py-4 text-xs font-mono whitespace-nowrap">{new Date(task.created_at).toLocaleString()}</td>
+                                    <td className="px-6 py-4 text-xs font-mono whitespace-nowrap">{task.created_at ? new Date(task.created_at).toLocaleString() : '-'}</td>
                                 </tr>
                             ))
                         )}

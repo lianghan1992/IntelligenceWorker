@@ -43,7 +43,7 @@ export const WorkflowProcessor: React.FC<{
                     prompt_name: promptName, 
                     variables: vars, 
                     scenario, 
-                    session_id: isHtmlStep ? undefined : sessionRef.current,
+                    session_id: isHtmlStep ? undefined : (sessionRef.current || undefined),
                     model_override: stepModel, 
                     task_id: taskId,             
                     phase_name: promptName,
