@@ -165,6 +165,7 @@ export interface SpiderSource {
 export interface SpiderPoint {
     uuid: string;
     source_uuid: string;
+    source_name?: string;
     name: string;
     url: string;
     cron_schedule: string;
@@ -264,6 +265,7 @@ export interface IntelligenceTaskPublic {
     end_time?: string;
     articles_collected?: number;
     error_message?: string;
+    created_at?: string;
 }
 
 export interface SpiderTask extends IntelligenceTaskPublic {
@@ -295,6 +297,7 @@ export interface AnalysisResult {
     article_title: string;
     article_uuid: string;
     result_json: any;
+    result?: any;
     status: string;
     created_at: string;
     completed_at?: string;
