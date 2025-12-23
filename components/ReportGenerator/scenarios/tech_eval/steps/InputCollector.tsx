@@ -4,7 +4,7 @@ import {
     PuzzleIcon, BrainIcon, SparklesIcon, LightningBoltIcon,
     ServerIcon, ClockIcon, RefreshIcon, DocumentTextIcon,
     TrashIcon, CloudIcon, CheckCircleIcon, ShieldExclamationIcon,
-    GlobeIcon, LinkIcon
+    GlobeIcon, LinkIcon, PaperClipIcon, CloseIcon
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
@@ -120,11 +120,9 @@ export const InputCollector: React.FC<{
         setIsUploading(true);
         try {
             const res = await uploadStratifyFile(file);
-            // Local files: estimate tokens based on size (rough approx for PDF/Text) or 0 if unknown
-            // Here assuming 1KB approx 300 tokens for text files, simplified
             const estTokens = file.type.includes('text') || file.name.endsWith('.md') 
                 ? Math.ceil(file.size / 3) 
-                : 0; // Binary files treated as 0 for now (images handled separately by vision model)
+                : 0;
             
             setReferenceFiles(prev => [...prev, { name: res.filename, url: res.url, type: res.type, tokens: estTokens }]);
         } catch (e) {
@@ -152,6 +150,18 @@ export const InputCollector: React.FC<{
 
         onStart({ targetTech, materials: combinedMaterials, attachments });
     };
+    
+    // Safely remove items by index to avoid key collisions
+    const removeUrlAttachment = (index: number) => {
+        setUrlAttachments(prev => prev.filter((_, i) => i !== index));
+    };
+    const removeReferenceFile = (index: number) => {
+        setReferenceFiles(prev => prev.filter((_, i) => i !== index));
+    };
+    const removeVectorSnippet = (index: number) => {
+        setVectorSnippets(prev => prev.filter((_, i) => i !== index));
+    };
+
 
     const visiblePhases = useMemo(() => {
         const order = ['03_TriggerGeneration_step1', '03_TriggerGeneration_step2', '03_TriggerGeneration_step3', '04_Markdown2Html'];
@@ -166,8 +176,12 @@ export const InputCollector: React.FC<{
             <div className="max-w-[1600px] mx-auto p-6 md:p-12 min-h-full flex flex-col items-center">
                 
                 <div className="text-center mb-10 w-full max-w-3xl">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-indigo-600 text-xs font-bold mb-4">
+                        <SparklesIcon className="w-3.5 h-3.5" />
+                        AI Agent Powered
+                    </div>
                     <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4 leading-tight">
-                        技术评估 <span className="text-indigo-600">Agent</span>
+                        技术评估 <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Pro</span>
                     </h1>
                     <p className="text-slate-500 text-sm md:text-base font-medium">输入目标技术，Agent 将自动调用知识库，并结合多模态附件进行深度对标。</p>
                 </div>
@@ -175,8 +189,8 @@ export const InputCollector: React.FC<{
                 <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     <div className="lg:col-span-8 space-y-6">
                         {/* Target Tech */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1 focus-within:ring-4 focus-within:ring-indigo-100 transition-all">
-                            <div className="p-4 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1 focus-within:ring-4 focus-within:ring-indigo-50 transition-all group">
+                            <div className="p-4 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center group-focus-within:bg-indigo-50/30 transition-colors">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                     <span className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm"></span>
                                     Target Technology (评估目标)
@@ -185,26 +199,26 @@ export const InputCollector: React.FC<{
                             <textarea 
                                 value={targetTech}
                                 onChange={e => setTargetTech(e.target.value)}
-                                placeholder="请输入具体的技术名称..."
-                                className="w-full h-32 p-5 text-sm md:text-base text-slate-600 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed bg-transparent"
+                                placeholder="请输入具体的技术名称 (e.g. 800V 高压快充技术)..."
+                                className="w-full h-32 p-5 text-lg font-medium text-slate-800 placeholder:text-slate-300 border-none resize-none focus:ring-0 outline-none leading-relaxed bg-transparent"
                             />
                         </div>
 
                         {/* Materials */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1 focus-within:ring-4 focus-within:ring-emerald-100 transition-all">
-                            <div className="p-3 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center flex-wrap gap-2">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-1 focus-within:ring-4 focus-within:ring-emerald-50 transition-all group">
+                            <div className="p-3 border-b border-slate-50 bg-slate-50/50 rounded-t-xl flex justify-between items-center flex-wrap gap-2 group-focus-within:bg-emerald-50/30 transition-colors">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 ml-2">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm"></span>
                                     Context & Data (参考资料)
                                 </label>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setIsUrlModalOpen(true)} className="input-tool-btn"><GlobeIcon className="w-3.5 h-3.5" /> 文章 URL</button>
-                                    <button onClick={() => setIsVectorModalOpen(true)} className="input-tool-btn"><PuzzleIcon className="w-3.5 h-3.5" /> 知识库检索</button>
-                                    <button onClick={() => setIsLlmModalOpen(true)} className="input-tool-btn"><SparklesIcon className="w-3.5 h-3.5" /> AI 检索</button>
+                                    <button onClick={() => setIsUrlModalOpen(true)} className="input-tool-btn text-blue-600 hover:bg-blue-50 hover:border-blue-200"><GlobeIcon className="w-3.5 h-3.5" /> 文章 URL</button>
+                                    <button onClick={() => setIsVectorModalOpen(true)} className="input-tool-btn text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"><PuzzleIcon className="w-3.5 h-3.5" /> 知识库</button>
+                                    <button onClick={() => setIsLlmModalOpen(true)} className="input-tool-btn text-purple-600 hover:bg-purple-50 hover:border-purple-200"><SparklesIcon className="w-3.5 h-3.5" /> AI 检索</button>
                                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                                    <button onClick={() => fileInputRef.current?.click()} className="input-tool-btn">
-                                        {isUploading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <CloudIcon className="w-3.5 h-3.5" />}
-                                        {isUploading ? '上传中...' : '上传文档'}
+                                    <button onClick={() => fileInputRef.current?.click()} className="input-tool-btn text-slate-600 hover:bg-slate-50 hover:border-slate-300">
+                                        {isUploading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <PaperClipIcon className="w-3.5 h-3.5" />}
+                                        {isUploading ? '上传中...' : '本地文件'}
                                     </button>
                                 </div>
                             </div>
@@ -213,33 +227,33 @@ export const InputCollector: React.FC<{
                                 <textarea 
                                     value={manualMaterials}
                                     onChange={e => setManualMaterials(e.target.value)}
-                                    placeholder="在此处粘贴相关技术参数或竞品分析资料..."
+                                    placeholder="在此处粘贴相关技术参数或竞品分析资料 (支持 Markdown)..."
                                     className="w-full h-32 p-5 text-sm md:text-base text-slate-600 border-none resize-none focus:ring-0 outline-none leading-relaxed bg-transparent"
                                 />
                                 
                                 {(urlAttachments.length > 0 || referenceFiles.length > 0 || vectorSnippets.length > 0) && (
-                                    <div className="px-5 pb-4 flex flex-wrap gap-2 animate-in fade-in">
+                                    <div className="px-5 pb-5 flex flex-wrap gap-2 animate-in fade-in pt-2 border-t border-slate-50">
                                         {urlAttachments.map((file, i) => (
-                                            <div key={file.url || `url-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
-                                                <LinkIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate" title={file.name}>{file.name}</span>
-                                                <span className="text-[10px] opacity-60">({file.tokens}t)</span>
-                                                <button onClick={() => setUrlAttachments(prev => prev.filter(item => item.url !== file.url))}><TrashIcon className="w-3 h-3" /></button>
+                                            <div key={`url-${i}`} className="attachment-chip bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
+                                                <LinkIcon className="w-3 h-3 flex-shrink-0" />
+                                                <span className="truncate max-w-[150px]">{file.name}</span>
+                                                <span className="text-[9px] opacity-60 bg-blue-200/50 px-1 rounded">{file.tokens}t</span>
+                                                <button onClick={() => removeUrlAttachment(i)} className="ml-1 p-0.5 hover:bg-blue-200 rounded-full"><CloseIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                         {referenceFiles.map((file, i) => (
-                                            <div key={file.url || `file-${i}`} className="chip bg-indigo-50 text-indigo-700 border-indigo-100">
-                                                <DocumentTextIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate" title={file.name}>{file.name}</span>
-                                                {file.tokens > 0 && <span className="text-[10px] opacity-60">({file.tokens}t)</span>}
-                                                <button onClick={() => setReferenceFiles(prev => prev.filter(item => item.url !== file.url))}><TrashIcon className="w-3 h-3" /></button>
+                                            <div key={`file-${i}`} className="attachment-chip bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
+                                                <DocumentTextIcon className="w-3 h-3 flex-shrink-0" />
+                                                <span className="truncate max-w-[150px]">{file.name}</span>
+                                                {file.tokens > 0 && <span className="text-[9px] opacity-60 bg-indigo-200/50 px-1 rounded">{file.tokens}t</span>}
+                                                <button onClick={() => removeReferenceFile(i)} className="ml-1 p-0.5 hover:bg-indigo-200 rounded-full"><CloseIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                         {vectorSnippets.map((snip, i) => (
-                                            <div key={`snip-${i}`} className="chip bg-emerald-50 text-emerald-700 border-emerald-100">
-                                                <PuzzleIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate" title={snip.title}>{snip.title}</span>
-                                                <button onClick={() => setVectorSnippets(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
+                                            <div key={`snip-${i}`} className="attachment-chip bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                                                <PuzzleIcon className="w-3 h-3 flex-shrink-0" />
+                                                <span className="truncate max-w-[150px]">{snip.title}</span>
+                                                <button onClick={() => removeVectorSnippet(i)} className="ml-1 p-0.5 hover:bg-emerald-200 rounded-full"><CloseIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                     </div>
@@ -294,7 +308,7 @@ export const InputCollector: React.FC<{
                         <button 
                             onClick={handleStart}
                             disabled={isProcessing || !targetTech.trim()}
-                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30"
+                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30 disabled:shadow-none"
                         >
                             <LightningBoltIcon className="w-5 h-5" />
                             <span>启动分析引擎</span>
@@ -311,7 +325,7 @@ export const InputCollector: React.FC<{
             <VectorSearchModal 
                 isOpen={isVectorModalOpen} 
                 onClose={() => setIsVectorModalOpen(false)} 
-                onAddSnippet={s => setVectorSnippets(prev => [...prev, s])} 
+                onAddSnippet={s => setVectorSnippets(p => [...p, s])} 
             />
             <LlmRetrievalModal 
                 isOpen={isLlmModalOpen} 
@@ -320,8 +334,8 @@ export const InputCollector: React.FC<{
             />
             
             <style>{`
-                .input-tool-btn { @apply flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95; }
-                .chip { @apply flex items-center gap-2 border px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm animate-in fade-in zoom-in-95; }
+                .input-tool-btn { @apply flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95; }
+                .attachment-chip { @apply flex items-center gap-2 border px-2 py-1 rounded-md text-xs font-medium transition-colors cursor-default select-none animate-in zoom-in-95; }
             `}</style>
         </div>
     );
