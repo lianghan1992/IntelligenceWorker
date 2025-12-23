@@ -55,6 +55,14 @@ export const InputStep: React.FC<{
         onStart(topic, combined);
     };
 
+    const removeFile = (fileToRemove: { url: string }) => {
+        setReferenceFiles(prev => prev.filter(f => f.url !== fileToRemove.url));
+    };
+
+    const removeSnippet = (index: number) => {
+        setVectorSnippets(prev => prev.filter((_, i) => i !== index));
+    };
+
     return (
         <div className="h-full overflow-y-auto custom-scrollbar bg-slate-50 flex justify-center p-6 md:p-12">
             <div className="w-full max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -111,15 +119,15 @@ export const InputStep: React.FC<{
                         {(referenceFiles.length > 0 || vectorSnippets.length > 0) && (
                             <div className="flex flex-wrap gap-2 px-4 pb-4">
                                 {referenceFiles.map((f, i) => (
-                                    <div key={`f-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
+                                    <div key={f.url || `f-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
                                         <DocumentTextIcon className="w-3 h-3" /> {f.name}
-                                        <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
+                                        <button onClick={() => removeFile(f)}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
                                     </div>
                                 ))}
                                 {vectorSnippets.map((s, i) => (
                                     <div key={`s-${i}`} className="chip bg-emerald-50 text-emerald-700 border-emerald-100">
                                         <PuzzleIcon className="w-3 h-3" /> {s.title}
-                                        <button onClick={() => setVectorSnippets(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
+                                        <button onClick={() => removeSnippet(i)}><TrashIcon className="w-3 h-3 hover:text-red-500"/></button>
                                     </div>
                                 ))}
                             </div>

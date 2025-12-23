@@ -220,25 +220,25 @@ export const InputCollector: React.FC<{
                                 {(urlAttachments.length > 0 || referenceFiles.length > 0 || vectorSnippets.length > 0) && (
                                     <div className="px-5 pb-4 flex flex-wrap gap-2 animate-in fade-in">
                                         {urlAttachments.map((file, i) => (
-                                            <div key={`url-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
+                                            <div key={file.url || `url-${i}`} className="chip bg-blue-50 text-blue-700 border-blue-100">
                                                 <LinkIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate">{file.name}</span>
+                                                <span className="max-w-[120px] truncate" title={file.name}>{file.name}</span>
                                                 <span className="text-[10px] opacity-60">({file.tokens}t)</span>
-                                                <button onClick={() => setUrlAttachments(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
+                                                <button onClick={() => setUrlAttachments(prev => prev.filter(item => item.url !== file.url))}><TrashIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                         {referenceFiles.map((file, i) => (
-                                            <div key={`file-${i}`} className="chip bg-indigo-50 text-indigo-700 border-indigo-100">
+                                            <div key={file.url || `file-${i}`} className="chip bg-indigo-50 text-indigo-700 border-indigo-100">
                                                 <DocumentTextIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate">{file.name}</span>
+                                                <span className="max-w-[120px] truncate" title={file.name}>{file.name}</span>
                                                 {file.tokens > 0 && <span className="text-[10px] opacity-60">({file.tokens}t)</span>}
-                                                <button onClick={() => setReferenceFiles(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
+                                                <button onClick={() => setReferenceFiles(prev => prev.filter(item => item.url !== file.url))}><TrashIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                         {vectorSnippets.map((snip, i) => (
                                             <div key={`snip-${i}`} className="chip bg-emerald-50 text-emerald-700 border-emerald-100">
                                                 <PuzzleIcon className="w-3 h-3" />
-                                                <span className="max-w-[120px] truncate">{snip.title}</span>
+                                                <span className="max-w-[120px] truncate" title={snip.title}>{snip.title}</span>
                                                 <button onClick={() => setVectorSnippets(prev => prev.filter((_, idx) => idx !== i))}><TrashIcon className="w-3 h-3" /></button>
                                             </div>
                                         ))}
