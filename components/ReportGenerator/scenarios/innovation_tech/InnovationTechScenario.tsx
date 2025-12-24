@@ -16,6 +16,7 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
     const [taskId, setTaskId] = useState(initialTaskId);
     const [contentSessionId, setContentSessionId] = useState('');
     const [defaultModel, setDefaultModel] = useState<string>('');
+    const [isCreatingTask, setIsCreatingTask] = useState(false);
 
     // 获取场景配置的默认模型
     useEffect(() => {
@@ -36,17 +37,22 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
     const handleInputConfirm = async (inputTopic: string, inputMaterials: string) => {
         setTopic(inputTopic);
         setMaterials(inputMaterials);
-        setStep(2);
-
-        // 如果没有 Task ID，创建一个
+        
+        // 如果没有 Task ID，创建一个，并等待返回后再进入下一步
         if (!taskId) {
+            setIsCreatingTask(true);
             try {
                 const newTask = await createStratifyTask(inputTopic, scenario);
                 setTaskId(newTask.id);
+                setStep(2); // 确保 taskId 存在后再跳转，避免下游组件空 ID 初始化
             } catch (e) {
                 console.error("Task creation failed", e);
                 alert("任务创建失败，请重试");
+            } finally {
+                setIsCreatingTask(false);
             }
+        } else {
+            setStep(2);
         }
     };
 
@@ -83,7 +89,10 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
             {/* 内容区 */}
             <div className="flex-1 overflow-hidden relative">
                 {step === 1 && (
-                    <InputStep onStart={handleInputConfirm} />
+                    <InputStep 
+                        onStart={handleInputConfirm} 
+                        isLoading={isCreatingTask}
+                    />
                 )}
                 {step === 2 && (
                     <ContentGenStep 
