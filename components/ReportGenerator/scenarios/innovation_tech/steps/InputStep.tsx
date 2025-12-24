@@ -2,11 +2,10 @@
 import React, { useState, useRef } from 'react';
 import { 
     PuzzleIcon, SparklesIcon, CloudIcon, DocumentTextIcon, 
-    TrashIcon, RefreshIcon, LightningBoltIcon, GlobeIcon 
+    TrashIcon, RefreshIcon, LightningBoltIcon 
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
-import { WebCrawlerModal } from '../../../ui/WebCrawlerModal';
 import { uploadStratifyFile } from '../../../../../api/stratify';
 
 export const InputStep: React.FC<{
@@ -19,7 +18,6 @@ export const InputStep: React.FC<{
     
     const [isVectorOpen, setIsVectorOpen] = useState(false);
     const [isLlmOpen, setIsLlmOpen] = useState(false);
-    const [isWebOpen, setIsWebOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,10 +53,6 @@ export const InputStep: React.FC<{
         }
 
         onStart(topic, combined);
-    };
-
-    const handleAddWebContent = (content: string) => {
-        setMaterials(prev => prev + (prev ? "\n\n" : "") + content);
     };
 
     return (
@@ -98,11 +92,8 @@ export const InputStep: React.FC<{
                             <button onClick={() => setIsLlmOpen(true)} className="input-tool-btn text-indigo-600 bg-indigo-50 border-indigo-100">
                                 <SparklesIcon className="w-3.5 h-3.5" /> AI 检索
                             </button>
-                            <button onClick={() => setIsWebOpen(true)} className="input-tool-btn text-blue-600 bg-blue-50 border-blue-100">
-                                <GlobeIcon className="w-3.5 h-3.5" /> 网页抓取
-                            </button>
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                            <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="input-tool-btn text-slate-600 bg-slate-50 border-slate-200">
+                            <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="input-tool-btn text-blue-600 bg-blue-50 border-blue-100">
                                 {isUploading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <CloudIcon className="w-3.5 h-3.5"/>} 本地文件
                             </button>
                         </div>
@@ -152,7 +143,6 @@ export const InputStep: React.FC<{
 
             <VectorSearchModal isOpen={isVectorOpen} onClose={() => setIsVectorOpen(false)} onAddSnippet={s => setVectorSnippets(p => [...p, s])} />
             <LlmRetrievalModal isOpen={isLlmOpen} onClose={() => setIsLlmOpen(false)} onSuccess={f => setReferenceFiles(p => [...p, {name: f.name, url: f.url}])} />
-            <WebCrawlerModal isOpen={isWebOpen} onClose={() => setIsWebOpen(false)} onAddContent={handleAddWebContent} />
         </div>
     );
 };
