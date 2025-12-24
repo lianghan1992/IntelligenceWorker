@@ -82,7 +82,7 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
 
     const removeField = (idx: number) => {
         const currentFields = getSafeValue().input_schema?.fields || [];
-        updateFields(currentFields.filter((_, i) => i !== idx));
+        updateFields(currentFields.filter((_: any, i: number) => i !== idx));
     };
 
     const updateField = (idx: number, key: string, val: any) => {
@@ -107,7 +107,7 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
 
     const removeStep = (idx: number) => {
         const currentSteps = getSafeValue().steps || [];
-        updateSteps(currentSteps.filter((_, i) => i !== idx));
+        updateSteps(currentSteps.filter((_: any, i: number) => i !== idx));
     };
 
     const updateStep = (idx: number, key: string, val: any) => {
