@@ -75,11 +75,7 @@ export const GeneralPptScenario: React.FC<ScenarioProps> = ({ taskId, topic, sce
                         taskId={taskId}
                         outline={outline}
                         scenario={scenario}
-                        // 关键修改：传入 null 而非 activeSessionId。
-                        // 原因：Gemini 2.5 Flash (思考模型) 在第一步会产生大量 <think> 内容。
-                        // 如果将这些 dirty history 传给第二步，Cookie 渠道极易报错 "Invalid response data"。
-                        // ContentStep 的 Prompt 已经通过变量完整包含了 outline 数据，因此不需要依赖历史上下文。
-                        initialSessionId={null}
+                        initialSessionId={activeSessionId}
                         onComplete={(resPages: StratifyPage[]) => {
                             setPages(resPages);
                             setStep(3);

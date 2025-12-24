@@ -12,13 +12,10 @@ import {
     TrashIcon,
     CloudIcon,
     CheckCircleIcon,
-    ShieldExclamationIcon,
-    GlobeIcon,
-    LinkIcon
+    ShieldExclamationIcon
 } from '../../../../icons';
 import { VectorSearchModal } from '../../../ui/VectorSearchModal';
 import { LlmRetrievalModal } from '../../../ui/LlmRetrievalModal';
-import { UrlCrawlerModal } from '../../../ui/UrlCrawlerModal';
 import { getScenarioFiles, getScenarios, uploadStratifyFile } from '../../../../../api/stratify';
 import { checkGeminiCookieValidity } from '../../../../../api/intelligence';
 import { StratifyScenarioFile } from '../../../../../types';
@@ -56,12 +53,10 @@ export const InputCollector: React.FC<{
     // Additional Context State
     const [referenceFiles, setReferenceFiles] = useState<Array<{ name: string; url: string; type: string }>>([]);
     const [vectorSnippets, setVectorSnippets] = useState<Array<{ title: string; content: string }>>([]);
-    const [urlArticles, setUrlArticles] = useState<Array<{ title: string; url: string; content: string }>>([]);
 
     // Modals
     const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
     const [isLlmModalOpen, setIsLlmModalOpen] = useState(false);
-    const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
     
     // Upload State
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,13 +126,6 @@ export const InputCollector: React.FC<{
 
         // Combine all materials into one string for the Agent context
         let combinedMaterials = manualMaterials;
-
-        if (urlArticles.length > 0) {
-            combinedMaterials += "\n\n--- 网页 URL 抓取参考 ---\n";
-            urlArticles.forEach((a, i) => {
-                combinedMaterials += `\n[Web Reference ${i + 1}: ${a.title || a.url}]\nURL: ${a.url}\nContent:\n${a.content}\n`;
-            });
-        }
 
         if (vectorSnippets.length > 0) {
             combinedMaterials += "\n\n--- 知识库检索参考 ---\n";
@@ -229,12 +217,6 @@ export const InputCollector: React.FC<{
                                 </label>
                                 <div className="flex gap-2">
                                     <button 
-                                        onClick={() => setIsUrlModalOpen(true)}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
-                                    >
-                                        <GlobeIcon className="w-3.5 h-3.5" /> 文章 URL
-                                    </button>
-                                    <button 
                                         onClick={() => setIsVectorModalOpen(true)}
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-emerald-300 hover:text-emerald-600 rounded-lg text-xs font-bold text-slate-600 transition-all shadow-sm active:scale-95"
                                     >
@@ -280,17 +262,8 @@ export const InputCollector: React.FC<{
                                 />
                                 
                                 {/* Selected Reference Chips */}
-                                {(vectorSnippets.length > 0 || referenceFiles.length > 0 || urlArticles.length > 0) && (
+                                {(vectorSnippets.length > 0 || referenceFiles.length > 0) && (
                                     <div className="px-5 pb-4 flex flex-wrap gap-2 animate-in fade-in">
-                                        {urlArticles.map((article, i) => (
-                                            <div key={`url-${i}`} className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm group">
-                                                <GlobeIcon className="w-3.5 h-3.5" />
-                                                <span className="max-w-[120px] truncate" title={article.title || article.url}>{article.title || '网页资料'}</span>
-                                                <button onClick={() => setUrlArticles(prev => prev.filter((_, idx) => idx !== i))} className="hover:text-blue-900 ml-1">
-                                                    <TrashIcon className="w-3 h-3" />
-                                                </button>
-                                            </div>
-                                        ))}
                                         {referenceFiles.map((file, i) => (
                                             <div key={`file-${i}`} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
                                                 <DocumentTextIcon className="w-3.5 h-3.5" />
@@ -404,12 +377,6 @@ export const InputCollector: React.FC<{
                     </div>
                 </div>
             </div>
-
-            <UrlCrawlerModal 
-                isOpen={isUrlModalOpen}
-                onClose={() => setIsUrlModalOpen(false)}
-                onSuccess={(newArticles) => setUrlArticles(prev => [...prev, ...newArticles])}
-            />
 
             <VectorSearchModal 
                 isOpen={isVectorModalOpen} 
