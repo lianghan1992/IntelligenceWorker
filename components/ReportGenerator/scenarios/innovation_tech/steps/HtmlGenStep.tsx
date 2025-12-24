@@ -4,7 +4,7 @@ import { streamGenerate, parseLlmJson, generatePdf } from '../../../../../api/st
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     DownloadIcon, RefreshIcon, CodeIcon, EyeIcon, 
-    CheckCircleIcon, ShieldExclamationIcon 
+    CheckCircleIcon, ShieldExclamationIcon, CheckIcon
 } from '../../../../icons';
 
 // 鲁棒的 HTML 提取（复用自 TechEval）
@@ -64,7 +64,8 @@ export const HtmlGenStep: React.FC<{
                 if (finalHtml) {
                     setHtmlContent(finalHtml);
                     setStatus('success');
-                    onComplete(); // 标记完成
+                    // 修复：移除自动调用 onComplete，防止预览界面被跳过
+                    // onComplete(); 
                 } else {
                     setStatus('failed');
                 }
@@ -74,7 +75,7 @@ export const HtmlGenStep: React.FC<{
                 setStatus('failed');
             }
         );
-    }, [markdown, scenario, taskId, onComplete]);
+    }, [markdown, scenario, taskId]); // Removed onComplete from dependency
 
     const handleDownload = async () => {
         if (!htmlContent) return;
@@ -114,18 +115,31 @@ export const HtmlGenStep: React.FC<{
                         {showCode ? <EyeIcon className="w-5 h-5"/> : <CodeIcon className="w-5 h-5"/>}
                     </button>
                     {status === 'success' && (
-                        <button 
-                            onClick={handleDownload}
-                            disabled={isDownloading}
-                            className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
-                        >
-                            {isDownloading ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
-                            下载 PDF
+                        <>
+                            <button 
+                                onClick={handleDownload}
+                                disabled={isDownloading}
+                                className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                {isDownloading ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
+                                下载 PDF
+                            </button>
+                            {/* 新增：手动完成按钮 */}
+                            <button 
+                                onClick={onComplete}
+                                className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-green-700 transition-all active:scale-95"
+                            >
+                                <CheckIcon className="w-4 h-4"/>
+                                完成
+                            </button>
+                        </>
+                    )}
+                    {/* 只有在非生成状态或失败状态才显示新任务，避免误触 */}
+                    {status !== 'generating' && (
+                        <button onClick={onRestart} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
+                            重做
                         </button>
                     )}
-                    <button onClick={onRestart} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
-                        新任务
-                    </button>
                 </div>
             </div>
 

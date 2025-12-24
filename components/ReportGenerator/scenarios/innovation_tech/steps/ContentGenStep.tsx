@@ -50,7 +50,9 @@ export const ContentGenStep: React.FC<{
             {
                 prompt_name: '新技术四象限编写', 
                 variables: { 
-                    new_tech: topic + (materials ? `\n\n补充材料:\n${materials}` : '') 
+                    new_tech: topic,
+                    // 关键修复：根据指令将补充材料映射为 markdown_content 变量
+                    markdown_content: materials || "无补充材料"
                 },
                 scenario,
                 task_id: taskId,
@@ -101,27 +103,21 @@ export const ContentGenStep: React.FC<{
         if (!revisionInput.trim() || !sessionId) return;
         
         setIsRevising(true);
-        // Optimistically append user request to view (optional, here we rely on stream update)
-        
-        // Don't append manually to streamContent, let the model rewrite or append result
-        // But for UX, we might want to show what user asked? 
-        // Current logic in previous version appended request to view.
         
         let newContentBuffer = '';
 
         streamGenerate(
             {
-                // 使用通用的修订提示词，或者再次调用 '新技术四象限编写' 依赖对话历史
-                // 这里假设系统有 '04_revise_content' 或类似机制
+                // 使用通用的修订提示词
                 prompt_name: '04_revise_content',
                 variables: { 
                     user_revision_request: revisionInput,
-                    current_content: streamContent // Pass current content as context if needed, though session history has it
+                    current_content: streamContent
                 },
                 scenario,
                 session_id: sessionId, // Important: Maintain session
                 task_id: taskId,
-                phase_name: '新技术四象限编写_revision', // Track revisions
+                phase_name: '新技术四象限编写_revision',
                 model_override: model
             },
             (chunk) => {
