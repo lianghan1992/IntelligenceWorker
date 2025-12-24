@@ -43,11 +43,11 @@ export const HtmlGenStep: React.FC<{
         let buffer = '';
         streamGenerate(
             {
-                prompt_name: '02_tech_quadrant_html',
+                prompt_name: '新技术四象限html生成',
                 variables: { markdown_content: markdown },
                 scenario,
                 task_id: taskId,
-                phase_name: '02_tech_quadrant_html',
+                phase_name: '新技术四象限html生成',
                 session_id: undefined // Explicitly start new session for clean HTML generation context
             },
             (chunk) => {

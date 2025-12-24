@@ -48,13 +48,13 @@ export const ContentGenStep: React.FC<{
         let fullBuffer = '';
         streamGenerate(
             {
-                prompt_name: '01_tech_quadrant_write', 
+                prompt_name: '新技术四象限编写', 
                 variables: { 
                     new_tech: topic + (materials ? `\n\n补充材料:\n${materials}` : '') 
                 },
                 scenario,
                 task_id: taskId,
-                phase_name: '01_tech_quadrant_write',
+                phase_name: '新技术四象限编写',
                 model_override: model
             },
             (chunk) => {
@@ -89,7 +89,7 @@ export const ContentGenStep: React.FC<{
 
         streamGenerate(
             {
-                // 使用通用的修订提示词，或者再次调用 '01_tech_quadrant_write' 依赖对话历史
+                // 使用通用的修订提示词，或者再次调用 '新技术四象限编写' 依赖对话历史
                 // 这里假设系统有 '04_revise_content' 或类似机制
                 prompt_name: '04_revise_content',
                 variables: { 
@@ -99,7 +99,7 @@ export const ContentGenStep: React.FC<{
                 scenario,
                 session_id: sessionId, // Important: Maintain session
                 task_id: taskId,
-                phase_name: '01_tech_quadrant_write_revision', // Track revisions
+                phase_name: '新技术四象限编写_revision', // Track revisions
                 model_override: model
             },
             (chunk) => {
