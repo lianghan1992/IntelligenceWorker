@@ -10,10 +10,10 @@ import {
 
 // 步骤定义 (Visual Only)
 const PHASE_STEPS = [
-    { label: '领先性分析', icon: ChartIcon },
-    { label: '可行性论证', icon: ShieldExclamationIcon },
-    { label: '技术壁垒构建', icon: DocumentTextIcon },
-    { label: '营销卖点提炼', icon: LightBulbIcon },
+    { label: '领先性分析', icon: ChartIcon, keywords: ['领先', '优势', 'leading'] },
+    { label: '可行性论证', icon: ShieldExclamationIcon, keywords: ['可行', '实现', 'feasibility'] },
+    { label: '技术壁垒构建', icon: DocumentTextIcon, keywords: ['壁垒', '护城河', 'barrier', 'moat'] },
+    { label: '营销卖点提炼', icon: LightBulbIcon, keywords: ['营销', '卖点', 'marketing', 'value'] },
 ];
 
 export const ContentGenStep: React.FC<{
@@ -32,11 +32,31 @@ export const ContentGenStep: React.FC<{
     const [revisionInput, setRevisionInput] = useState('');
     const [isRevising, setIsRevising] = useState(false);
     
-    // Simple logic to estimate current phase for visual progress
-    const currentPhaseIndex = Math.min(Math.floor(streamContent.length / 500), 3); // Crude estimation
+    // 进度追踪状态
+    const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const hasStarted = useRef(false);
+
+    // 实时监测内容关键词以更新进度
+    useEffect(() => {
+        if (!streamContent) return;
+        
+        let detectedPhase = -1;
+        // 倒序检查，找到内容中出现的最后一个阶段关键词
+        for (let i = PHASE_STEPS.length - 1; i >= 0; i--) {
+            const keywords = PHASE_STEPS[i].keywords;
+            if (keywords.some(kw => streamContent.includes(kw))) {
+                detectedPhase = i;
+                break;
+            }
+        }
+
+        // 仅当检测到的阶段比当前阶段靠后时才更新（单向推进）
+        if (detectedPhase > currentPhaseIndex) {
+            setCurrentPhaseIndex(detectedPhase);
+        }
+    }, [streamContent, currentPhaseIndex]);
 
     // Auto-scroll logic
     useEffect(() => {
@@ -146,12 +166,16 @@ export const ContentGenStep: React.FC<{
                 <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white/50">
                     <div className="flex gap-4">
                         {PHASE_STEPS.map((step, i) => {
+                            // 当正在生成时，当前检测到的阶段为 Active
+                            // 当生成结束 (!isGenerating)，或者当前步骤索引小于最新检测到的步骤时，视为 Done
                             const isActive = isGenerating && i === currentPhaseIndex;
                             const isDone = !isGenerating || i < currentPhaseIndex;
+                            
                             return (
-                                <div key={i} className={`flex items-center gap-2 ${isActive ? 'text-orange-600' : isDone ? 'text-slate-600' : 'text-slate-300'}`}>
+                                <div key={i} className={`flex items-center gap-2 ${isActive ? 'text-orange-600' : isDone ? 'text-green-600' : 'text-slate-300'}`}>
                                     <step.icon className={`w-4 h-4 ${isActive ? 'animate-pulse' : ''}`} />
-                                    <span className="text-xs font-bold hidden sm:inline">{step.label}</span>
+                                    <span className={`text-xs font-bold hidden sm:inline ${isDone ? 'font-medium' : ''}`}>{step.label}</span>
+                                    {isDone && !isActive && <CheckIcon className="w-3 h-3" />}
                                 </div>
                             );
                         })}
