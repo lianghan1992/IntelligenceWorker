@@ -505,13 +505,58 @@ export interface GenerateStreamParams {
 
 export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight' | 'stratify_ai';
 
+export interface WorkflowVariable {
+    name: string;
+    label: string;
+    type: 'text' | 'textarea' | 'select' | 'file' | 'boolean';
+    required?: boolean;
+    default?: any;
+    options?: string[]; // for select
+    placeholder?: string;
+}
+
+export interface WorkflowStep {
+    id: string;
+    name: string;
+    type: 'generation' | 'user_input' | 'approval';
+    condition?: string;
+    depends_on?: string[];
+    llm_config?: {
+        channel_code?: string;
+        model?: string;
+        temperature?: number;
+    };
+    prompt_id?: string;
+    input_mapping?: Record<string, string>;
+    ui?: {
+        component?: string; // ChatBox, MarkdownEditor, Preview
+        editable?: boolean;
+        actions?: string[]; // regenerate, chat
+    };
+}
+
+export interface WorkflowConfig {
+    variables: WorkflowVariable[];
+    steps: WorkflowStep[];
+}
+
 export interface StratifyScenario {
     id: string;
     name: string;
     title: string;
     description: string;
     default_model?: string;
-    workflow_config?: any; // JSON config for the scenario workflow
+    workflow_config?: WorkflowConfig; 
+    created_at: string;
+    updated_at: string;
+}
+
+export interface StratifyPrompt {
+    id: string;
+    name: string;
+    description?: string;
+    content: string;
+    variables?: string[];
     created_at: string;
     updated_at: string;
 }

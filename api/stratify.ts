@@ -2,7 +2,7 @@
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel } from '../types';
+import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
@@ -84,28 +84,29 @@ export const streamGenerate = async (
     }
 };
 
-// --- 2. Scenario & Prompt Management (Admin) ---
+// --- 2. Scenario Management (Updated Endpoints) ---
 
 export const getScenarios = (): Promise<StratifyScenario[]> =>
-    apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
+    apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/scenarios`);
 
 export const createScenario = (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
-    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
+    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
 export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
-    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
+    apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 
 export const deleteScenario = (id: string): Promise<void> =>
-    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/scenarios/${id}`, {
         method: 'DELETE',
     });
 
+// Legacy Prompt File Endpoints (Deprecated but kept for backward compatibility if needed)
 export const getScenarioFiles = (scenarioId: string): Promise<StratifyScenarioFile[]> =>
     apiFetch<StratifyScenarioFile[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files`);
 
@@ -119,6 +120,29 @@ export const deleteScenarioFile = (scenarioId: string, filename: string): Promis
     apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
         method: 'DELETE',
     });
+
+// --- 2.1 Prompt Management (New) ---
+
+export const getPrompts = (): Promise<StratifyPrompt[]> =>
+    apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/prompts`);
+
+export const createPrompt = (data: Partial<StratifyPrompt>): Promise<StratifyPrompt> =>
+    apiFetch<StratifyPrompt>(`${STRATIFY_SERVICE_PATH}/prompts`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updatePrompt = (id: string, data: Partial<StratifyPrompt>): Promise<StratifyPrompt> =>
+    apiFetch<StratifyPrompt>(`${STRATIFY_SERVICE_PATH}/prompts/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deletePrompt = (id: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/${id}`, {
+        method: 'DELETE',
+    });
+
 
 export const getAvailableModels = (): Promise<string[]> =>
     apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/common/models`);

@@ -4,9 +4,10 @@ import { ScenarioManager } from './ScenarioManager';
 import { TaskManager } from './TaskManager';
 import { QueueStatus } from './QueueStatus';
 import { ChannelManager } from './ChannelManager';
-import { SparklesIcon, DocumentTextIcon, ClockIcon, ViewGridIcon, ServerIcon } from '../../icons';
+import { PromptManager } from './PromptManager';
+import { SparklesIcon, DocumentTextIcon, ClockIcon, ViewGridIcon, ServerIcon, CodeIcon } from '../../icons';
 
-type SubView = 'scenarios' | 'tasks' | 'status' | 'channels';
+type SubView = 'scenarios' | 'tasks' | 'status' | 'channels' | 'prompts';
 
 export const StratifyAiManager: React.FC = () => {
     const [subView, setSubView] = useState<SubView>('scenarios');
@@ -31,6 +32,18 @@ export const StratifyAiManager: React.FC = () => {
                         >
                             <ViewGridIcon className="w-5 h-5" />
                             生成场景配置
+                        </button>
+                        <button
+                            onClick={() => setSubView('prompts')}
+                            className={`
+                                whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm flex items-center gap-2
+                                ${subView === 'prompts' 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                            `}
+                        >
+                            <CodeIcon className="w-5 h-5" />
+                            提示词库
                         </button>
                         <button
                             onClick={() => setSubView('channels')}
@@ -74,6 +87,7 @@ export const StratifyAiManager: React.FC = () => {
 
             <div className="flex-1 overflow-hidden">
                 {subView === 'scenarios' && <ScenarioManager />}
+                {subView === 'prompts' && <PromptManager />}
                 {subView === 'channels' && <ChannelManager />}
                 {subView === 'tasks' && <TaskManager />}
                 {subView === 'status' && <QueueStatus />}

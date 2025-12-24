@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { StratifyScenario, StratifyScenarioFile } from '../../../types';
-import { getScenarios, createScenario, updateScenario, deleteScenario, getScenarioFiles, deleteScenarioFile, getAvailableModels } from '../../../api/stratify';
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CodeIcon, CloseIcon, CheckIcon, ViewGridIcon } from '../../icons';
-import { PromptEditorModal } from './PromptEditorModal';
+import { StratifyScenario } from '../../../types';
+import { getScenarios, createScenario, updateScenario, deleteScenario, getAvailableModels } from '../../../api/stratify';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ViewGridIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { WorkflowEditor } from './WorkflowEditor';
 
@@ -33,7 +32,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                 default_model: initialData?.default_model || ''
             });
             // Ensure we have a valid object structure or null, defaulting to structure if empty
-            setWorkflowConfig(initialData?.workflow_config || { input_schema: { fields: [] }, steps: [] });
+            setWorkflowConfig(initialData?.workflow_config || { variables: [], steps: [] });
         }
     }, [isOpen, initialData]);
 
@@ -58,7 +57,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 h-[85vh]">
+            <div className="bg-white w-full max-w-6xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 h-[85vh]">
                 <div className="px-8 py-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
                     <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
                         <ViewGridIcon className="w-5 h-5 text-indigo-600" />
@@ -71,7 +70,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                 
                 <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                     {/* Left: Basic Info */}
-                    <div className="w-full md:w-1/3 p-6 space-y-5 overflow-y-auto custom-scrollbar border-r border-slate-100 bg-white">
+                    <div className="w-full md:w-1/4 p-6 space-y-5 overflow-y-auto custom-scrollbar border-r border-slate-100 bg-white">
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">基础信息</h4>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">唯一标识 (ID)</label>
@@ -118,7 +117,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                     </div>
 
                     {/* Right: Workflow Editor */}
-                    <div className="flex-1 p-6 bg-slate-50/50 flex flex-col overflow-hidden">
+                    <div className="flex-1 p-0 bg-slate-50/50 flex flex-col overflow-hidden">
                         <WorkflowEditor 
                             value={workflowConfig}
                             onChange={setWorkflowConfig}
@@ -147,19 +146,16 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
 export const ScenarioManager: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
     const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
-    const [files, setFiles] = useState<StratifyScenarioFile[]>([]);
     const [availableModels, setAvailableModels] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(false);
-    const [isFilesLoading, setIsFilesLoading] = useState(false);
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; default_model?: string; workflow_config?: any } | undefined>(undefined);
     const [isEditingMode, setIsEditingMode] = useState(false);
     
-    const [editingFile, setEditingFile] = useState<StratifyScenarioFile | null>(null);
-    const [confirmDelete, setConfirmDelete] = useState<{ type: 'scenario' | 'file', id: string, name: string } | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState<{ id: string, name: string } | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -183,19 +179,6 @@ export const ScenarioManager: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
-    const fetchFiles = useCallback(async (sid: string) => {
-        setIsFilesLoading(true);
-        try {
-            const data = await getScenarioFiles(sid);
-            setFiles(data);
-        } catch (e) { console.error(e); }
-        finally { setIsFilesLoading(false); }
-    }, []);
-
-    useEffect(() => { 
-        if (selectedScenario) fetchFiles(selectedScenario.id); 
-    }, [selectedScenario, fetchFiles]);
 
     const handleCreateClick = () => {
         setEditingScenarioData(undefined);
@@ -228,7 +211,6 @@ export const ScenarioManager: React.FC = () => {
                 const created = await createScenario(data);
                 setScenarios(prev => [...prev, created]);
                 setSelectedScenario(created);
-                setFiles([]); // New scenario has no files
             }
         } catch (e) {
             alert('保存失败，请检查网络或重试');
@@ -239,18 +221,10 @@ export const ScenarioManager: React.FC = () => {
     const handleDelete = async () => {
         if (!confirmDelete) return;
         try {
-            if (confirmDelete.type === 'scenario') {
-                await deleteScenario(confirmDelete.id);
-                setScenarios(prev => prev.filter(s => s.id !== confirmDelete.id));
-                if (selectedScenario?.id === confirmDelete.id) {
-                    setSelectedScenario(null);
-                    setFiles([]);
-                }
-            } else {
-                if (selectedScenario) {
-                    await deleteScenarioFile(selectedScenario.id, confirmDelete.name);
-                    fetchFiles(selectedScenario.id);
-                }
+            await deleteScenario(confirmDelete.id);
+            setScenarios(prev => prev.filter(s => s.id !== confirmDelete.id));
+            if (selectedScenario?.id === confirmDelete.id) {
+                setSelectedScenario(null);
             }
         } catch (e) { alert('删除失败'); }
         finally { setConfirmDelete(null); }
@@ -294,7 +268,7 @@ export const ScenarioManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Prompt Workspace (Right) */}
+            {/* Scenario Detail Workspace (Right) */}
             <div className="flex-1 bg-slate-50 rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-inner relative">
                 {selectedScenario ? (
                     <>
@@ -315,11 +289,14 @@ export const ScenarioManager: React.FC = () => {
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <button onClick={() => fetchFiles(selectedScenario.id)} className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                                    <RefreshIcon className={`w-5 h-5 ${isFilesLoading ? 'animate-spin' : ''}`} />
+                                <button 
+                                    onClick={() => handleEditClick(selectedScenario)}
+                                    className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                >
+                                    <PencilIcon className="w-5 h-5" />
                                 </button>
                                 <button 
-                                    onClick={() => setConfirmDelete({ type: 'scenario', id: selectedScenario.id, name: selectedScenario.title })}
+                                    onClick={() => setConfirmDelete({ id: selectedScenario.id, name: selectedScenario.title })}
                                     disabled={selectedScenario.name === 'default'} // Default scenario protection
                                     className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all disabled:opacity-0"
                                 >
@@ -328,68 +305,70 @@ export const ScenarioManager: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Files Grid */}
-                        <div className="flex-1 overflow-y-auto p-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 custom-scrollbar">
-                            {files.map((file, idx) => {
-                                // Dynamic theme for each card to avoid "素"
-                                const themes = [
-                                    { border: 'border-indigo-200', icon: 'text-indigo-600 bg-indigo-50', btn: 'bg-indigo-600' },
-                                    { border: 'border-emerald-200', icon: 'text-emerald-600 bg-emerald-50', btn: 'bg-emerald-600' },
-                                    { border: 'border-purple-200', icon: 'text-purple-600 bg-purple-50', btn: 'bg-purple-600' },
-                                    { border: 'border-blue-200', icon: 'text-blue-600 bg-blue-50', btn: 'bg-blue-600' },
-                                    { border: 'border-amber-200', icon: 'text-amber-600 bg-amber-50', btn: 'bg-amber-600' }
-                                ];
-                                const theme = themes[idx % themes.length];
-
-                                return (
-                                    <div 
-                                        key={file.id} 
-                                        className={`group relative bg-white p-5 rounded-3xl border-2 transition-all hover:shadow-2xl hover:-translate-y-1 ${theme.border} h-fit`}
-                                    >
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className={`p-2 rounded-2xl shadow-inner ${theme.icon}`}>
-                                                <CodeIcon className="w-5 h-5" />
+                        {/* Workflow Read-Only View */}
+                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                            <div className="max-w-4xl mx-auto space-y-8">
+                                {/* Variables Section */}
+                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-blue-500"></div> 输入变量
+                                    </h3>
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {(selectedScenario.workflow_config?.variables || []).map((v: any, idx: number) => (
+                                            <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-slate-700">{v.label}</span>
+                                                    {v.required && <span className="text-[10px] text-red-500 font-bold">*</span>}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-mono">{v.name} ({v.type})</div>
                                             </div>
-                                            <button 
-                                                onClick={() => setConfirmDelete({ type: 'file', id: file.id, name: file.name })}
-                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                        
-                                        <h4 className="font-black text-slate-800 text-sm mb-1 truncate leading-tight" title={file.name}>
-                                            {file.name}
-                                        </h4>
-                                        <div className="flex flex-col gap-1 mb-6">
-                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {new Date(file.updated_at).toLocaleDateString()}
-                                            </p>
-                                            {file.model && (
-                                                <p className="text-[9px] font-mono text-indigo-400 truncate" title={file.model}>
-                                                    {file.model}
-                                                </p>
-                                            )}
-                                        </div>
-                                        
-                                        <button 
-                                            onClick={() => setEditingFile(file)}
-                                            className={`w-full py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest text-white transition-all shadow-lg active:scale-95 ${theme.btn} hover:brightness-110`}
-                                        >
-                                            Edit Prompt
-                                        </button>
+                                        ))}
+                                        {(!selectedScenario.workflow_config?.variables || selectedScenario.workflow_config.variables.length === 0) && (
+                                            <div className="col-span-full text-center py-4 text-slate-400 text-xs italic">无全局变量</div>
+                                        )}
                                     </div>
-                                );
-                            })}
-                            
-                            {/* New Prompt Card */}
-                            <button 
-                                onClick={() => setEditingFile({ id: 'new', name: '', content: '', updated_at: '' })}
-                                className="group h-[180px] border-2 border-dashed border-slate-200 rounded-[32px] flex flex-col items-center justify-center text-slate-300 hover:border-indigo-400 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all duration-300"
-                            >
-                                <PlusIcon className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
-                                <span className="font-black text-[10px] uppercase tracking-widest">New Instruction</span>
-                            </button>
+                                </div>
+
+                                {/* Steps Flow Visualization */}
+                                <div className="space-y-4">
+                                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 px-2">
+                                        <div className="w-2 h-2 rounded-full bg-purple-500"></div> 执行流程
+                                    </h3>
+                                    <div className="relative pl-4 border-l-2 border-slate-200 space-y-6">
+                                        {(selectedScenario.workflow_config?.steps || []).map((step: any, idx: number) => (
+                                            <div key={idx} className="relative pl-6">
+                                                <div className="absolute -left-[21px] top-4 w-4 h-4 rounded-full border-4 border-slate-50 bg-indigo-500 shadow-sm"></div>
+                                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-800">{step.name}</h4>
+                                                            <div className="text-[10px] text-slate-400 font-mono mt-0.5">{step.id}</div>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase">{step.type}</span>
+                                                    </div>
+                                                    
+                                                    {/* LLM Details */}
+                                                    {step.type === 'generation' && (
+                                                        <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-2 gap-4 text-xs">
+                                                            <div>
+                                                                <span className="text-slate-400 block mb-0.5">Prompt ID</span>
+                                                                <span className="font-mono text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{step.prompt_id || 'N/A'}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-slate-400 block mb-0.5">Model</span>
+                                                                <span className="font-mono text-slate-600">{step.llm_config?.model || '(Default)'}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(!selectedScenario.workflow_config?.steps || selectedScenario.workflow_config.steps.length === 0) && (
+                                            <div className="pl-6 text-slate-400 text-xs italic">暂无步骤配置</div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </>
                 ) : (
@@ -412,21 +391,10 @@ export const ScenarioManager: React.FC = () => {
                 availableModels={availableModels}
             />
 
-            {/* Prompt Editor Modal */}
-            {editingFile && selectedScenario && (
-                <PromptEditorModal 
-                    file={editingFile} 
-                    scenarioId={selectedScenario.id}
-                    onClose={() => setEditingFile(null)} 
-                    onSave={() => { setEditingFile(null); fetchFiles(selectedScenario.id); }}
-                    availableModels={availableModels}
-                />
-            )}
-
             {/* Confirmation Modal */}
             {confirmDelete && (
                 <ConfirmationModal 
-                    title={confirmDelete.type === 'scenario' ? "删除场景" : "移除指令"}
+                    title="删除场景"
                     message={`确定要删除 "${confirmDelete.name}" 吗？该操作会将所有关联内容彻底移除，无法撤销。`}
                     onConfirm={handleDelete}
                     onCancel={() => setConfirmDelete(null)}
