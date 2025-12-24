@@ -74,13 +74,14 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
         try {
             const headers: Record<string, string> = { 
-                'X-Return-Format': 'markdown' 
+                'X-Return-Format': 'markdown',
+                'X-Remove-Selector': 'header, footer, nav, .class, #id', // 增加了 footer/nav 等常用干扰项
+                'X-Retain-Images': 'none'
             };
             if (apiKey.trim()) {
                 headers['Authorization'] = `Bearer ${apiKey.trim()}`;
             }
 
-            // 修复：移除 credentials: 'omit'，恢复默认行为以兼容大部分 CORS 策略
             const response = await fetch(`https://r.jina.ai/${task.url}`, {
                 method: 'GET',
                 headers: headers
@@ -162,7 +163,16 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
         if (urls.length === 0) return;
 
-        const newTasks: CrawledArticle[] = urls.map((url) => ({
+        // 去重逻辑：过滤掉已经在 taskQueue 中的 URL
+        const existingUrls = new Set(taskQueue.map(t => t.url));
+        const uniqueUrls = urls.filter(url => !existingUrls.has(url));
+
+        if (uniqueUrls.length === 0) {
+            setUrlInput(''); // 如果全是重复的，清空输入框即可
+            return;
+        }
+
+        const newTasks: CrawledArticle[] = uniqueUrls.map((url) => ({
             id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             url,
             title: '等待解析...',
