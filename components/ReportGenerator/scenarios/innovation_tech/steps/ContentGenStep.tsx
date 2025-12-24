@@ -5,7 +5,7 @@ import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, ChartIcon, CheckIcon, 
     ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon,
-    RefreshIcon, ArrowRightIcon
+    RefreshIcon, ArrowRightIcon, LightningBoltIcon
 } from '../../../../icons';
 
 // 步骤定义 (Visual Only)
@@ -21,8 +21,9 @@ export const ContentGenStep: React.FC<{
     topic: string;
     materials: string;
     scenario: string;
+    model?: string;
     onComplete: (markdown: string, sessionId: string) => void;
-}> = ({ taskId, topic, materials, scenario, onComplete }) => {
+}> = ({ taskId, topic, materials, scenario, model, onComplete }) => {
     const [streamContent, setStreamContent] = useState('');
     const [isGenerating, setIsGenerating] = useState(true);
     const [sessionId, setSessionId] = useState<string | null>(null);
@@ -53,7 +54,8 @@ export const ContentGenStep: React.FC<{
                 },
                 scenario,
                 task_id: taskId,
-                phase_name: '01_tech_quadrant_write'
+                phase_name: '01_tech_quadrant_write',
+                model_override: model
             },
             (chunk) => {
                 fullBuffer += chunk;
@@ -71,7 +73,7 @@ export const ContentGenStep: React.FC<{
                 if (sid && !sessionId) setSessionId(sid);
             }
         );
-    }, [topic, materials, scenario, taskId, sessionId]);
+    }, [topic, materials, scenario, taskId, sessionId, model]);
 
     // 处理修改请求
     const handleRevise = () => {
@@ -97,23 +99,15 @@ export const ContentGenStep: React.FC<{
                 scenario,
                 session_id: sessionId, // Important: Maintain session
                 task_id: taskId,
-                phase_name: '01_tech_quadrant_write_revision' // Track revisions
+                phase_name: '01_tech_quadrant_write_revision', // Track revisions
+                model_override: model
             },
             (chunk) => {
                 newContentBuffer += chunk;
-                // 只显示最新的生成内容，还是追加？通常修订是替换或追加。
-                // 为了简单展示，我们替换主要内容区域，或者在下方追加。
-                // 鉴于这是 Markdown 生成，全量替换通常体验更好，但流式会追加。
-                // 这里我们采用替换模式：收到第一个 chunk 时清空旧内容？
-                // 不，为了稳妥，我们追加。
-                
-                // Better UX: Show only the new revised content if it's a full rewrite.
-                // Assuming the model rewrites the full report based on instruction.
                 const { jsonPart } = extractThoughtAndJson(newContentBuffer);
                 // Try to extract content if wrapped in JSON, else use raw
                 let display = jsonPart || newContentBuffer;
                 
-                // If we want to replace the view with the new version:
                 setStreamContent(display);
             },
             () => {
@@ -163,6 +157,12 @@ export const ContentGenStep: React.FC<{
                             <BrainIcon className="w-3.5 h-3.5" />
                             AI_ANALYST_TERMINAL
                         </div>
+                        {model && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 border border-slate-700 ml-2">
+                                <LightningBoltIcon className="w-3 h-3 text-indigo-400" />
+                                <span className="text-[10px] font-mono text-slate-400">{model.split('@').pop()?.replace(':free', '')}</span>
+                            </div>
+                        )}
                     </div>
                     {isGenerating || isRevising ? (
                         <span className="text-[10px] text-orange-500 animate-pulse font-bold tracking-wider">● PROCESSING STREAM</span>

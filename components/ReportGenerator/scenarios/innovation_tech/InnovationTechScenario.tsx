@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScenarioProps } from '../registry';
-import { createStratifyTask } from '../../../../api/stratify';
+import { createStratifyTask, getScenarios } from '../../../../api/stratify';
 import { InputStep } from './steps/InputStep';
 import { ContentGenStep } from './steps/ContentGenStep';
 import { HtmlGenStep } from './steps/HtmlGenStep';
@@ -14,8 +14,24 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
     const [markdownContent, setMarkdownContent] = useState('');
     
     const [taskId, setTaskId] = useState(initialTaskId);
-    // We maintain the session ID for the content generation phase to allow revisions
     const [contentSessionId, setContentSessionId] = useState('');
+    const [defaultModel, setDefaultModel] = useState<string>('');
+
+    // 获取场景配置的默认模型
+    useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const scenarios = await getScenarios();
+                const current = scenarios.find(s => s.id === scenario || s.name === scenario);
+                if (current?.default_model) {
+                    setDefaultModel(current.default_model);
+                }
+            } catch (e) {
+                console.error("Failed to load scenario config", e);
+            }
+        };
+        fetchConfig();
+    }, [scenario]);
 
     const handleInputConfirm = async (inputTopic: string, inputMaterials: string) => {
         setTopic(inputTopic);
@@ -27,7 +43,6 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
             try {
                 const newTask = await createStratifyTask(inputTopic, scenario);
                 setTaskId(newTask.id);
-                // Note: We don't set session ID here yet, it will be established during content gen
             } catch (e) {
                 console.error("Task creation failed", e);
                 alert("任务创建失败，请重试");
@@ -76,6 +91,7 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
                         topic={topic} 
                         materials={materials} 
                         scenario={scenario}
+                        model={defaultModel}
                         onComplete={handleContentGenerated} 
                     />
                 )}
