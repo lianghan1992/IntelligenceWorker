@@ -14,7 +14,8 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
     const [markdownContent, setMarkdownContent] = useState('');
     
     const [taskId, setTaskId] = useState(initialTaskId);
-    const [sessionId, setSessionId] = useState('');
+    // We maintain the session ID for the content generation phase to allow revisions
+    const [contentSessionId, setContentSessionId] = useState('');
 
     const handleInputConfirm = async (inputTopic: string, inputMaterials: string) => {
         setTopic(inputTopic);
@@ -26,15 +27,17 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
             try {
                 const newTask = await createStratifyTask(inputTopic, scenario);
                 setTaskId(newTask.id);
-                setSessionId(newTask.session_id);
+                // Note: We don't set session ID here yet, it will be established during content gen
             } catch (e) {
                 console.error("Task creation failed", e);
+                alert("任务创建失败，请重试");
             }
         }
     };
 
-    const handleContentGenerated = (markdown: string) => {
+    const handleContentGenerated = (markdown: string, sessionId: string) => {
         setMarkdownContent(markdown);
+        setContentSessionId(sessionId);
         setStep(3);
     };
 
@@ -83,6 +86,7 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
                         scenario={scenario}
                         onRestart={() => setStep(1)}
                         onComplete={onComplete}
+                        // We do NOT pass the contentSessionId here, enforcing a new session for HTML gen
                     />
                 )}
             </div>

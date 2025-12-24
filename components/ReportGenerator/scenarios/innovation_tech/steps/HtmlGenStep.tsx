@@ -47,7 +47,8 @@ export const HtmlGenStep: React.FC<{
                 variables: { markdown_content: markdown },
                 scenario,
                 task_id: taskId,
-                phase_name: '02_tech_quadrant_html'
+                phase_name: '02_tech_quadrant_html',
+                session_id: undefined // Explicitly start new session for clean HTML generation context
             },
             (chunk) => {
                 buffer += chunk;
@@ -73,7 +74,7 @@ export const HtmlGenStep: React.FC<{
                 setStatus('failed');
             }
         );
-    }, [markdown, scenario, taskId]);
+    }, [markdown, scenario, taskId, onComplete]);
 
     const handleDownload = async () => {
         if (!htmlContent) return;
@@ -87,6 +88,7 @@ export const HtmlGenStep: React.FC<{
             document.body.appendChild(a);
             a.click();
             a.remove();
+            window.URL.revokeObjectURL(url);
         } catch (e) {
             alert('PDF 生成失败');
         } finally {

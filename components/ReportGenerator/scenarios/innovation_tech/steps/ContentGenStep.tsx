@@ -4,10 +4,11 @@ import { streamGenerate } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, ChartIcon, CheckIcon, 
-    ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon 
+    ShieldExclamationIcon, LightBulbIcon, DocumentTextIcon,
+    RefreshIcon, ArrowRightIcon
 } from '../../../../icons';
 
-// 步骤定义
+// 步骤定义 (Visual Only)
 const STEPS = [
     { label: '领先性分析', icon: ChartIcon },
     { label: '可行性论证', icon: ShieldExclamationIcon },
@@ -20,22 +21,25 @@ export const ContentGenStep: React.FC<{
     topic: string;
     materials: string;
     scenario: string;
-    onComplete: (markdown: string) => void;
+    onComplete: (markdown: string, sessionId: string) => void;
 }> = ({ taskId, topic, materials, scenario, onComplete }) => {
     const [streamContent, setStreamContent] = useState('');
-    const [thought, setThought] = useState('');
     const [isGenerating, setIsGenerating] = useState(true);
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [revisionInput, setRevisionInput] = useState('');
+    const [isRevising, setIsRevising] = useState(false);
+    
     const scrollRef = useRef<HTMLDivElement>(null);
     const hasStarted = useRef(false);
 
     // 自动滚动
     useEffect(() => {
-        if (scrollRef.current) {
+        if (scrollRef.current && (isGenerating || isRevising)) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [streamContent, thought]);
+    }, [streamContent, isGenerating, isRevising]);
 
-    // 启动生成
+    // 启动初始生成
     useEffect(() => {
         if (hasStarted.current) return;
         hasStarted.current = true;
@@ -43,7 +47,7 @@ export const ContentGenStep: React.FC<{
         let fullBuffer = '';
         streamGenerate(
             {
-                prompt_name: '01_tech_quadrant_write', // 对应后端文件名
+                prompt_name: '01_tech_quadrant_write', 
                 variables: { 
                     new_tech: topic + (materials ? `\n\n补充材料:\n${materials}` : '') 
                 },
@@ -53,30 +57,86 @@ export const ContentGenStep: React.FC<{
             },
             (chunk) => {
                 fullBuffer += chunk;
-                const { thought: t, jsonPart: content } = extractThoughtAndJson(fullBuffer);
-                // 如果提取不到 JSON Part（因为 prompt 实际上是输出 Markdown），
-                // extractThoughtAndJson 会把非代码块内容视为 thought。
-                // 这里我们要稍微变通：如果内容看起来像 Markdown 标题，就认为是正文。
-                
-                // 简单处理：假设 output 是混合的，主要展示 fullBuffer 即可，或者简单分离 <think>
+                // Simple pass-through for now, or use extractThoughtAndJson if <think> tags are expected
                 setStreamContent(fullBuffer);
             },
             () => {
                 setIsGenerating(false);
-                // 延迟一下自动跳转，让用户看到完成状态
-                setTimeout(() => onComplete(fullBuffer), 1500);
             },
             (err) => {
                 console.error(err);
                 setIsGenerating(false);
+            },
+            (sid) => {
+                if (sid && !sessionId) setSessionId(sid);
             }
         );
-    }, [topic, materials, scenario, taskId, onComplete]);
+    }, [topic, materials, scenario, taskId, sessionId]);
+
+    // 处理修改请求
+    const handleRevise = () => {
+        if (!revisionInput.trim() || !sessionId) return;
+        
+        setIsRevising(true);
+        // Optimistically append user request to view (optional, here we rely on stream update)
+        
+        let fullBuffer = streamContent + `\n\n**修改意见**: ${revisionInput}\n\n`;
+        setStreamContent(fullBuffer);
+        
+        let newContentBuffer = '';
+
+        streamGenerate(
+            {
+                // 使用通用的修订提示词，或者再次调用 '01_tech_quadrant_write' 依赖对话历史
+                // 这里假设系统有 '04_revise_content' 或类似机制
+                prompt_name: '04_revise_content',
+                variables: { 
+                    user_revision_request: revisionInput,
+                    current_content: streamContent // Pass current content as context if needed, though session history has it
+                },
+                scenario,
+                session_id: sessionId, // Important: Maintain session
+                task_id: taskId,
+                phase_name: '01_tech_quadrant_write_revision' // Track revisions
+            },
+            (chunk) => {
+                newContentBuffer += chunk;
+                // 只显示最新的生成内容，还是追加？通常修订是替换或追加。
+                // 为了简单展示，我们替换主要内容区域，或者在下方追加。
+                // 鉴于这是 Markdown 生成，全量替换通常体验更好，但流式会追加。
+                // 这里我们采用替换模式：收到第一个 chunk 时清空旧内容？
+                // 不，为了稳妥，我们追加。
+                
+                // Better UX: Show only the new revised content if it's a full rewrite.
+                // Assuming the model rewrites the full report based on instruction.
+                const { jsonPart } = extractThoughtAndJson(newContentBuffer);
+                // Try to extract content if wrapped in JSON, else use raw
+                let display = jsonPart || newContentBuffer;
+                
+                // If we want to replace the view with the new version:
+                setStreamContent(display);
+            },
+            () => {
+                setIsRevising(false);
+                setRevisionInput('');
+            },
+            (err) => {
+                console.error(err);
+                setIsRevising(false);
+            }
+        );
+    };
+
+    const handleConfirm = () => {
+        if (sessionId) {
+            onComplete(streamContent, sessionId);
+        }
+    };
 
     return (
-        <div className="flex h-full bg-slate-900 text-slate-200 font-mono">
+        <div className="flex h-full bg-slate-900 text-slate-200 font-mono overflow-hidden">
             {/* 左侧：可视化进度 */}
-            <div className="w-64 border-r border-slate-800 p-8 flex flex-col justify-center gap-8 bg-slate-950">
+            <div className="w-64 border-r border-slate-800 p-8 flex flex-col justify-center gap-8 bg-slate-950 flex-shrink-0">
                 {STEPS.map((step, i) => (
                     <div key={i} className={`flex items-center gap-4 transition-all duration-500 ${isGenerating ? 'opacity-100' : 'opacity-50'}`}>
                         <div className={`p-3 rounded-xl ${isGenerating ? 'bg-orange-500/10 text-orange-500 animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
@@ -90,29 +150,69 @@ export const ContentGenStep: React.FC<{
                 ))}
             </div>
 
-            {/* 右侧：终端视图 */}
-            <div className="flex-1 flex flex-col relative overflow-hidden">
-                <div className="h-12 border-b border-slate-800 flex items-center px-6 gap-4 bg-slate-900/50 backdrop-blur z-10">
-                    <div className="flex gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
-                        <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
-                        <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+            {/* 右侧：终端视图与操作区 */}
+            <div className="flex-1 flex flex-col relative overflow-hidden bg-[#0f172a]">
+                <div className="h-14 border-b border-slate-800 flex items-center px-6 gap-4 bg-slate-900/50 backdrop-blur z-10 justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex gap-2">
+                            <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                            <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                            <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                        </div>
+                        <div className="text-xs text-slate-500 font-bold flex items-center gap-2">
+                            <BrainIcon className="w-3.5 h-3.5" />
+                            AI_ANALYST_TERMINAL
+                        </div>
                     </div>
-                    <div className="text-xs text-slate-500 font-bold flex items-center gap-2">
-                        <BrainIcon className="w-3.5 h-3.5" />
-                        AI_ANALYST_TERMINAL
-                    </div>
-                    {isGenerating && <span className="text-[10px] text-orange-500 animate-pulse ml-auto">● PROCESSING STREAM</span>}
+                    {isGenerating || isRevising ? (
+                        <span className="text-[10px] text-orange-500 animate-pulse font-bold tracking-wider">● PROCESSING STREAM</span>
+                    ) : (
+                        <span className="text-[10px] text-green-500 font-bold tracking-wider">● READY FOR REVIEW</span>
+                    )}
                 </div>
 
+                {/* Markdown Viewer */}
                 <div 
                     ref={scrollRef}
                     className="flex-1 overflow-y-auto p-8 custom-scrollbar-dark"
                 >
-                    <pre className="whitespace-pre-wrap break-words leading-relaxed text-sm text-emerald-400/90 font-mono">
-                        {streamContent || <span className="text-slate-600 animate-pulse">Initializing neural link...</span>}
-                        <span className="inline-block w-2 h-4 bg-emerald-500 ml-1 align-middle animate-pulse"></span>
-                    </pre>
+                    <div className="prose prose-invert prose-sm max-w-4xl mx-auto pb-20">
+                        {/* Simple rendering for now to keep stream speed high */}
+                         <div className="whitespace-pre-wrap break-words leading-relaxed text-sm text-emerald-400/90 font-mono">
+                            {streamContent || <span className="text-slate-600 animate-pulse">Initializing neural link...</span>}
+                            {(isGenerating || isRevising) && <span className="inline-block w-2 h-4 bg-emerald-500 ml-1 align-middle animate-pulse"></span>}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Action Bar */}
+                <div className="p-4 border-t border-slate-800 bg-slate-900/90 backdrop-blur">
+                    <div className="max-w-4xl mx-auto flex gap-4">
+                        <input 
+                            value={revisionInput}
+                            onChange={(e) => setRevisionInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && !isGenerating && !isRevising && handleRevise()}
+                            placeholder="输入修改意见，例如：'补充一下与特斯拉FSD的对比分析'..."
+                            className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-slate-500"
+                            disabled={isGenerating || isRevising}
+                        />
+                        <button 
+                            onClick={handleRevise}
+                            disabled={isGenerating || isRevising || !revisionInput.trim()}
+                            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold text-sm transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                            <RefreshIcon className={`w-4 h-4 ${isRevising ? 'animate-spin' : ''}`} />
+                            修改
+                        </button>
+                        <button 
+                            onClick={handleConfirm}
+                            disabled={isGenerating || isRevising || !streamContent.trim()}
+                            className="px-8 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold text-sm transition-all shadow-lg hover:shadow-green-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <CheckIcon className="w-4 h-4" />
+                            确认生成可视化
+                        </button>
+                    </div>
                 </div>
             </div>
             
