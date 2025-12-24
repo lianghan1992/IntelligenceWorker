@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import { ScenarioManager } from './ScenarioManager';
 import { TaskManager } from './TaskManager';
 import { QueueStatus } from './QueueStatus';
-import { SparklesIcon, DocumentTextIcon, ClockIcon, ViewGridIcon } from '../../icons';
+import { ChannelManager } from './ChannelManager';
+import { SparklesIcon, DocumentTextIcon, ClockIcon, ViewGridIcon, ServerIcon } from '../../icons';
 
-type SubView = 'scenarios' | 'tasks' | 'status';
+type SubView = 'scenarios' | 'tasks' | 'status' | 'channels';
 
 export const StratifyAiManager: React.FC = () => {
     const [subView, setSubView] = useState<SubView>('scenarios');
@@ -30,6 +31,18 @@ export const StratifyAiManager: React.FC = () => {
                         >
                             <ViewGridIcon className="w-5 h-5" />
                             生成场景配置
+                        </button>
+                        <button
+                            onClick={() => setSubView('channels')}
+                            className={`
+                                whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm flex items-center gap-2
+                                ${subView === 'channels' 
+                                    ? 'border-indigo-600 text-indigo-600' 
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                            `}
+                        >
+                            <ServerIcon className="w-5 h-5" />
+                            模型渠道管理
                         </button>
                         <button
                             onClick={() => setSubView('tasks')}
@@ -61,6 +74,7 @@ export const StratifyAiManager: React.FC = () => {
 
             <div className="flex-1 overflow-hidden">
                 {subView === 'scenarios' && <ScenarioManager />}
+                {subView === 'channels' && <ChannelManager />}
                 {subView === 'tasks' && <TaskManager />}
                 {subView === 'status' && <QueueStatus />}
             </div>

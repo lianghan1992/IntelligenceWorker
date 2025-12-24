@@ -214,17 +214,18 @@ export const GenericAnalysisManager: React.FC = () => {
         if (results.length === 0) return;
 
         // Find articles we haven't fetched yet
-        const idsToFetch = Array.from(new Set(
+        // Explicitly typed to avoid 'unknown' errors
+        const idsToFetch: string[] = Array.from(new Set(
             results
-                .map(r => r.article_uuid)
-                .filter(id => id && !articleCache[id])
+                .map((r: AnalysisResult) => r.article_uuid)
+                .filter((id: string) => id && !articleCache[id])
         ));
 
         if (idsToFetch.length === 0) return;
 
         const loadDetails = async () => {
             // Fetch concurrently
-            const promises = idsToFetch.map(async (id) => {
+            const promises = idsToFetch.map(async (id: string) => {
                 try {
                     const detail = await getSpiderArticleDetail(id);
                     return { id, detail };

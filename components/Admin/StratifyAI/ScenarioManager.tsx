@@ -12,14 +12,15 @@ const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2
 interface ScenarioEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { name: string; title: string; description: string; default_model?: string }) => Promise<void>;
-    initialData?: { name: string; title: string; description: string; default_model?: string };
+    onSave: (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }) => Promise<void>;
+    initialData?: { name: string; title: string; description: string; default_model?: string; workflow_config?: any };
     isEditing: boolean;
     availableModels: string[];
 }
 
 const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing, availableModels }) => {
     const [form, setForm] = useState({ name: '', title: '', description: '', default_model: '' });
+    const [workflowConfigStr, setWorkflowConfigStr] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
@@ -30,6 +31,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                 description: initialData?.description || '',
                 default_model: initialData?.default_model || ''
             });
+            setWorkflowConfigStr(initialData?.workflow_config ? JSON.stringify(initialData.workflow_config, null, 2) : '');
         }
     }, [isOpen, initialData]);
 
@@ -37,9 +39,21 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         if (!form.name || !form.title) return;
         setIsSaving(true);
         try {
+            let configJson = undefined;
+            if (workflowConfigStr.trim()) {
+                try {
+                    configJson = JSON.parse(workflowConfigStr);
+                } catch (e) {
+                    alert('工作流配置 JSON 格式错误');
+                    setIsSaving(false);
+                    return;
+                }
+            }
+
             await onSave({
                 ...form,
-                default_model: form.default_model || undefined
+                default_model: form.default_model || undefined,
+                workflow_config: configJson
             });
             onClose();
         } catch (e) {
@@ -53,8 +67,8 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-lg rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
-                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <div className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20 max-h-[90vh]">
+                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center flex-shrink-0">
                     <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
                         <ViewGridIcon className="w-5 h-5 text-indigo-600" />
                         {isEditing ? '编辑场景配置' : '创建新场景'}
@@ -64,27 +78,30 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                     </button>
                 </div>
                 
-                <div className="p-8 space-y-6">
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">唯一标识 (Unique ID)</label>
-                        <input 
-                            value={form.name} 
-                            onChange={e => setForm({...form, name: e.target.value})}
-                            disabled={isEditing} // ID usually shouldn't change after creation to avoid breaking refs
-                            className={`w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
-                            placeholder="e.g. market_insight_pro"
-                        />
-                        {!isEditing && <p className="text-[10px] text-slate-400 mt-1 ml-1">创建后不可修改，作为系统调用的 Key。</p>}
+                <div className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">唯一标识 (Unique ID)</label>
+                            <input 
+                                value={form.name} 
+                                onChange={e => setForm({...form, name: e.target.value})}
+                                disabled={isEditing} // ID usually shouldn't change after creation to avoid breaking refs
+                                className={`w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
+                                placeholder="e.g. market_insight_pro"
+                            />
+                            {!isEditing && <p className="text-[10px] text-slate-400 mt-1 ml-1">创建后不可修改，作为系统调用的 Key。</p>}
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">显示标题</label>
+                            <input 
+                                value={form.title} 
+                                onChange={e => setForm({...form, title: e.target.value})}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                placeholder="e.g. 深度市场洞察"
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">显示标题</label>
-                        <input 
-                            value={form.title} 
-                            onChange={e => setForm({...form, title: e.target.value})}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                            placeholder="e.g. 深度市场洞察"
-                        />
-                    </div>
+                    
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">默认模型 (Default Model)</label>
                         <select 
@@ -92,25 +109,38 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                             onChange={e => setForm({...form, default_model: e.target.value})}
                             className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                         >
-                            <option value="">使用系统默认 (zhipu@glm-4-flash)</option>
+                            <option value="">使用系统默认</option>
                             {availableModels.map(m => (
                                 <option key={m} value={m}>{m}</option>
                             ))}
                         </select>
                          <p className="text-[10px] text-slate-400 mt-1 ml-1">该场景下所有提示词的默认执行模型，可被单个提示词配置覆盖。</p>
                     </div>
+                    
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">场景描述</label>
                         <textarea 
                             value={form.description} 
                             onChange={e => setForm({...form, description: e.target.value})}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm h-28 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
-                            placeholder="描述该场景的用途，如：'针对新能源汽车市场的月度竞品分析报告'..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-sm h-20 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
+                            placeholder="描述该场景的用途..."
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">工作流配置 (Workflow JSON)</label>
+                        <textarea 
+                            value={workflowConfigStr} 
+                            onChange={e => setWorkflowConfigStr(e.target.value)}
+                            className="w-full bg-[#0f172a] text-slate-300 border border-slate-800 rounded-2xl px-5 py-4 text-xs font-mono h-48 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all custom-scrollbar-dark leading-relaxed"
+                            placeholder="{ 'steps': [...] }"
+                            spellCheck={false}
+                        />
+                         <p className="text-[10px] text-slate-400 mt-1 ml-1">用于定义前端动态渲染和执行逻辑的 JSON 配置。</p>
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
                     <button 
                         onClick={handleSubmit} 
@@ -139,7 +169,7 @@ export const ScenarioManager: React.FC = () => {
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; default_model?: string } | undefined>(undefined);
+    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; default_model?: string; workflow_config?: any } | undefined>(undefined);
     const [isEditingMode, setIsEditingMode] = useState(false);
     
     const [editingFile, setEditingFile] = useState<StratifyScenarioFile | null>(null);
@@ -192,7 +222,8 @@ export const ScenarioManager: React.FC = () => {
             name: s.name, 
             title: s.title, 
             description: s.description,
-            default_model: s.default_model
+            default_model: s.default_model,
+            workflow_config: s.workflow_config
         });
         setIsEditingMode(true);
         // Ensure we are selecting the one we are editing
@@ -200,7 +231,7 @@ export const ScenarioManager: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleSaveScenario = async (data: { name: string; title: string; description: string; default_model?: string }) => {
+    const handleSaveScenario = async (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }) => {
         try {
             if (isEditingMode && selectedScenario) {
                 const updated = await updateScenario(selectedScenario.id, data);

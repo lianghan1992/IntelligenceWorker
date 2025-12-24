@@ -2,7 +2,7 @@
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, StratifyPage, GenerateStreamParams, Scenario, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus } from '../types';
+import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
@@ -89,13 +89,13 @@ export const streamGenerate = async (
 export const getScenarios = (): Promise<StratifyScenario[]> =>
     apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`);
 
-export const createScenario = (data: { name: string; title: string; description: string; default_model?: string }): Promise<StratifyScenario> =>
+export const createScenario = (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; default_model?: string }): Promise<StratifyScenario> =>
+export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -184,4 +184,37 @@ export const parseLlmJson = <T>(text: string): T | null => {
     } catch (e) {
         return null;
     }
+};
+
+// --- 6. LLM Channel Management (New) ---
+
+export const getChannels = (): Promise<LLMChannel[]> =>
+    apiFetch<LLMChannel[]>(`${STRATIFY_SERVICE_PATH}/channels/`);
+
+export const createChannel = (data: Partial<LLMChannel>): Promise<LLMChannel> =>
+    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updateChannel = (id: number, data: Partial<LLMChannel>): Promise<LLMChannel> =>
+    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deleteChannel = (id: number): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
+        method: 'DELETE',
+    });
+
+// --- 7. OpenAI Compatible Gateway (New) ---
+
+export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }): Promise<any> => {
+    // Note: For streaming, specialized handling (like fetch + reader) is preferred over apiFetch which awaits JSON.
+    // This helper assumes non-streaming or returns the raw response for the caller to handle stream if stream=true
+    return apiFetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
 };

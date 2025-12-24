@@ -1,5 +1,4 @@
 
-
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
 
 export interface User {
@@ -376,6 +375,7 @@ export interface TechItem {
     updated_at: string;
     created_at: string;
     history?: TechItemHistory[];
+    is_reviewed?: boolean;
 }
 
 export interface TechItemHistory {
@@ -490,13 +490,17 @@ export interface StratifyOutline {
 }
 
 export interface GenerateStreamParams {
-    prompt_name: string;
-    variables: any;
-    scenario: string;
+    prompt_name?: string;
+    variables?: any;
+    scenario?: string;
     task_id?: string;
     phase_name?: string;
     session_id?: string;
     model_override?: string;
+    model?: string;
+    messages?: Array<{role: string, content: string}>;
+    stream?: boolean;
+    temperature?: number;
 }
 
 export type AdminView = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin' | 'users' | 'intelligence' | 'competitiveness' | 'markdown2html' | 'deep_insight' | 'stratify_ai';
@@ -507,6 +511,7 @@ export interface StratifyScenario {
     title: string;
     description: string;
     default_model?: string;
+    workflow_config?: any; // JSON config for the scenario workflow
     created_at: string;
     updated_at: string;
 }
@@ -609,4 +614,17 @@ export interface DocTag {
     name: string;
     created_at: string;
     doc_count: number;
+}
+
+export interface LLMChannel {
+    id: number;
+    channel_code: string;
+    name: string;
+    base_url: string;
+    models: string; // comma separated
+    is_active: boolean;
+    config?: any;
+    api_key?: string; // Optional for input/update, usually not returned fully
+    created_at?: string;
+    updated_at?: string;
 }
