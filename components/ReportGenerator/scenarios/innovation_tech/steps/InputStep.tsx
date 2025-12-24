@@ -122,21 +122,38 @@ export const InputStep: React.FC<{
                     <div className="bg-slate-50/80 backdrop-blur-sm p-3 border-b border-slate-100 flex flex-wrap gap-2 items-center">
                         <span className="text-xs font-black text-slate-400 uppercase tracking-[0.1em] mr-2 ml-2">Add Context:</span>
                         
-                        <button onClick={() => setIsVectorOpen(true)} className="tool-btn text-emerald-700 bg-white border-emerald-100 hover:border-emerald-300 hover:text-emerald-800">
-                            <PuzzleIcon className="w-3.5 h-3.5" /> 知识库
+                        <button 
+                            onClick={() => setIsVectorOpen(true)} 
+                            title="知识库"
+                            className="tool-btn text-emerald-600 bg-emerald-50 border-emerald-100 hover:bg-emerald-100 hover:border-emerald-200"
+                        >
+                            <PuzzleIcon className="w-5 h-5" />
                         </button>
                         
-                        <button onClick={() => setIsLlmOpen(true)} className="tool-btn text-indigo-700 bg-white border-indigo-100 hover:border-indigo-300 hover:text-indigo-800">
-                            <SparklesIcon className="w-3.5 h-3.5" /> AI 检索
+                        <button 
+                            onClick={() => setIsLlmOpen(true)} 
+                            title="AI 检索"
+                            className="tool-btn text-indigo-600 bg-indigo-50 border-indigo-100 hover:bg-indigo-100 hover:border-indigo-200"
+                        >
+                            <SparklesIcon className="w-5 h-5" />
                         </button>
                         
-                        <button onClick={() => setIsUrlCrawlerOpen(true)} className="tool-btn text-blue-700 bg-white border-blue-100 hover:border-blue-300 hover:text-blue-800">
-                            <GlobeIcon className="w-3.5 h-3.5" /> 文章链接
+                        <button 
+                            onClick={() => setIsUrlCrawlerOpen(true)} 
+                            title="文章链接"
+                            className="tool-btn text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100 hover:border-blue-200"
+                        >
+                            <GlobeIcon className="w-5 h-5" />
                         </button>
                         
                         <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-                        <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="tool-btn text-slate-700 bg-white border-slate-200 hover:border-slate-300 hover:text-slate-900">
-                            {isUploading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <CloudIcon className="w-3.5 h-3.5"/>} 本地文件
+                        <button 
+                            onClick={() => fileInputRef.current?.click()} 
+                            disabled={isUploading} 
+                            title="本地文件"
+                            className="tool-btn text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                        >
+                            {isUploading ? <RefreshIcon className="w-5 h-5 animate-spin"/> : <CloudIcon className="w-5 h-5"/>}
                         </button>
                     </div>
                     
@@ -190,7 +207,7 @@ export const InputStep: React.FC<{
             </div>
 
             <style>{`
-                .tool-btn { @apply px-3 py-1.5 rounded-lg text-xs font-bold border transition-all hover:shadow-sm active:scale-95 flex items-center gap-1.5 shadow-sm; }
+                .tool-btn { @apply p-2 rounded-xl border transition-all hover:shadow-md active:scale-95 flex items-center justify-center shadow-sm; }
                 .chip { @apply px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-2 animate-in zoom-in shadow-sm transition-all; }
             `}</style>
 
