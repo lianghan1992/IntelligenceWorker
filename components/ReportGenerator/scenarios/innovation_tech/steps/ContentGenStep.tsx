@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { streamGenerate } from '../../../../../api/stratify';
+import { streamGenerate, parseLlmJson } from '../../../../../api/stratify';
 import { extractThoughtAndJson } from '../../../utils';
 import { 
     BrainIcon, ChartIcon, CheckIcon, 
@@ -59,8 +59,29 @@ export const ContentGenStep: React.FC<{
             },
             (chunk) => {
                 fullBuffer += chunk;
-                // Simple pass-through for now, or use extractThoughtAndJson if <think> tags are expected
-                setStreamContent(fullBuffer);
+                
+                const { jsonPart } = extractThoughtAndJson(fullBuffer);
+                
+                if (jsonPart) {
+                    // 1. 尝试完整解析 JSON
+                    const parsed = parseLlmJson<{ content: string }>(jsonPart);
+                    if (parsed && parsed.content) {
+                        setStreamContent(parsed.content);
+                    } else {
+                        // 2. 流式正则提取 content 字段
+                        // 匹配 "content": "..." 结构，处理转义字符
+                        const match = jsonPart.match(/"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                        if (match && match.groups?.content) {
+                            const rawContent = match.groups.content;
+                            const cleanContent = rawContent
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\"/g, '"')
+                                .replace(/\\t/g, '\t')
+                                .replace(/\\\\/g, '\\');
+                            setStreamContent(cleanContent);
+                        }
+                    }
+                }
             },
             () => {
                 setIsGenerating(false);
@@ -82,8 +103,9 @@ export const ContentGenStep: React.FC<{
         setIsRevising(true);
         // Optimistically append user request to view (optional, here we rely on stream update)
         
-        let fullBuffer = streamContent + `\n\n**修改意见**: ${revisionInput}\n\n`;
-        setStreamContent(fullBuffer);
+        // Don't append manually to streamContent, let the model rewrite or append result
+        // But for UX, we might want to show what user asked? 
+        // Current logic in previous version appended request to view.
         
         let newContentBuffer = '';
 
@@ -105,10 +127,23 @@ export const ContentGenStep: React.FC<{
             (chunk) => {
                 newContentBuffer += chunk;
                 const { jsonPart } = extractThoughtAndJson(newContentBuffer);
-                // Try to extract content if wrapped in JSON, else use raw
-                let display = jsonPart || newContentBuffer;
                 
-                setStreamContent(display);
+                if (jsonPart) {
+                    const parsed = parseLlmJson<{ content: string }>(jsonPart);
+                    if (parsed && parsed.content) {
+                        setStreamContent(parsed.content);
+                    } else {
+                        const match = jsonPart.match(/"content"\s*:\s*"(?<content>(?:[^"\\]|\\.)*)/s);
+                        if (match && match.groups?.content) {
+                             const cleanContent = match.groups.content
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\"/g, '"')
+                                .replace(/\\t/g, '\t')
+                                .replace(/\\\\/g, '\\');
+                             setStreamContent(cleanContent);
+                        }
+                    }
+                }
             },
             () => {
                 setIsRevising(false);
