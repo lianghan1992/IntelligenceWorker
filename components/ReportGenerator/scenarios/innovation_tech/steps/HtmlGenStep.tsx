@@ -15,7 +15,6 @@ const robustExtractHtml = (fullText: string, jsonPart: string): string | null =>
             if (parsed && parsed.html_report) return parsed.html_report;
         } catch (e) { }
     }
-    // 尝试正则
     const htmlTagMatch = fullText.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
     if (htmlTagMatch) return htmlTagMatch[0];
     return null;
@@ -48,12 +47,11 @@ export const HtmlGenStep: React.FC<{
                 scenario,
                 task_id: taskId,
                 phase_name: '新技术四象限html生成',
-                session_id: undefined // Explicitly start new session for clean HTML generation context
+                session_id: undefined 
             },
             (chunk) => {
                 buffer += chunk;
                 setRawLog(buffer);
-                // 实时尝试提取预览
                 const { jsonPart } = extractThoughtAndJson(buffer);
                 const extracted = robustExtractHtml(buffer, jsonPart);
                 if (extracted) setHtmlContent(extracted);
@@ -64,18 +62,13 @@ export const HtmlGenStep: React.FC<{
                 if (finalHtml) {
                     setHtmlContent(finalHtml);
                     setStatus('success');
-                    // 修复：移除自动调用 onComplete，防止预览界面被跳过
-                    // onComplete(); 
                 } else {
                     setStatus('failed');
                 }
             },
-            (err) => {
-                console.error(err);
-                setStatus('failed');
-            }
+            (err) => { console.error(err); setStatus('failed'); }
         );
-    }, [markdown, scenario, taskId]); // Removed onComplete from dependency
+    }, [markdown, scenario, taskId]);
 
     const handleDownload = async () => {
         if (!htmlContent) return;
@@ -98,45 +91,43 @@ export const HtmlGenStep: React.FC<{
     };
 
     return (
-        <div className="flex h-full bg-[#eef2f6] flex-col overflow-hidden relative">
-            {/* Toolbar */}
-            <div className="h-16 bg-white border-b border-slate-200 px-6 flex justify-between items-center z-20 shadow-sm">
+        <div className="flex flex-col h-[650px] bg-slate-100">
+            {/* Toolbar - integrated into card header style */}
+            <div className="px-6 py-4 bg-white border-b border-slate-200 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${status === 'success' ? 'bg-green-100 text-green-600' : status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
-                        {status === 'success' ? <CheckCircleIcon className="w-5 h-5"/> : status === 'failed' ? <ShieldExclamationIcon className="w-5 h-5"/> : <RefreshIcon className="w-5 h-5 animate-spin"/>}
+                    <div className={`p-1.5 rounded-lg ${status === 'success' ? 'bg-green-100 text-green-600' : status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+                        {status === 'success' ? <CheckCircleIcon className="w-4 h-4"/> : status === 'failed' ? <ShieldExclamationIcon className="w-4 h-4"/> : <RefreshIcon className="w-4 h-4 animate-spin"/>}
                     </div>
-                    <span className="font-bold text-slate-700">
+                    <span className="font-bold text-slate-700 text-sm">
                         {status === 'generating' ? '正在渲染可视化报告...' : status === 'success' ? '报告已就绪' : '生成异常'}
                     </span>
                 </div>
                 
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                     <button onClick={() => setShowCode(!showCode)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="查看源码">
-                        {showCode ? <EyeIcon className="w-5 h-5"/> : <CodeIcon className="w-5 h-5"/>}
+                        {showCode ? <EyeIcon className="w-4 h-4"/> : <CodeIcon className="w-4 h-4"/>}
                     </button>
                     {status === 'success' && (
                         <>
                             <button 
                                 onClick={handleDownload}
                                 disabled={isDownloading}
-                                className="flex items-center gap-2 px-5 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold shadow hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
                             >
-                                {isDownloading ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
+                                {isDownloading ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
                                 下载 PDF
                             </button>
-                            {/* 新增：手动完成按钮 */}
                             <button 
                                 onClick={onComplete}
-                                className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-green-700 transition-all active:scale-95"
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-bold shadow hover:bg-green-700 transition-all active:scale-95"
                             >
-                                <CheckIcon className="w-4 h-4"/>
+                                <CheckIcon className="w-3.5 h-3.5"/>
                                 完成
                             </button>
                         </>
                     )}
-                    {/* 只有在非生成状态或失败状态才显示新任务，避免误触 */}
                     {status !== 'generating' && (
-                        <button onClick={onRestart} className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 transition-colors">
+                        <button onClick={onRestart} className="px-3 py-2 border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors">
                             重做
                         </button>
                     )}
@@ -144,13 +135,13 @@ export const HtmlGenStep: React.FC<{
             </div>
 
             {/* Preview Area */}
-            <div className="flex-1 overflow-hidden relative flex items-center justify-center p-4 md:p-10">
+            <div className="flex-1 overflow-hidden relative flex items-center justify-center p-6 bg-slate-200/50">
                 {showCode ? (
-                    <div className="w-full max-w-5xl h-full bg-[#1e1e1e] rounded-xl shadow-2xl p-6 overflow-auto custom-scrollbar-dark font-mono text-xs text-green-400">
+                    <div className="w-full h-full bg-[#1e1e1e] rounded-xl shadow-inner p-4 overflow-auto custom-scrollbar-dark font-mono text-[10px] text-green-400 border border-slate-700">
                         <pre className="whitespace-pre-wrap break-all">{rawLog}</pre>
                     </div>
                 ) : (
-                    <div className="w-full max-w-[1280px] aspect-video bg-white shadow-2xl rounded-xl overflow-hidden border border-slate-200 relative group">
+                    <div className="w-full max-w-[1000px] aspect-video bg-white shadow-xl rounded-xl overflow-hidden border border-slate-200 relative group">
                         {htmlContent ? (
                             <iframe 
                                 srcDoc={htmlContent}
@@ -159,9 +150,9 @@ export const HtmlGenStep: React.FC<{
                                 sandbox="allow-scripts"
                             />
                         ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 gap-4">
-                                <div className="w-16 h-16 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin"></div>
-                                <p className="font-bold tracking-widest text-sm">RENDERING 16:9 SLIDE...</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 gap-3">
+                                <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin"></div>
+                                <p className="font-bold tracking-widest text-xs uppercase">Rendering 16:9 Slide...</p>
                             </div>
                         )}
                     </div>
