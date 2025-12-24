@@ -32,7 +32,7 @@ interface UrlCrawlerModalProps {
     onSuccess: (articles: Array<{ title: string; url: string; content: string }>) => void;
 }
 
-const MAX_CONCURRENCY = 5; // 降低并发以保证稳定性
+const MAX_CONCURRENCY = 5; // 保持适度并发
 const MAX_RETRIES = 2;
 
 export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -60,12 +60,15 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
         updateTaskStatus(task.id, { status: 'running' });
 
         try {
-            // 使用 Jina Reader API
+            // 使用 Jina Reader API (Standard Mode)
+            // 修复：移除 X-With-Generated-Alt 防止 401
+            // 修复：添加 credentials: 'omit' 确保不发送浏览器 Cookie/Auth
             const response = await fetch(`https://r.jina.ai/${task.url}`, {
+                method: 'GET',
                 headers: { 
-                    'X-Return-Format': 'markdown',
-                    'X-With-Generated-Alt': 'true' 
-                }
+                    'X-Return-Format': 'markdown'
+                },
+                credentials: 'omit' 
             });
 
             if (response.status === 429) {
@@ -78,7 +81,12 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                 }
             }
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('401 Unauthorized (API 拒绝访问)');
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
 
             const content = await response.text();
             
@@ -118,8 +126,6 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
             if (pendingTasks.length > 0 && pool.size < MAX_CONCURRENCY) {
                 const task = pendingTasks[0];
                 // 标记为 running 防止重复获取 (虽然后面 fetchUrl 会立即标记，但这里先占位更安全)
-                // updateTaskStatus(task.id, { status: 'running' }); 
-                // 注意：这里不能立即改状态，因为 updateTaskStatus 是异步的，依赖 fetchUrl 内部逻辑即可，但要从 pending 列表中移除
                 
                 const promise = fetchUrl(task).then(() => {
                     pool.delete(promise);
@@ -334,11 +340,17 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                                             {task.status === 'running' && <RefreshIcon className="w-3.5 h-3.5 text-blue-500 animate-spin" />}
                                             {task.status === 'success' && <CheckCircleIcon className="w-3.5 h-3.5 text-green-500" />}
                                             {task.status === 'error' && <ShieldExclamationIcon className="w-3.5 h-3.5 text-red-500" />}
+                                            {task.status === 'retrying' && <RefreshIcon className="w-3.5 h-3.5 text-amber-500 animate-spin" />}
                                             {task.status === 'pending' && <div className="w-2 h-2 rounded-full bg-slate-300"></div>}
                                         </div>
                                         
                                         {task.status === 'error' && (
                                             <div className="mt-1 text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded w-fit">
+                                                {task.errorMessage}
+                                            </div>
+                                        )}
+                                        {task.status === 'retrying' && (
+                                            <div className="mt-1 text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
                                                 {task.errorMessage}
                                             </div>
                                         )}
