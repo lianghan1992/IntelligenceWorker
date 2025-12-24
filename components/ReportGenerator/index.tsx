@@ -32,7 +32,10 @@ export const ReportGenerator: React.FC = () => {
     const isTechEvalScenario = (id: string) => {
         return id === '50de3a59-0502-4202-9ddb-36ceb07fb3f1' || 
                id === 'tech_evaluation' || 
-               id === 'tech_assessment';
+               id === 'tech_assessment' ||
+               id === '43a73bc4-0fae-4aa7-8854-e4fdfaf89a07' ||
+               id === 'innovation_tech_analysis' ||
+               id === '创新技术分析';
     };
 
     const handleScenarioSelect = (id: string) => {
@@ -41,7 +44,7 @@ export const ReportGenerator: React.FC = () => {
         
         setSelectedScenarioId(id);
         
-        // 特殊定制场景（如新技术评估）直接进入工作台
+        // 特殊定制场景（如新技术评估、创新技术分析）直接进入工作台，跳过通用的意图解析步骤
         if (isTechEvalScenario(id)) {
             setTask(null);
             setViewState('workflow');
