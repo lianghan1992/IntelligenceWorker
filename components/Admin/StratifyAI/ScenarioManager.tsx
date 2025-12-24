@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { StratifyScenario } from '../../../types';
-import { getScenarios, createScenario, updateScenario, deleteScenario, getAvailableModels } from '../../../api/stratify';
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ViewGridIcon } from '../../icons';
-import { ConfirmationModal } from '../ConfirmationModal';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { StratifyScenario, LLMChannel } from '../../../types';
+import { getScenarios, createScenario, updateScenario, deleteScenario, getChannels } from '../../../api/stratify';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ViewGridIcon, ServerIcon, LightningBoltIcon } from '../../icons';
 import { WorkflowEditor } from './WorkflowEditor';
+import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
@@ -15,13 +15,17 @@ interface ScenarioEditorModalProps {
     onSave: (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }) => Promise<void>;
     initialData?: { name: string; title: string; description: string; default_model?: string; workflow_config?: any };
     isEditing: boolean;
-    availableModels: string[];
 }
 
-const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing, availableModels }) => {
+const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing }) => {
     const [form, setForm] = useState({ name: '', title: '', description: '', default_model: '' });
     const [workflowConfig, setWorkflowConfig] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Channel & Model Selection State
+    const [channels, setChannels] = useState<LLMChannel[]>([]);
+    const [selectedChannelCode, setSelectedChannelCode] = useState('');
+    const [selectedModelId, setSelectedModelId] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -33,16 +37,53 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
             });
             // Ensure we have a valid object structure or null, defaulting to structure if empty
             setWorkflowConfig(initialData?.workflow_config || { variables: [], steps: [] });
+            
+            // Parse default model if exists (format: channel@model)
+            if (initialData?.default_model) {
+                const parts = initialData.default_model.split('@');
+                if (parts.length === 2) {
+                    setSelectedChannelCode(parts[0]);
+                    setSelectedModelId(parts[1]);
+                } else {
+                    // Fallback or legacy format
+                    setSelectedChannelCode('');
+                    setSelectedModelId(initialData.default_model);
+                }
+            } else {
+                setSelectedChannelCode('');
+                setSelectedModelId('');
+            }
+
+            // Fetch Channels
+            getChannels().then(setChannels).catch(console.error);
         }
     }, [isOpen, initialData]);
+
+    // Computed available models based on selected channel
+    const availableModels = useMemo(() => {
+        const channel = channels.find(c => c.channel_code === selectedChannelCode);
+        if (!channel || !channel.models) return [];
+        return channel.models.split(',').map(m => m.trim()).filter(Boolean);
+    }, [channels, selectedChannelCode]);
 
     const handleSubmit = async () => {
         if (!form.name || !form.title) return;
         setIsSaving(true);
+        
+        // Construct default_model string
+        let finalModelString = form.default_model;
+        if (selectedChannelCode && selectedModelId) {
+            finalModelString = `${selectedChannelCode}@${selectedModelId}`;
+        } else if (selectedModelId) {
+             finalModelString = selectedModelId; // Legacy support or raw input
+        } else {
+             finalModelString = '';
+        }
+
         try {
             await onSave({
                 ...form,
-                default_model: form.default_model || undefined,
+                default_model: finalModelString || undefined,
                 workflow_config: workflowConfig
             });
             onClose();
@@ -92,19 +133,55 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                                 placeholder="e.g. 深度市场洞察"
                             />
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">默认模型</label>
-                            <select 
-                                value={form.default_model} 
-                                onChange={e => setForm({...form, default_model: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                            >
-                                <option value="">使用系统默认</option>
-                                {availableModels.map(m => (
-                                    <option key={m} value={m}>{m}</option>
-                                ))}
-                            </select>
+                        
+                        {/* Model Selection Group */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 mb-1">
+                                <LightningBoltIcon className="w-3.5 h-3.5" /> 默认模型配置
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">选择渠道 (Channel)</label>
+                                <div className="relative">
+                                    <ServerIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                    <select 
+                                        value={selectedChannelCode}
+                                        onChange={e => {
+                                            setSelectedChannelCode(e.target.value);
+                                            setSelectedModelId(''); // Reset model when channel changes
+                                        }}
+                                        className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-none appearance-none"
+                                    >
+                                        <option value="">-- 选择渠道 --</option>
+                                        {channels.map(c => (
+                                            <option key={c.id} value={c.channel_code}>{c.name} ({c.channel_code})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 mb-1">选择模型 (Model)</label>
+                                <select 
+                                    value={selectedModelId}
+                                    onChange={e => setSelectedModelId(e.target.value)}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    disabled={!selectedChannelCode}
+                                >
+                                    <option value="">{selectedChannelCode ? '-- 选择模型 --' : '-- 请先选渠道 --'}</option>
+                                    {availableModels.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            {selectedChannelCode && selectedModelId && (
+                                <div className="text-[10px] text-slate-400 break-all bg-white p-1.5 rounded border border-slate-100">
+                                    预览: <span className="font-mono text-indigo-600">{selectedChannelCode}@{selectedModelId}</span>
+                                </div>
+                            )}
                         </div>
+
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1">描述</label>
                             <textarea 
@@ -146,7 +223,6 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
 export const ScenarioManager: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
     const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
-    const [availableModels, setAvailableModels] = useState<string[]>([]);
     
     const [isLoading, setIsLoading] = useState(false);
     
@@ -160,16 +236,12 @@ export const ScenarioManager: React.FC = () => {
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [sData, mData] = await Promise.all([
-                getScenarios(),
-                getAvailableModels()
-            ]);
-            setScenarios(sData);
-            setAvailableModels(mData);
+            const data = await getScenarios();
+            setScenarios(data);
             
             // Auto select first if none selected
-            if (sData.length > 0 && !selectedScenario) {
-                setSelectedScenario(sData[0]);
+            if (data.length > 0 && !selectedScenario) {
+                setSelectedScenario(data[0]);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
@@ -388,7 +460,6 @@ export const ScenarioManager: React.FC = () => {
                 onSave={handleSaveScenario}
                 initialData={editingScenarioData}
                 isEditing={isEditingMode}
-                availableModels={availableModels}
             />
 
             {/* Confirmation Modal */}

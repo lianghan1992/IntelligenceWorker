@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon, CodeIcon, ViewListIcon, MenuIcon, ChevronDownIcon, ChevronRightIcon } from '../../icons';
 import { WorkflowConfig, StratifyPrompt, LLMChannel } from '../../../types';
-import { getPrompts, getChannels, getAvailableModels } from '../../../api/stratify';
+import { getPrompts, getChannels } from '../../../api/stratify';
 
 interface WorkflowEditorProps {
     value: WorkflowConfig | any;
@@ -68,7 +68,6 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
 
     const getSafeConfig = (): WorkflowConfig => {
         const defaultCfg = { variables: [], steps: [] };
-        // Handle migration from old format if necessary, or just default
         if (!value) return defaultCfg;
         
         // Basic schema check
@@ -207,12 +206,9 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
 
                 {/* --- STEPS TAB --- */}
                 {activeTab === 'steps' && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 pb-12">
                         <div className="flex justify-between items-center mb-2">
                             <p className="text-xs text-slate-500">定义 Agent 执行的顺序步骤。</p>
-                            <button onClick={addStep} className="text-xs flex items-center gap-1 text-indigo-600 font-bold hover:bg-indigo-50 px-2 py-1 rounded">
-                                <PlusIcon className="w-3 h-3" /> 添加步骤
-                            </button>
                         </div>
 
                         <div className="space-y-3">
@@ -283,23 +279,46 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
                                                             <label className="label-xs">Model Channel</label>
                                                             <select 
                                                                 value={step.llm_config?.channel_code || ''} 
-                                                                onChange={e => updateStepNested(idx, 'llm_config', 'channel_code', e.target.value)} 
+                                                                onChange={e => {
+                                                                    updateStepNested(idx, 'llm_config', 'channel_code', e.target.value);
+                                                                    // Reset model when channel changes
+                                                                    updateStepNested(idx, 'llm_config', 'model', '');
+                                                                }} 
                                                                 className="input-sm"
                                                             >
                                                                 <option value="">(Default)</option>
-                                                                {channels.map(c => <option key={c.channel_code} value={c.channel_code}>{c.name}</option>)}
+                                                                {channels.map(c => <option key={c.id} value={c.channel_code}>{c.name}</option>)}
                                                             </select>
                                                         </div>
                                                     </div>
 
                                                     <div>
-                                                        <label className="label-xs">Model Name Override</label>
-                                                        <input 
-                                                            value={step.llm_config?.model || ''} 
-                                                            onChange={e => updateStepNested(idx, 'llm_config', 'model', e.target.value)} 
-                                                            className="input-sm" 
-                                                            placeholder="e.g. gpt-4-turbo (Leave empty to use channel default)"
-                                                        />
+                                                        <label className="label-xs">Model Selection</label>
+                                                        {step.llm_config?.channel_code ? (
+                                                            <select 
+                                                                value={step.llm_config?.model || ''} 
+                                                                onChange={e => updateStepNested(idx, 'llm_config', 'model', e.target.value)} 
+                                                                className="input-sm font-mono"
+                                                            >
+                                                                <option value="">(Use Channel Default)</option>
+                                                                {channels.find(c => c.channel_code === step.llm_config?.channel_code)?.models.split(',').map(m => {
+                                                                    const trimmedModel = m.trim();
+                                                                    return <option key={trimmedModel} value={trimmedModel}>{trimmedModel}</option>;
+                                                                })}
+                                                            </select>
+                                                        ) : (
+                                                            <input 
+                                                                value={step.llm_config?.model || ''} 
+                                                                onChange={e => updateStepNested(idx, 'llm_config', 'model', e.target.value)} 
+                                                                className="input-sm" 
+                                                                placeholder="e.g. gpt-4-turbo (Requires Channel selection first for dropdown)"
+                                                            />
+                                                        )}
+                                                        {step.llm_config?.channel_code && step.llm_config?.model && (
+                                                            <p className="text-[10px] text-indigo-500 mt-1 font-mono">
+                                                                Full ID: {step.llm_config.channel_code}@{step.llm_config.model}
+                                                            </p>
+                                                        )}
                                                     </div>
 
                                                     {/* Input Mapping */}
@@ -338,7 +357,16 @@ export const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ value, onChange 
                                     )}
                                 </div>
                             ))}
-                            {config.steps.length === 0 && <div className="text-center py-8 text-slate-400 text-xs border border-dashed rounded-xl">点击上方添加步骤</div>}
+                            
+                            <button 
+                                onClick={addStep} 
+                                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center gap-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group mt-6"
+                            >
+                                <div className="p-1 bg-slate-100 rounded-full group-hover:bg-indigo-100 transition-colors">
+                                    <PlusIcon className="w-5 h-5" />
+                                </div>
+                                <span className="font-bold text-sm">添加新步骤</span>
+                            </button>
                         </div>
                     </div>
                 )}
