@@ -39,6 +39,7 @@ export const SCENARIO_REGISTRY: Record<string, React.FC<ScenarioProps>> = {
     '43a73bc4-0fae-4aa7-8854-e4fdfaf89a07': InnovationTechScenario,
     'innovation_tech_analysis': InnovationTechScenario,
     '创新技术分析': InnovationTechScenario,
+    'NewTechnologyIdentification': InnovationTechScenario, // 新增：映射后端场景名
 };
 
 /**

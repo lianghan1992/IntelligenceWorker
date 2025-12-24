@@ -35,7 +35,8 @@ export const ReportGenerator: React.FC = () => {
                id === 'tech_assessment' ||
                id === '43a73bc4-0fae-4aa7-8854-e4fdfaf89a07' ||
                id === 'innovation_tech_analysis' ||
-               id === '创新技术分析';
+               id === '创新技术分析' ||
+               id === 'NewTechnologyIdentification'; // 新增后端场景ID适配
     };
 
     const handleScenarioSelect = (id: string) => {
