@@ -3,8 +3,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     CloseIcon, GlobeIcon, LinkIcon, RefreshIcon, 
     CheckCircleIcon, ShieldExclamationIcon, EyeIcon, 
-    ChevronRightIcon, ClockIcon, CheckIcon, DocumentTextIcon,
-    CodeIcon, PlusIcon, TrashIcon
+    ClockIcon, CheckIcon, DocumentTextIcon,
+    CodeIcon, PlusIcon, TrashIcon, LockClosedIcon
 } from '../../icons';
 
 // 声明 marked 供 TS 使用
@@ -32,7 +32,7 @@ interface UrlCrawlerModalProps {
     onSuccess: (articles: Array<{ title: string; url: string; content: string }>) => void;
 }
 
-const MAX_CONCURRENCY = 5; // 保持适度并发
+const MAX_CONCURRENCY = 5; 
 const MAX_RETRIES = 2;
 
 export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClose, onSuccess }) => {
@@ -40,13 +40,26 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
     const [taskQueue, setTaskQueue] = useState<CrawledArticle[]>([]);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [showSource, setShowSource] = useState(false); // 切换 预览/源码
+    const [showSource, setShowSource] = useState(false);
+    
+    // API Key State
+    const [apiKey, setApiKey] = useState('');
+    const [showKeyInput, setShowKeyInput] = useState(false);
     
     const queueRef = useRef<CrawledArticle[]>([]);
     const processingRef = useRef(false);
-
-    // 当有新任务或选中任务变化时，自动滚动到预览顶部
     const previewContainerRef = useRef<HTMLDivElement>(null);
+
+    // Load API Key from local storage
+    useEffect(() => {
+        const storedKey = localStorage.getItem('jina_api_key');
+        if (storedKey) setApiKey(storedKey);
+    }, []);
+
+    const handleSaveKey = (val: string) => {
+        setApiKey(val);
+        localStorage.setItem('jina_api_key', val);
+    };
 
     const updateTaskStatus = (id: string, updates: Partial<CrawledArticle>) => {
         setTaskQueue(prev => {
@@ -60,15 +73,17 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
         updateTaskStatus(task.id, { status: 'running' });
 
         try {
-            // 使用 Jina Reader API (Standard Mode)
-            // 修复：移除 X-With-Generated-Alt 防止 401
-            // 修复：添加 credentials: 'omit' 确保不发送浏览器 Cookie/Auth
+            const headers: Record<string, string> = { 
+                'X-Return-Format': 'markdown' 
+            };
+            if (apiKey.trim()) {
+                headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+            }
+
+            // 修复：移除 credentials: 'omit'，恢复默认行为以兼容大部分 CORS 策略
             const response = await fetch(`https://r.jina.ai/${task.url}`, {
                 method: 'GET',
-                headers: { 
-                    'X-Return-Format': 'markdown'
-                },
-                credentials: 'omit' 
+                headers: headers
             });
 
             if (response.status === 429) {
@@ -83,7 +98,7 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    throw new Error('401 Unauthorized (API 拒绝访问)');
+                    throw new Error('401 未授权 (请配置 API Key)');
                 }
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -102,7 +117,6 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
             updateTaskStatus(task.id, { status: 'success', title, content });
             
-            // 如果当前选中的是这个任务，或者是第一个成功的任务且当前未选中，则选中它
             if (!selectedTaskId) {
                 setSelectedTaskId(task.id);
             }
@@ -118,21 +132,20 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
         const pool = new Set<Promise<void>>();
         
-        // 持续检查队列中是否有 pending 任务
         while (true) {
             const pendingTasks = queueRef.current.filter(t => t.status === 'pending');
             if (pendingTasks.length === 0 && pool.size === 0) break;
 
             if (pendingTasks.length > 0 && pool.size < MAX_CONCURRENCY) {
                 const task = pendingTasks[0];
-                // 标记为 running 防止重复获取 (虽然后面 fetchUrl 会立即标记，但这里先占位更安全)
+                // 标记为 running 防止重复获取
+                updateTaskStatus(task.id, { status: 'running' }); 
                 
                 const promise = fetchUrl(task).then(() => {
                     pool.delete(promise);
                 });
                 pool.add(promise);
             } else {
-                // 等待任一任务完成
                 await Promise.race(pool);
             }
         }
@@ -143,7 +156,7 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
     const handleAddTasks = () => {
         const urls = urlInput
-            .split(/[\n,;]+/) // 支持换行、逗号、分号分割
+            .split(/[\n,;]+/)
             .map(u => u.trim())
             .filter(u => u.startsWith('http'));
 
@@ -165,12 +178,10 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
         });
         setUrlInput('');
         
-        // 如果当前没有选中的，选中第一个新的
         if (!selectedTaskId && newTasks.length > 0) {
             setSelectedTaskId(newTasks[0].id);
         }
 
-        // 启动队列处理
         processQueue();
     };
 
@@ -195,7 +206,6 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
     const selectedTask = taskQueue.find(t => t.id === selectedTaskId);
     const successCount = taskQueue.filter(t => t.status === 'success').length;
 
-    // 渲染 Markdown 预览
     const renderPreview = useMemo(() => {
         if (!selectedTask) return <div className="text-slate-400 text-sm">请选择左侧任务查看预览</div>;
         
@@ -210,9 +220,18 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
 
         if (selectedTask.status === 'error') {
             return (
-                <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
+                <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4 p-8 text-center">
                     <ShieldExclamationIcon className="w-10 h-10" />
-                    <p>解析失败: {selectedTask.errorMessage}</p>
+                    <p className="font-bold">解析失败</p>
+                    <p className="text-xs bg-red-50 p-2 rounded text-red-600">{selectedTask.errorMessage}</p>
+                    {selectedTask.errorMessage?.includes('401') && (
+                        <button 
+                            onClick={() => setShowKeyInput(true)}
+                            className="text-indigo-600 underline text-xs mt-2"
+                        >
+                            点击配置 API Key 解决此问题
+                        </button>
+                    )}
                 </div>
             );
         }
@@ -257,7 +276,36 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                             <p className="text-xs text-slate-500">Jina Reader Engine • Markdown 自动转换</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        {/* API Key Config Toggle */}
+                        <div className="relative">
+                            {showKeyInput ? (
+                                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg animate-in slide-in-from-right-5 fade-in">
+                                    <input 
+                                        type="password" 
+                                        value={apiKey}
+                                        onChange={e => handleSaveKey(e.target.value)}
+                                        placeholder="Jina API Key (Optional)"
+                                        className="bg-white border-none rounded-md px-2 py-1 text-xs w-40 outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <button onClick={() => setShowKeyInput(false)} className="p-1 hover:bg-slate-200 rounded text-slate-500">
+                                        <CheckIcon className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => setShowKeyInput(true)}
+                                    className={`p-2 rounded-full transition-colors flex items-center gap-1 text-xs font-bold ${apiKey ? 'text-green-600 bg-green-50 hover:bg-green-100' : 'text-slate-400 hover:bg-slate-100'}`}
+                                    title="配置 Jina API Key (解决 401/429 问题)"
+                                >
+                                    <LockClosedIcon className="w-4 h-4" />
+                                    {apiKey ? 'Key Configured' : 'No Key'}
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="w-px h-6 bg-slate-200 mx-2"></div>
+                        
                         <div className="text-xs font-medium text-slate-500">
                             已解析: <span className="text-indigo-600 font-bold">{successCount}</span> / {taskQueue.length}
                         </div>
@@ -345,7 +393,7 @@ export const UrlCrawlerModal: React.FC<UrlCrawlerModalProps> = ({ isOpen, onClos
                                         </div>
                                         
                                         {task.status === 'error' && (
-                                            <div className="mt-1 text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded w-fit">
+                                            <div className="mt-1 text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded w-fit max-w-full truncate">
                                                 {task.errorMessage}
                                             </div>
                                         )}
