@@ -27,7 +27,6 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, scenarioId, scenarioN
         name: '',
         description: '',
         content: '',
-        variables: [],
         scenario_id: scenarioId
     });
     const [selectedChannelCode, setSelectedChannelCode] = useState('');
@@ -36,11 +35,15 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, scenarioId, scenarioN
 
     useEffect(() => {
         if (isOpen) {
-            setForm(prompt ? { ...prompt } : {
+            setForm(prompt ? { 
+                name: prompt.name,
+                description: prompt.description,
+                content: prompt.content,
+                scenario_id: scenarioId
+            } : {
                 name: '',
                 description: '',
                 content: '',
-                variables: [],
                 scenario_id: scenarioId
             });
             setSelectedChannelCode(prompt?.channel_code || '');
@@ -58,18 +61,11 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, scenarioId, scenarioN
         if (!form.name || !form.content) return;
         setIsSaving(true);
         try {
-            // Extract variables
-            const regex = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
-            const vars = new Set<string>();
-            let match;
-            while ((match = regex.exec(form.content || '')) !== null) {
-                vars.add(match[1]);
-            }
-
             const payload = {
-                ...form,
+                name: form.name,
+                description: form.description,
+                content: form.content,
                 scenario_id: scenarioId,
-                variables: Array.from(vars),
                 channel_code: selectedChannelCode || undefined,
                 model_id: selectedModelId || undefined
             };
@@ -113,7 +109,8 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, scenarioId, scenarioN
                             <input 
                                 value={form.name} 
                                 onChange={e => setForm({...form, name: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+                                disabled={isEditing}
+                                className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono ${isEditing ? 'opacity-70 cursor-not-allowed' : ''}`}
                                 placeholder="e.g. step_1_analysis"
                             />
                         </div>
