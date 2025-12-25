@@ -123,8 +123,10 @@ export const deleteScenarioFile = (scenarioId: string, filename: string): Promis
 
 // --- 2.1 Prompt Management (New) ---
 
-export const getPrompts = (): Promise<StratifyPrompt[]> =>
-    apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/prompts`);
+export const getPrompts = (params: any = {}): Promise<StratifyPrompt[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/prompts${query}`);
+}
 
 export const createPrompt = (data: Partial<StratifyPrompt>): Promise<StratifyPrompt> =>
     apiFetch<StratifyPrompt>(`${STRATIFY_SERVICE_PATH}/prompts`, {

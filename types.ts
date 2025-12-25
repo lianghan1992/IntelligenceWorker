@@ -556,6 +556,7 @@ export interface StratifyScenario {
 export interface StratifyPrompt {
     id: string;
     name: string;
+    scenario_id?: string; // Link to scenario
     description?: string;
     content: string;
     variables?: string[];
