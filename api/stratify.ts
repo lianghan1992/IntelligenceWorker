@@ -1,4 +1,3 @@
-
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
@@ -84,10 +83,68 @@ export const streamGenerate = async (
     }
 };
 
-// --- 2. Scenario Management (Updated Endpoints) ---
+// --- Helper Utilities ---
+
+/**
+ * Fix: Added parseLlmJson utility.
+ * Robustly parses JSON from LLM responses that may contain markdown or surrounding text.
+ */
+export function parseLlmJson<T>(jsonStr: string): T | null {
+    try {
+        let cleaned = jsonStr.trim();
+        // Remove Markdown code blocks if they encapsulate the response
+        if (cleaned.startsWith('```')) {
+            cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+        }
+        
+        // Find the boundary of the JSON object or array
+        const firstBrace = cleaned.indexOf('{');
+        const firstBracket = cleaned.indexOf('[');
+        let start = -1;
+        if (firstBrace !== -1 && (firstBracket === -1 || (firstBrace < firstBracket))) {
+            start = firstBrace;
+        } else if (firstBracket !== -1) {
+            start = firstBracket;
+        }
+
+        if (start === -1) return null;
+        
+        const lastBrace = cleaned.lastIndexOf('}');
+        const lastBracket = cleaned.lastIndexOf(']');
+        let end = -1;
+        if (lastBrace !== -1 && (lastBracket === -1 || lastBrace > lastBracket)) {
+            end = lastBrace;
+        } else if (lastBracket !== -1) {
+            end = lastBracket;
+        }
+
+        if (end === -1 || end < start) return null;
+
+        return JSON.parse(cleaned.substring(start, end + 1)) as T;
+    } catch (e) {
+        return null;
+    }
+}
+
+// --- 2. Scenario Management ---
 
 export const getScenarios = (): Promise<StratifyScenario[]> =>
     apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/scenarios`);
+
+/**
+ * Fix: Added missing getScenarioFiles.
+ */
+export const getScenarioFiles = (scenarioId: string): Promise<StratifyScenarioFile[]> =>
+    apiFetch<StratifyScenarioFile[]>(`${STRATIFY_SERVICE_PATH}/scenarios/${scenarioId}/files`);
+
+/**
+ * Fix: Added missing updateScenarioFile.
+ */
+export const updateScenarioFile = (scenarioId: string, fileName: string, content: string, model?: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/scenarios/${scenarioId}/files`, {
+        method: 'POST',
+        body: JSON.stringify({ name: fileName, content, model }),
+    });
 
 export const createScenario = (data: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios`, {
@@ -106,22 +163,7 @@ export const deleteScenario = (id: string): Promise<void> =>
         method: 'DELETE',
     });
 
-// Legacy Prompt File Endpoints (Deprecated but kept for backward compatibility if needed)
-export const getScenarioFiles = (scenarioId: string): Promise<StratifyScenarioFile[]> =>
-    apiFetch<StratifyScenarioFile[]>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files`);
-
-export const updateScenarioFile = (scenarioId: string, filename: string, content: string, model?: string): Promise<void> =>
-    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name: filename, content, model }),
-    });
-
-export const deleteScenarioFile = (scenarioId: string, filename: string): Promise<void> =>
-    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/prompts/scenarios/${scenarioId}/files/${filename}`, {
-        method: 'DELETE',
-    });
-
-// --- 2.1 Prompt Management (New) ---
+// --- 2.1 Prompt Management ---
 
 export const getPrompts = (params: any = {}): Promise<StratifyPrompt[]> => {
     const query = createApiQuery(params);
@@ -145,11 +187,29 @@ export const deletePrompt = (id: string): Promise<void> =>
         method: 'DELETE',
     });
 
+// --- 3. LLM Channel Management ---
 
-export const getAvailableModels = (): Promise<string[]> =>
-    apiFetch<string[]>(`${STRATIFY_SERVICE_PATH}/common/models`);
+export const getChannels = (): Promise<LLMChannel[]> =>
+    apiFetch<LLMChannel[]>(`${STRATIFY_SERVICE_PATH}/channels/`);
 
-// --- 3. Persistence (CRUD) ---
+export const createChannel = (data: Partial<LLMChannel>): Promise<LLMChannel> =>
+    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+export const updateChannel = (id: number, data: Partial<LLMChannel>): Promise<LLMChannel> =>
+    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+
+export const deleteChannel = (id: number): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
+        method: 'DELETE',
+    });
+
+// --- 4. Persistence & Tasks ---
 
 export const createStratifyTask = async (topic: string, scenario: string = 'default'): Promise<StratifyTask> => {
     const response = await apiFetch<any>(`${STRATIFY_SERVICE_PATH}/tasks`, {
@@ -167,12 +227,12 @@ export const getStratifyTasks = (params: any = {}): Promise<StratifyTask[]> => {
 export const getStratifyTaskDetail = (taskId: string): Promise<StratifyTask> =>
     apiFetch<StratifyTask>(`${STRATIFY_SERVICE_PATH}/tasks/${taskId}`);
 
-// --- 4. System Status ---
+// --- 5. System Status ---
 
 export const getStratifyQueueStatus = (): Promise<StratifyQueueStatus> =>
     apiFetch<StratifyQueueStatus>(`${STRATIFY_SERVICE_PATH}/queue/status`);
 
-// --- 5. Assets & Others ---
+// --- 6. Assets & Others ---
 
 export const uploadStratifyFile = (file: File): Promise<{ filename: string; url: string; type: string }> => {
     const formData = new FormData();
@@ -196,51 +256,4 @@ export const generatePdf = async (htmlContent: string, filename?: string): Promi
     });
     if (!response.ok) throw new Error('PDF 生成失败');
     return response.blob();
-};
-
-export const parseLlmJson = <T>(text: string): T | null => {
-    try {
-        let cleanText = text;
-        if (text.includes("---FINAL_JSON_OUTPUT---")) {
-            cleanText = text.split("---FINAL_JSON_OUTPUT---")[1].trim();
-        }
-        const jsonMatch = cleanText.match(/```json\s*([\s\S]*?)\s*```/);
-        if (jsonMatch && jsonMatch[1]) return JSON.parse(jsonMatch[1]);
-        return JSON.parse(cleanText);
-    } catch (e) {
-        return null;
-    }
-};
-
-// --- 6. LLM Channel Management (New) ---
-
-export const getChannels = (): Promise<LLMChannel[]> =>
-    apiFetch<LLMChannel[]>(`${STRATIFY_SERVICE_PATH}/channels/`);
-
-export const createChannel = (data: Partial<LLMChannel>): Promise<LLMChannel> =>
-    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-
-export const updateChannel = (id: number, data: Partial<LLMChannel>): Promise<LLMChannel> =>
-    apiFetch<LLMChannel>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-    });
-
-export const deleteChannel = (id: number): Promise<void> =>
-    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/channels/${id}`, {
-        method: 'DELETE',
-    });
-
-// --- 7. OpenAI Compatible Gateway (New) ---
-
-export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }): Promise<any> => {
-    // Note: For streaming, specialized handling (like fetch + reader) is preferred over apiFetch which awaits JSON.
-    // This helper assumes non-streaming or returns the raw response for the caller to handle stream if stream=true
-    return apiFetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
 };
