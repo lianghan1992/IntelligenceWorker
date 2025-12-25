@@ -6,7 +6,6 @@ import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
 import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
-import { v4 as uuidv4 } from 'uuid';
 
 interface SpecificScenarioProps {
     scenario: StratifyScenario;
