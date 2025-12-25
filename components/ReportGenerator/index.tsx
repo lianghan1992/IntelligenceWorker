@@ -3,11 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { StratifyTask, StratifyScenario } from '../../types';
 import { getScenarios, getStratifyTaskDetail } from '../../api/stratify';
 
-// Shared UI Components
 import { HistoryDrawer } from './shared/HistoryDrawer';
 import { ScenarioPicker } from './shared/ScenarioPicker';
 import { AgentWorkstation } from './AgentWorkstation';
-import { ClockIcon, ChevronLeftIcon } from '../icons';
+import { ClockIcon } from '../icons';
 
 export const ReportGenerator: React.FC = () => {
     const [view, setView] = useState<'picker' | 'workstation'>('picker');
@@ -39,16 +38,20 @@ export const ReportGenerator: React.FC = () => {
             const detail = await getStratifyTaskDetail(taskId);
             setTask(detail);
             
-            // Find corresponding scenario object for metadata
-            // Fallback to a mock object if scenario was deleted but task exists
-            const scenario = scenarios.find(s => s.name === detail.scenario_name || s.id === detail.scenario_name) || {
-                id: detail.scenario_name,
-                name: detail.scenario_name,
-                title: detail.scenario_name,
-                description: 'Historical Task',
-                created_at: '',
-                updated_at: ''
-            };
+            // Try to find the scenario object for metadata
+            let scenario = scenarios.find(s => s.name === detail.scenario_name || s.id === detail.scenario_name);
+            
+            // Fallback mock if scenario deleted
+            if (!scenario) {
+                scenario = {
+                    id: detail.scenario_name,
+                    name: detail.scenario_name,
+                    title: detail.scenario_name,
+                    description: 'Historical Task Scenario',
+                    created_at: '',
+                    updated_at: ''
+                };
+            }
             
             setSelectedScenario(scenario);
             setView('workstation');

@@ -1,14 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { StratifyScenario, StratifyTask } from '../../types';
-import { createStratifyTask, streamGenerate, parseLlmJson, generatePdf } from '../../api/stratify';
+import { createStratifyTask, streamGenerate, generatePdf } from '../../api/stratify';
 import { extractThoughtAndJson } from './utils';
 import { ContextCollector } from './shared/ContextCollector';
 import { ReasoningModal } from './shared/ReasoningModal';
 import { 
-    BrainIcon, SparklesIcon, CheckCircleIcon, RefreshIcon, 
-    DocumentTextIcon, ArrowRightIcon, DownloadIcon, ChevronLeftIcon,
-    StopIcon
+    BrainIcon, SparklesIcon, RefreshIcon, 
+    DownloadIcon, ChevronLeftIcon
 } from '../icons';
 
 interface AgentWorkstationProps {
@@ -34,18 +33,18 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
 
     // Refs
     const scrollRef = useRef<HTMLDivElement>(null);
-    const hasStartedRef = useRef(false);
 
     // Restore state if loading from history
     useEffect(() => {
         if (initialTask) {
             setTask(initialTask);
-            // 这里可以添加更复杂的恢复逻辑，比如解析 result 字段
-            // 目前简单恢复到结果页（假设历史任务都是完成的）
+            // 简单的恢复逻辑：如果有结果则直接显示结果，否则假设为完成态
+            // 实际生产中可能需要从后端获取 task.result 并解析
             if (initialTask.status === 'completed') {
                 setView('result');
-                // 尝试从最后阶段恢复 HTML，如果没有则显示 Markdown
-                // 此处简化处理
+                // 暂时无法从 task 对象直接恢复 stream 内容，除非后端存储了。
+                // 这是一个简化处理，实际应调用 getTaskResult API
+                setFinalHtml(`<div class="p-8 text-center text-gray-500">历史任务内容需从后端加载 (ID: ${initialTask.id})<br/>(此功能待后端完善 Result 存储后支持)</div>`);
             }
         }
     }, [initialTask]);
@@ -55,35 +54,30 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
         if (view === 'executing' && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [streamBuffer, thoughtBuffer]);
+    }, [streamBuffer, thoughtBuffer, view]);
 
     const handleStart = async (userInput: string, context: any) => {
         setView('executing');
         setIsGenerating(true);
         setStreamBuffer('');
         setThoughtBuffer('');
-        setIsThinkingOpen(true); // Start with thinking modal open
+        setIsThinkingOpen(true); 
 
         try {
-            // 1. Create Task (Persistence)
-            const newTask = await createStratifyTask(userInput, scenario.id);
+            // 1. Create Task
+            const newTask = await createStratifyTask(userInput, scenario.name || 'default'); // Use scenario.name as ID/Key for backend
             setTask({ ...newTask, context });
 
             // 2. Stream Generation
-            // 假设我们现在是一个单体流式生成，或者后端编排好的流
-            // Prompt Name 可以约定为 scenario.name 或者固定入口 'default_entry'
-            const promptName = scenario.name || 'default';
-            
             await streamGenerate(
                 {
-                    prompt_name: promptName, // 后端根据场景名路由到对应提示词
+                    prompt_name: scenario.name, // 使用场景名路由到 Prompt
                     variables: { 
                         user_input: userInput,
                         context_str: JSON.stringify(context) 
                     },
                     scenario: scenario.id,
                     task_id: newTask.id,
-                    session_id: undefined // New session
                 },
                 (chunk) => {
                     // Update Content
@@ -91,13 +85,12 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                         const next = prev + chunk;
                         const { thought, jsonPart } = extractThoughtAndJson(next);
                         
-                        // Update thought separately if needed, or just use raw stream
                         if (thought && thought.length > thoughtBuffer.length) {
                             setThoughtBuffer(thought);
                         }
                         
-                        // Auto-close thinking modal when real content appears
-                        if (jsonPart && jsonPart.length > 50 && isThinkingOpen) {
+                        // 当 JSON/Markdown 内容开始大量出现时，自动关闭思考窗
+                        if (jsonPart && jsonPart.length > 100 && isThinkingOpen) {
                             setIsThinkingOpen(false);
                         }
                         
@@ -114,9 +107,9 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                     setIsGenerating(false);
                     setStreamBuffer(prev => prev + `\n\n[System Error]: ${err.message || 'Connection lost.'}`);
                 },
-                undefined, // onSessionId
+                undefined, 
                 (reasoningChunk) => {
-                    // DeepSeek style reasoning channel
+                    // DeepSeek R1 style reasoning channel
                     setThoughtBuffer(prev => prev + reasoningChunk);
                 }
             );
@@ -128,22 +121,26 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
     };
 
     const finalizeResult = () => {
-        // Parse the final buffer to see if it contains HTML or JSON
+        // Parse the final buffer
         const { jsonPart } = extractThoughtAndJson(streamBuffer);
         let content = streamBuffer;
 
-        // Try to find HTML structure
+        // Try to extract pure HTML/Markdown
         if (jsonPart) {
             try {
+                // 如果是 JSON 格式的返回
                 const parsed = JSON.parse(jsonPart);
                 if (parsed.html) content = parsed.html;
                 else if (parsed.content) content = parsed.content;
-            } catch (e) {}
-        } else {
-             // Fallback regex for HTML
-             const htmlMatch = streamBuffer.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
-             if (htmlMatch) content = htmlMatch[0];
-        }
+            } catch (e) {
+                // 如果不是 JSON，直接使用清洗后的文本 (Markdown/HTML)
+                content = jsonPart;
+            }
+        } 
+        
+        // Simple HTML detection fix
+        const htmlMatch = content.match(/<(!DOCTYPE\s+)?html[\s\S]*<\/html>/i);
+        if (htmlMatch) content = htmlMatch[0];
 
         setFinalHtml(content);
         setView('result');
@@ -175,7 +172,7 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                 isOpen={isThinkingOpen} 
                 onClose={() => setIsThinkingOpen(false)} 
                 content={thoughtBuffer || "正在初始化 Agent 环境..."}
-                status="AI Agent 正在深度思考..."
+                status={isGenerating ? "AI Agent 正在深度思考..." : "思考完成"}
             />
 
             {/* Header */}
@@ -202,8 +199,8 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                     )}
                     {view !== 'input' && (
                         <button 
-                            onClick={() => setIsThinkingOpen(true)}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            onClick={() => setIsThinkingOpen(!isThinkingOpen)}
+                            className={`p-2 rounded-lg transition-colors ${isThinkingOpen ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                             title="查看思考过程"
                         >
                             <BrainIcon className="w-5 h-5" />
@@ -227,13 +224,13 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                 {view === 'executing' && (
                     <div className="h-full bg-[#1e1e1e] p-6 overflow-auto custom-scrollbar-dark font-mono text-sm leading-relaxed" ref={scrollRef}>
                         <div className="max-w-4xl mx-auto">
-                            {/* Thought Block (If visible inline) */}
+                            {/* Thought Block (If visible inline and modal is closed) */}
                             {thoughtBuffer && !isThinkingOpen && (
                                 <div className="mb-6 border-l-2 border-indigo-500 pl-4 py-2 text-indigo-300/70 text-xs">
                                     <div className="font-bold mb-1 uppercase tracking-wider flex items-center gap-2">
-                                        <BrainIcon className="w-3 h-3"/> Thought Process
+                                        <BrainIcon className="w-3 h-3"/> Thought Process (Collapsed)
                                     </div>
-                                    <div className="whitespace-pre-wrap break-all line-clamp-6 hover:line-clamp-none transition-all cursor-pointer">
+                                    <div className="whitespace-pre-wrap break-all line-clamp-3 hover:line-clamp-none transition-all cursor-pointer">
                                         {thoughtBuffer}
                                     </div>
                                 </div>
@@ -252,13 +249,13 @@ export const AgentWorkstation: React.FC<AgentWorkstationProps> = ({ scenario, in
                 {view === 'result' && (
                     <div className="h-full flex flex-col">
                         <div className="flex-1 bg-slate-200 p-4 md:p-8 overflow-auto flex justify-center custom-scrollbar">
-                            {finalHtml.includes('<html') || finalHtml.includes('<!DOCTYPE') ? (
-                                <div className="w-full max-w-[210mm] min-h-[297mm] bg-white shadow-2xl">
+                            {finalHtml.trim().startsWith('<') ? (
+                                <div className="w-full max-w-[210mm] bg-white shadow-2xl min-h-[1000px]">
                                     <iframe 
                                         srcDoc={finalHtml} 
                                         className="w-full h-full min-h-[1200px] border-none"
                                         title="Result"
-                                        sandbox="allow-scripts"
+                                        sandbox="allow-scripts allow-same-origin"
                                     />
                                 </div>
                             ) : (

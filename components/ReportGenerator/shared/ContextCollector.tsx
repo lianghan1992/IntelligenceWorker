@@ -1,88 +1,61 @@
 
-import React, { useState, useRef } from 'react';
-import { 
-    BrainIcon, DocumentTextIcon, PuzzleIcon, SparklesIcon, 
-    TrashIcon, PlusIcon, ArrowRightIcon 
-} from '../../icons';
-import { VectorSearchModal } from '../ui/VectorSearchModal';
-import { uploadStratifyFile } from '../../../api/stratify';
+import React, { useState } from 'react';
+import { SparklesIcon, DocumentTextIcon } from '../../icons';
 
-export const ContextCollector: React.FC<{
-    onStart: (idea: string, context: any) => void;
+interface ContextCollectorProps {
+    onStart: (input: string, context?: any) => void;
     isProcessing: boolean;
-}> = ({ onStart, isProcessing }) => {
-    const [idea, setIdea] = useState('');
-    const [files, setFiles] = useState<Array<{ name: string; url: string; type: string }>>([]);
-    const [snippets, setSnippets] = useState<Array<{ title: string; content: string }>>([]);
-    
-    const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+}
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setIsUploading(true);
-        try {
-            const res = await uploadStratifyFile(file);
-            setFiles(prev => [...prev, { name: res.filename, url: res.url, type: res.type }]);
-        } catch (e) {
-            alert('上传失败');
-        } finally {
-            setIsUploading(false);
-        }
-    };
+export const ContextCollector: React.FC<ContextCollectorProps> = ({ onStart, isProcessing }) => {
+    const [input, setInput] = useState('');
 
-    const handleAddSnippet = (s: { title: string; content: string }) => {
-        setSnippets(prev => [...prev, s]);
+    const handleSubmit = () => {
+        if (!input.trim() || isProcessing) return;
+        onStart(input, {});
     };
 
     return (
-        <div className="flex-1 flex flex-col items-center p-8 md:p-16 overflow-y-auto custom-scrollbar">
-            <div className="max-w-4xl w-full space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                <header className="text-center space-y-4">
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">收集报告上下文</h2>
-                    <p className="text-slate-500 font-medium">输入核心想法，并关联参考资料（文件或情报库片段）以增强 AI 的分析深度。</p>
-                </header>
+        <div className="flex flex-col items-center justify-center h-full p-6 animate-in fade-in duration-500">
+            <div className="w-full max-w-2xl">
+                <div className="text-center mb-10">
+                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center shadow-lg shadow-indigo-200 mb-6">
+                        <SparklesIcon className="w-8 h-8 text-white" />
+                    </div>
+                    <h2 className="text-3xl font-extrabold text-slate-900 mb-3">
+                        开始您的 AI 分析任务
+                    </h2>
+                    <p className="text-slate-500 text-lg">
+                        请输入您的研究主题或指令，AI 将自动执行后续流程。
+                    </p>
+                </div>
 
-                <div className="bg-white rounded-[32px] border-2 border-slate-100 shadow-2xl shadow-slate-200/50 p-2 focus-within:border-indigo-500 transition-all">
-                    <textarea 
-                        value={idea}
-                        onChange={e => setIdea(e.target.value)}
-                        placeholder="在此描述您的报告需求..."
-                        className="w-full h-48 p-6 text-lg border-none focus:ring-0 outline-none resize-none text-slate-800"
+                <div className="bg-white p-2 rounded-[24px] shadow-2xl shadow-indigo-100/50 border border-slate-200">
+                    <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder="在此输入分析主题，例如：'分析 2024 年中国新能源汽车出海趋势'..."
+                        className="w-full h-40 p-6 text-lg bg-transparent border-none outline-none resize-none placeholder:text-slate-300 text-slate-700"
+                        disabled={isProcessing}
                     />
-
-                    {(files.length > 0 || snippets.length > 0) && (
-                        <div className="px-6 py-4 bg-slate-50 rounded-2xl mx-2 mb-2 flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                            {files.map((f, i) => (
-                                <div key={i} className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 group">
-                                    <DocumentTextIcon className="w-4 h-4 text-blue-500" />
-                                    <span className="max-w-[120px] truncate">{f.name}</span>
-                                    <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-3 h-3"/></button>
-                                </div>
-                            ))}
-                            {snippets.map((s, i) => (
-                                <div key={i} className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 group">
-                                    <PuzzleIcon className="w-4 h-4 text-emerald-500" />
-                                    <span className="max-w-[120px] truncate">{s.title}</span>
-                                    <button onClick={() => setSnippets(prev => prev.filter((_, idx) => idx !== i))} className="text-slate-300 hover:text-red-500"><TrashIcon className="w-3 h-3"/></button>
-                                </div>
-                            ))}
+                    <div className="flex justify-between items-center px-4 pb-4 pt-2 border-t border-slate-100">
+                        <div className="flex gap-2">
+                            {/* Future: Add file upload here */}
+                            <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors" title="添加参考文档 (Coming Soon)">
+                                <DocumentTextIcon className="w-5 h-5" />
+                            </button>
                         </div>
-                    )}
-
-                    <div className="flex items-center justify-between p-3 bg-white rounded-2xl">
-                        <div className="flex items-center gap-2">
-                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.doc,.docx,.txt,.md,.png,.jpg,.jpeg,.csv" />
-                            <button onClick={() => fileInputRef.current?.click()} className="p-3 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" title="上传本地文档"><DocumentTextIcon className="w-6 h-6" /></button>
-                            <button onClick={() => setIsVectorModalOpen(true)} className="p-3 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all" title="检索情报库片段"><PuzzleIcon className="w-6 h-6" /></button>
-                        </div>
-                        <button onClick={() => onStart(idea, { files, vector_snippets: snippets })} disabled={!idea.trim() || isProcessing || isUploading} className="px-10 py-3.5 bg-slate-900 text-white font-bold rounded-2xl shadow-xl hover:bg-indigo-600 transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95">{isProcessing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <BrainIcon className="w-5 h-5" />}立即构思</button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={!input.trim() || isProcessing}
+                            className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-indigo-600 transition-all shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {isProcessing ? '启动中...' : '开始生成'}
+                            {!isProcessing && <SparklesIcon className="w-4 h-4" />}
+                        </button>
                     </div>
                 </div>
             </div>
-            <VectorSearchModal isOpen={isVectorModalOpen} onClose={() => setIsVectorModalOpen(false)} onAddSnippet={handleAddSnippet} />
         </div>
     );
 };

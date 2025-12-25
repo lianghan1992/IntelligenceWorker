@@ -1,15 +1,16 @@
 
+import { StratifyTask, StratifyScenario } from '../../types';
+
+export type AgentViewMode = 'picker' | 'workstation';
+
 export interface AgentState {
     status: 'idle' | 'input' | 'processing' | 'completed' | 'failed';
-    currentPhase?: string;
-    progress?: number;
-    streamContent?: string;
-    thoughtContent?: string;
-    result?: any;
+    streamContent: string;
+    thoughtContent: string;
+    resultHtml?: string;
 }
 
-export interface ContextData {
-    files: Array<{ name: string; url: string; type: string }>;
-    vector_snippets: Array<{ title: string; content: string }>;
-    url_content: Array<{ title: string; url: string; content: string }>;
+export interface ScenarioCardProps {
+    scenario: StratifyScenario;
+    onClick: () => void;
 }
