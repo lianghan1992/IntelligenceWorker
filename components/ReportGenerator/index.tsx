@@ -5,8 +5,13 @@ import { getScenarios } from '../../api/stratify';
 import { ScenarioSelector } from './ScenarioSelector';
 import { SparklesIcon } from '../icons';
 
+// Import Specific Scenarios
+// 注意：这里使用相对路径导入刚创建的子组件
+import { ScenarioWorkstation as ScenarioWorkstation_5e99 } from './5e99897c-6d91-4c72-88e5-653ea162e52b/index';
+
 export const ReportGenerator: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
+    const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -28,10 +33,11 @@ export const ReportGenerator: React.FC = () => {
     }, []);
 
     const handleScenarioSelect = (scenario: StratifyScenario) => {
-        // TODO: 根据 scenario.name 或 id 路由到具体的子文件夹/组件
-        // 目前仅做占位提示
-        console.log("Selected scenario:", scenario);
-        alert(`即将进入场景：${scenario.title}\n(独立场景页面开发中)`);
+        setSelectedScenario(scenario);
+    };
+
+    const handleBack = () => {
+        setSelectedScenario(null);
     };
 
     if (isLoading) {
@@ -56,6 +62,26 @@ export const ReportGenerator: React.FC = () => {
                 >
                     重试
                 </button>
+            </div>
+        );
+    }
+
+    // --- Routing Logic ---
+    if (selectedScenario) {
+        // 特定场景路由
+        if (selectedScenario.id === '5e99897c-6d91-4c72-88e5-653ea162e52b') {
+            return <ScenarioWorkstation_5e99 scenario={selectedScenario} onBack={handleBack} />;
+        }
+
+        // TODO: 其他场景的路由逻辑
+        // 暂时回退到 alert 或通用占位
+        return (
+            <div className="h-full flex flex-col items-center justify-center bg-slate-50">
+                <div className="bg-white p-8 rounded-2xl shadow-sm text-center">
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">场景开发中</h2>
+                    <p className="text-slate-500 mb-6">ID: {selectedScenario.id}</p>
+                    <button onClick={handleBack} className="px-4 py-2 bg-indigo-600 text-white rounded-lg">返回</button>
+                </div>
             </div>
         );
     }
