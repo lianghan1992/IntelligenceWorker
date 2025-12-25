@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StratifyScenario } from '../../types';
-import { SparklesIcon, ArrowRightIcon, DocumentTextIcon, ChartIcon, BrainIcon } from '../../icons';
+import { SparklesIcon, ArrowRightIcon, DocumentTextIcon, ChartIcon, BrainIcon } from '../icons';
 
 interface ScenarioSelectorProps {
     scenarios: StratifyScenario[];
