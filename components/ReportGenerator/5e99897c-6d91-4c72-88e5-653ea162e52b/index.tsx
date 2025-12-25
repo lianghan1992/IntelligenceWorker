@@ -6,7 +6,6 @@ import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
 import { streamGenerate } from '../../../api/stratify';
-import { v4 as uuidv4 } from 'uuid';
 
 interface SpecificScenarioProps {
     scenario: StratifyScenario;
@@ -16,6 +15,9 @@ interface SpecificScenarioProps {
 // PROMPT IDs (Hardcoded as per requirement)
 const PROMPT_ID_ANALYSIS = "e9899016-7cb2-45b5-8ae1-0bda9b76fc43"; // Prompt 1
 const PROMPT_ID_VISUAL = "75635cb9-6c5e-487c-a991-30f1ca046249";   // Prompt 2
+
+// Native UUID generator
+const uuidv4 = () => crypto.randomUUID();
 
 export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario, onBack }) => {
     const [state, setState] = useState<ScenarioState>({

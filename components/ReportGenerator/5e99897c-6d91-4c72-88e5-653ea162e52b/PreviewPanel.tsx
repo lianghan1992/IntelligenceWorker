@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { WorkStage } from './types';
 import { DocumentTextIcon, ViewGridIcon, DownloadIcon } from '../../icons';
-import { generatePdf } from '../../../../api/stratify'; // Re-use existing PDF gen
+import { generatePdf } from '../../../api/stratify'; // Re-use existing PDF gen
 
 interface PreviewPanelProps {
     stage: WorkStage;
