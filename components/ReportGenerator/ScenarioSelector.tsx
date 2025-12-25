@@ -20,15 +20,26 @@ const AnimatedBackground = () => (
 
 export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, onSelect }) => {
     
-    // 根据场景名称或ID分配不同的视觉风格
-    const getCardStyle = (index: number) => {
-        const styles = [
-            'from-indigo-500 to-purple-600 shadow-indigo-200',
-            'from-blue-500 to-cyan-600 shadow-blue-200',
-            'from-emerald-500 to-teal-600 shadow-emerald-200',
-            'from-orange-500 to-pink-600 shadow-orange-200',
+    // 获取渐变色配置
+    const getGradient = (index: number) => {
+        const gradients = [
+            'from-indigo-500 to-purple-600',
+            'from-blue-500 to-cyan-600',
+            'from-emerald-500 to-teal-600',
+            'from-orange-500 to-pink-600',
         ];
-        return styles[index % styles.length];
+        return gradients[index % gradients.length];
+    };
+
+    // 获取图标颜色
+    const getIconColor = (index: number) => {
+        const colors = [
+            'text-indigo-600',
+            'text-blue-600',
+            'text-emerald-600',
+            'text-orange-600',
+        ];
+        return colors[index % colors.length];
     };
 
     return (
@@ -53,54 +64,52 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, o
                 </div>
 
                 {/* Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
                     {scenarios.map((scenario, idx) => {
-                        const gradient = getCardStyle(idx);
+                        const gradient = getGradient(idx);
+                        const iconColor = getIconColor(idx);
                         
                         return (
                             <div 
                                 key={scenario.id}
                                 onClick={() => onSelect(scenario)}
-                                className="group relative h-72 rounded-[32px] bg-white border border-slate-200 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer overflow-hidden isolate"
+                                className="group relative bg-white rounded-2xl border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-full min-h-[260px]"
                                 style={{ animationDelay: `${idx * 100}ms` }}
                             >
-                                {/* Hover Gradient Background */}
-                                <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500 z-0`}></div>
+                                {/* Subtle Gradient Background on Hover */}
+                                <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`}></div>
                                 
-                                {/* Decorative Circle */}
-                                <div className={`absolute -right-10 -top-10 w-40 h-40 bg-gradient-to-br ${gradient} rounded-full opacity-10 group-hover:scale-150 transition-transform duration-700 ease-out blur-2xl`}></div>
-
-                                <div className="relative z-10 h-full flex flex-col p-8">
-                                    {/* Icon Box */}
-                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                                        {idx % 3 === 0 ? <DocumentTextIcon className="w-7 h-7" /> : 
-                                         idx % 3 === 1 ? <ChartIcon className="w-7 h-7" /> : 
-                                         <BrainIcon className="w-7 h-7" />}
+                                {/* Top Row: Icon & Arrow */}
+                                <div className="flex justify-between items-start mb-6 relative z-10">
+                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${gradient} p-[1px] shadow-sm group-hover:shadow-md transition-shadow duration-300`}>
+                                        <div className="w-full h-full bg-white rounded-2xl flex items-center justify-center">
+                                            {idx % 3 === 0 ? <DocumentTextIcon className={`w-7 h-7 ${iconColor}`} /> : 
+                                             idx % 3 === 1 ? <ChartIcon className={`w-7 h-7 ${iconColor}`} /> : 
+                                             <BrainIcon className={`w-7 h-7 ${iconColor}`} />}
+                                        </div>
                                     </div>
 
-                                    <h3 className="text-2xl font-bold text-slate-900 mb-3 group-hover:text-indigo-700 transition-colors">
+                                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-slate-300 group-hover:bg-slate-50 group-hover:text-slate-900 transition-all duration-300">
+                                        <ArrowRightIcon className="w-5 h-5 transform -rotate-45 group-hover:rotate-0 transition-transform duration-300" />
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="relative z-10 flex-1 flex flex-col">
+                                    <h3 className="text-xl font-extrabold text-slate-800 mb-3 group-hover:text-indigo-600 transition-colors">
                                         {scenario.title || scenario.name}
                                     </h3>
                                     
                                     <p className="text-slate-500 text-sm leading-relaxed line-clamp-3">
                                         {scenario.description || '该场景包含自动化分析流程，可快速生成专业报告。'}
                                     </p>
-
-                                    <div className="mt-auto flex items-center justify-between pt-6 border-t border-slate-100 group-hover:border-slate-200/0 transition-colors">
-                                        <span className="text-xs font-mono text-slate-400 uppercase tracking-widest group-hover:text-indigo-600 transition-colors">
-                                            {scenario.model_id ? `${scenario.channel_code}@${scenario.model_id}` : 'Auto Model'}
-                                        </span>
-                                        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                                            <ArrowRightIcon className="w-5 h-5 -ml-0.5 group-hover:translate-x-0.5 transition-transform" />
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         );
                     })}
 
                     {scenarios.length === 0 && (
-                        <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-[32px] bg-white/50">
+                        <div className="col-span-full py-20 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-white/50">
                             <DocumentTextIcon className="w-16 h-16 opacity-20 mb-4" />
                             <p>暂无可用场景，请联系管理员在后台配置。</p>
                         </div>
