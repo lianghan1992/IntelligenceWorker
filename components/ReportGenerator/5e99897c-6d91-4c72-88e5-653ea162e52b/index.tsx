@@ -22,14 +22,11 @@ const generateId = () => crypto.randomUUID();
 // Helper to strip markdown code fences if the model wraps the whole response
 const stripMarkdownFences = (content: string) => {
     let clean = content.trim();
-    // Check if it starts with ```markdown (case insensitive)
     if (/^```markdown/i.test(clean)) {
         clean = clean.replace(/^```markdown/i, '').trim();
     } else if (clean.startsWith('```')) {
          clean = clean.replace(/^```/, '').trim();
     }
-    
-    // Remove trailing ```
     if (clean.endsWith('```')) {
         clean = clean.slice(0, -3).trim();
     }
@@ -49,7 +46,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     const [modelString, setModelString] = useState<string>('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-    // Initialize Model String from Scenario Config
     useEffect(() => {
         if (scenario.channel_code && scenario.model_id) {
             const prefix = `${scenario.channel_code}@`;
@@ -76,7 +72,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         }));
     };
 
-    // Update to handle both content and reasoning
     const updateLastAssistantMessage = (content: string, reasoning?: string) => {
         setState(prev => {
             const newMessages = [...prev.messages];
@@ -126,9 +121,31 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             const prompt = await getPromptDetail(PROMPT_ID_ANALYSIS);
             const systemPrompt = prompt.content;
 
+            // Strategy: Inject Current State
+            // 如果已经有 analysisContent，说明是修改/追问。必须把当前完整内容带上，并要求输出完整内容。
+            let userPromptContent = "";
+            if (!state.analysisContent) {
+                // 第一次生成
+                userPromptContent = `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}`;
+            } else {
+                // 修改/迭代
+                userPromptContent = `
+【当前完整报告内容 (Markdown)】:
+${state.analysisContent}
+
+【用户修改/补充指令】:
+${input}
+
+【重要系统指令】:
+请根据用户的指令修改上述报告。
+务必输出修改后的**完整** Markdown 内容，严禁只输出修改片段或使用省略号。
+请保持报告的完整结构。
+`;
+            }
+
             const messages = [
                 { role: 'system', content: systemPrompt },
-                { role: 'user', content: `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}。${state.analysisContent ? `\n基于已有分析继续完善:\n${state.analysisContent}` : ''}` }
+                { role: 'user', content: userPromptContent }
             ];
 
             await streamChatCompletions(
@@ -140,8 +157,8 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 (data) => {
                    if (data.content) {
                        accumulatedText += data.content;
-                       // Real-time stripping for preview might be jumpy, but we can do it
-                       // Better: Store raw accumulation, but clean it when setting analysisContent
+                       // Real-time update state for preview (optional, can be heavy)
+                       // Better to update state only at end or throttled, but for now we update per chunk for responsiveness
                        const cleanText = stripMarkdownFences(accumulatedText);
                        setState(prev => ({ ...prev, analysisContent: cleanText }));
                    }
@@ -151,10 +168,8 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                    updateLastAssistantMessage(accumulatedText || "正在生成分析报告...", accumulatedReasoning);
                 },
                 () => {
-                    // Final cleanup ensuring state is consistent
                     const cleanText = stripMarkdownFences(accumulatedText);
                     setState(prev => ({ ...prev, analysisContent: cleanText, isStreaming: false }));
-                    // Update chat bubble to reflect completed text (optional, usually raw is fine there)
                     updateLastAssistantMessage(accumulatedText, accumulatedReasoning);
                 },
                 (err) => {
@@ -188,9 +203,28 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             const prompt = await getPromptDetail(PROMPT_ID_VISUAL);
             const systemPrompt = prompt.content;
 
+            // Strategy: Inject Current Code State if exists
+            let userPromptContent = "";
+            if (!state.visualCode) {
+                 userPromptContent = `【分析报告内容】\n${state.analysisContent}\n\n【用户指令】\n${input}`;
+            } else {
+                 userPromptContent = `
+【当前完整 HTML 代码】:
+${state.visualCode}
+
+【用户修改指令】:
+${input}
+
+【重要系统指令】:
+请根据指令修改代码。
+务必输出修改后的**完整** HTML 代码，严禁只输出修改片段或使用省略号。
+确保包含完整的 <html>, <head>, <body> 结构。
+`;
+            }
+
             const messages = [
                 { role: 'system', content: systemPrompt },
-                { role: 'user', content: `【分析报告内容】\n${state.analysisContent}\n\n【用户指令】\n${input}` }
+                { role: 'user', content: userPromptContent }
             ];
 
             await streamChatCompletions(
@@ -201,10 +235,8 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 },
                 (data) => {
                     if (data.content) {
-                        let text = data.content;
-                        // Clean code blocks logic moved to accumulator
-                        accumulatedCode += text;
-                        // Strip fences for preview iframe
+                        accumulatedCode += data.content;
+                        // Strip fences logic
                         let cleanCode = accumulatedCode;
                         if (cleanCode.includes('```html')) {
                              cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
@@ -216,9 +248,8 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                     if (data.reasoning) {
                         accumulatedReasoning += data.reasoning;
                     }
-                    // For visual phase, we might display reasoning in chat but keep code separate
                     updateLastAssistantMessage(
-                        accumulatedCode ? "正在构建视觉代码..." : "正在设计视觉结构...", 
+                        accumulatedCode ? accumulatedCode : "正在设计视觉结构...", 
                         accumulatedReasoning
                     );
                 },
@@ -230,7 +261,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                          finalCleanCode = finalCleanCode.replace(/```/g, '');
                     }
                     setState(prev => ({ ...prev, visualCode: finalCleanCode, isStreaming: false }));
-                    updateLastAssistantMessage('视觉看板构建完成。您可以点击“打开预览”查看效果，或继续对话微调。', accumulatedReasoning);
+                    updateLastAssistantMessage(accumulatedCode, accumulatedReasoning); // Show full code in chat (ChatPanel handles collapsing)
                 },
                 (err) => {
                     console.error(err);
