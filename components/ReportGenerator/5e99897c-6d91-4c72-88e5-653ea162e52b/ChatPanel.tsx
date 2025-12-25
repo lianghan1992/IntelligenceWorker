@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, WorkStage } from './types';
-import { SparklesIcon, ArrowRightIcon, RefreshIcon, CloudIcon, PuzzleIcon, PhotoIcon, CloseIcon, DocumentTextIcon, CheckIcon } from '../../icons';
+import { SparklesIcon, ArrowRightIcon, RefreshIcon, CloudIcon, PuzzleIcon, PhotoIcon, CloseIcon, DocumentTextIcon, CheckIcon, ViewGridIcon } from '../../icons';
 import { KnowledgeSearchModal } from './KnowledgeSearchModal';
 
 interface ChatPanelProps {
@@ -11,6 +11,7 @@ interface ChatPanelProps {
     isStreaming: boolean;
     onSwitchToVisual: () => void;
     canSwitchToVisual: boolean;
+    onPreview: () => void; // 新增：打开预览的回调
 }
 
 interface Attachment {
@@ -36,7 +37,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onSendMessage, 
     isStreaming, 
     onSwitchToVisual,
-    canSwitchToVisual
+    canSwitchToVisual,
+    onPreview
 }) => {
     const [input, setInput] = useState('');
     const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -211,9 +213,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return (
         <div className="flex flex-col h-full bg-white relative">
             {/* Header */}
-            <div className="px-6 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 backdrop-blur-sm z-10">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white/90 backdrop-blur-sm z-10 sticky top-0">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isStreaming ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${isStreaming ? 'bg-green-500 animate-pulse' : 'bg-green-500'}`}></div>
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                         {isStreaming ? 'AI Thinking...' : 'Ready'}
                     </span>
@@ -222,41 +224,53 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     <button 
                         onClick={onSwitchToVisual}
                         disabled={isStreaming}
-                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg font-bold transition-all shadow-sm flex items-center gap-1 animate-in fade-in zoom-in"
+                        className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition-all shadow-md shadow-indigo-200 flex items-center gap-1.5 animate-in fade-in zoom-in"
                     >
-                        <SparklesIcon className="w-3 h-3" /> 生成看板
+                        <SparklesIcon className="w-3.5 h-3.5" /> 生成看板
                     </button>
                 )}
             </div>
 
             {/* Message List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-white" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-8 custom-scrollbar bg-white" ref={scrollRef}>
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm px-8 pb-20">
-                        <div className="w-16 h-16 bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-500 rounded-3xl flex items-center justify-center mb-6 shadow-inner">
-                            <SparklesIcon className="w-8 h-8" />
+                        <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-500 rounded-[2rem] flex items-center justify-center mb-8 shadow-inner ring-1 ring-indigo-50">
+                            <SparklesIcon className="w-10 h-10" />
                         </div>
-                        <p className="font-bold text-slate-700 text-lg mb-2">新技术四象限分析</p>
-                        <p className="text-center leading-relaxed text-slate-500">
+                        <p className="font-bold text-slate-700 text-xl mb-3">新技术四象限分析</p>
+                        <p className="text-center leading-relaxed text-slate-500 max-w-md">
                             请输入您想分析的技术名称（如“固态电池”、“端到端大模型”）。<br/>
-                            支持上传图片或文本资料作为上下文。
+                            AI 将为您深度剖析技术原理、商业价值与竞争格局。
                         </p>
                     </div>
                 )}
                 
                 {messages.map((msg) => (
-                    <div key={msg.id} className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-slate-100' : 'bg-indigo-100 text-indigo-600'}`}>
-                            {msg.role === 'user' ? <div className="w-4 h-4 bg-slate-400 rounded-full" /> : <SparklesIcon className="w-4 h-4" />}
+                    <div key={msg.id} className={`flex gap-4 animate-in fade-in slide-in-from-bottom-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-slate-100' : 'bg-indigo-100 text-indigo-600 ring-4 ring-indigo-50'}`}>
+                            {msg.role === 'user' ? <div className="w-5 h-5 bg-slate-400 rounded-full" /> : <SparklesIcon className="w-5 h-5" />}
                         </div>
-                        <div className={`max-w-[85%] rounded-2xl p-3.5 text-sm leading-relaxed shadow-sm overflow-hidden ${
+                        <div className={`max-w-[85%] rounded-2xl p-5 text-sm leading-relaxed shadow-sm overflow-hidden ${
                             msg.role === 'user' 
                                 ? 'bg-slate-800 text-white rounded-tr-sm' 
-                                : 'bg-white border border-slate-100 text-slate-700 rounded-tl-sm'
+                                : 'bg-white border border-slate-100 text-slate-700 rounded-tl-sm shadow-md'
                         }`}>
-                            {/* Simple rendering for chat bubbles. Actual content rendering (markdown) happens in parent or separate component if needed, keeping it simple here for performance */}
                             <div className="whitespace-pre-wrap break-words">{msg.content.substring(0, 500) + (msg.content.length > 500 ? '...' : '') || <span className="animate-pulse">...</span>}</div>
-                            {msg.content.length > 500 && <div className="text-[10px] opacity-50 mt-1 italic">(内容过长，仅展示摘要)</div>}
+                            {msg.content.length > 500 && <div className="text-[10px] opacity-50 mt-2 italic">(内容过长，仅展示摘要)</div>}
+                            
+                            {/* Action Bar for Assistant Messages (Completed) */}
+                            {msg.role === 'assistant' && !isStreaming && msg.content.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+                                     <button 
+                                        onClick={onPreview}
+                                        className="text-xs flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-bold bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors"
+                                     >
+                                        <ViewGridIcon className="w-4 h-4" />
+                                        {stage === 'analysis' ? '预览报告' : '查看看板'}
+                                     </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -308,7 +322,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             )}
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-slate-100 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.02)] z-10">
+            <div className="p-4 md:p-6 bg-white border-t border-slate-100 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.05)] z-20">
                 {/* Toolbar */}
                 <div className="flex items-center gap-2 mb-3 px-1">
                     <input type="file" ref={fileInputRef} onChange={(e) => handleFileUpload(e)} className="hidden" accept=".txt,.md,.csv,.json" />
@@ -349,15 +363,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={stage === 'analysis' ? "输入技术名称，开始分析..." : "描述修改要求，如 '换成深色科技风'..."}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-24 custom-scrollbar transition-shadow shadow-inner focus:bg-white placeholder:text-slate-400"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-4 pr-14 py-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-28 custom-scrollbar transition-shadow shadow-inner focus:bg-white placeholder:text-slate-400"
                         disabled={isStreaming}
                     />
                     <button 
                         onClick={handleSend}
                         disabled={(!input.trim() && attachments.length === 0 && knowledgeCitations.length === 0) || isStreaming}
-                        className="absolute right-3 bottom-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300 transition-all shadow-md active:scale-95"
+                        className="absolute right-3 bottom-3 p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300 transition-all shadow-md active:scale-95"
                     >
-                        {isStreaming ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <ArrowRightIcon className="w-4 h-4" />}
+                        {isStreaming ? <RefreshIcon className="w-5 h-5 animate-spin" /> : <ArrowRightIcon className="w-5 h-5" />}
                     </button>
                 </div>
             </div>

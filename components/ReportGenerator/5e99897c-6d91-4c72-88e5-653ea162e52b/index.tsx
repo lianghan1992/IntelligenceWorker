@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { StratifyScenario } from '../../../types';
-import { ArrowLeftIcon, SparklesIcon } from '../../icons';
+import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon } from '../../icons';
 import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
@@ -30,6 +30,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     });
 
     const [modelString, setModelString] = useState<string>('');
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // Initialize Model String from Scenario Config
     useEffect(() => {
@@ -126,7 +127,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 },
                 () => {
                     setState(prev => ({ ...prev, isStreaming: false }));
-                    updateLastAssistantMessage('分析完成。您可以继续对话修改，或点击上方“生成看板”。');
+                    updateLastAssistantMessage('分析完成。您可以继续对话修改，或点击上方“打开预览”查看全文。');
                 },
                 (err) => {
                     console.error(err);
@@ -186,7 +187,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 },
                 () => {
                     setState(prev => ({ ...prev, isStreaming: false }));
-                    updateLastAssistantMessage('视觉看板构建完成。您可以在左侧继续输入指令调整样式。');
+                    updateLastAssistantMessage('视觉看板构建完成。您可以点击“打开预览”查看效果，或继续对话微调。');
                 },
                 (err) => {
                     console.error(err);
@@ -201,9 +202,9 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     };
 
     return (
-        <div className="flex flex-col h-full bg-white relative overflow-hidden">
+        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
             {/* Header */}
-            <header className="flex-shrink-0 px-6 py-3 border-b border-slate-200 bg-white flex items-center justify-between z-20 shadow-sm">
+            <header className="flex-shrink-0 px-6 py-3 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0">
                 <div className="flex items-center gap-4">
                     <button 
                         onClick={onBack}
@@ -219,18 +220,31 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                     </div>
                 </div>
                 
-                <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'analysis' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
-                        1. 深度分析
+                <div className="flex items-center gap-4">
+                    <div className="hidden md:flex bg-slate-100 p-1 rounded-lg">
+                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'analysis' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                            1. 深度分析
+                        </div>
+                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                            2. 视觉看板
+                        </div>
                     </div>
-                    <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
-                        2. 视觉看板
-                    </div>
+                    
+                    {/* Preview Button */}
+                    <button 
+                        onClick={() => setIsPreviewOpen(true)}
+                        disabled={!state.analysisContent}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {state.stage === 'analysis' ? <DocumentTextIcon className="w-4 h-4"/> : <ViewGridIcon className="w-4 h-4"/>}
+                        <span className="hidden sm:inline">打开预览</span>
+                    </button>
                 </div>
             </header>
 
-            <div className="flex-1 flex overflow-hidden">
-                <div className="w-[400px] flex-shrink-0 flex flex-col z-10 shadow-xl border-r border-slate-200">
+            {/* Main Content - Centered Single Column */}
+            <div className="flex-1 overflow-hidden w-full">
+                <div className="h-full max-w-5xl mx-auto bg-white shadow-xl border-x border-slate-100 flex flex-col relative">
                     <ChatPanel 
                         messages={state.messages}
                         stage={state.stage}
@@ -238,17 +252,31 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                         isStreaming={state.isStreaming}
                         onSwitchToVisual={handleSwitchToVisual}
                         canSwitchToVisual={!!state.analysisContent}
-                    />
-                </div>
-
-                <div className="flex-1 min-w-0 bg-slate-50 relative">
-                    <PreviewPanel 
-                        stage={state.stage}
-                        markdownContent={state.analysisContent}
-                        htmlCode={state.visualCode}
+                        onPreview={() => setIsPreviewOpen(true)}
                     />
                 </div>
             </div>
+
+            {/* Preview Modal (Full Screen) */}
+            {isPreviewOpen && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white w-[95vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 border border-white/20">
+                        {/* Close Button */}
+                        <button 
+                            onClick={() => setIsPreviewOpen(false)}
+                            className="absolute top-4 left-4 z-50 p-2 bg-white/90 backdrop-blur rounded-full text-slate-500 hover:text-slate-900 shadow-sm border border-slate-200 transition-all hover:scale-110"
+                        >
+                            <CloseIcon className="w-6 h-6" />
+                        </button>
+                        
+                        <PreviewPanel 
+                            stage={state.stage}
+                            markdownContent={state.analysisContent}
+                            htmlCode={state.visualCode}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
