@@ -12,13 +12,13 @@ const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2
 interface ScenarioEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }) => Promise<void>;
-    initialData?: { name: string; title: string; description: string; default_model?: string; workflow_config?: any };
+    onSave: (data: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }) => Promise<void>;
+    initialData?: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any };
     isEditing: boolean;
 }
 
 const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, isEditing }) => {
-    const [form, setForm] = useState({ name: '', title: '', description: '', default_model: '' });
+    const [form, setForm] = useState({ name: '', title: '', description: '' });
     const [workflowConfig, setWorkflowConfig] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
     
@@ -32,27 +32,14 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
             setForm({
                 name: initialData?.name || '',
                 title: initialData?.title || '',
-                description: initialData?.description || '',
-                default_model: initialData?.default_model || ''
+                description: initialData?.description || ''
             });
             // Ensure we have a valid object structure or null, defaulting to structure if empty
             setWorkflowConfig(initialData?.workflow_config || { variables: [], steps: [] });
             
-            // Parse default model if exists (format: channel@model)
-            if (initialData?.default_model) {
-                const parts = initialData.default_model.split('@');
-                if (parts.length === 2) {
-                    setSelectedChannelCode(parts[0]);
-                    setSelectedModelId(parts[1]);
-                } else {
-                    // Fallback or legacy format
-                    setSelectedChannelCode('');
-                    setSelectedModelId(initialData.default_model);
-                }
-            } else {
-                setSelectedChannelCode('');
-                setSelectedModelId('');
-            }
+            // Set channel and model from initial data
+            setSelectedChannelCode(initialData?.channel_code || '');
+            setSelectedModelId(initialData?.model_id || '');
 
             // Fetch Channels
             getChannels().then(setChannels).catch(console.error);
@@ -70,20 +57,11 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         if (!form.name || !form.title) return;
         setIsSaving(true);
         
-        // Construct default_model string
-        let finalModelString = form.default_model;
-        if (selectedChannelCode && selectedModelId) {
-            finalModelString = `${selectedChannelCode}@${selectedModelId}`;
-        } else if (selectedModelId) {
-             finalModelString = selectedModelId; // Legacy support or raw input
-        } else {
-             finalModelString = '';
-        }
-
         try {
             await onSave({
                 ...form,
-                default_model: finalModelString || undefined,
+                channel_code: selectedChannelCode || undefined,
+                model_id: selectedModelId || undefined,
                 workflow_config: workflowConfig
             });
             onClose();
@@ -111,37 +89,37 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                 
                 <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                     {/* Left: Basic Info */}
-                    <div className="w-full md:w-1/4 p-6 space-y-5 overflow-y-auto custom-scrollbar border-r border-slate-100 bg-white">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">基础信息</h4>
+                    <div className="w-full md:w-1/4 p-6 space-y-6 overflow-y-auto custom-scrollbar border-r border-slate-100 bg-white">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">基础信息</h4>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">唯一标识 (ID)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5">唯一标识 (ID)</label>
                             <input 
                                 value={form.name} 
                                 onChange={e => setForm({...form, name: e.target.value})}
                                 disabled={isEditing} 
-                                className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
+                                className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow ${isEditing ? 'cursor-not-allowed opacity-70' : ''}`}
                                 placeholder="e.g. market_insight"
                             />
                             {!isEditing && <p className="text-[10px] text-slate-400 mt-1">创建后不可修改。</p>}
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">显示标题</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5">显示标题</label>
                             <input 
                                 value={form.title} 
                                 onChange={e => setForm({...form, title: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
                                 placeholder="e.g. 深度市场洞察"
                             />
                         </div>
                         
                         {/* Model Selection Group */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 mb-1">
-                                <LightningBoltIcon className="w-3.5 h-3.5" /> 默认模型配置
+                        <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-4">
+                            <div className="flex items-center gap-2 text-xs font-bold text-indigo-700">
+                                <LightningBoltIcon className="w-3.5 h-3.5" /> 默认执行模型
                             </div>
                             
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1">选择渠道 (Channel)</label>
+                                <label className="block text-[10px] font-bold text-indigo-400 mb-1 uppercase">选择渠道 (Channel)</label>
                                 <div className="relative">
                                     <ServerIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                     <select 
@@ -150,9 +128,9 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                                             setSelectedChannelCode(e.target.value);
                                             setSelectedModelId(''); // Reset model when channel changes
                                         }}
-                                        className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-1.5 text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-none appearance-none"
+                                        className="w-full bg-white border border-indigo-200 rounded-lg pl-8 pr-2 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
                                     >
-                                        <option value="">-- 选择渠道 --</option>
+                                        <option value="">-- 请选择渠道 --</option>
                                         {channels.map(c => (
                                             <option key={c.id} value={c.channel_code}>{c.name} ({c.channel_code})</option>
                                         ))}
@@ -161,14 +139,14 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-400 mb-1">选择模型 (Model)</label>
+                                <label className="block text-[10px] font-bold text-indigo-400 mb-1 uppercase">选择模型 (Model)</label>
                                 <select 
                                     value={selectedModelId}
                                     onChange={e => setSelectedModelId(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
                                     disabled={!selectedChannelCode}
                                 >
-                                    <option value="">{selectedChannelCode ? '-- 选择模型 --' : '-- 请先选渠道 --'}</option>
+                                    <option value="">{selectedChannelCode ? '-- 请选择模型 --' : '需先选渠道'}</option>
                                     {availableModels.map(m => (
                                         <option key={m} value={m}>{m}</option>
                                     ))}
@@ -176,18 +154,18 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                             </div>
                             
                             {selectedChannelCode && selectedModelId && (
-                                <div className="text-[10px] text-slate-400 break-all bg-white p-1.5 rounded border border-slate-100">
-                                    预览: <span className="font-mono text-indigo-600">{selectedChannelCode}@{selectedModelId}</span>
+                                <div className="text-[10px] text-indigo-600/70 break-all bg-white/50 p-2 rounded border border-indigo-100/50 font-mono">
+                                    {selectedChannelCode}@{selectedModelId}
                                 </div>
                             )}
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">描述</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1.5">描述</label>
                             <textarea 
                                 value={form.description} 
                                 onChange={e => setForm({...form, description: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm h-24 focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-shadow"
                                 placeholder="描述该场景的用途..."
                             />
                         </div>
@@ -228,7 +206,7 @@ export const ScenarioManager: React.FC = () => {
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; default_model?: string; workflow_config?: any } | undefined>(undefined);
+    const [editingScenarioData, setEditingScenarioData] = useState<{ name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any } | undefined>(undefined);
     const [isEditingMode, setIsEditingMode] = useState(false);
     
     const [confirmDelete, setConfirmDelete] = useState<{ id: string, name: string } | null>(null);
@@ -263,7 +241,8 @@ export const ScenarioManager: React.FC = () => {
             name: s.name, 
             title: s.title, 
             description: s.description,
-            default_model: s.default_model,
+            channel_code: s.channel_code,
+            model_id: s.model_id,
             workflow_config: s.workflow_config
         });
         setIsEditingMode(true);
@@ -272,7 +251,7 @@ export const ScenarioManager: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleSaveScenario = async (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }) => {
+    const handleSaveScenario = async (data: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }) => {
         try {
             if (isEditingMode && selectedScenario) {
                 const updated = await updateScenario(selectedScenario.id, data);
@@ -353,9 +332,9 @@ export const ScenarioManager: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
                                     <span>{selectedScenario.description}</span>
-                                    {selectedScenario.default_model && (
+                                    {selectedScenario.channel_code && selectedScenario.model_id && (
                                         <span className="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-mono text-[10px]">
-                                            Model: {selectedScenario.default_model}
+                                            Model: {selectedScenario.channel_code}@{selectedScenario.model_id}
                                         </span>
                                     )}
                                 </div>

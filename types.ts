@@ -545,7 +545,9 @@ export interface StratifyScenario {
     name: string;
     title: string;
     description: string;
-    default_model?: string;
+    default_model?: string; // Kept for legacy compatibility if needed
+    channel_code?: string;
+    model_id?: string;
     workflow_config?: WorkflowConfig; 
     created_at: string;
     updated_at: string;
@@ -557,6 +559,8 @@ export interface StratifyPrompt {
     description?: string;
     content: string;
     variables?: string[];
+    channel_code?: string;
+    model_id?: string;
     created_at: string;
     updated_at: string;
 }

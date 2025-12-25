@@ -89,13 +89,13 @@ export const streamGenerate = async (
 export const getScenarios = (): Promise<StratifyScenario[]> =>
     apiFetch<StratifyScenario[]>(`${STRATIFY_SERVICE_PATH}/scenarios`);
 
-export const createScenario = (data: { name: string; title: string; description: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
+export const createScenario = (data: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; default_model?: string; workflow_config?: any }): Promise<StratifyScenario> =>
+export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),

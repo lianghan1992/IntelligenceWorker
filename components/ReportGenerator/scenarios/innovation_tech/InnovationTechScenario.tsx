@@ -30,7 +30,15 @@ export const InnovationTechScenario: React.FC<ScenarioProps> = ({ taskId: initia
             try {
                 const scenarios = await getScenarios();
                 const current = scenarios.find(s => s.id === scenario || s.name === scenario);
-                if (current?.default_model) setDefaultModel(current.default_model);
+                if (current) {
+                    let modelStr = '';
+                    if (current.channel_code && current.model_id) {
+                        modelStr = `${current.channel_code}@${current.model_id}`;
+                    } else if (current.default_model) {
+                        modelStr = current.default_model;
+                    }
+                    setDefaultModel(modelStr);
+                }
             } catch (e) { console.error(e); }
         };
         fetchConfig();

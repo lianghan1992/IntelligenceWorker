@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { StratifyPrompt } from '../../../types';
-import { getPrompts, createPrompt, updatePrompt, deletePrompt } from '../../../api/stratify';
-import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, DocumentTextIcon } from '../../icons';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { StratifyPrompt, LLMChannel } from '../../../types';
+import { getPrompts, createPrompt, updatePrompt, deletePrompt, getChannels } from '../../../api/stratify';
+import { PlusIcon, RefreshIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, DocumentTextIcon, ServerIcon, LightningBoltIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
@@ -23,6 +23,11 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
         variables: []
     });
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Channel & Model Config
+    const [channels, setChannels] = useState<LLMChannel[]>([]);
+    const [selectedChannelCode, setSelectedChannelCode] = useState('');
+    const [selectedModelId, setSelectedModelId] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -32,8 +37,19 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
                 content: '',
                 variables: []
             });
+            
+            setSelectedChannelCode(prompt?.channel_code || '');
+            setSelectedModelId(prompt?.model_id || '');
+
+            getChannels().then(setChannels).catch(console.error);
         }
     }, [isOpen, prompt]);
+
+    const availableModels = useMemo(() => {
+        const channel = channels.find(c => c.channel_code === selectedChannelCode);
+        if (!channel || !channel.models) return [];
+        return channel.models.split(',').map(m => m.trim()).filter(Boolean);
+    }, [channels, selectedChannelCode]);
 
     const handleSubmit = async () => {
         if (!form.name || !form.content) return;
@@ -46,7 +62,12 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
             while ((match = regex.exec(form.content || '')) !== null) {
                 vars.add(match[1]);
             }
-            const dataToSave = { ...form, variables: Array.from(vars) };
+            const dataToSave = { 
+                ...form, 
+                variables: Array.from(vars),
+                channel_code: selectedChannelCode || undefined,
+                model_id: selectedModelId || undefined
+            };
 
             if (isEditing && prompt) {
                 await updatePrompt(prompt.id, dataToSave);
@@ -77,7 +98,7 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
                     </button>
                 </div>
                 
-                <div className="flex-1 overflow-hidden flex flex-col p-6 space-y-4">
+                <div className="flex-1 overflow-hidden flex flex-col p-6 space-y-4 custom-scrollbar overflow-y-auto">
                      <div className="grid grid-cols-2 gap-4 flex-shrink-0">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">唯一标识 (Name)</label>
@@ -100,7 +121,49 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
                         </div>
                     </div>
 
-                    <div className="flex-1 flex flex-col min-h-0">
+                    {/* Model Configuration */}
+                    <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 flex-shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 mb-3">
+                            <LightningBoltIcon className="w-3.5 h-3.5" /> 默认执行模型 (可选)
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-indigo-400 mb-1 uppercase">Channel</label>
+                                <div className="relative">
+                                    <ServerIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                    <select 
+                                        value={selectedChannelCode}
+                                        onChange={e => {
+                                            setSelectedChannelCode(e.target.value);
+                                            setSelectedModelId('');
+                                        }}
+                                        className="w-full bg-white border border-indigo-200 rounded-lg pl-8 pr-2 py-2 text-xs font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    >
+                                        <option value="">(Inherit from Scenario)</option>
+                                        {channels.map(c => (
+                                            <option key={c.id} value={c.channel_code}>{c.name} ({c.channel_code})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-indigo-400 mb-1 uppercase">Model</label>
+                                <select 
+                                    value={selectedModelId}
+                                    onChange={e => setSelectedModelId(e.target.value)}
+                                    className="w-full bg-white border border-indigo-200 rounded-lg px-2 py-2 text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    disabled={!selectedChannelCode}
+                                >
+                                    <option value="">{selectedChannelCode ? '-- Select Model --' : '(Select Channel First)'}</option>
+                                    {availableModels.map(m => (
+                                        <option key={m} value={m}>{m}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col min-h-[300px]">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                             提示词内容 (支持 Jinja2 变量 &#123;&#123; var &#125;&#125;)
                         </label>
@@ -200,7 +263,14 @@ export const PromptManager: React.FC = () => {
                     {prompts.map(prompt => (
                         <div key={prompt.id} className="group bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col h-full">
                             <div className="flex justify-between items-start mb-2">
-                                <h4 className="font-bold text-slate-800 text-sm truncate" title={prompt.name}>{prompt.name}</h4>
+                                <div className="flex-1 min-w-0 pr-2">
+                                    <h4 className="font-bold text-slate-800 text-sm truncate" title={prompt.name}>{prompt.name}</h4>
+                                    {prompt.channel_code && prompt.model_id && (
+                                        <div className="text-[10px] text-indigo-500 font-mono mt-0.5 truncate bg-indigo-50 px-1.5 py-0.5 rounded w-fit">
+                                            {prompt.channel_code}@{prompt.model_id}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button onClick={() => handleEdit(prompt)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors">
                                         <PencilIcon className="w-3.5 h-3.5" />

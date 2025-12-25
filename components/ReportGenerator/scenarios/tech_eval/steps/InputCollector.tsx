@@ -83,7 +83,15 @@ export const InputCollector: React.FC<{
                 // Fetch scenario default model
                 const scenarios = await getScenarios();
                 const currentScenario = scenarios.find(s => s.id === scenarioId || s.name === scenarioId);
-                setDefaultModel(currentScenario?.default_model || 'System Default');
+                
+                let modelStr = 'System Default';
+                if (currentScenario?.channel_code && currentScenario?.model_id) {
+                    modelStr = `${currentScenario.channel_code}@${currentScenario.model_id}`;
+                } else if (currentScenario?.default_model) {
+                    modelStr = currentScenario.default_model;
+                }
+                
+                setDefaultModel(modelStr);
 
                 // Fetch files for specific steps
                 const scenarioFiles = await getScenarioFiles(scenarioId);
@@ -414,7 +422,7 @@ export const InputCollector: React.FC<{
             <VectorSearchModal 
                 isOpen={isVectorModalOpen} 
                 onClose={() => setIsVectorModalOpen(false)} 
-                onAddSnippet={(s) => setVectorSnippets(prev => [...prev, s])}
+                onAddSnippet={(s) => setVectorSnippets(prev => [...prev, s])} 
             />
 
             <LlmRetrievalModal
