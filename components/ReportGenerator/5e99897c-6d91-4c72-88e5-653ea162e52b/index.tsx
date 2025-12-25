@@ -20,16 +20,14 @@ const PROMPT_ID_VISUAL = "75635cb9-6c5e-487c-a991-30f1ca046249";
 const generateId = () => crypto.randomUUID();
 
 // Helper to strip markdown code fences if the model wraps the whole response
+// Enhanced to be more robust against variations like "```markdown" or just "```"
 const stripMarkdownFences = (content: string) => {
+    if (!content) return "";
     let clean = content.trim();
-    if (/^```markdown/i.test(clean)) {
-        clean = clean.replace(/^```markdown/i, '').trim();
-    } else if (clean.startsWith('```')) {
-         clean = clean.replace(/^```/, '').trim();
-    }
-    if (clean.endsWith('```')) {
-        clean = clean.slice(0, -3).trim();
-    }
+    // Remove start fence (e.g., ```markdown, ```md, ```) and optional newline
+    clean = clean.replace(/^```(?:markdown|md|html)?\s*\n?/i, "");
+    // Remove end fence (```) if it exists at the end
+    clean = clean.replace(/\n?\s*```$/, "");
     return clean;
 };
 
@@ -122,13 +120,10 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             const systemPrompt = prompt.content;
 
             // Strategy: Inject Current State
-            // 如果已经有 analysisContent，说明是修改/追问。必须把当前完整内容带上，并要求输出完整内容。
             let userPromptContent = "";
             if (!state.analysisContent) {
-                // 第一次生成
                 userPromptContent = `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}`;
             } else {
-                // 修改/迭代
                 userPromptContent = `
 【当前完整报告内容 (Markdown)】:
 ${state.analysisContent}
@@ -157,14 +152,15 @@ ${input}
                 (data) => {
                    if (data.content) {
                        accumulatedText += data.content;
-                       // Real-time update state for preview (optional, can be heavy)
-                       // Better to update state only at end or throttled, but for now we update per chunk for responsiveness
+                       // Real-time update state for preview
+                       // IMPORTANT: We strip fences here to ensure the preview panel renders actual markdown elements, not a code block
                        const cleanText = stripMarkdownFences(accumulatedText);
                        setState(prev => ({ ...prev, analysisContent: cleanText }));
                    }
                    if (data.reasoning) {
                        accumulatedReasoning += data.reasoning;
                    }
+                   // Note: Chat bubble shows RAW content (including fences if any) to denote it's raw output
                    updateLastAssistantMessage(accumulatedText || "正在生成分析报告...", accumulatedReasoning);
                 },
                 () => {
@@ -203,7 +199,6 @@ ${input}
             const prompt = await getPromptDetail(PROMPT_ID_VISUAL);
             const systemPrompt = prompt.content;
 
-            // Strategy: Inject Current Code State if exists
             let userPromptContent = "";
             if (!state.visualCode) {
                  userPromptContent = `【分析报告内容】\n${state.analysisContent}\n\n【用户指令】\n${input}`;
@@ -236,32 +231,23 @@ ${input}
                 (data) => {
                     if (data.content) {
                         accumulatedCode += data.content;
-                        // Strip fences logic
-                        let cleanCode = accumulatedCode;
-                        if (cleanCode.includes('```html')) {
-                             cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-                        } else if (cleanCode.includes('```')) {
-                             cleanCode = cleanCode.replace(/```/g, '');
-                        }
+                        // Strip fences logic for preview state
+                        const cleanCode = stripMarkdownFences(accumulatedCode);
                         setState(prev => ({ ...prev, visualCode: cleanCode }));
                     }
                     if (data.reasoning) {
                         accumulatedReasoning += data.reasoning;
                     }
+                    // Visual phase chat bubble implies code generation
                     updateLastAssistantMessage(
                         accumulatedCode ? accumulatedCode : "正在设计视觉结构...", 
                         accumulatedReasoning
                     );
                 },
                 () => {
-                    let finalCleanCode = accumulatedCode;
-                    if (finalCleanCode.includes('```html')) {
-                         finalCleanCode = finalCleanCode.replace(/```html/g, '').replace(/```/g, '');
-                    } else if (finalCleanCode.includes('```')) {
-                         finalCleanCode = finalCleanCode.replace(/```/g, '');
-                    }
+                    const finalCleanCode = stripMarkdownFences(accumulatedCode);
                     setState(prev => ({ ...prev, visualCode: finalCleanCode, isStreaming: false }));
-                    updateLastAssistantMessage(accumulatedCode, accumulatedReasoning); // Show full code in chat (ChatPanel handles collapsing)
+                    updateLastAssistantMessage(accumulatedCode, accumulatedReasoning);
                 },
                 (err) => {
                     console.error(err);
