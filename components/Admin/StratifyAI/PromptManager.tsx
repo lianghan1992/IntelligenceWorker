@@ -7,6 +7,16 @@ import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
+// Helper to remove channel prefix from model ID if selected from a raw list
+const sanitizeModelId = (channelCode: string, modelId: string): string => {
+    if (!channelCode || !modelId) return modelId;
+    const prefix = `${channelCode}@`;
+    if (modelId.startsWith(prefix)) {
+        return modelId.substring(prefix.length);
+    }
+    return modelId;
+};
+
 interface PromptEditorModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -62,11 +72,15 @@ const PromptEditorModal: React.FC<PromptEditorModalProps> = ({ isOpen, onClose, 
             while ((match = regex.exec(form.content || '')) !== null) {
                 vars.add(match[1]);
             }
+            
+            // Clean Model ID before saving
+            const cleanModelId = sanitizeModelId(selectedChannelCode, selectedModelId);
+
             const dataToSave = { 
                 ...form, 
                 variables: Array.from(vars),
                 channel_code: selectedChannelCode || undefined,
-                model_id: selectedModelId || undefined
+                model_id: cleanModelId || undefined
             };
 
             if (isEditing && prompt) {

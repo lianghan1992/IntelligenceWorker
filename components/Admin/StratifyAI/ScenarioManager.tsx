@@ -10,6 +10,16 @@ import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
+// Helper to remove channel prefix from model ID if selected from a raw list
+const sanitizeModelId = (channelCode: string, modelId: string): string => {
+    if (!channelCode || !modelId) return modelId;
+    const prefix = `${channelCode}@`;
+    if (modelId.startsWith(prefix)) {
+        return modelId.substring(prefix.length);
+    }
+    return modelId;
+};
+
 // --- Prompt Editor Modal (Linked to Scenario) ---
 interface PromptModalProps {
     isOpen: boolean;
@@ -61,13 +71,16 @@ const PromptModal: React.FC<PromptModalProps> = ({ isOpen, scenarioId, scenarioN
         if (!form.name || !form.content) return;
         setIsSaving(true);
         try {
+            // Clean model ID
+            const cleanModelId = sanitizeModelId(selectedChannelCode, selectedModelId);
+            
             const payload = {
                 name: form.name,
                 description: form.description,
                 content: form.content,
                 scenario_id: scenarioId,
                 channel_code: selectedChannelCode || undefined,
-                model_id: selectedModelId || undefined
+                model_id: cleanModelId || undefined
             };
 
             if (isEditing && prompt) {
@@ -227,10 +240,13 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         if (!form.title) return;
         setIsSaving(true);
         try {
+            // Clean model ID
+            const cleanModelId = sanitizeModelId(form.channel_code, form.model_id);
+
             await onSave({
                 ...form,
                 channel_code: form.channel_code || undefined,
-                model_id: form.model_id || undefined,
+                model_id: cleanModelId || undefined,
                 workflow_config: {} // No longer used in UI but kept for backend compatibility if needed
             });
             onClose();

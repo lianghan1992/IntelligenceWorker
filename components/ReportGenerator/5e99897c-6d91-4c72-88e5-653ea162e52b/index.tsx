@@ -6,6 +6,7 @@ import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
 import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
+import { v4 as uuidv4 } from 'uuid';
 
 interface SpecificScenarioProps {
     scenario: StratifyScenario;
@@ -34,7 +35,13 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     // Initialize Model String from Scenario Config
     useEffect(() => {
         if (scenario.channel_code && scenario.model_id) {
-            setModelString(`${scenario.channel_code}@${scenario.model_id}`);
+            // Fix: Clean the model_id to prevent double prefixing (e.g. openrouter@openrouter@model)
+            const prefix = `${scenario.channel_code}@`;
+            const cleanModelId = scenario.model_id.startsWith(prefix) 
+                ? scenario.model_id.substring(prefix.length) 
+                : scenario.model_id;
+            
+            setModelString(`${scenario.channel_code}@${cleanModelId}`);
         } else {
             // Fallback default if not configured
             setModelString('openrouter@gpt-4o'); 

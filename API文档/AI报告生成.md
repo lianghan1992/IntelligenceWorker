@@ -124,7 +124,7 @@ StratifyAI 服务提供智能体场景管理、提示词管理、任务执行以
   - `scenario_id`: 关联的场景 UUID。
   - `content`: 提示词模板内容。
   - `channel_code`: (新增) 该提示词绑定的默认渠道代码 (如 `openrouter`, `zhipu`)。
-  - `model_id`: (新增) 该提示词绑定的默认模型ID (如 `gpt-4o`, `glm-4`)。
+  - `model_id`: (新增) 该提示词绑定的默认模型ID (如 `gpt-4o`, `glm-4`)。**注意**: 请勿在此字段中包含渠道前缀 (例如不要写 `openrouter@gpt-4`，只需写 `gpt-4`)，前端调用时会自动组合。
 - **Response**: `Prompt` 对象
 
 ### 8.2 获取提示词列表
@@ -167,7 +167,7 @@ StratifyAI 服务提供智能体场景管理、提示词管理、任务执行以
 ```
 - **字段说明**:
   - `title`: 前端展示的标题。
-  - `channel_code` & `model_id`: 场景级别的默认模型配置。
+  - `channel_code` & `model_id`: 场景级别的默认模型配置。**注意**: `model_id` 不应包含渠道前缀。
 
 ### 9.2 获取场景列表
 - **URL**: `GET /stratifyai/scenarios`
