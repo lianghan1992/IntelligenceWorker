@@ -204,10 +204,9 @@ interface ScenarioEditorModalProps {
     onClose: () => void;
     onSave: (data: any) => Promise<void>;
     initialData?: StratifyScenario;
-    channels: LLMChannel[];
 }
 
-const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData, channels }) => {
+const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
     const isEditing = !!initialData;
     const [form, setForm] = useState({ 
         name: '', 
@@ -217,9 +216,13 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         model_id: ''
     });
     const [isSaving, setIsSaving] = useState(false);
+    const [channels, setChannels] = useState<LLMChannel[]>([]);
     
     useEffect(() => {
         if (isOpen) {
+            // Fetch channels freshly when modal opens
+            getChannels().then(setChannels).catch(console.error);
+
             setForm({
                 name: initialData?.name || '',
                 title: initialData?.title || '',
@@ -617,7 +620,6 @@ export const ScenarioManager: React.FC = () => {
                 onClose={() => setIsScenarioModalOpen(false)}
                 onSave={handleSaveScenario}
                 initialData={isEditingScenario ? selectedScenario! : undefined}
-                channels={channels}
             />
 
             {/* Prompt Editor Modal */}
