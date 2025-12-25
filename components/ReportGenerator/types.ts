@@ -1,16 +1,8 @@
 
-import { StratifyTask, StratifyScenario } from '../../types';
+import { StratifyScenario } from '../../types';
 
-export type AgentViewMode = 'picker' | 'workstation';
-
-export interface AgentState {
-    status: 'idle' | 'input' | 'processing' | 'completed' | 'failed';
-    streamContent: string;
-    thoughtContent: string;
-    resultHtml?: string;
-}
-
-export interface ScenarioCardProps {
-    scenario: StratifyScenario;
-    onClick: () => void;
+// 仅保留场景选择所需的 props 定义
+export interface ScenarioSelectorProps {
+    scenarios: StratifyScenario[];
+    onSelect: (scenario: StratifyScenario) => void;
 }
