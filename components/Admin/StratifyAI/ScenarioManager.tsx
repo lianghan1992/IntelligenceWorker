@@ -10,17 +10,6 @@ import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
-// --- ID Generation Helper ---
-const generateScenarioId = (title: string): string => {
-    if (!title) return '';
-    // If predominantly English, slugify it
-    if (/^[a-zA-Z0-9\s_-]+$/.test(title)) {
-        return title.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    }
-    // If contains other chars (e.g. Chinese), generate a short random ID
-    return `sc_${Math.random().toString(36).substring(2, 8)}`;
-};
-
 // --- Prompt Editor Modal (Linked to Scenario) ---
 interface PromptModalProps {
     isOpen: boolean;
@@ -209,7 +198,6 @@ interface ScenarioEditorModalProps {
 const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
     const isEditing = !!initialData;
     const [form, setForm] = useState({ 
-        name: '', 
         title: '', 
         description: '',
         channel_code: '',
@@ -224,7 +212,6 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
             getChannels().then(setChannels).catch(console.error);
 
             setForm({
-                name: initialData?.name || '',
                 title: initialData?.title || '',
                 description: initialData?.description || '',
                 channel_code: initialData?.channel_code || '',
@@ -233,14 +220,6 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
         }
     }, [isOpen, initialData]);
 
-    // ID Auto-generation
-    useEffect(() => {
-        if (!isEditing && form.title) {
-            const generated = generateScenarioId(form.title);
-            setForm(prev => ({ ...prev, name: generated }));
-        }
-    }, [form.title, isEditing]);
-
     const availableModels = useMemo(() => {
         const channel = channels.find(c => c.channel_code === form.channel_code);
         if (!channel || !channel.models) return [];
@@ -248,7 +227,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
     }, [channels, form.channel_code]);
 
     const handleSubmit = async () => {
-        if (!form.name || !form.title) return;
+        if (!form.title) return;
         setIsSaving(true);
         try {
             await onSave({
@@ -292,16 +271,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                         />
                     </div>
                     
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-500 mb-1.5 uppercase tracking-[0.15em]">唯一标识码 (System ID)</label>
-                        <input 
-                            value={form.name} 
-                            onChange={e => setForm({...form, name: e.target.value})}
-                            className="w-full bg-slate-100/50 border-2 border-transparent rounded-2xl px-4 py-3 text-sm font-mono text-slate-600 focus:border-indigo-500 focus:bg-white outline-none transition-all"
-                            placeholder="auto-generated-id"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-2 font-medium">系统根据标题自动生成 Slug，也可手动调整为更精确的标识。</p>
-                    </div>
+                    {/* Name/ID field removed as per user request, handled by backend */}
 
                     <div className="bg-indigo-50/50 p-6 rounded-[32px] border border-indigo-100 space-y-4">
                         <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-widest mb-1">
@@ -349,7 +319,7 @@ const ScenarioEditorModal: React.FC<ScenarioEditorModalProps> = ({ isOpen, onClo
                     <button onClick={onClose} className="px-6 py-3 rounded-2xl text-slate-500 font-bold text-sm hover:bg-slate-100 transition-colors">取消</button>
                     <button 
                         onClick={handleSubmit} 
-                        disabled={isSaving || !form.name || !form.title}
+                        disabled={isSaving || !form.title}
                         className="px-10 py-3 bg-slate-900 text-white font-bold rounded-2xl hover:bg-indigo-600 shadow-2xl shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                     >
                         {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4" />}

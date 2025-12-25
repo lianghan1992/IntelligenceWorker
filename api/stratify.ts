@@ -1,3 +1,4 @@
+
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
@@ -146,13 +147,14 @@ export const updateScenarioFile = (scenarioId: string, fileName: string, content
         body: JSON.stringify({ name: fileName, content, model }),
     });
 
-export const createScenario = (data: { name: string; title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
+// Modified: Removed 'name' from create payload
+export const createScenario = (data: { title: string; description: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios`, {
         method: 'POST',
         body: JSON.stringify(data),
     });
 
-export const updateScenario = (id: string, data: { name?: string; title?: string; description?: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
+export const updateScenario = (id: string, data: { title?: string; description?: string; channel_code?: string; model_id?: string; workflow_config?: any }): Promise<StratifyScenario> =>
     apiFetch<StratifyScenario>(`${STRATIFY_SERVICE_PATH}/scenarios/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
@@ -256,4 +258,15 @@ export const generatePdf = async (htmlContent: string, filename?: string): Promi
     });
     if (!response.ok) throw new Error('PDF 生成失败');
     return response.blob();
+};
+
+// --- 7. OpenAI Compatible Gateway (New) ---
+
+export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }): Promise<any> => {
+    // Note: For streaming, specialized handling (like fetch + reader) is preferred over apiFetch which awaits JSON.
+    // This helper assumes non-streaming or returns the raw response for the caller to handle stream if stream=true
+    return apiFetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
 };
