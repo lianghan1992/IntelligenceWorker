@@ -202,13 +202,25 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
+        <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
+            {/* --- Background Decorations (Blobs) --- */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+                {/* Left Gradient Blob */}
+                <div className="absolute top-[-10%] left-[-10%] w-[45rem] h-[45rem] bg-indigo-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob"></div>
+                {/* Right Gradient Blob */}
+                <div className="absolute top-[10%] right-[-10%] w-[40rem] h-[40rem] bg-purple-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-2000"></div>
+                {/* Bottom Gradient Blob */}
+                <div className="absolute bottom-[-20%] left-[20%] w-[50rem] h-[50rem] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
+                {/* Noise Texture Overlay */}
+                <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+            </div>
+
             {/* Header */}
-            <header className="flex-shrink-0 px-6 py-3 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0">
+            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0">
                 <div className="flex items-center gap-4">
                     <button 
                         onClick={onBack}
-                        className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors"
+                        className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors"
                     >
                         <ArrowLeftIcon className="w-5 h-5" />
                     </button>
@@ -221,11 +233,11 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 </div>
                 
                 <div className="flex items-center gap-4">
-                    <div className="hidden md:flex bg-slate-100 p-1 rounded-lg">
-                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'analysis' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                    <div className="hidden md:flex bg-slate-100/50 p-1 rounded-lg border border-slate-200/50">
+                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'analysis' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400'}`}>
                             1. 深度分析
                         </div>
-                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                        <div className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${state.stage === 'visual' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-900/5' : 'text-slate-400'}`}>
                             2. 视觉看板
                         </div>
                     </div>
@@ -234,7 +246,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                     <button 
                         onClick={() => setIsPreviewOpen(true)}
                         disabled={!state.analysisContent}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold shadow-md hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold shadow-lg shadow-slate-900/10 hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                         {state.stage === 'analysis' ? <DocumentTextIcon className="w-4 h-4"/> : <ViewGridIcon className="w-4 h-4"/>}
                         <span className="hidden sm:inline">打开预览</span>
@@ -243,8 +255,8 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             </header>
 
             {/* Main Content - Centered Single Column */}
-            <div className="flex-1 overflow-hidden w-full">
-                <div className="h-full max-w-5xl mx-auto bg-white shadow-xl border-x border-slate-100 flex flex-col relative">
+            <div className="flex-1 overflow-hidden w-full relative z-10">
+                <div className="h-full max-w-5xl mx-auto bg-white/95 backdrop-blur-sm shadow-2xl shadow-indigo-100/50 border-x border-white/50 flex flex-col relative ring-1 ring-slate-900/5">
                     <ChatPanel 
                         messages={state.messages}
                         stage={state.stage}
@@ -277,6 +289,24 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                     </div>
                 </div>
             )}
+            
+            <style>{`
+                @keyframes blob {
+                    0% { transform: translate(0px, 0px) scale(1); }
+                    33% { transform: translate(30px, -50px) scale(1.1); }
+                    66% { transform: translate(-20px, 20px) scale(0.9); }
+                    100% { transform: translate(0px, 0px) scale(1); }
+                }
+                .animate-blob {
+                    animation: blob 15s infinite;
+                }
+                .animation-delay-2000 {
+                    animation-delay: 2s;
+                }
+                .animation-delay-4000 {
+                    animation-delay: 4s;
+                }
+            `}</style>
         </div>
     );
 };
