@@ -35,7 +35,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     // Initialize Model String from Scenario Config
     useEffect(() => {
         if (scenario.channel_code && scenario.model_id) {
-            // Fix: Clean the model_id to prevent double prefixing (e.g. openrouter@openrouter@model)
             const prefix = `${scenario.channel_code}@`;
             const cleanModelId = scenario.model_id.startsWith(prefix) 
                 ? scenario.model_id.substring(prefix.length) 
@@ -43,7 +42,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             
             setModelString(`${scenario.channel_code}@${cleanModelId}`);
         } else {
-            // Fallback default if not configured
             setModelString('openrouter@gpt-4o'); 
         }
     }, [scenario]);
@@ -61,17 +59,22 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         }));
     };
 
-    const updateLastAssistantMessage = (content: string) => {
+    // Update to handle both content and reasoning
+    const updateLastAssistantMessage = (content: string, reasoning?: string) => {
         setState(prev => {
             const newMessages = [...prev.messages];
             const lastMsg = newMessages[newMessages.length - 1];
             if (lastMsg && lastMsg.role === 'assistant') {
                 lastMsg.content = content; 
+                if (reasoning) {
+                    lastMsg.reasoning = reasoning;
+                }
             } else {
                  newMessages.push({
                     id: generateId(),
                     role: 'assistant',
                     content: content,
+                    reasoning: reasoning || '',
                     stage: prev.stage,
                     timestamp: Date.now()
                 });
@@ -100,34 +103,35 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         appendMessage('assistant', '正在进行深度分析...');
 
         let accumulatedText = "";
+        let accumulatedReasoning = "";
         
         try {
-            // 1. Fetch System Prompt Content
             const prompt = await getPromptDetail(PROMPT_ID_ANALYSIS);
             const systemPrompt = prompt.content;
 
-            // 2. Construct Messages
             const messages = [
                 { role: 'system', content: systemPrompt },
-                // Include chat context if this is a refinement (simplified: just current context + input)
                 { role: 'user', content: `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}。${state.analysisContent ? `\n基于已有分析继续完善:\n${state.analysisContent}` : ''}` }
             ];
 
-            // 3. Stream from OpenAI Compatible Gateway
             await streamChatCompletions(
                 {
                     model: modelString,
                     messages: messages,
                     temperature: 0.7
                 },
-                (chunk) => {
-                   accumulatedText += chunk;
-                   setState(prev => ({ ...prev, analysisContent: accumulatedText }));
-                   updateLastAssistantMessage("正在生成分析报告...\n\n" + accumulatedText.substring(0, 100) + "..."); // Optional: Show preview in chat bubbles too? Better keep chat clean.
+                (data) => {
+                   if (data.content) {
+                       accumulatedText += data.content;
+                       setState(prev => ({ ...prev, analysisContent: accumulatedText }));
+                   }
+                   if (data.reasoning) {
+                       accumulatedReasoning += data.reasoning;
+                   }
+                   updateLastAssistantMessage(accumulatedText || "正在生成分析报告...", accumulatedReasoning);
                 },
                 () => {
                     setState(prev => ({ ...prev, isStreaming: false }));
-                    updateLastAssistantMessage('分析完成。您可以继续对话修改，或点击上方“打开预览”查看全文。');
                 },
                 (err) => {
                     console.error(err);
@@ -154,40 +158,45 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         appendMessage('assistant', '正在构建视觉系统...');
         
         let accumulatedCode = "";
+        let accumulatedReasoning = "";
 
         try {
-            // 1. Fetch Visual Prompt Content
             const prompt = await getPromptDetail(PROMPT_ID_VISUAL);
             const systemPrompt = prompt.content;
 
-            // 2. Construct Messages
-            // We pass the Analysis Content as context
             const messages = [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: `【分析报告内容】\n${state.analysisContent}\n\n【用户指令】\n${input}` }
             ];
 
-            // 3. Stream
             await streamChatCompletions(
                 {
                     model: modelString,
                     messages: messages,
-                    temperature: 0.2 // Lower temp for code
+                    temperature: 0.2 
                 },
-                (chunk) => {
-                    let text = chunk;
-                    // Simple cleaning on the fly
-                    if (accumulatedCode.length === 0 && text.trim().startsWith('```html')) {
-                        text = text.replace('```html', '');
+                (data) => {
+                    if (data.content) {
+                        let text = data.content;
+                        if (accumulatedCode.length === 0 && text.trim().startsWith('```html')) {
+                            text = text.replace('```html', '');
+                        }
+                        text = text.replace('```', ''); 
+                        accumulatedCode += text;
+                        setState(prev => ({ ...prev, visualCode: accumulatedCode }));
                     }
-                    text = text.replace('```', ''); 
-                    
-                    accumulatedCode += text;
-                    setState(prev => ({ ...prev, visualCode: accumulatedCode }));
+                    if (data.reasoning) {
+                        accumulatedReasoning += data.reasoning;
+                    }
+                    // For visual phase, we might display reasoning in chat but keep code separate
+                    updateLastAssistantMessage(
+                        accumulatedCode ? "正在构建视觉代码..." : "正在设计视觉结构...", 
+                        accumulatedReasoning
+                    );
                 },
                 () => {
                     setState(prev => ({ ...prev, isStreaming: false }));
-                    updateLastAssistantMessage('视觉看板构建完成。您可以点击“打开预览”查看效果，或继续对话微调。');
+                    updateLastAssistantMessage('视觉看板构建完成。您可以点击“打开预览”查看效果，或继续对话微调。', accumulatedReasoning);
                 },
                 (err) => {
                     console.error(err);
@@ -205,23 +214,16 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
             {/* --- Background Decorations (Blobs) --- */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
-                {/* Left Gradient Blob */}
                 <div className="absolute top-[-10%] left-[-10%] w-[45rem] h-[45rem] bg-indigo-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob"></div>
-                {/* Right Gradient Blob */}
                 <div className="absolute top-[10%] right-[-10%] w-[40rem] h-[40rem] bg-purple-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-2000"></div>
-                {/* Bottom Gradient Blob */}
                 <div className="absolute bottom-[-20%] left-[20%] w-[50rem] h-[50rem] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
-                {/* Noise Texture Overlay */}
                 <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
             </div>
 
             {/* Header */}
             <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0">
                 <div className="flex items-center gap-4">
-                    <button 
-                        onClick={onBack}
-                        className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors"
-                    >
+                    <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors">
                         <ArrowLeftIcon className="w-5 h-5" />
                     </button>
                     <div>
@@ -242,7 +244,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                         </div>
                     </div>
                     
-                    {/* Preview Button */}
                     <button 
                         onClick={() => setIsPreviewOpen(true)}
                         disabled={!state.analysisContent}
@@ -272,11 +273,10 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             {/* Preview Modal (Full Screen) */}
             {isPreviewOpen && (
                 <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-white w-[95vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 border border-white/20">
-                        {/* Close Button */}
+                    <div className="bg-[#2a2a2a] w-[95vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 border border-white/10 ring-1 ring-black/50">
                         <button 
                             onClick={() => setIsPreviewOpen(false)}
-                            className="absolute top-4 left-4 z-50 p-2 bg-white/90 backdrop-blur rounded-full text-slate-500 hover:text-slate-900 shadow-sm border border-slate-200 transition-all hover:scale-110"
+                            className="absolute top-4 left-4 z-50 p-2 bg-white/10 backdrop-blur rounded-full text-white hover:bg-white/20 shadow-sm border border-white/10 transition-all hover:scale-110"
                         >
                             <CloseIcon className="w-6 h-6" />
                         </button>

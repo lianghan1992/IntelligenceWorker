@@ -16,8 +16,6 @@ export const streamGenerate = async (
     onSessionId?: (sessionId: string) => void,
     onReasoning?: (text: string) => void
 ) => {
-    // ... (Old implementation kept as backup if strictly needed, but new logic uses chatCompletions) ...
-    // To save space in this response, I'm keeping the export but redirecting to console warning if used unexpectedly
     console.warn("Deprecated streamGenerate called. Please use streamChatCompletions.");
 };
 
@@ -34,7 +32,7 @@ export interface ChatCompletionRequest {
 
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
-    onData: (text: string) => void,
+    onData: (data: { content?: string; reasoning?: string }) => void, // Changed signature
     onDone?: () => void,
     onError?: (err: any) => void
 ) => {
@@ -82,10 +80,16 @@ export const streamChatCompletions = async (
 
                 try {
                     const json = JSON.parse(dataStr);
-                    // Handle OpenAI chunk format
-                    const content = json.choices?.[0]?.delta?.content;
-                    if (content) {
-                        onData(content);
+                    const delta = json.choices?.[0]?.delta;
+                    
+                    if (delta) {
+                        // Support both standard content and reasoning_content (DeepSeek/SiliconFlow)
+                        const content = delta.content;
+                        const reasoning = delta.reasoning_content; // DeepSeek style
+                        
+                        if (content || reasoning) {
+                            onData({ content, reasoning });
+                        }
                     }
                 } catch (e) {
                     // Ignore parse errors for partial chunks or keepalives
