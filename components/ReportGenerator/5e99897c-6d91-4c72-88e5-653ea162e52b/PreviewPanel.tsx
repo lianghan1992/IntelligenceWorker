@@ -87,7 +87,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownConte
             <div className="flex-1 overflow-y-auto custom-scrollbar-dark flex flex-col items-center py-10 relative w-full">
                 
                 {stage === 'analysis' ? (
-                    <div className="w-full max-w-[900px] bg-white min-h-[1100px] h-fit p-12 md:p-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] my-4 rounded-sm animate-in zoom-in-95 duration-500 relative">
+                    <div className="w-full max-w-[900px] bg-white min-h-[1100px] p-12 md:p-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] my-4 rounded-sm animate-in zoom-in-95 duration-500 relative">
                          {/* Paper Texture Overlay */}
                          <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]"></div>
                          
