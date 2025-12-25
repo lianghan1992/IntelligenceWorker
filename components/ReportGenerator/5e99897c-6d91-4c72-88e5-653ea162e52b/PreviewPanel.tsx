@@ -87,7 +87,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownConte
             <div className="flex-1 overflow-y-auto custom-scrollbar-dark flex flex-col items-center py-10 relative">
                 
                 {stage === 'analysis' ? (
-                    <div className="w-full max-w-[900px] bg-white min-h-[1100px] p-12 md:p-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] my-4 rounded-sm animate-in zoom-in-95 duration-500 relative">
+                    <div className="w-full max-w-[900px] bg-white min-h-[1100px] h-fit p-12 md:p-16 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] my-4 rounded-sm animate-in zoom-in-95 duration-500 relative overflow-hidden">
                          {/* Paper Texture Overlay */}
                          <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]"></div>
                          
@@ -98,10 +98,11 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownConte
                                     prose-h1:text-4xl prose-h1:mb-10 prose-h1:pb-6 prose-h1:border-b-2 prose-h1:border-slate-900
                                     prose-h2:text-2xl prose-h2:text-slate-800 prose-h2:mt-10 prose-h2:mb-5 prose-h2:flex prose-h2:items-center
                                     prose-h3:text-lg prose-h3:text-indigo-700 prose-h3:mt-6 prose-h3:mb-3
-                                    prose-p:text-slate-600 prose-p:leading-8 prose-p:text-justify
+                                    prose-p:text-slate-800 prose-p:leading-8 prose-p:text-justify
                                     prose-strong:text-slate-900 prose-strong:font-bold
-                                    prose-li:text-slate-600
-                                    prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:not-italic prose-blockquote:rounded-r-lg prose-blockquote:text-indigo-900 prose-blockquote:font-medium"
+                                    prose-li:text-slate-700
+                                    prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50 prose-blockquote:py-3 prose-blockquote:px-5 prose-blockquote:not-italic prose-blockquote:rounded-r-lg prose-blockquote:text-indigo-900 prose-blockquote:font-medium
+                                    prose-pre:bg-slate-100 prose-pre:text-slate-800 prose-pre:border prose-pre:border-slate-200"
                                 dangerouslySetInnerHTML={{ 
                                     __html: window.marked ? window.marked.parse(markdownContent) : markdownContent 
                                 }} 

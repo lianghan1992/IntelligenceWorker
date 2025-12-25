@@ -19,6 +19,23 @@ const PROMPT_ID_VISUAL = "75635cb9-6c5e-487c-a991-30f1ca046249";
 // Native UUID generator
 const generateId = () => crypto.randomUUID();
 
+// Helper to strip markdown code fences if the model wraps the whole response
+const stripMarkdownFences = (content: string) => {
+    let clean = content.trim();
+    // Check if it starts with ```markdown (case insensitive)
+    if (/^```markdown/i.test(clean)) {
+        clean = clean.replace(/^```markdown/i, '').trim();
+    } else if (clean.startsWith('```')) {
+         clean = clean.replace(/^```/, '').trim();
+    }
+    
+    // Remove trailing ```
+    if (clean.endsWith('```')) {
+        clean = clean.slice(0, -3).trim();
+    }
+    return clean;
+};
+
 export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario, onBack }) => {
     const [state, setState] = useState<ScenarioState>({
         stage: 'analysis',
@@ -123,7 +140,10 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 (data) => {
                    if (data.content) {
                        accumulatedText += data.content;
-                       setState(prev => ({ ...prev, analysisContent: accumulatedText }));
+                       // Real-time stripping for preview might be jumpy, but we can do it
+                       // Better: Store raw accumulation, but clean it when setting analysisContent
+                       const cleanText = stripMarkdownFences(accumulatedText);
+                       setState(prev => ({ ...prev, analysisContent: cleanText }));
                    }
                    if (data.reasoning) {
                        accumulatedReasoning += data.reasoning;
@@ -131,7 +151,11 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                    updateLastAssistantMessage(accumulatedText || "正在生成分析报告...", accumulatedReasoning);
                 },
                 () => {
-                    setState(prev => ({ ...prev, isStreaming: false }));
+                    // Final cleanup ensuring state is consistent
+                    const cleanText = stripMarkdownFences(accumulatedText);
+                    setState(prev => ({ ...prev, analysisContent: cleanText, isStreaming: false }));
+                    // Update chat bubble to reflect completed text (optional, usually raw is fine there)
+                    updateLastAssistantMessage(accumulatedText, accumulatedReasoning);
                 },
                 (err) => {
                     console.error(err);
@@ -178,12 +202,16 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                 (data) => {
                     if (data.content) {
                         let text = data.content;
-                        if (accumulatedCode.length === 0 && text.trim().startsWith('```html')) {
-                            text = text.replace('```html', '');
-                        }
-                        text = text.replace('```', ''); 
+                        // Clean code blocks logic moved to accumulator
                         accumulatedCode += text;
-                        setState(prev => ({ ...prev, visualCode: accumulatedCode }));
+                        // Strip fences for preview iframe
+                        let cleanCode = accumulatedCode;
+                        if (cleanCode.includes('```html')) {
+                             cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+                        } else if (cleanCode.includes('```')) {
+                             cleanCode = cleanCode.replace(/```/g, '');
+                        }
+                        setState(prev => ({ ...prev, visualCode: cleanCode }));
                     }
                     if (data.reasoning) {
                         accumulatedReasoning += data.reasoning;
@@ -195,7 +223,13 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                     );
                 },
                 () => {
-                    setState(prev => ({ ...prev, isStreaming: false }));
+                    let finalCleanCode = accumulatedCode;
+                    if (finalCleanCode.includes('```html')) {
+                         finalCleanCode = finalCleanCode.replace(/```html/g, '').replace(/```/g, '');
+                    } else if (finalCleanCode.includes('```')) {
+                         finalCleanCode = finalCleanCode.replace(/```/g, '');
+                    }
+                    setState(prev => ({ ...prev, visualCode: finalCleanCode, isStreaming: false }));
                     updateLastAssistantMessage('视觉看板构建完成。您可以点击“打开预览”查看效果，或继续对话微调。', accumulatedReasoning);
                 },
                 (err) => {

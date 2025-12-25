@@ -84,8 +84,9 @@ export const streamChatCompletions = async (
                     
                     if (delta) {
                         // Support both standard content and reasoning_content (DeepSeek/SiliconFlow)
+                        // Some providers use `reasoning`, some use `reasoning_content`
                         const content = delta.content;
-                        const reasoning = delta.reasoning_content; // DeepSeek style
+                        const reasoning = delta.reasoning_content || delta.reasoning; 
                         
                         if (content || reasoning) {
                             onData({ content, reasoning });
