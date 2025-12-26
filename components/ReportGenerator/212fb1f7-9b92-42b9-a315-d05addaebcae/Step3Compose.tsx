@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTData } from './index';
 import { streamChatCompletions, getPromptDetail, parseLlmJson } from '../../../api/stratify';
 import { 
     SparklesIcon, DocumentTextIcon, RefreshIcon, CheckIcon, 
     ArrowRightIcon, BrainIcon, ChevronRightIcon, PencilIcon,
-    CloseIcon, ChevronLeftIcon, PhotoIcon
+    CloseIcon, ChevronLeftIcon, PhotoIcon, ViewGridIcon, CodeIcon
 } from '../../icons';
 
 interface Step3ComposeProps {
@@ -21,14 +21,31 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
     const [activeIdx, setActiveIdx] = useState(0);
     const [editingContent, setEditingContent] = useState<string | null>(null);
     const [reasoning, setReasoning] = useState<Record<number, string>>({});
+    const reasoningScrollRef = useRef<HTMLDivElement>(null);
 
-    const generatePageContent = useCallback(async (idx: number) => {
-        const page = pages[idx];
-        if (!page || page.content) return;
+    // Keep a ref to pages to avoid stale closures in streaming callbacks and fix functional update errors
+    const pagesRef = useRef(pages);
+    useEffect(() => {
+        pagesRef.current = pages;
+    }, [pages]);
 
-        // Mark as generating
-        const updatedStart = [...pages];
-        updatedStart[idx] = { ...page, isGenerating: true };
+    // 自动滚动思考过程
+    useEffect(() => {
+        if (reasoningScrollRef.current) {
+            reasoningScrollRef.current.scrollTop = reasoningScrollRef.current.scrollHeight;
+        }
+    }, [reasoning, activeIdx]);
+
+    const generatePageContent = useCallback(async (idx: number, force = false) => {
+        const page = pagesRef.current[idx];
+        if (!page || (page.content && !force) || page.isGenerating) return;
+
+        // 重置该页的思考内容
+        setReasoning(prev => ({ ...prev, [idx]: '' }));
+
+        // 标记正在生成
+        const updatedStart = [...pagesRef.current];
+        updatedStart[idx] = { ...page, content: '', isGenerating: true };
         onUpdatePages(updatedStart);
 
         try {
@@ -49,31 +66,36 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                 }
                 if (data.content) {
                     accumulatedText += data.content;
+                    // 实时解析内容 JSON
                     const parsed = parseLlmJson<{ content: string }>(accumulatedText);
-                    if (parsed) {
-                        const newPages = [...pages];
-                        newPages[idx] = { ...newPages[idx], content: parsed.content };
-                        onUpdatePages(newPages);
+                    if (parsed && parsed.content) {
+                        // Fix: Using pagesRef to get current state and passing array to onUpdatePages to resolve "Argument of type '(prevPages: any) => any[]' is not assignable to parameter of type '...[]'"
+                        const nextPages = [...pagesRef.current];
+                        nextPages[idx] = { ...nextPages[idx], content: parsed.content };
+                        onUpdatePages(nextPages);
                     }
                 }
             }, () => {
-                const newPages = [...pages];
-                newPages[idx] = { ...newPages[idx], isGenerating: false };
-                onUpdatePages(newPages);
+                // Fix: Using pagesRef to get current state and passing array to onUpdatePages
+                const nextPages = [...pagesRef.current];
+                nextPages[idx] = { ...nextPages[idx], isGenerating: false };
+                onUpdatePages(nextPages);
             }, (err) => {
-                const newPages = [...pages];
-                newPages[idx] = { ...newPages[idx], isGenerating: false, content: `生成失败: ${err.message}` };
-                onUpdatePages(newPages);
+                // Fix: Using pagesRef to get current state and passing array to onUpdatePages
+                const nextPages = [...pagesRef.current];
+                nextPages[idx] = { ...nextPages[idx], isGenerating: false, content: `生成失败: ${err.message}` };
+                onUpdatePages(nextPages);
             });
 
         } catch (e) {
-            const newPages = [...pages];
-            newPages[idx] = { ...newPages[idx], isGenerating: false };
-            onUpdatePages(newPages);
+            // Fix: Using pagesRef to get current state and passing array to onUpdatePages
+            const nextPages = [...pagesRef.current];
+            nextPages[idx] = { ...nextPages[idx], isGenerating: false };
+            onUpdatePages(nextPages);
         }
-    }, [pages, onUpdatePages]);
+    }, [onUpdatePages]);
 
-    // Initial Trigger for all pages (or sequentially)
+    // 初始进入时，如果没有内容且不在生成，则按顺序触发（或者并行触发）
     useEffect(() => {
         pages.forEach((p, i) => {
             if (!p.content && !p.isGenerating) {
@@ -96,80 +118,114 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
 
     return (
         <div className="h-full flex divide-x divide-slate-200">
-            {/* Left Sidebar: Page Selection */}
-            <div className="w-1/4 flex flex-col bg-white">
-                <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                    <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest flex items-center gap-2">
-                        <DocumentTextIcon className="w-4 h-4 text-indigo-600" /> 内容章节
+            {/* Left Column (1/3): Navigator & Thinking Rail */}
+            <div className="w-1/3 flex flex-col bg-white overflow-hidden">
+                <div className="p-6 border-b border-slate-100 flex-shrink-0">
+                    <h3 className="font-black text-slate-800 flex items-center gap-2">
+                        <ViewGridIcon className="w-5 h-5 text-indigo-600" /> 报告内容大纲
                     </h3>
+                    <p className="text-xs text-slate-400 mt-1">点击页面可切换查看生成详情与 AI 思考过程。</p>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+
+                {/* Page Navigator */}
+                <div className="flex-shrink-0 max-h-[35%] overflow-y-auto p-4 space-y-2 bg-slate-50/50 border-b border-slate-100 custom-scrollbar">
                     {pages.map((page, idx) => (
                         <div 
                             key={idx}
                             onClick={() => setActiveIdx(idx)}
                             className={`
-                                group flex items-center gap-4 p-4 rounded-2xl cursor-pointer transition-all border-2
-                                ${activeIdx === idx ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'border-transparent hover:bg-slate-50'}
+                                group flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all border-2
+                                ${activeIdx === idx ? 'bg-white border-indigo-200 shadow-sm' : 'border-transparent hover:bg-white hover:shadow-sm'}
                             `}
                         >
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${activeIdx === idx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 ${activeIdx === idx ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
                                 {idx + 1}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-bold truncate ${activeIdx === idx ? 'text-indigo-900' : 'text-slate-700'}`}>{page.title}</p>
-                                <div className="flex items-center gap-2 mt-1">
+                                <p className={`text-xs font-bold truncate ${activeIdx === idx ? 'text-indigo-900' : 'text-slate-700'}`}>{page.title}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
                                     {page.isGenerating ? (
-                                        <span className="text-[10px] text-blue-500 animate-pulse font-bold">正在创作中...</span>
+                                        <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 创作中...</span>
                                     ) : page.content ? (
-                                        <span className="text-[10px] text-emerald-500 font-bold flex items-center gap-1"><CheckIcon className="w-3 h-3"/> 已生成</span>
+                                        <span className="text-[9px] text-emerald-500 font-bold flex items-center gap-1"><CheckIcon className="w-3 h-3"/> 已生成</span>
                                     ) : (
-                                        <span className="text-[10px] text-slate-400">等待中</span>
+                                        <span className="text-[9px] text-slate-400">待开始</span>
                                     )}
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
-                <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                    <button 
-                        onClick={onFinish}
-                        disabled={!allDone}
-                        className="w-full py-3 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl shadow-slate-200 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+
+                {/* Thinking Stream */}
+                <div className="flex-1 flex flex-col min-h-0 bg-slate-50/30">
+                    <div className="px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+                        <div className="flex items-center gap-2 text-xs font-black text-indigo-600">
+                            <BrainIcon className={`w-4 h-4 ${activePage?.isGenerating ? 'animate-pulse' : ''}`} /> 
+                            第 {activeIdx + 1} 页：深度思考引擎
+                        </div>
+                    </div>
+                    <div 
+                        ref={reasoningScrollRef}
+                        className="flex-1 overflow-y-auto p-6 text-xs font-mono text-slate-500 leading-relaxed custom-scrollbar whitespace-pre-wrap"
                     >
-                        下一步：样式渲染 <ChevronRightIcon className="w-4 h-4" />
-                    </button>
+                        {reasoning[activeIdx] ? (
+                            <>
+                                {reasoning[activeIdx]}
+                                {activePage?.isGenerating && <span className="inline-block w-1.5 h-3 ml-1 align-middle bg-indigo-500 animate-blink"></span>}
+                            </>
+                        ) : activePage?.isGenerating ? (
+                            <div className="flex flex-col items-center justify-center h-full opacity-40">
+                                <RefreshIcon className="w-8 h-8 animate-spin mb-2" />
+                                <p>正在初始化深度创作逻辑...</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full opacity-30 text-center px-8">
+                                <SparklesIcon className="w-10 h-10 mb-2" />
+                                <p>该页内容已生成完毕，或点击刷新重新触发 AI 深度思考。</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Right Content Editor / Viewer */}
-            <div className="flex-1 flex flex-col bg-slate-50/30 overflow-hidden relative">
+            {/* Right Column (2/3): Content Editor / Live Preview */}
+            <div className="flex-1 flex flex-col bg-white overflow-hidden relative">
                 {activePage ? (
                     <>
-                        <div className="p-6 border-b border-slate-200 bg-white flex justify-between items-center shadow-sm">
+                        <div className="p-6 border-b border-slate-200 bg-white flex justify-between items-center shadow-sm flex-shrink-0 z-10">
                             <div className="flex items-center gap-3">
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight">第 {activeIdx + 1} 页：{activePage.title}</h3>
+                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                    <DocumentTextIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 tracking-tight">{activePage.title}</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                                        {activePage.isGenerating ? 'AI 正在编写高信息密度稿件...' : '内容已就绪，支持手动微调'}
+                                    </p>
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <button 
-                                    onClick={() => generatePageContent(activeIdx)}
+                                    onClick={() => generatePageContent(activeIdx, true)}
                                     disabled={activePage.isGenerating}
-                                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                    className="p-2.5 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl transition-all shadow-sm disabled:opacity-50"
                                     title="重新生成此页"
                                 >
                                     <RefreshIcon className={`w-5 h-5 ${activePage.isGenerating ? 'animate-spin' : ''}`} />
                                 </button>
+                                
                                 {editingContent === null ? (
                                     <button 
                                         onClick={() => setEditingContent(activePage.content)}
-                                        className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+                                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black hover:bg-indigo-600 transition-all shadow-lg shadow-slate-200 flex items-center gap-2"
                                     >
                                         <PencilIcon className="w-4 h-4" /> 手动微调
                                     </button>
                                 ) : (
                                     <button 
                                         onClick={handleSaveEdit}
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                        className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
                                     >
                                         <CheckIcon className="w-4 h-4" /> 保存修改
                                     </button>
@@ -177,47 +233,75 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-10 custom-scrollbar flex flex-col items-center">
-                            <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl border border-slate-200 p-12 min-h-[800px] animate-in zoom-in-95 duration-500">
+                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50/30">
+                            <div className="max-w-4xl mx-auto">
                                 {editingContent !== null ? (
-                                    <textarea 
-                                        value={editingContent}
-                                        onChange={e => setEditingContent(e.target.value)}
-                                        className="w-full h-full min-h-[600px] bg-slate-50 rounded-xl p-8 text-base border-none outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono leading-relaxed"
-                                        placeholder="在此处编辑 Markdown 内容..."
-                                    />
-                                ) : activePage.isGenerating && !activePage.content ? (
-                                    <div className="h-full flex flex-col items-center justify-center gap-6 text-slate-300">
-                                        <div className="relative">
-                                            <div className="w-24 h-24 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin"></div>
-                                            <SparklesIcon className="w-10 h-10 text-indigo-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300">
+                                        <div className="bg-slate-900 px-4 py-2 flex items-center gap-2 text-[10px] font-mono text-indigo-300">
+                                            {/* Fix: Added missing import for CodeIcon */}
+                                            <CodeIcon className="w-3 h-3" /> MARKDOWN_EDITOR_V1.0
                                         </div>
-                                        <div className="text-center space-y-2">
-                                            <p className="text-xl font-black text-slate-800">AI 正在深度创作中...</p>
-                                            <p className="text-sm font-medium">基于行业知识库为您构建专业论据</p>
-                                        </div>
+                                        <textarea 
+                                            value={editingContent}
+                                            onChange={e => setEditingContent(e.target.value)}
+                                            className="w-full h-full min-h-[600px] p-8 text-base border-none outline-none focus:ring-0 font-mono leading-relaxed bg-[#0f172a] text-slate-200"
+                                            placeholder="在此处编辑 Markdown 内容..."
+                                            autoFocus
+                                        />
                                     </div>
                                 ) : (
-                                    <article 
-                                        className="prose prose-indigo max-w-none prose-h3:text-indigo-600 prose-h3:font-black prose-p:text-slate-700 prose-li:text-slate-600"
-                                        dangerouslySetInnerHTML={{ 
-                                            __html: window.marked ? window.marked.parse(activePage.content) : activePage.content 
-                                        }}
-                                    />
+                                    <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-12 min-h-[800px] animate-in slide-in-from-bottom-4 duration-500 relative overflow-hidden">
+                                        {/* Paper Texture Decor */}
+                                        <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]"></div>
+                                        
+                                        {activePage.content ? (
+                                            <article 
+                                                className="prose prose-indigo max-w-none 
+                                                    prose-h3:text-indigo-600 prose-h3:font-black prose-h3:text-2xl prose-h3:mb-8 prose-h3:pb-4 prose-h3:border-b-2 prose-h3:border-slate-100
+                                                    prose-h4:text-slate-800 prose-h4:font-bold prose-h4:mt-8
+                                                    prose-p:text-slate-700 prose-p:leading-8 prose-p:text-lg
+                                                    prose-li:text-slate-600 prose-li:leading-7
+                                                    prose-strong:text-slate-900 prose-strong:font-black"
+                                                dangerouslySetInnerHTML={{ 
+                                                    __html: window.marked ? window.marked.parse(activePage.content) : activePage.content 
+                                                }}
+                                            />
+                                        ) : (
+                                            <div className="h-full flex flex-col items-center justify-center gap-6 text-slate-300 py-32">
+                                                <div className="relative">
+                                                    <div className="w-24 h-24 rounded-full border-4 border-slate-100 border-t-indigo-600 animate-spin"></div>
+                                                    <SparklesIcon className="w-10 h-10 text-indigo-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                                </div>
+                                                <div className="text-center space-y-2">
+                                                    <p className="text-xl font-black text-slate-800">AI 正在深度创作中...</p>
+                                                    <p className="text-sm font-medium">基于行业知识库与参考资料为您构建专业论据</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
+                        </div>
 
-                            {/* Thinking Stream Overlay (Bottom Right) */}
-                            {activePage.isGenerating && reasoning[activeIdx] && (
-                                <div className="fixed bottom-6 right-6 w-96 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl p-4 text-white animate-in slide-in-from-bottom-4 duration-500 overflow-hidden">
-                                    <div className="flex items-center gap-2 text-xs font-black text-indigo-400 mb-2 uppercase tracking-widest">
-                                        <BrainIcon className="w-4 h-4 animate-pulse" /> AI 思考中...
-                                    </div>
-                                    <div className="text-[10px] font-mono text-slate-300 leading-relaxed max-h-32 overflow-y-auto custom-scrollbar-dark whitespace-pre-wrap opacity-80">
-                                        {reasoning[activeIdx]}
-                                    </div>
+                        {/* Sticky Action Footer */}
+                        <div className="p-6 border-t border-slate-100 bg-white/80 backdrop-blur-md flex justify-between items-center flex-shrink-0 z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="flex -space-x-2">
+                                    {pages.map((p, i) => (
+                                        <div key={i} className={`w-3 h-3 rounded-full border-2 border-white ${p.content ? 'bg-emerald-500' : p.isGenerating ? 'bg-blue-500 animate-pulse' : 'bg-slate-200'}`} />
+                                    ))}
                                 </div>
-                            )}
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    Progress: {pages.filter(p => p.content).length} / {pages.length} Pages Compiled
+                                </span>
+                            </div>
+                            <button 
+                                onClick={onFinish}
+                                disabled={!allDone}
+                                className="px-10 py-3 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-2xl shadow-slate-200 hover:bg-indigo-600 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                            >
+                                下一步：视觉样式渲染 <ChevronRightIcon className="w-5 h-5" />
+                            </button>
                         </div>
                     </>
                 ) : (
@@ -227,6 +311,11 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                     </div>
                 )}
             </div>
+            
+            <style>{`
+                @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+                .animate-blink { animation: blink 1s infinite; }
+            `}</style>
         </div>
     );
 };
