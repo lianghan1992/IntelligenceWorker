@@ -12,9 +12,9 @@ interface SpecificScenarioProps {
     onBack: () => void;
 }
 
-// PROMPT IDs (Same as the original scenario as per instructions)
-const PROMPT_ID_ANALYSIS = "e9899016-7cb2-45b5-8ae1-0bda9b76fc43"; 
-const PROMPT_ID_VISUAL = "75635cb9-6c5e-487c-a991-30f1ca046249";   
+// Updated Prompt IDs for this specific Gemini scenario
+const PROMPT_ID_ANALYSIS = "e0798049-b612-44c6-9eab-f1368fce2adf"; 
+const PROMPT_ID_VISUAL = "4dab9b1a-96df-45de-82b3-a3a023cdbe9e";   
 
 // Native UUID generator
 const generateId = () => crypto.randomUUID();
@@ -95,9 +95,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         
         if (state.stage === 'analysis') {
             if (!state.topic) {
-                // If it's the first message, treat it as topic
-                // However, handleSendMessage might receive complex text with attachments now.
-                // We'll extract a simple topic or just use the first 50 chars for display
+                // For initial display topic
                 const simpleTopic = text.split('\n')[0].substring(0, 50);
                 setState(prev => ({ ...prev, topic: simpleTopic })); 
             }
@@ -121,10 +119,10 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
 
             let userPromptContent = "";
             if (!state.analysisContent) {
-                // First run: The input already contains attachments if any, handled by ChatPanel
-                userPromptContent = `分析主题/指令: ${input}`;
+                // The 'input' here already contains attachment content if any, injected by ChatPanel.handleSend
+                userPromptContent = `分析指令/主题: ${input}`;
             } else {
-                // Follow-up
+                // Follow-up modification
                 userPromptContent = `
 【当前完整报告内容 (Markdown)】:
 ${state.analysisContent}
@@ -140,13 +138,13 @@ ${input}
             }
 
             const messages = [
-                { role: 'user', content: systemPrompt + "\n\n" + userPromptContent } // Gemini cookie interface might expect user role primarily
+                { role: 'user', content: systemPrompt + "\n\n" + userPromptContent }
             ];
 
             await streamGeminiCookieChat(
                 {
                     messages: messages,
-                    model: 'gemini-2.5-flash', // Default model for cookie interface
+                    model: 'gemini-2.5-flash',
                 },
                 (data) => {
                    if (data.content) {
@@ -262,7 +260,7 @@ ${input}
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
-             {/* Health Status Bar - Always Visible */}
+             {/* Health Status Bar */}
              <div className={`
                  absolute top-0 left-0 right-0 z-50 px-4 py-1.5 text-xs font-bold flex items-center justify-center border-b shadow-sm transition-colors
                  ${geminiHealth?.valid 
@@ -277,16 +275,14 @@ ${input}
                  )}
              </div>
 
-            {/* --- Background Decorations (Blobs) --- */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[45rem] h-[45rem] bg-indigo-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob"></div>
                 <div className="absolute top-[10%] right-[-10%] w-[40rem] h-[40rem] bg-purple-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob animation-delay-2000"></div>
                 <div className="absolute bottom-[-20%] left-[20%] w-[50rem] h-[50rem] bg-blue-100/30 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
-                <div className="absolute inset-0 opacity-[0.015]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
             </div>
 
             {/* Header */}
-            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0 mt-8"> {/* Added mt-8 to account for health banner */}
+            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0 mt-8">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors">
                         <ArrowLeftIcon className="w-5 h-5" />
@@ -320,7 +316,7 @@ ${input}
                 </div>
             </header>
 
-            {/* Main Content - Centered Single Column */}
+            {/* Main Content */}
             <div className="flex-1 overflow-hidden w-full relative z-10">
                 <div className="h-full max-w-5xl mx-auto bg-white/95 backdrop-blur-sm shadow-2xl shadow-indigo-100/50 border-x border-white/50 flex flex-col relative ring-1 ring-slate-900/5">
                     <ChatPanel 
@@ -335,7 +331,7 @@ ${input}
                 </div>
             </div>
 
-            {/* Preview Modal (Full Screen) */}
+            {/* Preview Modal */}
             {isPreviewOpen && (
                 <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-[#2a2a2a] w-[95vw] h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 border border-white/10 ring-1 ring-black/50">
