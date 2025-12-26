@@ -7,8 +7,9 @@ import { SparklesIcon } from '../icons';
 
 // Import Specific Scenarios
 import { ScenarioWorkstation as ScenarioWorkstation_5e99 } from './5e99897c-6d91-4c72-88e5-653ea162e52b/index';
-// NEW: Import the Gemini scenario
 import { ScenarioWorkstation as ScenarioWorkstation_8215 } from './821543a3-1c02-427c-a6ae-c18874eda0c4/index';
+// NEW: PPT Generation Scenario
+import { ScenarioWorkstation as ScenarioWorkstation_PPT } from './212fb1f7-9b92-42b9-a315-d05addaebcae/index';
 
 export const ReportGenerator: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
@@ -69,14 +70,15 @@ export const ReportGenerator: React.FC = () => {
 
     // --- Routing Logic ---
     if (selectedScenario) {
-        // Specific Scenario: Tech Analysis (OpenAI/Compatible)
         if (selectedScenario.id === '5e99897c-6d91-4c72-88e5-653ea162e52b') {
             return <ScenarioWorkstation_5e99 scenario={selectedScenario} onBack={handleBack} />;
         }
-
-        // NEW Specific Scenario: Tech Analysis (Gemini Cookie)
         if (selectedScenario.id === '821543a3-1c02-427c-a6ae-c18874eda0c4') {
             return <ScenarioWorkstation_8215 scenario={selectedScenario} onBack={handleBack} />;
+        }
+        // NEW: PPT Scene
+        if (selectedScenario.id === '212fb1f7-9b92-42b9-a315-d05addaebcae') {
+            return <ScenarioWorkstation_PPT scenario={selectedScenario} onBack={handleBack} />;
         }
 
         // Fallback
