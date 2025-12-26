@@ -255,6 +255,8 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                             topic={data.topic}
                             pages={data.pages}
                             onBackToCompose={() => setStage('compose')}
+                            onLlmStatusChange={setIsLlmActive}
+                            onStreamingUpdate={setStreamingMessage}
                         />
                     )}
                 </main>
