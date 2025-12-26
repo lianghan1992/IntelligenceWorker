@@ -104,6 +104,78 @@ export const streamChatCompletions = async (
     }
 };
 
+// --- Gemini Cookie API Support ---
+
+export const checkGeminiCookieStatus = (): Promise<{ valid: boolean; message: string }> =>
+    apiFetch<{ valid: boolean; message: string }>(`${STRATIFY_SERVICE_PATH}/v1/gemini/status`);
+
+export const streamGeminiCookieChat = async (
+    params: { messages: Array<{ role: string; content: string }>; model?: string; stream?: boolean },
+    onData: (data: { content?: string; reasoning?: string }) => void,
+    onDone?: () => void,
+    onError?: (err: any) => void
+) => {
+    const token = localStorage.getItem('accessToken');
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    try {
+        const response = await fetch(`${STRATIFY_SERVICE_PATH}/v1/gemini/chat`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...params, stream: true }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini Chat Error (${response.status}): ${errorText}`);
+        }
+
+        if (!response.body) throw new Error("No response body");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+                const dataStr = trimmed.slice(6).trim();
+                if (dataStr === '[DONE]') continue;
+
+                try {
+                    const json = JSON.parse(dataStr);
+                    // Gemini Cookie API format: { "content": "...", "reasoning": "..." }
+                    // Directly map to onData
+                    if (json.content || json.reasoning) {
+                        onData({ content: json.content, reasoning: json.reasoning });
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
+            }
+        }
+        if (onDone) onDone();
+    } catch (error) {
+        console.error("Stream Gemini chat failed:", error);
+        if (onError) onError(error);
+    }
+};
+
 // --- Helper Utilities ---
 
 export function parseLlmJson<T>(jsonStr: string): T | null {

@@ -6,8 +6,9 @@ import { ScenarioSelector } from './ScenarioSelector';
 import { SparklesIcon } from '../icons';
 
 // Import Specific Scenarios
-// 注意：这里使用相对路径导入刚创建的子组件
 import { ScenarioWorkstation as ScenarioWorkstation_5e99 } from './5e99897c-6d91-4c72-88e5-653ea162e52b/index';
+// NEW: Import the Gemini scenario
+import { ScenarioWorkstation as ScenarioWorkstation_8215 } from './821543a3-1c02-427c-a6ae-c18874eda0c4/index';
 
 export const ReportGenerator: React.FC = () => {
     const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
@@ -68,13 +69,17 @@ export const ReportGenerator: React.FC = () => {
 
     // --- Routing Logic ---
     if (selectedScenario) {
-        // 特定场景路由
+        // Specific Scenario: Tech Analysis (OpenAI/Compatible)
         if (selectedScenario.id === '5e99897c-6d91-4c72-88e5-653ea162e52b') {
             return <ScenarioWorkstation_5e99 scenario={selectedScenario} onBack={handleBack} />;
         }
 
-        // TODO: 其他场景的路由逻辑
-        // 暂时回退到 alert 或通用占位
+        // NEW Specific Scenario: Tech Analysis (Gemini Cookie)
+        if (selectedScenario.id === '821543a3-1c02-427c-a6ae-c18874eda0c4') {
+            return <ScenarioWorkstation_8215 scenario={selectedScenario} onBack={handleBack} />;
+        }
+
+        // Fallback
         return (
             <div className="h-full flex flex-col items-center justify-center bg-slate-50">
                 <div className="bg-white p-8 rounded-2xl shadow-sm text-center">
