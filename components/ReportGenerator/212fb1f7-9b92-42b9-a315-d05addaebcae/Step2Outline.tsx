@@ -112,17 +112,6 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         let accumulatedText = '';
         let accumulatedReasoning = '';
         
-        // Optimistically add an empty assistant message for streaming
-        const tempAssistantMsg: ChatMessage = { role: 'assistant', content: '', reasoning: '' };
-        // We don't update parent history yet to avoid flickering, we manage local display or update parent frequently
-        // Better: Update parent immediately with the streaming message placeholder?
-        // Let's keep local state for the streaming chunk and update parent on finish.
-        // BUT to show it in UI, we need it in the list.
-        
-        // Approach: Append a placeholder to a local copy of history for rendering, then sync on done.
-        // Actually, let's just update parent history gradually or use a separate "streamingResponse" state.
-        // Simplest: Use a `streamingMessage` state.
-        
         try {
             // Get prompt config (just to get channel/model)
             const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
@@ -135,9 +124,6 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
             }, (data) => {
                 if (data.reasoning) accumulatedReasoning += data.reasoning;
                 if (data.content) accumulatedText += data.content;
-                
-                // Update streaming UI state (Reasoning & Content)
-                // We'll expose this via a temporary object in the render list
                 
                 // Real-time Outline Parsing
                 const extractedPages = extractCompletedPages(accumulatedText);
