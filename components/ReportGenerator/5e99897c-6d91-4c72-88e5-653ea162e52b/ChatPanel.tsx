@@ -147,7 +147,7 @@ interface FetchItem {
 const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm: (items: Attachment[]) => void }> = ({ isOpen, onClose, onConfirm }) => {
     const [urlInput, setUrlInput] = useState('');
     const [items, setItems] = useState<FetchItem[]>([]);
-    const [previewContent, setPreviewContent] = useState<string | null>(null);
+    const [previewItemId, setPreviewItemId] = useState<string | null>(null);
     
     // Auto-fetch newly added pending items
     useEffect(() => {
@@ -193,10 +193,12 @@ const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm:
         onConfirm(attachments);
         onClose();
         setItems([]);
-        setPreviewContent(null);
+        setPreviewItemId(null);
     };
 
     if (!isOpen) return null;
+
+    const activePreviewItem = items.find(i => i.id === previewItemId);
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
@@ -210,7 +212,7 @@ const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm:
                 
                 <div className="flex-1 flex overflow-hidden">
                     {/* Left: Input & List */}
-                    <div className={`flex-1 flex flex-col p-6 border-r border-gray-100 ${previewContent ? 'hidden md:flex md:w-1/2' : 'w-full'}`}>
+                    <div className={`flex-1 flex flex-col p-6 border-r border-gray-100 ${activePreviewItem ? 'hidden md:flex md:w-1/2' : 'w-full'}`}>
                         <div className="mb-4">
                             <textarea
                                 value={urlInput}
@@ -252,9 +254,9 @@ const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm:
                                     <div className="flex gap-2">
                                         {item.status === 'success' && (
                                             <button 
-                                                onClick={() => setPreviewContent(item.content || '')}
+                                                onClick={() => setPreviewItemId(item.id)}
                                                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                                                title="预览内容"
+                                                title="预览/编辑内容"
                                             >
                                                 <EyeIcon className="w-4 h-4"/>
                                             </button>
@@ -271,17 +273,26 @@ const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onConfirm:
                         </div>
                     </div>
 
-                    {/* Right: Preview */}
-                    {previewContent && (
+                    {/* Right: Preview & Edit */}
+                    {activePreviewItem && (
                         <div className="flex-1 p-6 bg-slate-50 overflow-hidden flex flex-col md:w-1/2 absolute md:static inset-0 z-20">
                             <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold text-slate-700">内容预览 (Markdown)</h4>
-                                <button onClick={() => setPreviewContent(null)} className="text-slate-500 hover:text-slate-800 md:hidden">关闭预览</button>
+                                <h4 className="font-bold text-slate-700">内容预览与编辑 (Markdown)</h4>
+                                <button onClick={() => setPreviewItemId(null)} className="text-slate-500 hover:text-slate-800 md:hidden">关闭</button>
                             </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white p-4 rounded-xl border border-slate-200">
-                                <pre className="whitespace-pre-wrap text-xs text-slate-600 font-mono break-words">
-                                    {previewContent}
-                                </pre>
+                            <div className="flex-1 overflow-hidden bg-white rounded-xl border border-slate-200 shadow-inner">
+                                <textarea 
+                                    className="w-full h-full p-4 resize-none outline-none text-xs text-slate-600 font-mono leading-relaxed custom-scrollbar"
+                                    value={activePreviewItem.content || ''}
+                                    onChange={(e) => {
+                                        const newVal = e.target.value;
+                                        setItems(prev => prev.map(i => i.id === activePreviewItem.id ? { ...i, content: newVal } : i));
+                                    }}
+                                    placeholder="抓取内容为空..."
+                                />
+                            </div>
+                            <div className="mt-2 text-right">
+                                <span className="text-[10px] text-slate-400">支持实时编辑，确认引用后生效</span>
                             </div>
                         </div>
                     )}
