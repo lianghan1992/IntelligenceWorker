@@ -1,22 +1,22 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { PPTData } from './index';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PPTPageData } from './index';
 import { streamChatCompletions, getPromptDetail, generatePdf } from '../../../api/stratify'; 
 import { 
-    SparklesIcon, RefreshIcon, DownloadIcon, ChevronRightIcon, 
-    ChevronLeftIcon, ViewGridIcon, PhotoIcon, CloseIcon, CheckIcon
+    RefreshIcon, DownloadIcon, ChevronRightIcon, 
+    ChevronLeftIcon, CheckIcon
 } from '../../icons';
 
 interface Step4FinalizeProps {
     topic: string;
-    pages: PPTData['pages'];
+    pages: PPTPageData[];
     onBackToCompose: () => void;
 }
 
 const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
 
 export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: initialPages, onBackToCompose }) => {
-    const [pages, setPages] = useState(initialPages);
+    const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
     const [isExporting, setIsExporting] = useState(false);
     const [scale, setScale] = useState(1);
@@ -45,7 +45,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                     accumulatedHtml += data.content;
                 }
             }, () => {
-                // Clean markdown fences
                 const cleanHtml = accumulatedHtml.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
                 setPages(prev => prev.map((p, i) => i === idx ? { ...p, html: cleanHtml, isGenerating: false } : p));
             }, (err) => {
@@ -63,13 +62,12 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                 generateHtml(i);
             }
         });
-    }, []);
+    }, [pages, generateHtml]);
 
     // Export Logic
     const handleExportFull = async () => {
         setIsExporting(true);
         try {
-            // Merge all HTMLs into one long document with page breaks
             const combinedHtml = `
                 <!DOCTYPE html>
                 <html>
@@ -81,7 +79,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                     </style>
                 </head>
                 <body>
-                    ${pages.map(p => `<div>${p.html}</div><div class="page-break"></div>`).join('')}
+                    ${pages.map(p => `<div>${p.html || ''}</div><div class="page-break"></div>`).join('')}
                 </body>
                 </html>
             `;
@@ -167,7 +165,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <DownloadIcon className="w-4 h-4" />}
                         导出高清 PDF 报告
                     </button>
-                    <p className="text-[9px] text-slate-400 text-center font-bold tracking-widest uppercase">Combine all slides into one bundle</p>
                 </div>
             </div>
 
@@ -179,12 +176,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                     </button>
                 </div>
                 
-                <div className="absolute top-6 right-6 z-20">
-                    <div className="bg-indigo-500/90 text-white px-4 py-2 rounded-xl text-xs font-black shadow-lg shadow-black/20 uppercase tracking-widest border border-indigo-400">
-                        High Fidelity Rendering
-                    </div>
-                </div>
-
                 <div id="ppt-canvas-container" className="flex-1 flex items-center justify-center overflow-hidden">
                     {activePage && activePage.html ? (
                         <div 
@@ -235,13 +226,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
                     </button>
                 </div>
             </div>
-
-            <style>{`
-                .custom-scrollbar-dark::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
-                .custom-scrollbar-dark::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.1); border-radius: 3px; }
-                .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover { background-color: rgba(255,255,255,0.2); }
-            `}</style>
         </div>
     );
 };

@@ -26,17 +26,19 @@ export interface ChatMessage {
     reasoning?: string; // 思考流内容
 }
 
+export interface PPTPageData {
+    title: string;
+    summary: string;
+    content: string;
+    html?: string;
+    isGenerating?: boolean;
+}
+
 export interface PPTData {
     topic: string;
     referenceMaterials: string;
     outline: StratifyOutline | null;
-    pages: Array<{
-        title: string;
-        summary: string;
-        content: string;
-        html?: string;
-        isGenerating?: boolean;
-    }>;
+    pages: PPTPageData[];
 }
 
 // --- 子组件：统一聊天消息气泡 ---
@@ -85,7 +87,7 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
 export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenario, onBack }) => {
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([
-        { role: 'assistant', content: '您好！我是您的报告架构师。请在右侧输入参考资料，并在下方告诉我想做的报告主题。' }
+        { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
     ]);
     const [data, setData] = useState<PPTData>({
         topic: '',
@@ -105,32 +107,39 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         }
     }, [history, streamingMessage]);
 
-    // 初始化工作流：将 Step 1 的输入转换为 history
-    const handleInitWorkflow = async (topic: string, materials: string) => {
-        try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
-            const newHistory: ChatMessage[] = [
-                { role: 'system', content: prompt.content, hidden: true },
-                { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
-                { role: 'user', content: topic, hidden: false }
-            ];
-            setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
-            setHistory(newHistory);
-            setStage('outline');
-        } catch (e) {
-            setStage('outline');
-        }
-    };
-
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (!chatInput.trim() || isLlmActive) return;
         const userInput = chatInput.trim();
         setChatInput('');
-        setHistory(prev => [...prev, { role: 'user', content: userInput }]);
+
+        if (stage === 'collect') {
+            try {
+                setIsLlmActive(true);
+                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+                const materials = data.referenceMaterials;
+                
+                const initialHistory: ChatMessage[] = [
+                    { role: 'system', content: prompt.content, hidden: true },
+                    { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                    { role: 'user', content: userInput, hidden: false }
+                ];
+                
+                setData(prev => ({ ...prev, topic: userInput }));
+                setHistory(initialHistory);
+                setStage('outline');
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsLlmActive(false);
+            }
+        } else {
+            setHistory(prev => [...prev, { role: 'user', content: userInput }]);
+        }
     };
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] font-sans overflow-hidden">
+            {/* Header */}
             <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-indigo-600 transition-colors">
@@ -148,7 +157,9 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 <div className="w-20" />
             </header>
 
+            {/* Main Layout */}
             <div className="flex-1 flex overflow-hidden">
+                {/* Persistent Chat Sidebar */}
                 <aside className="w-1/3 flex flex-col bg-white border-r border-slate-200 shadow-xl z-20">
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-indigo-600" />
@@ -163,7 +174,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                                     <RefreshIcon className="w-4 h-4 animate-spin"/>
                                 </div>
-                                <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">AI 正在构思中...</div>
+                                <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">AI 正在处理中...</div>
                             </div>
                         )}
                     </div>
@@ -188,8 +199,11 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     </div>
                 </aside>
 
+                {/* Workspace */}
                 <main className="flex-1 bg-slate-50/50 overflow-hidden relative">
-                    {stage === 'collect' && <Step1Collect onNext={handleInitWorkflow} />}
+                    {stage === 'collect' && (
+                        <Step1Collect onUpdateMaterials={(m) => setData(prev => ({ ...prev, referenceMaterials: m }))} />
+                    )}
                     {stage === 'outline' && (
                         <Step2Outline 
                             history={history}
@@ -217,7 +231,13 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                             onFinish={() => setStage('finalize')}
                         />
                     )}
-                    {stage === 'finalize' && <Step4Finalize topic={data.topic} pages={data.pages} onBackToCompose={() => setStage('compose')} />}
+                    {stage === 'finalize' && (
+                        <Step4Finalize 
+                            topic={data.topic}
+                            pages={data.pages}
+                            onBackToCompose={() => setStage('compose')}
+                        />
+                    )}
                 </main>
             </div>
         </div>
