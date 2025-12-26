@@ -1,7 +1,7 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PPTData } from './index';
 import { streamChatCompletions, getPromptDetail, generatePdf } from '../../../api/stratify'; 
-/* Added missing CheckIcon to imports */
 import { 
     SparklesIcon, RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, ViewGridIcon, PhotoIcon, CloseIcon, CheckIcon
@@ -93,6 +93,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
             document.body.appendChild(a);
             a.click();
             a.remove();
+            window.URL.revokeObjectURL(url);
         } catch (e) {
             alert('导出失败');
         } finally {
@@ -117,7 +118,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ topic, pages: init
         const timer = setInterval(handleResize, 500);
         return () => {
             window.removeEventListener('resize', handleResize);
-            clearInterval(interval);
+            clearInterval(timer);
         };
     }, []);
 
