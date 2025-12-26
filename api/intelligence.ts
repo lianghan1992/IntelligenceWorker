@@ -10,6 +10,8 @@ import {
     SpiderProxy, IntelligenceSourcePublic, ArticlePublic
 } from '../types';
 
+// ... (previous imports and existing functions remain unchanged) ...
+
 // Sources
 export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSources().then(res => res.map(s => ({
     id: s.uuid,
@@ -189,6 +191,35 @@ export const searchChunks = (data: any): Promise<{ results: SearchChunkResult[] 
 export const exportChunks = (data: any): Promise<{ export_data: any }> => 
     apiFetch<{ export_data: any }>(`${INTELSPIDER_SERVICE_PATH}/search/chunks/export`, { method: 'POST', body: JSON.stringify(data) });
 
+// --- Jina Reader API ---
+/**
+ * Fetches webpage content using Jina Reader.
+ * @param url The target URL to fetch
+ * @returns Markdown content string
+ */
+export const fetchJinaReader = async (url: string): Promise<string> => {
+    const jinaUrl = `https://r.jina.ai/${url}`;
+    const headers = new Headers();
+    // Headers to request markdown and clean up the page
+    headers.set('X-Return-Format', 'markdown');
+    headers.set('X-Exclude-Selector', 'header, footer, nav, .footer, .header, .nav, #footer, #header');
+    
+    // Note: Calling external URL directly. 
+    // In a real production env with strict CORS, this should be proxied via backend.
+    // Assuming Jina AI handles CORS or this is acceptable for client-side fetch.
+    const response = await fetch(jinaUrl, {
+        method: 'GET',
+        headers: headers
+    });
+
+    if (!response.ok) {
+        throw new Error(`Jina Fetch Error: ${response.statusText}`);
+    }
+
+    return response.text();
+};
+
+
 // HTML & PDF
 export const getArticleHtml = (uuid: string): Promise<{ html_content: string }> => 
     apiFetch<{ html_content: string }>(`${INTELSPIDER_SERVICE_PATH}/articles/${uuid}/html`);
@@ -206,7 +237,7 @@ export const downloadArticlePdf = async (uuid: string): Promise<Blob> => {
     return response.blob();
 }
 
-// LLM Sorting (Legacy?) - Keeping structure but ensuring paths match convention if needed
+// ... (rest of the file remains unchanged)
 export const createLlmSearchTask = (data: { query_text: string }): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/llm_search/tasks`, { method: 'POST', body: JSON.stringify(data) });
 
@@ -215,7 +246,6 @@ export const getLlmSearchTasks = (params: any): Promise<{ items: LlmSearchTaskIt
     return apiFetch<{ items: LlmSearchTaskItem[] }>(`${INTELSPIDER_SERVICE_PATH}/llm_search/tasks${query}`);
 }
 
-// Gemini Settings
 export const updateGeminiCookies = (data: any): Promise<any> => updateIntelGeminiCookies(data);
 export const checkGeminiCookies = (): Promise<any> => checkIntelGeminiStatus();
 export const toggleHtmlGeneration = (enabled: boolean): Promise<any> => toggleIntelHtmlGeneration(enabled);
@@ -235,7 +265,6 @@ export const toggleIntelHtmlGeneration = (enabled: boolean): Promise<{ message: 
 export const toggleRetrospectiveHtmlGeneration = (enabled: boolean): Promise<{ message: string }> => 
     apiFetch(`${INTELSPIDER_SERVICE_PATH}/html/retrospective/enable`, { method: 'POST', body: JSON.stringify({ enabled }) });
 
-// Generic Crawler
 export const createGenericPoint = (data: any): Promise<void> => createSpiderPoint({ ...data, mode: 'generic' }).then(() => {});
 export const updateGenericPoint = (uuid: string, data: any): Promise<void> => updateSpiderPoint(uuid, data).then(() => {});
 export const getSourcesAndPoints = (): Promise<any[]> => getSources().then(async sources => {
@@ -247,7 +276,6 @@ export const getSourcesAndPoints = (): Promise<any[]> => getSources().then(async
 });
 export const getGenericTasks = (params: any): Promise<any> => getSpiderTasks(params);
 
-// Pending Articles
 export const getPendingArticles = (params: any): Promise<PaginatedResponse<PendingArticle>> => getSpiderPendingArticles(params);
 
 export const getSpiderPendingArticles = (params?: any): Promise<any> => {
@@ -262,13 +290,12 @@ export const rejectPendingArticles = (ids: string[]): Promise<void> =>
 export const approveSpiderArticles = (ids: string[]): Promise<{ ok: boolean; processed: number }> => 
     apiFetch<{ ok: boolean; processed: number }>(`${INTELSPIDER_SERVICE_PATH}/articles/pending/approve`, { method: 'POST', body: JSON.stringify({ ids }) });
 
-// Intel LLM Analysis Tasks
 export const createIntelLlmTask = (data: any): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks`, { method: 'POST', body: JSON.stringify(data) });
 
 export const getIntelLlmTasks = (params: any): Promise<{ items: IntelLlmTask[] }> => {
     const query = createApiQuery(params);
-    return apiFetch<{ items: IntelLlmTask[] }>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`); // Check path
+    return apiFetch<{ items: IntelLlmTask[] }>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`); 
 }
 
 export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> => {
@@ -281,12 +308,9 @@ export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> =>
     return response.blob();
 }
 
-// Stats
-// New endpoint: /intelspider/analysis/stats
 export const getIntelligenceStats = (): Promise<any> => 
     apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/analysis/stats`);
 
-// Analysis Templates
 export const createAnalysisTemplate = (data: any): Promise<AnalysisTemplate> => 
     apiFetch<AnalysisTemplate>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates`, { method: 'POST', body: JSON.stringify(data) });
 
@@ -301,7 +325,6 @@ export const updateAnalysisTemplate = (uuid: string, data: any): Promise<Analysi
 export const deleteAnalysisTemplate = (uuid: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/templates/${uuid}`, { method: 'DELETE' });
 
-// New endpoint: /intelspider/analysis/tasks (Get analysis results)
 export const getAnalysisResults = (params: any): Promise<{total: number, page: number, page_size: number, items: AnalysisResult[]}> => {
     const query = createApiQuery(params);
     return apiFetch<{total: number, page: number, page_size: number, items: AnalysisResult[]}>(`${INTELSPIDER_SERVICE_PATH}/analysis/tasks${query}`);
@@ -310,13 +333,9 @@ export const getAnalysisResults = (params: any): Promise<{total: number, page: n
 export const triggerAnalysis = (articleUuid: string, templateUuid?: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleUuid}`, { method: 'POST', body: JSON.stringify({ template_uuid: templateUuid }) });
 
-// Document Management
-
-// Get Uploaded Docs List
 export const getUploadedDocs = async (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
     const query = createApiQuery(params);
     const res = await apiFetch<{total: number, page: number, page_size: number, items: UploadedDocument[]}>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
-    // Fix file size unit (KB -> Bytes) for frontend display consistency
     if (res.items) {
         res.items = res.items.map(item => ({
             ...item,
@@ -326,7 +345,6 @@ export const getUploadedDocs = async (params: any): Promise<{total: number, page
     return res;
 }
 
-// Get Doc Detail
 export const getUploadedDocDetail = async (uuid: string): Promise<UploadedDocument> => {
     const doc = await apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
     return {
@@ -335,7 +353,6 @@ export const getUploadedDocDetail = async (uuid: string): Promise<UploadedDocume
     };
 }
 
-// Upload Docs
 export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<UploadedDocument[]> => {
     const formData = new FormData();
     data.files.forEach(f => formData.append('files', f));
@@ -344,11 +361,9 @@ export const uploadDocs = (data: { files: File[], point_uuid: string, publish_da
     return apiFetch<UploadedDocument[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
 }
 
-// Delete Doc
 export const deleteUploadedDoc = (uuid: string): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
 
-// Download Doc
 export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/download`;
     const token = localStorage.getItem('accessToken');
@@ -359,7 +374,6 @@ export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     return response.blob();
 }
 
-// Get Doc Preview
 export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview/${page}`;
     const token = localStorage.getItem('accessToken');
@@ -370,33 +384,24 @@ export const getDocPreview = async (uuid: string, page: number): Promise<Blob> =
     return response.blob();
 }
 
-// --- Doc Tags Management ---
-
-// Get All Tags (Points)
 export const getDocTags = (): Promise<DocTag[]> => 
     apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
 
-// Create Tag
 export const createDocTag = (name: string): Promise<DocTag> => 
     apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`, { method: 'POST', body: JSON.stringify({ name }) });
 
-// Update Tag
 export const updateDocTag = (uuid: string, name: string): Promise<DocTag> => 
     apiFetch<DocTag>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'PUT', body: JSON.stringify({ name }) });
 
-// Delete Tag
 export const deleteDocTag = (uuid: string): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${uuid}`, { method: 'DELETE' });
 
-// Search Tags
 export const searchDocTags = (query: string): Promise<DocTag[]> =>
     apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/search/tags`, { method: 'POST', body: JSON.stringify({ query }) });
 
-// Batch Move Docs
 export const batchUpdateDocsPoint = (data: { old_point_uuid: string, new_point_uuid: string, doc_uuids?: string[] }): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/batch-update-point`, { method: 'POST', body: JSON.stringify(data) });
 
-// Service Health & Proxies
 export const getServiceHealth = (): Promise<{ status: string }> => 
     apiFetch<{ status: string }>(`${INTELSPIDER_SERVICE_PATH}/health`);
 
@@ -407,7 +412,7 @@ export const addProxy = (data: { url: string, enabled: boolean }): Promise<void>
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies`, { method: 'POST', body: JSON.stringify(data) });
 
 export const deleteProxy = (url: string): Promise<void> => 
-    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, { method: 'DELETE' }); // Encode URL for path param
+    apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/proxies/${encodeURIComponent(url)}`, { method: 'DELETE' }); 
 
 export const testProxy = (url: string): Promise<{ success: boolean; latency_ms: number }> => 
     apiFetch<{ success: boolean; latency_ms: number }>(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, { method: 'POST', body: JSON.stringify({ url }) });
