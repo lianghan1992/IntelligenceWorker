@@ -9,6 +9,7 @@ import { Step1Collect } from './Step1Collect';
 import { Step2Outline } from './Step2Outline';
 import { Step3Compose } from './Step3Compose';
 import { Step4Finalize } from './Step4Finalize';
+import { getPromptDetail } from '../../../api/stratify';
 
 interface ScenarioWorkstationProps {
     scenario: StratifyScenario;
@@ -17,10 +18,11 @@ interface ScenarioWorkstationProps {
 
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
-// 定义消息结构，用于维护上下文
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
+    hidden?: boolean; // 新增：是否在UI中隐藏（用于Prompt注入、资料注入）
+    reasoning?: string; // 新增：思考过程
 }
 
 export interface PPTData {
@@ -34,7 +36,6 @@ export interface PPTData {
         html?: string;
         isGenerating?: boolean;
     }>;
-    // 新增：全流程共享的会话历史
     history: ChatMessage[];
 }
 
@@ -52,10 +53,9 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         referenceMaterials: '',
         outline: null,
         pages: [],
-        history: [] // 初始化历史记录
+        history: []
     });
 
-    // 进度控制
     const activeStepIdx = STEP_LABELS.findIndex(s => s.id === currentStage);
 
     const handleBack = () => {
@@ -65,9 +65,42 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         else onBack();
     };
 
+    // Step 1 -> Step 2: 初始化会话上下文
+    const handleStep1Next = async (topic: string, materials: string) => {
+        try {
+            // 获取大纲生成的 System Prompt
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+            const systemPromptContent = prompt.content;
+
+            const newHistory: ChatMessage[] = [
+                // 1. 系统指令 (Hidden)
+                { role: 'system', content: systemPromptContent, hidden: true },
+                // 2. 参考资料 (Hidden - 避免由用户直接看到大量文本)
+                { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                // 3. 用户意图 (Visible - 这是用户在Step1输入的)
+                { role: 'user', content: topic, hidden: false }
+            ];
+
+            setData(prev => ({ 
+                ...prev, 
+                topic, 
+                referenceMaterials: materials,
+                history: newHistory
+            }));
+            setCurrentStage('outline');
+        } catch (e) {
+            console.error("Failed to init prompt", e);
+            // Fallback if prompt fetch fails
+            const newHistory: ChatMessage[] = [
+                { role: 'user', content: `参考资料：${materials}\n\n主题：${topic}`, hidden: false }
+            ];
+            setData(prev => ({ ...prev, topic, referenceMaterials: materials, history: newHistory }));
+            setCurrentStage('outline');
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] font-sans">
-            {/* Header with Stepper */}
             <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm">
                 <div className="flex items-center gap-4">
                     <button onClick={handleBack} className="p-2 -ml-2 text-slate-500 hover:text-indigo-600 transition-colors">
@@ -79,7 +112,6 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     </div>
                 </div>
 
-                {/* Progress Stepper */}
                 <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
                     {STEP_LABELS.map((step, idx) => {
                         const isActive = currentStage === step.id;
@@ -110,23 +142,13 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 </div>
             </header>
 
-            {/* Dynamic Workspace */}
             <main className="flex-1 overflow-hidden relative">
                 {currentStage === 'collect' && (
-                    <Step1Collect 
-                        onNext={(topic, materials) => {
-                            setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
-                            setCurrentStage('outline');
-                        }}
-                    />
+                    <Step1Collect onNext={handleStep1Next} />
                 )}
                 {currentStage === 'outline' && (
                     <Step2Outline 
-                        topic={data.topic}
-                        referenceMaterials={data.referenceMaterials}
-                        // 传入已有历史（如果有）
                         history={data.history}
-                        // 更新父组件历史
                         onHistoryUpdate={(newHistory) => setData(prev => ({ ...prev, history: newHistory }))}
                         onConfirm={(outline) => {
                             setData(prev => ({ 
@@ -142,7 +164,6 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     <Step3Compose 
                         topic={data.topic}
                         pages={data.pages}
-                        // 传入完整的会话历史，确保内容生成不丢失上下文
                         history={data.history}
                         onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
                         onFinish={() => setCurrentStage('finalize')}
