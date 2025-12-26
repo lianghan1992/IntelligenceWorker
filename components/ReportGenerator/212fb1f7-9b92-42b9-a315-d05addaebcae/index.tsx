@@ -34,7 +34,7 @@ export interface PPTData {
         title: string;
         summary: string;
         content: string;
-        html?: string; // 修复：添加 html 属性
+        html?: string;
         isGenerating?: boolean;
     }>;
 }
@@ -81,7 +81,7 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
 export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenario, onBack }) => {
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([
-        { role: 'assistant', content: '您好！我是您的报告架构师。请在右侧输入您的研究主题并提供参考资料，我将为您规划专业的报告蓝图。' }
+        { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
     ]);
     const [data, setData] = useState<PPTData>({
         topic: '',
@@ -100,29 +100,37 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         }
     }, [history, isLlmActive]);
 
-    // 处理 Step 1 的初始提交
-    const handleInitWorkflow = async (topic: string, materials: string) => {
-        try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
-            const newHistory: ChatMessage[] = [
-                { role: 'system', content: prompt.content, hidden: true },
-                { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
-                { role: 'user', content: topic, hidden: false } // 只有主题对用户可见
-            ];
-            setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
-            setHistory(newHistory);
-            setStage('outline');
-        } catch (e) {
-            console.error("Failed to fetch prompt", e);
-            setStage('outline');
-        }
-    };
-
-    const handleSendMessage = () => {
+    const handleSendMessage = async () => {
         if (!chatInput.trim() || isLlmActive) return;
-        const msg: ChatMessage = { role: 'user', content: chatInput };
-        setHistory(prev => [...prev, msg]);
+        const userInput = chatInput.trim();
         setChatInput('');
+
+        if (stage === 'collect') {
+            // Step 1 -> Step 2 切换逻辑
+            try {
+                setIsLlmActive(true);
+                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+                const materials = data.referenceMaterials;
+                
+                const initialHistory: ChatMessage[] = [
+                    { role: 'system', content: prompt.content, hidden: true },
+                    { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                    { role: 'user', content: userInput, hidden: false }
+                ];
+                
+                setData(prev => ({ ...prev, topic: userInput }));
+                setHistory(initialHistory);
+                setStage('outline');
+                // 这里不需要在这里手动调用 runLlm，Step2Outline 里的 useEffect 会监测 history 变化并触发
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsLlmActive(false);
+            }
+        } else {
+            // 普通对话逻辑
+            setHistory(prev => [...prev, { role: 'user', content: userInput }]);
+        }
     };
 
     return (
@@ -176,14 +184,13 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                             <textarea 
                                 value={chatInput}
                                 onChange={e => setChatInput(e.target.value)}
-                                placeholder={stage === 'collect' ? "您也可以直接在这里输入想法..." : "输入修改建议，AI将重新规划..."}
+                                placeholder={stage === 'collect' ? "输入您的报告主题或想法..." : "输入修改建议，AI将重新规划..."}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20 shadow-inner"
                                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                                disabled={stage === 'collect' && data.topic === ''} // 引导用户先用右侧面板
                             />
                             <button 
                                 onClick={handleSendMessage}
-                                disabled={!chatInput.trim() || isLlmActive || (stage === 'collect' && data.topic === '')}
+                                disabled={!chatInput.trim() || isLlmActive}
                                 className="absolute right-2 bottom-2 p-2 bg-slate-900 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition-all"
                             >
                                 <ArrowRightIcon className="w-4 h-4" />
@@ -195,7 +202,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 {/* Workspace (2/3) */}
                 <main className="flex-1 bg-slate-50/50 overflow-hidden relative">
                     {stage === 'collect' && (
-                        <Step1Collect onNext={handleInitWorkflow} />
+                        <Step1Collect onUpdateMaterials={(m) => setData(prev => ({ ...prev, referenceMaterials: m }))} />
                     )}
                     {stage === 'outline' && (
                         <Step2Outline 
