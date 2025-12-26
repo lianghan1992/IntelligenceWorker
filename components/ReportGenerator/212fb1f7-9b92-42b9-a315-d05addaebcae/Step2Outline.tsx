@@ -1,19 +1,21 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { StratifyOutline } from '../../../types';
-import { streamChatCompletions, getPromptDetail, parseLlmJson } from '../../../api/stratify';
+import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
 import { fetchJinaReader } from '../../../api/intelligence';
 import { 
     SparklesIcon, ViewGridIcon, RefreshIcon, CheckIcon, 
-    ArrowRightIcon, BrainIcon, ChevronDownIcon, CloseIcon, 
-    TrashIcon, PencilIcon, PlusIcon, GlobeIcon, PuzzleIcon, DocumentTextIcon,
-    PhotoIcon, CloudIcon
+    ArrowRightIcon, BrainIcon, CloseIcon, 
+    PencilIcon, GlobeIcon, PuzzleIcon, CloudIcon
 } from '../../icons';
 import { KnowledgeSearchModal } from '../5e99897c-6d91-4c72-88e5-653ea162e52b/KnowledgeSearchModal';
+import { ChatMessage } from './index'; // 引入类型
 
 interface Step2OutlineProps {
     topic: string;
     referenceMaterials: string;
+    history: ChatMessage[];
+    onHistoryUpdate: (newHistory: ChatMessage[]) => void;
     onConfirm: (outline: StratifyOutline) => void;
 }
 
@@ -24,7 +26,51 @@ interface Attachment {
     name: string;
 }
 
-export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMaterials, onConfirm }) => {
+// 辅助函数：从不完整的 JSON 字符串中尝试提取已完成的 pages 数组项
+const extractCompletedPages = (jsonStr: string): any[] => {
+    try {
+        // 1. 找到 "pages": [ 的位置
+        const pagesStartMatch = jsonStr.match(/"pages"\s*:\s*\[/);
+        if (!pagesStartMatch || typeof pagesStartMatch.index === 'undefined') return [];
+        
+        const arrayStartIndex = pagesStartMatch.index + pagesStartMatch[0].length;
+        const arrayContent = jsonStr.slice(arrayStartIndex);
+        
+        // 2. 简单的平衡括号解析
+        let balance = 0;
+        let objectStartIndex = -1;
+        const foundObjects: any[] = [];
+        
+        for (let i = 0; i < arrayContent.length; i++) {
+            const char = arrayContent[i];
+            
+            if (char === '{') {
+                if (balance === 0) objectStartIndex = i;
+                balance++;
+            } else if (char === '}') {
+                balance--;
+                if (balance === 0 && objectStartIndex !== -1) {
+                    // 找到一个闭合对象
+                    const objStr = arrayContent.substring(objectStartIndex, i + 1);
+                    try {
+                        const obj = JSON.parse(objStr);
+                        if (obj.title && obj.content) { // 简单校验
+                            foundObjects.push(obj);
+                        }
+                    } catch (e) {
+                        // ignore parse error for individual chunk
+                    }
+                    objectStartIndex = -1;
+                }
+            }
+        }
+        return foundObjects;
+    } catch (e) {
+        return [];
+    }
+};
+
+export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMaterials, history, onHistoryUpdate, onConfirm }) => {
     const [outline, setOutline] = useState<StratifyOutline | null>(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const [chatInput, setChatInput] = useState('');
@@ -49,25 +95,18 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
         }
     }, [reasoning]);
 
-    const runLlm = async (userInput: string, isUpdate = false) => {
+    const runLlm = async (newMessages: ChatMessage[]) => {
         setIsStreaming(true);
         setReasoning('');
         let accumulatedText = '';
         
         try {
             const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
-            let finalSystemPrompt = prompt.content
-                .replace('{{markdown_content}}', topic)
-                .replace('{{reference_materials}}', referenceMaterials);
-            
-            const messages = [
-                { role: 'system', content: finalSystemPrompt },
-                { role: 'user', content: isUpdate ? userInput : "请基于上述资料生成报告大纲。" }
-            ];
+            const modelId = `${prompt.channel_code}@${prompt.model_id}`;
 
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
-                messages,
+                model: modelId,
+                messages: newMessages,
                 stream: true
             }, (data) => {
                 if (data.reasoning) {
@@ -75,14 +114,42 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
                 }
                 if (data.content) {
                     accumulatedText += data.content;
-                    // 实时解析 JSON。parseLlmJson 内部支持模糊匹配括号，能实现较好的流式解析体验
-                    const parsed = parseLlmJson<StratifyOutline>(accumulatedText);
-                    if (parsed && parsed.pages && parsed.pages.length > 0) {
-                        setOutline(parsed);
+                    
+                    // --- 实时流式解析逻辑 ---
+                    const extractedPages = extractCompletedPages(accumulatedText);
+                    
+                    // 尝试提取 Title (通常 title 在 pages 之前或之后，这里简单正则尝试)
+                    const titleMatch = accumulatedText.match(/"title"\s*:\s*"(.*?)"/);
+                    const currentTitle = titleMatch ? titleMatch[1] : (outline?.title || '正在生成大纲...');
+
+                    if (extractedPages.length > 0) {
+                        setOutline(prev => ({
+                            title: currentTitle,
+                            pages: extractedPages
+                        }));
                     }
                 }
             }, () => {
                 setIsStreaming(false);
+                // 完成后，尝试做一次完整的 JSON Parse 以确保数据完整性，并修复可能遗漏的末尾
+                try {
+                    // 简单的 JSON 修复尝试
+                    let finalJsonStr = accumulatedText.trim();
+                    const firstBrace = finalJsonStr.indexOf('{');
+                    const lastBrace = finalJsonStr.lastIndexOf('}');
+                    if (firstBrace !== -1 && lastBrace !== -1) {
+                         finalJsonStr = finalJsonStr.substring(firstBrace, lastBrace + 1);
+                         const finalObj = JSON.parse(finalJsonStr);
+                         setOutline(finalObj);
+                    }
+                } catch(e) {
+                    console.warn("Final parse failed, keeping streamed result", e);
+                }
+
+                // 更新父组件的历史记录，保存这次对话
+                const assistantMsg: ChatMessage = { role: 'assistant', content: accumulatedText };
+                onHistoryUpdate([...newMessages, assistantMsg]);
+
             }, (err) => {
                 setIsStreaming(false);
                 alert('大纲生成失败: ' + err.message);
@@ -94,10 +161,39 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
         }
     };
 
+    // 首次加载触发
     useEffect(() => {
         if (!hasInitialRun.current) {
             hasInitialRun.current = true;
-            runLlm('');
+            
+            // 如果父组件没有传完整的历史（即第一次进入），则构建初始 Prompt
+            if (history.length === 0) {
+                getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").then(prompt => {
+                     // 替换模版变量
+                    let finalSystemPrompt = prompt.content; 
+                    // 注意：这里我们构造一个 System Message + User Message 的组合
+                    // 实际上 API 调用时通常 System 在最前。
+                    // 为了简化，我们将资料放入 User Message 或 System Message
+                    
+                    const systemMsg: ChatMessage = { 
+                        role: 'system', 
+                        content: finalSystemPrompt // 原始 System Prompt 
+                    };
+                    
+                    const userContent = `分析主题：${topic}\n\n参考资料：\n${referenceMaterials}\n\n请基于上述资料生成报告大纲。`;
+                    const userMsg: ChatMessage = { role: 'user', content: userContent };
+                    
+                    const initialMessages = [systemMsg, userMsg];
+                    // 立即更新父组件历史，防止重复（其实在 runLlm 成功后更新更好，但为了保持状态一致性先传参）
+                    runLlm(initialMessages);
+                });
+            } else {
+                // 如果已有历史（例如从 Step3 返回），则恢复状态？
+                // 目前逻辑是每次进入 Step2 都会重新生成（因为 onNext 会重置 stage），
+                // 如果需要保留，父组件应该管理 outline state。
+                // 假设这是“重新生成”或“修改”的入口。
+                // 如果 outline 为空，说明是新流程。
+            }
         }
     }, []);
 
@@ -111,7 +207,10 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
             finalInput += `\n\n请参考以下新提供的资料对大纲进行调整：\n${extra}`;
         }
 
-        runLlm(finalInput, true);
+        const newUserMsg: ChatMessage = { role: 'user', content: finalInput };
+        const newHistory = [...history, newUserMsg];
+        
+        runLlm(newHistory);
         setChatInput('');
         setAttachments([]);
     };
@@ -237,7 +336,7 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
                             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage(e))}
                         />
                         <button 
-                            type="submit"
+                            type="submit" 
                             disabled={(!chatInput.trim() && attachments.length === 0) || isStreaming}
                             className="absolute right-3 bottom-3 p-2 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 disabled:opacity-50 transition-all active:scale-95 shadow-lg"
                         >
@@ -269,53 +368,55 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ topic, referenceMate
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-8 space-y-4 custom-scrollbar">
-                    {outline ? outline.pages.map((page, idx) => (
-                        <div 
-                            key={idx} 
-                            className={`group relative bg-white rounded-2xl border transition-all duration-300 p-6 flex gap-6 animate-in slide-in-from-bottom-2 ${editingIdx === idx ? 'border-indigo-400 ring-4 ring-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:shadow-xl'}`}
-                        >
-                            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                {idx + 1}
-                            </div>
-                            
-                            <div className="flex-1 space-y-3 min-w-0">
-                                {editingIdx === idx ? (
-                                    <>
-                                        <input 
-                                            value={page.title}
-                                            onChange={e => handleManualEdit(idx, 'title', e.target.value)}
-                                            className="w-full text-lg font-bold text-slate-800 border-b border-indigo-200 focus:border-indigo-500 outline-none pb-1"
-                                            autoFocus
-                                        />
-                                        <textarea 
-                                            value={page.content}
-                                            onChange={e => handleManualEdit(idx, 'content', e.target.value)}
-                                            className="w-full text-sm text-slate-500 bg-slate-50 rounded-lg p-3 border-none outline-none resize-none h-20 focus:ring-1 focus:ring-indigo-500"
-                                        />
-                                        <div className="flex justify-end gap-2">
-                                            <button onClick={() => setEditingIdx(null)} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm">完成修改</button>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <h4 className="text-lg font-bold text-slate-800 truncate">{page.title}</h4>
-                                        <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">{page.content}</p>
-                                    </>
+                    {outline && outline.pages.length > 0 ? (
+                        outline.pages.map((page, idx) => (
+                            <div 
+                                key={idx} 
+                                className={`group relative bg-white rounded-2xl border transition-all duration-300 p-6 flex gap-6 animate-in slide-in-from-bottom-2 ${editingIdx === idx ? 'border-indigo-400 ring-4 ring-indigo-50' : 'border-slate-200 hover:border-indigo-300 hover:shadow-xl'}`}
+                            >
+                                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center font-black text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                    {idx + 1}
+                                </div>
+                                
+                                <div className="flex-1 space-y-3 min-w-0">
+                                    {editingIdx === idx ? (
+                                        <>
+                                            <input 
+                                                value={page.title}
+                                                onChange={e => handleManualEdit(idx, 'title', e.target.value)}
+                                                className="w-full text-lg font-bold text-slate-800 border-b border-indigo-200 focus:border-indigo-500 outline-none pb-1"
+                                                autoFocus
+                                            />
+                                            <textarea 
+                                                value={page.content}
+                                                onChange={e => handleManualEdit(idx, 'content', e.target.value)}
+                                                className="w-full text-sm text-slate-500 bg-slate-50 rounded-lg p-3 border-none outline-none resize-none h-20 focus:ring-1 focus:ring-indigo-500"
+                                            />
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={() => setEditingIdx(null)} className="px-4 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg shadow-sm">完成修改</button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <h4 className="text-lg font-bold text-slate-800 truncate">{page.title}</h4>
+                                            <p className="text-sm text-slate-500 leading-relaxed line-clamp-3">{page.content}</p>
+                                        </>
+                                    )}
+                                </div>
+
+                                {editingIdx !== idx && !isStreaming && (
+                                    <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => setEditingIdx(idx)}
+                                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                        >
+                                            <PencilIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-
-                            {editingIdx !== idx && !isStreaming && (
-                                <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button 
-                                        onClick={() => setEditingIdx(idx)}
-                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                    >
-                                        <PencilIcon className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )) : (
+                        ))
+                    ) : (
                         <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-300">
                             <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-100 border-t-indigo-600"></div>
                             <p className="text-sm font-bold animate-pulse">正在解析报告架构，请稍候...</p>

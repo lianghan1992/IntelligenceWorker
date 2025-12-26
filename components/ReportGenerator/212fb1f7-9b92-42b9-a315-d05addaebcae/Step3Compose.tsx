@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTData } from './index';
 import { streamChatCompletions, getPromptDetail, parseLlmJson } from '../../../api/stratify';
+import { ChatMessage } from './index';
 import { 
     SparklesIcon, DocumentTextIcon, RefreshIcon, CheckIcon, 
     ArrowRightIcon, BrainIcon, ChevronRightIcon, PencilIcon,
@@ -11,19 +12,20 @@ import {
 interface Step3ComposeProps {
     topic: string;
     pages: PPTData['pages'];
+    history: ChatMessage[]; // 接收历史记录
     onUpdatePages: (newPages: PPTData['pages']) => void;
     onFinish: () => void;
 }
 
 const PROMPT_ID = "c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2";
 
-export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpdatePages, onFinish }) => {
+export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, history, onUpdatePages, onFinish }) => {
     const [activeIdx, setActiveIdx] = useState(0);
     const [editingContent, setEditingContent] = useState<string | null>(null);
     const [reasoning, setReasoning] = useState<Record<number, string>>({});
     const reasoningScrollRef = useRef<HTMLDivElement>(null);
 
-    // Keep a ref to pages to avoid stale closures in streaming callbacks and fix functional update errors
+    // 使用 Ref 追踪最新的 pages 状态，防止闭包陷阱
     const pagesRef = useRef(pages);
     useEffect(() => {
         pagesRef.current = pages;
@@ -36,73 +38,89 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
         }
     }, [reasoning, activeIdx]);
 
+    // 单页生成逻辑
     const generatePageContent = useCallback(async (idx: number, force = false) => {
         const page = pagesRef.current[idx];
         if (!page || (page.content && !force) || page.isGenerating) return;
 
-        // 重置该页的思考内容
+        // 清空该页之前的思考内容
         setReasoning(prev => ({ ...prev, [idx]: '' }));
 
-        // 标记正在生成
+        // 标记开始生成
         const updatedStart = [...pagesRef.current];
         updatedStart[idx] = { ...page, content: '', isGenerating: true };
         onUpdatePages(updatedStart);
 
         try {
             const prompt = await getPromptDetail(PROMPT_ID);
-            const userPrompt = prompt.content
+            const userInstruction = prompt.content
                 .replace('{{ page_index }}', String(idx + 1))
                 .replace('{{ page_title }}', page.title)
                 .replace('{{ page_summary }}', page.summary);
+            
+            // 关键：基于历史上下文构建本次生成的 Messages
+            // 我们保留 Step 2 的完整历史（包含系统提示、资料、大纲生成过程），然后添加本页的生成指令
+            const requestMessages = [
+                ...history, 
+                { role: 'user', content: userInstruction }
+            ];
 
             let accumulatedText = '';
+            
             await streamChatCompletions({
                 model: `${prompt.channel_code}@${prompt.model_id}`,
-                messages: [{ role: 'user', content: userPrompt }],
+                messages: requestMessages,
                 stream: true
             }, (data) => {
+                // 收集思考过程
                 if (data.reasoning) {
                     setReasoning(prev => ({ ...prev, [idx]: (prev[idx] || '') + data.reasoning }));
                 }
+                // 收集正文内容并实时解析
                 if (data.content) {
                     accumulatedText += data.content;
-                    // 实时解析内容 JSON
                     const parsed = parseLlmJson<{ content: string }>(accumulatedText);
                     if (parsed && parsed.content) {
-                        // Fix: Using pagesRef to get current state and passing array to onUpdatePages to resolve "Argument of type '(prevPages: any) => any[]' is not assignable to parameter of type '...[]'"
                         const nextPages = [...pagesRef.current];
+                        // 仅更新内容，保持 isGenerating 为 true
                         nextPages[idx] = { ...nextPages[idx], content: parsed.content };
                         onUpdatePages(nextPages);
                     }
                 }
             }, () => {
-                // Fix: Using pagesRef to get current state and passing array to onUpdatePages
+                // 完成
                 const nextPages = [...pagesRef.current];
                 nextPages[idx] = { ...nextPages[idx], isGenerating: false };
                 onUpdatePages(nextPages);
             }, (err) => {
-                // Fix: Using pagesRef to get current state and passing array to onUpdatePages
+                // 错误处理
                 const nextPages = [...pagesRef.current];
                 nextPages[idx] = { ...nextPages[idx], isGenerating: false, content: `生成失败: ${err.message}` };
                 onUpdatePages(nextPages);
             });
 
         } catch (e) {
-            // Fix: Using pagesRef to get current state and passing array to onUpdatePages
             const nextPages = [...pagesRef.current];
             nextPages[idx] = { ...nextPages[idx], isGenerating: false };
             onUpdatePages(nextPages);
         }
-    }, [onUpdatePages]);
+    }, [history, onUpdatePages]); // 添加 history 依赖
 
-    // 初始进入时，如果没有内容且不在生成，则按顺序触发（或者并行触发）
+    // --- 顺序生成控制逻辑 ---
     useEffect(() => {
-        pages.forEach((p, i) => {
-            if (!p.content && !p.isGenerating) {
-                generatePageContent(i);
-            }
-        });
-    }, []);
+        // 1. 检查是否已有页面正在生成
+        const isAnyGenerating = pages.some(p => p.isGenerating);
+        if (isAnyGenerating) return;
+
+        // 2. 找到第一个没有内容的页面
+        const nextIdx = pages.findIndex(p => !p.content);
+        
+        // 3. 如果存在这样的页面，自动切换过去并开始生成
+        if (nextIdx !== -1) {
+            setActiveIdx(nextIdx); // 自动聚焦到正在生成的页面
+            generatePageContent(nextIdx);
+        }
+    }, [pages, generatePageContent]);
 
     const activePage = pages[activeIdx];
     const allDone = pages.every(p => p.content && !p.isGenerating);
@@ -124,7 +142,7 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                     <h3 className="font-black text-slate-800 flex items-center gap-2">
                         <ViewGridIcon className="w-5 h-5 text-indigo-600" /> 报告内容大纲
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">点击页面可切换查看生成详情与 AI 思考过程。</p>
+                    <p className="text-xs text-slate-400 mt-1">AI 将结合历史资料按顺序为您撰写内容。</p>
                 </div>
 
                 {/* Page Navigator */}
@@ -145,9 +163,9 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                                 <p className={`text-xs font-bold truncate ${activeIdx === idx ? 'text-indigo-900' : 'text-slate-700'}`}>{page.title}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     {page.isGenerating ? (
-                                        <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 创作中...</span>
+                                        <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 撰写中...</span>
                                     ) : page.content ? (
-                                        <span className="text-[9px] text-emerald-500 font-bold flex items-center gap-1"><CheckIcon className="w-3 h-3"/> 已生成</span>
+                                        <span className="text-[9px] text-emerald-500 font-bold flex items-center gap-1"><CheckIcon className="w-3 h-3"/> 已完成</span>
                                     ) : (
                                         <span className="text-[9px] text-slate-400">待开始</span>
                                     )}
@@ -177,12 +195,12 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                         ) : activePage?.isGenerating ? (
                             <div className="flex flex-col items-center justify-center h-full opacity-40">
                                 <RefreshIcon className="w-8 h-8 animate-spin mb-2" />
-                                <p>正在初始化深度创作逻辑...</p>
+                                <p>正在启动深度思考...</p>
                             </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full opacity-30 text-center px-8">
                                 <SparklesIcon className="w-10 h-10 mb-2" />
-                                <p>该页内容已生成完毕，或点击刷新重新触发 AI 深度思考。</p>
+                                <p>本页内容已生成完毕。</p>
                             </div>
                         )}
                     </div>
@@ -201,7 +219,7 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                                 <div>
                                     <h3 className="text-xl font-black text-slate-800 tracking-tight">{activePage.title}</h3>
                                     <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-                                        {activePage.isGenerating ? 'AI 正在编写高信息密度稿件...' : '内容已就绪，支持手动微调'}
+                                        {activePage.isGenerating ? 'AI 正在撰写高信息密度稿件...' : '内容已就绪，支持手动微调'}
                                     </p>
                                 </div>
                             </div>
@@ -238,7 +256,6 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                                 {editingContent !== null ? (
                                     <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300">
                                         <div className="bg-slate-900 px-4 py-2 flex items-center gap-2 text-[10px] font-mono text-indigo-300">
-                                            {/* Fix: Added missing import for CodeIcon */}
                                             <CodeIcon className="w-3 h-3" /> MARKDOWN_EDITOR_V1.0
                                         </div>
                                         <textarea 
@@ -274,7 +291,7 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ topic, pages, onUpda
                                                 </div>
                                                 <div className="text-center space-y-2">
                                                     <p className="text-xl font-black text-slate-800">AI 正在深度创作中...</p>
-                                                    <p className="text-sm font-medium">基于行业知识库与参考资料为您构建专业论据</p>
+                                                    <p className="text-sm font-medium">请留意左侧的思考过程，内容即将呈现</p>
                                                 </div>
                                             </div>
                                         )}

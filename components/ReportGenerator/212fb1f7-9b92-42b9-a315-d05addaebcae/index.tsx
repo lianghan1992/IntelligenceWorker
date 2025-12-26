@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState } from 'react';
 import { StratifyScenario, StratifyOutline } from '../../../types';
 import { 
     ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, 
-    CheckCircleIcon, ChevronRightIcon, DownloadIcon, RefreshIcon,
-    PuzzleIcon, GlobeIcon, CloseIcon
+    CheckCircleIcon, ChevronRightIcon, GlobeIcon
 } from '../../icons';
 import { Step1Collect } from './Step1Collect';
 import { Step2Outline } from './Step2Outline';
@@ -18,6 +17,12 @@ interface ScenarioWorkstationProps {
 
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
+// 定义消息结构，用于维护上下文
+export interface ChatMessage {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
+
 export interface PPTData {
     topic: string;
     referenceMaterials: string;
@@ -29,6 +34,8 @@ export interface PPTData {
         html?: string;
         isGenerating?: boolean;
     }>;
+    // 新增：全流程共享的会话历史
+    history: ChatMessage[];
 }
 
 const STEP_LABELS = [
@@ -44,7 +51,8 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         topic: '',
         referenceMaterials: '',
         outline: null,
-        pages: []
+        pages: [],
+        history: [] // 初始化历史记录
     });
 
     // 进度控制
@@ -96,7 +104,6 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 </div>
 
                 <div className="w-32 flex justify-end">
-                     {/* Placeholder for status or user avatar */}
                      <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
                         <SparklesIcon className="w-4 h-4 text-indigo-600" />
                      </div>
@@ -117,6 +124,10 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     <Step2Outline 
                         topic={data.topic}
                         referenceMaterials={data.referenceMaterials}
+                        // 传入已有历史（如果有）
+                        history={data.history}
+                        // 更新父组件历史
+                        onHistoryUpdate={(newHistory) => setData(prev => ({ ...prev, history: newHistory }))}
                         onConfirm={(outline) => {
                             setData(prev => ({ 
                                 ...prev, 
@@ -131,6 +142,8 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     <Step3Compose 
                         topic={data.topic}
                         pages={data.pages}
+                        // 传入完整的会话历史，确保内容生成不丢失上下文
+                        history={data.history}
                         onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
                         onFinish={() => setCurrentStage('finalize')}
                     />
