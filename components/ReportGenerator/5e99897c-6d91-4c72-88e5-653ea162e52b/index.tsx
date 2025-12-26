@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { StratifyScenario } from '../../../types';
 import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon, ShieldExclamationIcon, CheckCircleIcon, RefreshIcon, ServerIcon } from '../../icons';
@@ -40,8 +39,12 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     const [geminiHealth, setGeminiHealth] = useState<{ valid: boolean; message: string } | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+    // Initial and periodic health check
     useEffect(() => {
-        checkGeminiCookieStatus().then(setGeminiHealth).catch(() => setGeminiHealth({ valid: false, message: '无法连接' }));
+        const check = () => checkGeminiCookieStatus().then(setGeminiHealth).catch(() => setGeminiHealth({ valid: false, message: '无法连接' }));
+        check();
+        const timer = setInterval(check, 30000);
+        return () => clearInterval(timer);
     }, []);
 
     const appendMessage = (role: 'user' | 'assistant', content: string) => {
@@ -68,7 +71,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                  newMessages.push({
                     id: generateId(),
                     role: 'assistant',
-                    content,
+                    content: content,
                     reasoning: reasoning || '',
                     stage: prev.stage,
                     timestamp: Date.now()
@@ -192,8 +195,17 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
                         <button onClick={() => setEngine('standard')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${engine === 'standard' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
                             <ServerIcon className="w-3.5 h-3.5" /> 标准
                         </button>
-                        <button onClick={() => setEngine('gemini')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${engine === 'gemini' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                        <button onClick={() => setEngine('gemini')} className={`group relative px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${engine === 'gemini' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
                             <SparklesIcon className="w-3.5 h-3.5" /> Gemini
+                            {engine === 'gemini' && (
+                                <div className={`ml-1 w-1.5 h-1.5 rounded-full ${geminiHealth?.valid ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+                            )}
+                            {/* Gemini Status Tooltip */}
+                            {engine === 'gemini' && !geminiHealth?.valid && (
+                                <div className="absolute top-full mt-2 right-0 bg-red-50 text-red-600 text-[10px] px-2 py-1 rounded border border-red-100 whitespace-nowrap shadow-lg">
+                                    Cookie 可能已失效
+                                </div>
+                            )}
                         </button>
                     </div>
                     <button onClick={() => setIsPreviewOpen(true)} disabled={!state.analysisContent} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-bold shadow-lg hover:bg-slate-800 disabled:opacity-50">
