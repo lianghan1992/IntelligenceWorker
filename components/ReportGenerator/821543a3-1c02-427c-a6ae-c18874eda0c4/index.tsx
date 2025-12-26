@@ -95,7 +95,11 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         
         if (state.stage === 'analysis') {
             if (!state.topic) {
-                setState(prev => ({ ...prev, topic: text })); 
+                // If it's the first message, treat it as topic
+                // However, handleSendMessage might receive complex text with attachments now.
+                // We'll extract a simple topic or just use the first 50 chars for display
+                const simpleTopic = text.split('\n')[0].substring(0, 50);
+                setState(prev => ({ ...prev, topic: simpleTopic })); 
             }
             await runAnalysisPhase(text);
         } else {
@@ -117,8 +121,10 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
 
             let userPromptContent = "";
             if (!state.analysisContent) {
-                userPromptContent = `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}`;
+                // First run: The input already contains attachments if any, handled by ChatPanel
+                userPromptContent = `分析主题/指令: ${input}`;
             } else {
+                // Follow-up
                 userPromptContent = `
 【当前完整报告内容 (Markdown)】:
 ${state.analysisContent}
@@ -247,6 +253,13 @@ ${input}
         }
     };
 
+    // Regenerate action for PreviewPanel
+    const handleRegenerateVisual = () => {
+        if (state.stage === 'visual' && !state.isStreaming) {
+             runVisualPhase("请重新生成视觉看板，尝试使用不同的布局结构优化展示效果。");
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
              {/* Health Status Bar - Always Visible */}
@@ -337,6 +350,7 @@ ${input}
                             stage={state.stage}
                             markdownContent={state.analysisContent}
                             htmlCode={state.visualCode}
+                            onRegenerate={state.stage === 'visual' && !state.isStreaming ? handleRegenerateVisual : undefined}
                         />
                     </div>
                 </div>

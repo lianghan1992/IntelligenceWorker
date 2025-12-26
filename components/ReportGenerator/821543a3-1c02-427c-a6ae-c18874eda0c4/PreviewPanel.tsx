@@ -1,16 +1,17 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { WorkStage } from './types';
-import { DocumentTextIcon, ViewGridIcon, DownloadIcon } from '../../icons';
+import { DocumentTextIcon, ViewGridIcon, DownloadIcon, RefreshIcon } from '../../icons';
 import { generatePdf } from '../../../api/stratify'; 
 
 interface PreviewPanelProps {
     stage: WorkStage;
     markdownContent: string;
     htmlCode: string;
+    onRegenerate?: () => void;
 }
 
-export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownContent, htmlCode }) => {
+export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownContent, htmlCode, onRegenerate }) => {
     const [scale, setScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -68,14 +69,27 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({ stage, markdownConte
         <div className="h-full bg-[#1e1e1e] flex flex-col relative font-sans" ref={containerRef}>
             {/* Toolbar */}
             <div className="absolute top-4 right-6 z-20 flex gap-3">
-                {stage === 'visual' && htmlCode && (
-                     <button 
-                        onClick={handleDownloadPdf}
-                        disabled={isDownloading}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg shadow-black/20 flex items-center gap-2 transition-all active:scale-95 border border-white/10"
-                    >
-                        {isDownloading ? '生成中...' : <><DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF</>}
-                    </button>
+                {stage === 'visual' && (
+                    <>
+                        {onRegenerate && (
+                             <button 
+                                onClick={onRegenerate}
+                                className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-4 py-2 rounded-lg text-xs font-bold border border-white/10 flex items-center gap-2 transition-all active:scale-95"
+                                title="重新生成 HTML"
+                            >
+                                <RefreshIcon className="w-3.5 h-3.5" /> 重做
+                            </button>
+                        )}
+                        {htmlCode && (
+                            <button 
+                                onClick={handleDownloadPdf}
+                                disabled={isDownloading}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg shadow-black/20 flex items-center gap-2 transition-all active:scale-95 border border-white/10"
+                            >
+                                {isDownloading ? '生成中...' : <><DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF</>}
+                            </button>
+                        )}
+                    </>
                 )}
                 <div className="bg-white/10 backdrop-blur-md border border-white/10 text-white/80 px-4 py-2 rounded-lg text-xs font-bold shadow-sm flex items-center gap-2">
                     {stage === 'analysis' ? <DocumentTextIcon className="w-3.5 h-3.5" /> : <ViewGridIcon className="w-3.5 h-3.5" />}
