@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
-/* Added missing RefreshIcon and ArrowRightIcon to imports */
-import { SparklesIcon, DocumentTextIcon, GlobeIcon, PuzzleIcon, PlusIcon, CloseIcon, LinkIcon, CheckIcon, RefreshIcon, ArrowRightIcon } from '../../icons';
+
+import React, { useState } from 'react';
+import { SparklesIcon, DocumentTextIcon, GlobeIcon, PuzzleIcon, PlusIcon, CloseIcon, CheckIcon, RefreshIcon, ArrowRightIcon } from '../../icons';
 import { fetchJinaReader } from '../../../api/intelligence';
 import { KnowledgeSearchModal } from '../5e99897c-6d91-4c72-88e5-653ea162e52b/KnowledgeSearchModal';
 
@@ -50,94 +50,89 @@ export const Step1Collect: React.FC<Step1CollectProps> = ({ onNext }) => {
     const combinedMaterials = materials.map(m => `--- ${m.name} ---\n${m.content}`).join('\n\n');
 
     return (
-        <div className="h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-50 to-indigo-50/30 overflow-y-auto custom-scrollbar">
-            <div className="w-full max-w-4xl space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                <div className="text-center space-y-4">
-                    <div className="w-16 h-16 bg-indigo-600 rounded-[2rem] mx-auto flex items-center justify-center shadow-xl shadow-indigo-200 transform hover:rotate-12 transition-transform">
-                        <SparklesIcon className="w-8 h-8 text-white" />
-                    </div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">智绘演示报告架构师</h2>
-                    <p className="text-slate-500 text-lg font-medium">输入您的想法并汇聚参考资料，AI 将为您构建专业的报告蓝图。</p>
+        <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
+            <div className="max-w-4xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="space-y-2">
+                    <h2 className="text-2xl font-black text-slate-800">构思报告灵感</h2>
+                    <p className="text-slate-500 text-sm font-medium">输入核心主题并汇总参考背景资料，作为 AI 规划大纲的基石。</p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left: Idea Input */}
-                    <div className="space-y-6">
-                        <div className="bg-white p-6 rounded-[32px] shadow-2xl shadow-indigo-100/50 border border-slate-100 flex flex-col h-full ring-1 ring-black/5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <DocumentTextIcon className="w-4 h-4" /> 您的想法/主题
-                            </label>
-                            <textarea 
-                                value={topic}
-                                onChange={e => setTopic(e.target.value)}
-                                placeholder="例如：生成一份关于 2024 年小米汽车技术架构深度对标特斯拉的研报..."
-                                className="flex-1 w-full bg-slate-50 rounded-2xl p-5 text-base border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium min-h-[200px]"
-                            />
-                        </div>
+                <div className="grid grid-cols-1 gap-6">
+                    {/* Topic Input */}
+                    <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 ring-1 ring-black/5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                            <DocumentTextIcon className="w-4 h-4 text-indigo-500" /> 研究主题 / 想法
+                        </label>
+                        <textarea 
+                            value={topic}
+                            onChange={e => setTopic(e.target.value)}
+                            placeholder="例如：生成一份关于 2024 年小米汽车技术架构深度对标特斯拉的研报..."
+                            className="w-full bg-slate-50 rounded-xl p-4 text-sm border-none outline-none resize-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium min-h-[120px] shadow-inner"
+                        />
                     </div>
 
-                    {/* Right: Materials Ingestion */}
-                    <div className="space-y-6 flex flex-col">
-                        <div className="bg-white p-6 rounded-[32px] shadow-2xl shadow-indigo-100/50 border border-slate-100 flex flex-col flex-1 ring-1 ring-black/5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <PlusIcon className="w-4 h-4" /> 补充参考资料
-                            </label>
-                            
-                            <div className="space-y-4">
-                                <div className="flex gap-2">
-                                    <input 
-                                        value={urlInput}
-                                        onChange={e => setUrlInput(e.target.value)}
-                                        placeholder="输入网页 URL 抓取..."
-                                        className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20"
-                                    />
-                                    <button 
-                                        onClick={handleAddUrl}
-                                        disabled={isFetching || !urlInput.trim()}
-                                        className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-md shadow-indigo-100"
-                                    >
-                                        {isFetching ? <RefreshIcon className="w-5 h-5 animate-spin" /> : <GlobeIcon className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setIsKMOpen(true)} className="flex-1 py-2.5 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100">
-                                        <PuzzleIcon className="w-4 h-4" /> 检索知识库
-                                    </button>
-                                    <label className="flex-1 py-2.5 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100 cursor-pointer">
-                                        <DocumentTextIcon className="w-4 h-4" /> 上传本地文件
-                                        <input type="file" className="hidden" onChange={handleFileChange} />
-                                    </label>
-                                </div>
+                    {/* Materials area */}
+                    <div className="bg-white p-6 rounded-[24px] shadow-sm border border-slate-200 ring-1 ring-black/5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                            <PlusIcon className="w-4 h-4 text-indigo-500" /> 参考背景资料
+                        </label>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex gap-2">
+                                <input 
+                                    value={urlInput}
+                                    onChange={e => setUrlInput(e.target.value)}
+                                    placeholder="输入网页 URL..."
+                                    className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-inner"
+                                />
+                                <button 
+                                    onClick={handleAddUrl}
+                                    disabled={isFetching || !urlInput.trim()}
+                                    className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-md"
+                                >
+                                    {isFetching ? <RefreshIcon className="w-5 h-5 animate-spin" /> : <GlobeIcon className="w-5 h-5" />}
+                                </button>
                             </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setIsKMOpen(true)} className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100 shadow-sm">
+                                    <PuzzleIcon className="w-4 h-4" /> 知识库
+                                </button>
+                                <label className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100 cursor-pointer shadow-sm">
+                                    <DocumentTextIcon className="w-4 h-4" /> 本地文件
+                                    <input type="file" className="hidden" onChange={handleFileChange} />
+                                </label>
+                            </div>
+                        </div>
 
-                            <div className="flex-1 mt-6 overflow-y-auto custom-scrollbar space-y-2 max-h-[160px]">
-                                {materials.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-slate-300 text-xs italic">暂无外部资料引用</div>
-                                ) : (
-                                    materials.map(m => (
-                                        <div key={m.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100 group">
-                                            <span className="text-xs font-medium text-slate-600 truncate flex-1">{m.name}</span>
-                                            <button onClick={() => setMaterials(prev => prev.filter(i => i.id !== m.id))} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <CloseIcon className="w-4 h-4" />
-                                            </button>
+                        <div className="mt-6 overflow-y-auto custom-scrollbar space-y-2 max-h-[200px]">
+                            {materials.length === 0 ? (
+                                <div className="py-10 flex flex-col items-center justify-center text-slate-300 text-xs italic border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50">
+                                    暂无外部资料引用
+                                </div>
+                            ) : (
+                                materials.map(m => (
+                                    <div key={m.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 group shadow-sm">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                                            <span className="text-xs font-bold text-slate-700 truncate">{m.name}</span>
                                         </div>
-                                    ))
-                                )}
-                            </div>
+                                        <button onClick={() => setMaterials(prev => prev.filter(i => i.id !== m.id))} className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <CloseIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex justify-center">
+                <div className="pt-4 flex justify-end">
                     <button 
                         onClick={() => onNext(topic, combinedMaterials)}
                         disabled={!topic.trim()}
-                        className="group relative px-12 py-4 bg-slate-900 text-white rounded-[2rem] font-black text-lg shadow-[0_20px_50px_-10px_rgba(79,70,229,0.4)] hover:bg-indigo-600 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
+                        className="group flex items-center gap-3 px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-indigo-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
                     >
-                        <span className="relative z-10 flex items-center gap-3">
-                            构建报告大纲 <ArrowRightIcon className="w-6 h-6 transition-transform group-hover:translate-x-2" />
-                        </span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></div>
+                        下一步：构建大纲 <ArrowRightIcon className="w-6 h-6 transition-transform group-hover:translate-x-2" />
                     </button>
                 </div>
             </div>

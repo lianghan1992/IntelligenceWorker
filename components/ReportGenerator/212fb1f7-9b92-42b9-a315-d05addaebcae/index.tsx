@@ -34,6 +34,7 @@ export interface PPTData {
         title: string;
         summary: string;
         content: string;
+        html?: string; // 修复：添加 html 属性
         isGenerating?: boolean;
     }>;
 }
@@ -79,7 +80,9 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
 
 export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenario, onBack }) => {
     const [stage, setStage] = useState<PPTStage>('collect');
-    const [history, setHistory] = useState<ChatMessage[]>([]);
+    const [history, setHistory] = useState<ChatMessage[]>([
+        { role: 'assistant', content: '您好！我是您的报告架构师。请在右侧输入您的研究主题并提供参考资料，我将为您规划专业的报告蓝图。' }
+    ]);
     const [data, setData] = useState<PPTData>({
         topic: '',
         referenceMaterials: '',
@@ -99,15 +102,20 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
 
     // 处理 Step 1 的初始提交
     const handleInitWorkflow = async (topic: string, materials: string) => {
-        const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
-        const initialHistory: ChatMessage[] = [
-            { role: 'system', content: prompt.content, hidden: true },
-            { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
-            { role: 'user', content: topic, hidden: false } // 只有主题对用户可见
-        ];
-        setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
-        setHistory(initialHistory);
-        setStage('outline');
+        try {
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+            const newHistory: ChatMessage[] = [
+                { role: 'system', content: prompt.content, hidden: true },
+                { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                { role: 'user', content: topic, hidden: false } // 只有主题对用户可见
+            ];
+            setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
+            setHistory(newHistory);
+            setStage('outline');
+        } catch (e) {
+            console.error("Failed to fetch prompt", e);
+            setStage('outline');
+        }
     };
 
     const handleSendMessage = () => {
@@ -115,7 +123,6 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         const msg: ChatMessage = { role: 'user', content: chatInput };
         setHistory(prev => [...prev, msg]);
         setChatInput('');
-        // 这里会通过 useEffect 触发各个阶段的 LLM 调用
     };
 
     return (
@@ -138,94 +145,91 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 <div className="w-20" />
             </header>
 
-            {/* Main Layout */}
+            {/* Main Layout - 始终保持 1:2 分栏 */}
             <div className="flex-1 flex overflow-hidden">
-                {stage === 'collect' ? (
-                    <Step1Collect onNext={handleInitWorkflow} />
-                ) : (
-                    <>
-                        {/* Persistent Chat Sidebar (1/3) */}
-                        <aside className="w-1/3 flex flex-col bg-white border-r border-slate-200 shadow-xl z-20">
-                            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                                <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                                <span className="font-bold text-slate-800 text-sm">AI 助手</span>
-                            </div>
-                            
-                            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={chatScrollRef}>
-                                {history.map((msg, i) => (
-                                    <MessageBubble key={i} msg={msg} />
-                                ))}
-                                {isLlmActive && (
-                                    <div className="flex gap-3 mb-6 animate-pulse opacity-60">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                                            {/* Fix: Added missing RefreshIcon to imports to fix 'Cannot find name RefreshIcon' error */}
-                                            <RefreshIcon className="w-4 h-4 animate-spin"/>
-                                        </div>
-                                        <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">
-                                            AI 正在思考并创作中...
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Chat Input */}
-                            <div className="p-4 border-t border-slate-100 bg-white">
-                                <div className="relative">
-                                    <textarea 
-                                        value={chatInput}
-                                        onChange={e => setChatInput(e.target.value)}
-                                        placeholder="输入修改建议，AI将重新规划..."
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20 shadow-inner"
-                                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                                    />
-                                    <button 
-                                        onClick={handleSendMessage}
-                                        disabled={!chatInput.trim() || isLlmActive}
-                                        className="absolute right-2 bottom-2 p-2 bg-slate-900 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition-all"
-                                    >
-                                        <ArrowRightIcon className="w-4 h-4" />
-                                    </button>
+                {/* Persistent Chat Sidebar (1/3) */}
+                <aside className="w-1/3 flex flex-col bg-white border-r border-slate-200 shadow-xl z-20">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                        <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                        <span className="font-bold text-slate-800 text-sm">AI 助手</span>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={chatScrollRef}>
+                        {history.map((msg, i) => (
+                            <MessageBubble key={i} msg={msg} isStreaming={isLlmActive && i === history.length - 1} />
+                        ))}
+                        {isLlmActive && history[history.length - 1].role !== 'assistant' && (
+                            <div className="flex gap-3 mb-6 animate-pulse opacity-60">
+                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                    <RefreshIcon className="w-4 h-4 animate-spin"/>
+                                </div>
+                                <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">
+                                    AI 正在思考并创作中...
                                 </div>
                             </div>
-                        </aside>
+                        )}
+                    </div>
 
-                        {/* Workspace (2/3) */}
-                        <main className="flex-1 bg-slate-50/50 overflow-hidden relative">
-                            {stage === 'outline' && (
-                                <Step2Outline 
-                                    history={history}
-                                    onHistoryUpdate={setHistory}
-                                    onLlmStatusChange={setIsLlmActive}
-                                    onConfirm={(outline) => {
-                                        setData(prev => ({ 
-                                            ...prev, 
-                                            outline,
-                                            pages: outline.pages.map(p => ({ title: p.title, summary: p.content, content: '', isGenerating: false }))
-                                        }));
-                                        setStage('compose');
-                                    }}
-                                />
-                            )}
-                            {stage === 'compose' && (
-                                <Step3Compose 
-                                    pages={data.pages}
-                                    history={history}
-                                    onUpdatePages={newPages => setData(prev => ({ ...prev, pages: newPages }))}
-                                    onHistoryUpdate={setHistory}
-                                    onLlmStatusChange={setIsLlmActive}
-                                    onFinish={() => setStage('finalize')}
-                                />
-                            )}
-                            {stage === 'finalize' && (
-                                <Step4Finalize 
-                                    topic={data.topic}
-                                    pages={data.pages}
-                                    onBackToCompose={() => setStage('compose')}
-                                />
-                            )}
-                        </main>
-                    </>
-                )}
+                    {/* Chat Input */}
+                    <div className="p-4 border-t border-slate-100 bg-white">
+                        <div className="relative">
+                            <textarea 
+                                value={chatInput}
+                                onChange={e => setChatInput(e.target.value)}
+                                placeholder={stage === 'collect' ? "您也可以直接在这里输入想法..." : "输入修改建议，AI将重新规划..."}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20 shadow-inner"
+                                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                                disabled={stage === 'collect' && data.topic === ''} // 引导用户先用右侧面板
+                            />
+                            <button 
+                                onClick={handleSendMessage}
+                                disabled={!chatInput.trim() || isLlmActive || (stage === 'collect' && data.topic === '')}
+                                className="absolute right-2 bottom-2 p-2 bg-slate-900 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition-all"
+                            >
+                                <ArrowRightIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+
+                {/* Workspace (2/3) */}
+                <main className="flex-1 bg-slate-50/50 overflow-hidden relative">
+                    {stage === 'collect' && (
+                        <Step1Collect onNext={handleInitWorkflow} />
+                    )}
+                    {stage === 'outline' && (
+                        <Step2Outline 
+                            history={history}
+                            onHistoryUpdate={setHistory}
+                            onLlmStatusChange={setIsLlmActive}
+                            onConfirm={(outline) => {
+                                setData(prev => ({ 
+                                    ...prev, 
+                                    outline,
+                                    pages: outline.pages.map(p => ({ title: p.title, summary: p.content, content: '', isGenerating: false }))
+                                }));
+                                setStage('compose');
+                            }}
+                        />
+                    )}
+                    {stage === 'compose' && (
+                        <Step3Compose 
+                            pages={data.pages}
+                            history={history}
+                            onUpdatePages={newPages => setData(prev => ({ ...prev, pages: newPages }))}
+                            onHistoryUpdate={setHistory}
+                            onLlmStatusChange={setIsLlmActive}
+                            onFinish={() => setStage('finalize')}
+                        />
+                    )}
+                    {stage === 'finalize' && (
+                        <Step4Finalize 
+                            topic={data.topic}
+                            pages={data.pages}
+                            onBackToCompose={() => setStage('compose')}
+                        />
+                    )}
+                </main>
             </div>
         </div>
     );
