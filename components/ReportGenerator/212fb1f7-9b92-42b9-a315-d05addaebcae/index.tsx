@@ -45,6 +45,15 @@ export interface PPTData {
 const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ msg, isStreaming }) => {
     const isUser = msg.role === 'user';
     const [showReasoning, setShowReasoning] = useState(true);
+    const reasoningRef = useRef<HTMLDivElement>(null);
+    
+    // 自动滚动思考内容内部容器
+    useEffect(() => {
+        if (isStreaming && reasoningRef.current && showReasoning) {
+            reasoningRef.current.scrollTop = reasoningRef.current.scrollHeight;
+        }
+    }, [msg.reasoning, isStreaming, showReasoning]);
+
     if (msg.hidden) return null;
 
     return (
@@ -67,7 +76,10 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
                                 <ChevronDownIcon className={`w-3 h-3 transition-transform ${showReasoning ? 'rotate-180' : ''}`} />
                             </button>
                             {showReasoning && (
-                                <div className="p-3 bg-slate-50/50 rounded-lg border border-slate-100 text-[11px] font-mono text-slate-500 whitespace-pre-wrap mb-2 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
+                                <div 
+                                    ref={reasoningRef}
+                                    className="p-3 bg-slate-50/50 rounded-lg border border-slate-100 text-[11px] font-mono text-slate-500 whitespace-pre-wrap mb-2 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar scroll-smooth"
+                                >
                                     {msg.reasoning}
                                     {isStreaming && !msg.content && <span className="inline-block w-1 h-3 ml-1 bg-indigo-400 animate-pulse" />}
                                 </div>
@@ -100,12 +112,19 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
     const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
 
-    // 自动滚动聊天
+    // 自动滚动主聊天容器
     useEffect(() => {
         if (chatScrollRef.current) {
-            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            // 使用 requestAnimationFrame 确保在 DOM 更新后执行滚动
+            const container = chatScrollRef.current;
+            requestAnimationFrame(() => {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: isLlmActive ? 'auto' : 'smooth' // 流式输出时使用 auto 减少抖动，非输出时使用 smooth
+                });
+            });
         }
-    }, [history, streamingMessage]);
+    }, [history, streamingMessage, isLlmActive]);
 
     const handleSendMessage = async () => {
         if (!chatInput.trim() || isLlmActive) return;
@@ -166,7 +185,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                         <span className="font-bold text-slate-800 text-sm">AI 助手</span>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={chatScrollRef}>
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar scroll-smooth" ref={chatScrollRef}>
                         {history.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
                         {streamingMessage && <MessageBubble msg={streamingMessage} isStreaming={true} />}
                         {isLlmActive && !streamingMessage && (

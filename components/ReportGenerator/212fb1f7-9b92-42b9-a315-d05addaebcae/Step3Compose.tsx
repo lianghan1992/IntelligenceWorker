@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTData, ChatMessage } from './index';
-import { streamChatCompletions, getPromptDetail, parseLlmJson } from '../../../api/stratify';
+import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
 import { ViewGridIcon, RefreshIcon, CheckIcon, PencilIcon, ChevronRightIcon, DocumentTextIcon, BrainIcon } from '../../icons';
 
 interface Step3ComposeProps {
@@ -15,6 +15,25 @@ interface Step3ComposeProps {
 }
 
 const PROMPT_ID = "c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2";
+
+/**
+ * 核心优化：从流式文本中实时提取 JSON 字段值的正则表达式工具
+ * 能够提取 "content": "..." 之间未闭合的字符串，并处理换行符
+ */
+const extractStreamingContent = (rawText: string): string => {
+    // 匹配 "content": " 之后的所有内容，直到遇到下一个非转义的引号或字符串结束
+    const match = rawText.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    if (!match) return '';
+    
+    let content = match[1];
+    // 处理 JSON 转义字符，特别是换行符，确保 Markdown 能正确渲染
+    return content
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+};
 
 export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUpdatePages, onHistoryUpdate, onLlmStatusChange, onStreamingUpdate, onFinish }) => {
     const [activeIdx, setActiveIdx] = useState(0);
@@ -50,23 +69,30 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                 if (data.reasoning) accumulatedReasoning += data.reasoning;
                 if (data.content) {
                     accumulatedText += data.content;
-                    const parsed = parseLlmJson<{ content: string }>(accumulatedText);
-                    if (parsed?.content) {
+                    
+                    // 关键改进：实时提取内容片段并更新右侧 UI
+                    const partialContent = extractStreamingContent(accumulatedText);
+                    if (partialContent) {
                         const nextPages = [...pagesRef.current];
-                        nextPages[idx] = { ...nextPages[idx], content: parsed.content };
+                        nextPages[idx] = { ...nextPages[idx], content: partialContent };
                         onUpdatePages(nextPages);
                     }
                 }
                 // 实时更新左侧流式思考
-                onStreamingUpdate({ role: 'assistant', content: `正在创作第 ${idx + 1} 页内容...`, reasoning: accumulatedReasoning });
+                onStreamingUpdate({ 
+                    role: 'assistant', 
+                    content: accumulatedText.includes('"content"') ? `正在输出第 ${idx + 1} 页正文...` : `正在构思第 ${idx + 1} 页内容...`, 
+                    reasoning: accumulatedReasoning 
+                });
             }, () => {
                 onLlmStatusChange(false);
                 onStreamingUpdate(null);
+                
+                // 确保最终版本是完整的
                 const nextPages = [...pagesRef.current];
                 nextPages[idx] = { ...nextPages[idx], isGenerating: false };
                 onUpdatePages(nextPages);
                 
-                // 正式提交一条历史记录
                 onHistoryUpdate([...history, { 
                     role: 'assistant', 
                     content: `✅ 第 ${idx + 1} 页《${page.title}》已创作完成。`, 
@@ -134,13 +160,17 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                         </div>
                         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-slate-50/30">
                             <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 min-h-[600px] p-10 relative">
-                                {activePage.content ? (
-                                    <article className="prose prose-indigo max-w-none" dangerouslySetInnerHTML={{ __html: window.marked ? window.marked.parse(activePage.content) : activePage.content }} />
+                                {activePage.content || activePage.isGenerating ? (
+                                    <article className="prose prose-indigo max-w-none">
+                                        <div dangerouslySetInnerHTML={{ __html: window.marked ? window.marked.parse(activePage.content) : activePage.content }} />
+                                        {activePage.isGenerating && (
+                                            <span className="inline-block w-1.5 h-4 ml-1 bg-indigo-600 animate-pulse align-middle" />
+                                        )}
+                                    </article>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-4 mt-20">
                                         <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center animate-pulse"><DocumentTextIcon className="w-8 h-8 text-indigo-200" /></div>
-                                        <p className="font-bold">AI 正在全力撰写本章节内容...</p>
-                                        <p className="text-xs">您可以关注左侧聊天窗查看深度思考流</p>
+                                        <p className="font-bold">等待开始创作...</p>
                                     </div>
                                 )}
                             </div>
