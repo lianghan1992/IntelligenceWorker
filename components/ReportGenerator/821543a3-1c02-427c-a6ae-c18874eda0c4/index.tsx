@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { StratifyScenario } from '../../../types';
-import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon, ShieldExclamationIcon } from '../../icons';
+import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon, ShieldExclamationIcon, CheckCircleIcon } from '../../icons';
 import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
@@ -140,7 +140,7 @@ ${input}
             await streamGeminiCookieChat(
                 {
                     messages: messages,
-                    model: 'gemini-3-flash', // Default model for cookie interface
+                    model: 'gemini-2.5-flash', // Default model for cookie interface
                 },
                 (data) => {
                    if (data.content) {
@@ -214,7 +214,7 @@ ${input}
             await streamGeminiCookieChat(
                 {
                     messages: messages,
-                    model: 'gemini-3-flash',
+                    model: 'gemini-2.5-flash',
                 },
                 (data) => {
                     if (data.content) {
@@ -249,13 +249,20 @@ ${input}
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
-            {/* Health Alert */}
-            {geminiHealth && !geminiHealth.valid && (
-                <div className="absolute top-0 left-0 right-0 z-50 bg-red-50 text-red-700 px-4 py-2 text-xs font-bold flex items-center justify-center border-b border-red-100 shadow-sm animate-in slide-in-from-top-2">
-                    <ShieldExclamationIcon className="w-4 h-4 mr-2" />
-                    {geminiHealth.message} (服务不可用)
-                </div>
-            )}
+             {/* Health Status Bar - Always Visible */}
+             <div className={`
+                 absolute top-0 left-0 right-0 z-50 px-4 py-1.5 text-xs font-bold flex items-center justify-center border-b shadow-sm transition-colors
+                 ${geminiHealth?.valid 
+                     ? 'bg-green-50 text-green-700 border-green-100' 
+                     : 'bg-red-50 text-red-700 border-red-100'
+                 }
+             `}>
+                 {geminiHealth?.valid ? (
+                     <><CheckCircleIcon className="w-3.5 h-3.5 mr-2" /> Gemini 服务正常 (gemini-2.5-flash)</>
+                 ) : (
+                     <><ShieldExclamationIcon className="w-3.5 h-3.5 mr-2" /> Gemini 服务异常: {geminiHealth?.message || '检查中...'}</>
+                 )}
+             </div>
 
             {/* --- Background Decorations (Blobs) --- */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
@@ -266,7 +273,7 @@ ${input}
             </div>
 
             {/* Header */}
-            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0 mt-8"> {/* Added mt-8 to account for potential health banner if desired, or remove if overlay */}
+            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0 mt-8"> {/* Added mt-8 to account for health banner */}
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors">
                         <ArrowLeftIcon className="w-5 h-5" />
