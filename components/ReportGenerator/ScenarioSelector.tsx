@@ -103,6 +103,10 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, o
                                     <p className="text-slate-500 text-sm leading-relaxed line-clamp-3">
                                         {scenario.description || '该场景包含自动化分析流程，可快速生成专业报告。'}
                                     </p>
+
+                                    <div className="mt-auto pt-4 text-[10px] text-slate-300 font-mono select-text border-t border-slate-50">
+                                        ID: {scenario.id}
+                                    </div>
                                 </div>
                             </div>
                         );
@@ -125,7 +129,7 @@ export const ScenarioSelector: React.FC<ScenarioSelectorProps> = ({ scenarios, o
                     100% { transform: translate(0px, 0px) scale(1); }
                 }
                 .animate-blob {
-                    animation: blob 10s infinite;
+                    animation: blob 15s infinite;
                 }
                 .animation-delay-2000 {
                     animation-delay: 2s;
