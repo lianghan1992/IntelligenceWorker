@@ -205,8 +205,6 @@ export const fetchJinaReader = async (url: string): Promise<string> => {
     headers.set('X-Exclude-Selector', 'header, footer, nav, .footer, .header, .nav, #footer, #header');
     
     // Note: Calling external URL directly. 
-    // In a real production env with strict CORS, this should be proxied via backend.
-    // Assuming Jina AI handles CORS or this is acceptable for client-side fetch.
     const response = await fetch(jinaUrl, {
         method: 'GET',
         headers: headers

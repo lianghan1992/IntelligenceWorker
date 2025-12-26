@@ -1,32 +1,29 @@
 
 import React, { useState, useEffect } from 'react';
 import { StratifyScenario } from '../../../types';
-import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon } from '../../icons';
+import { ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, CloseIcon, ShieldExclamationIcon, CheckCircleIcon } from '../../icons';
 import { ChatPanel } from './ChatPanel';
 import { PreviewPanel } from './PreviewPanel';
 import { Message, ScenarioState } from './types';
-import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
+import { streamGeminiCookieChat, checkGeminiCookieStatus, getPromptDetail } from '../../../api/stratify';
 
 interface SpecificScenarioProps {
     scenario: StratifyScenario;
     onBack: () => void;
 }
 
-// PROMPT IDs provided by user
+// PROMPT IDs (Same as the original scenario as per instructions)
 const PROMPT_ID_ANALYSIS = "e9899016-7cb2-45b5-8ae1-0bda9b76fc43"; 
 const PROMPT_ID_VISUAL = "75635cb9-6c5e-487c-a991-30f1ca046249";   
 
 // Native UUID generator
 const generateId = () => crypto.randomUUID();
 
-// Helper to strip markdown code fences if the model wraps the whole response
-// Enhanced to be more robust against variations like "```markdown" or just "```"
+// Helper to strip markdown code fences
 const stripMarkdownFences = (content: string) => {
     if (!content) return "";
     let clean = content.trim();
-    // Remove start fence (e.g., ```markdown, ```md, ```) and optional newline
     clean = clean.replace(/^```(?:markdown|md|html)?\s*\n?/i, "");
-    // Remove end fence (```) if it exists at the end
     clean = clean.replace(/\n?\s*```$/, "");
     return clean;
 };
@@ -41,21 +38,15 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
         isStreaming: false
     });
 
-    const [modelString, setModelString] = useState<string>('');
+    const [geminiHealth, setGeminiHealth] = useState<{ valid: boolean; message: string } | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
+    // Check health on mount
     useEffect(() => {
-        if (scenario.channel_code && scenario.model_id) {
-            const prefix = `${scenario.channel_code}@`;
-            const cleanModelId = scenario.model_id.startsWith(prefix) 
-                ? scenario.model_id.substring(prefix.length) 
-                : scenario.model_id;
-            
-            setModelString(`${scenario.channel_code}@${cleanModelId}`);
-        } else {
-            setModelString('openrouter@gpt-4o'); 
-        }
-    }, [scenario]);
+        checkGeminiCookieStatus()
+            .then(setGeminiHealth)
+            .catch(() => setGeminiHealth({ valid: false, message: '无法连接到 Gemini 服务' }));
+    }, []);
 
     const appendMessage = (role: 'user' | 'assistant', content: string) => {
         setState(prev => ({
@@ -95,6 +86,11 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
 
     // --- Core Logic: Handle User Input ---
     const handleSendMessage = async (text: string) => {
+        if (geminiHealth && !geminiHealth.valid) {
+            appendMessage('assistant', `⚠️ 系统检测到 Gemini 服务异常 (${geminiHealth.message})，无法处理请求。请联系管理员更新 Cookie。`);
+            return;
+        }
+
         appendMessage('user', text);
         
         if (state.stage === 'analysis') {
@@ -110,7 +106,7 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
     // --- Phase 1: Deep Analysis ---
     const runAnalysisPhase = async (input: string) => {
         setState(prev => ({ ...prev, isStreaming: true }));
-        appendMessage('assistant', '正在进行深度分析...');
+        appendMessage('assistant', '正在进行深度分析 (Gemini)...');
 
         let accumulatedText = "";
         let accumulatedReasoning = "";
@@ -119,7 +115,6 @@ export const ScenarioWorkstation: React.FC<SpecificScenarioProps> = ({ scenario,
             const prompt = await getPromptDetail(PROMPT_ID_ANALYSIS);
             const systemPrompt = prompt.content;
 
-            // Strategy: Inject Current State
             let userPromptContent = "";
             if (!state.analysisContent) {
                 userPromptContent = `分析主题: ${state.topic || input}。${input !== state.topic ? `补充指令: ${input}` : ''}`;
@@ -139,28 +134,23 @@ ${input}
             }
 
             const messages = [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPromptContent }
+                { role: 'user', content: systemPrompt + "\n\n" + userPromptContent } // Gemini cookie interface might expect user role primarily
             ];
 
-            await streamChatCompletions(
+            await streamGeminiCookieChat(
                 {
-                    model: modelString,
                     messages: messages,
-                    temperature: 0.7
+                    model: 'gemini-2.5-flash', // Default model for cookie interface
                 },
                 (data) => {
                    if (data.content) {
                        accumulatedText += data.content;
-                       // Real-time update state for preview
-                       // IMPORTANT: We strip fences here to ensure the preview panel renders actual markdown elements, not a code block
                        const cleanText = stripMarkdownFences(accumulatedText);
                        setState(prev => ({ ...prev, analysisContent: cleanText }));
                    }
                    if (data.reasoning) {
                        accumulatedReasoning += data.reasoning;
                    }
-                   // Note: Chat bubble shows RAW content (including fences if any) to denote it's raw output
                    updateLastAssistantMessage(accumulatedText || "正在生成分析报告...", accumulatedReasoning);
                 },
                 () => {
@@ -190,7 +180,7 @@ ${input}
     // --- Phase 2: Visual Generation ---
     const runVisualPhase = async (input: string) => {
         setState(prev => ({ ...prev, isStreaming: true }));
-        appendMessage('assistant', '正在构建视觉系统...');
+        appendMessage('assistant', '正在构建视觉系统 (Gemini)...');
         
         let accumulatedCode = "";
         let accumulatedReasoning = "";
@@ -218,27 +208,23 @@ ${input}
             }
 
             const messages = [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPromptContent }
+                { role: 'user', content: systemPrompt + "\n\n" + userPromptContent }
             ];
 
-            await streamChatCompletions(
+            await streamGeminiCookieChat(
                 {
-                    model: modelString,
                     messages: messages,
-                    temperature: 0.2 
+                    model: 'gemini-2.5-flash',
                 },
                 (data) => {
                     if (data.content) {
                         accumulatedCode += data.content;
-                        // Strip fences logic for preview state
                         const cleanCode = stripMarkdownFences(accumulatedCode);
                         setState(prev => ({ ...prev, visualCode: cleanCode }));
                     }
                     if (data.reasoning) {
                         accumulatedReasoning += data.reasoning;
                     }
-                    // Visual phase chat bubble implies code generation
                     updateLastAssistantMessage(
                         accumulatedCode ? accumulatedCode : "正在设计视觉结构...", 
                         accumulatedReasoning
@@ -263,6 +249,21 @@ ${input}
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] relative overflow-hidden font-sans">
+             {/* Health Status Bar - Always Visible */}
+             <div className={`
+                 absolute top-0 left-0 right-0 z-50 px-4 py-1.5 text-xs font-bold flex items-center justify-center border-b shadow-sm transition-colors
+                 ${geminiHealth?.valid 
+                     ? 'bg-green-50 text-green-700 border-green-100' 
+                     : 'bg-red-50 text-red-700 border-red-100'
+                 }
+             `}>
+                 {geminiHealth?.valid ? (
+                     <><CheckCircleIcon className="w-3.5 h-3.5 mr-2" /> Gemini 服务正常 (gemini-2.5-flash)</>
+                 ) : (
+                     <><ShieldExclamationIcon className="w-3.5 h-3.5 mr-2" /> Gemini 服务异常: {geminiHealth?.message || '检查中...'}</>
+                 )}
+             </div>
+
             {/* --- Background Decorations (Blobs) --- */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
                 <div className="absolute top-[-10%] left-[-10%] w-[45rem] h-[45rem] bg-indigo-200/20 rounded-full mix-blend-multiply filter blur-[80px] opacity-70 animate-blob"></div>
@@ -272,7 +273,7 @@ ${input}
             </div>
 
             {/* Header */}
-            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0">
+            <header className="flex-shrink-0 px-6 py-3 border-b border-white/40 bg-white/70 backdrop-blur-md flex items-center justify-between z-20 shadow-sm sticky top-0 mt-8"> {/* Added mt-8 to account for health banner */}
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-full transition-colors">
                         <ArrowLeftIcon className="w-5 h-5" />
@@ -280,7 +281,7 @@ ${input}
                     <div>
                         <h1 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                             <SparklesIcon className="w-5 h-5 text-indigo-600" />
-                            {scenario.title}
+                            {scenario.title} (Gemini Engine)
                         </h1>
                     </div>
                 </div>

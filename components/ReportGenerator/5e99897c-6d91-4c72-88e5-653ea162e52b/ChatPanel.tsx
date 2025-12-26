@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Message, WorkStage } from './types';
 import { SparklesIcon, ArrowRightIcon, RefreshIcon, CloudIcon, PuzzleIcon, PhotoIcon, CloseIcon, DocumentTextIcon, CheckIcon, ViewGridIcon, GlobeIcon, LinkIcon, BrainIcon, ChevronDownIcon } from '../../icons';
 import { KnowledgeSearchModal } from './KnowledgeSearchModal';
+import { fetchJinaReader } from '../../../api/intelligence';
 
 interface ChatPanelProps {
     messages: Message[];
@@ -141,29 +142,44 @@ const MessageBubble: React.FC<{ msg: Message; isStreaming: boolean; isLast: bool
 };
 
 // --- Web Fetch Modal ---
-const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onFetch: (url: string) => void }> = ({ isOpen, onClose, onFetch }) => {
-    const [url, setUrl] = useState('');
+const WebFetchModal: React.FC<{ isOpen: boolean; onClose: () => void; onFetch: (urls: string[]) => void }> = ({ isOpen, onClose, onFetch }) => {
+    const [text, setText] = useState('');
+    const [isFetching, setIsFetching] = useState(false);
     
     if (!isOpen) return null;
+
+    const handleStart = () => {
+        // Split by newlines or comma, clean whitespace, filter empty
+        const urls = text.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 0);
+        if (urls.length === 0) return;
+        
+        onFetch(urls);
+        onClose();
+        setText('');
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
             <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                        <GlobeIcon className="w-5 h-5 text-indigo-600"/> 抓取网页内容
+                        <GlobeIcon className="w-5 h-5 text-indigo-600"/> 抓取网页内容 (支持批量)
                     </h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-5 h-5"/></button>
                 </div>
-                <input 
-                    value={url}
-                    onChange={e => setUrl(e.target.value)}
-                    placeholder="输入 URL (例如: https://example.com/article)"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-4"
+                <textarea
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    placeholder="输入 URL，每行一个。例如:&#10;https://example.com/article1&#10;https://example.com/article2"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-4 h-32 resize-none"
                 />
                 <div className="flex justify-end gap-3">
                     <button onClick={onClose} className="px-4 py-2 text-slate-600 bg-slate-100 rounded-lg text-sm font-bold hover:bg-slate-200">取消</button>
-                    <button onClick={() => { if(url) onFetch(url); onClose(); setUrl(''); }} className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md">
+                    <button 
+                        onClick={handleStart} 
+                        disabled={!text.trim()}
+                        className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md disabled:opacity-50"
+                    >
                         开始抓取
                     </button>
                 </div>
@@ -183,6 +199,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const [attachments, setAttachments] = useState<Attachment[]>([]);
+    const [processingWeb, setProcessingWeb] = useState(false);
     
     // Modals
     const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
@@ -219,29 +236,51 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         e.target.value = ''; // Reset input
     };
     
-    const handleWebFetch = (url: string) => {
-        // Mock web fetch attachment
-        const newAttachment: Attachment = {
-            id: crypto.randomUUID(),
-            type: 'file',
-            name: `Web: ${url}`,
-            size: 0,
-            content: `[Content from ${url}]`,
-            tokenEstimate: 500
-        };
-        setAttachments([...attachments, newAttachment]);
+    const handleWebFetch = async (urls: string[]) => {
+        setProcessingWeb(true);
+        try {
+            // Fetch one by one to avoid overwhelming or handle errors gracefully per item
+            for (const url of urls) {
+                try {
+                    const markdown = await fetchJinaReader(url);
+                    const newAttachment: Attachment = {
+                        id: crypto.randomUUID(),
+                        type: 'file',
+                        name: `Web: ${url}`,
+                        size: markdown.length,
+                        content: markdown,
+                        tokenEstimate: estimateTokens(markdown)
+                    };
+                    setAttachments(prev => [...prev, newAttachment]);
+                } catch (error) {
+                    console.error(`Failed to fetch ${url}`, error);
+                    // Optionally notify user
+                    const errAttachment: Attachment = {
+                        id: crypto.randomUUID(),
+                        type: 'file',
+                        name: `Error: ${url}`,
+                        size: 0,
+                        content: `[Fetch Failed: ${error}]`,
+                        tokenEstimate: 0
+                    };
+                    setAttachments(prev => [...prev, errAttachment]);
+                }
+            }
+        } finally {
+            setProcessingWeb(false);
+        }
     };
 
-    const handleKnowledgeSelect = (content: string, title: string) => {
-        const newAttachment: Attachment = {
+    const handleKnowledgeSelect = (items: { content: string, title: string }[]) => {
+        const newAttachments = items.map(item => ({
             id: crypto.randomUUID(),
-            type: 'file',
-            name: `Ref: ${title}`,
-            size: content.length,
-            content: content,
-            tokenEstimate: estimateTokens(content)
-        };
-        setAttachments([...attachments, newAttachment]);
+            type: 'file' as const,
+            name: `Ref: ${item.title}`,
+            size: item.content.length,
+            content: item.content,
+            tokenEstimate: estimateTokens(item.content)
+        }));
+        setAttachments(prev => [...prev, ...newAttachments]);
         setIsKnowledgeModalOpen(false);
     };
 
@@ -336,9 +375,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     <button 
                         onClick={() => setIsWebModalOpen(true)} 
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="抓取网页"
+                        title="抓取网页 (Jina Reader)"
                     >
-                        <GlobeIcon className="w-5 h-5"/>
+                        {processingWeb ? <RefreshIcon className="w-5 h-5 animate-spin text-indigo-600"/> : <GlobeIcon className="w-5 h-5"/>}
                     </button>
                     <button 
                         onClick={() => setIsKnowledgeModalOpen(true)} 
