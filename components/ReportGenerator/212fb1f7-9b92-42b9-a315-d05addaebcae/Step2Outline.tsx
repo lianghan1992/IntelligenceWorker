@@ -9,9 +9,13 @@ interface Step2OutlineProps {
     history: ChatMessage[];
     onHistoryUpdate: (newHistory: ChatMessage[]) => void;
     onLlmStatusChange: (isActive: boolean) => void;
+    onStreamingUpdate: (msg: ChatMessage | null) => void;
     onConfirm: (outline: StratifyOutline) => void;
 }
 
+/**
+ * 容错性 JSON 数组解析，用于流式提取 pages
+ */
 const extractCompletedPages = (jsonStr: string): any[] => {
     try {
         const pagesStartMatch = jsonStr.match(/"pages"\s*:\s*\[/);
@@ -31,7 +35,7 @@ const extractCompletedPages = (jsonStr: string): any[] => {
                     const objStr = arrayContent.substring(objectStartIndex, i + 1);
                     try {
                         const obj = JSON.parse(objStr);
-                        if (obj.title && obj.content) foundObjects.push(obj);
+                        if (obj.title) foundObjects.push(obj);
                     } catch (e) {}
                     objectStartIndex = -1;
                 }
@@ -41,12 +45,14 @@ const extractCompletedPages = (jsonStr: string): any[] => {
     } catch (e) { return []; }
 };
 
-export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUpdate, onLlmStatusChange, onConfirm }) => {
+export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUpdate, onLlmStatusChange, onStreamingUpdate, onConfirm }) => {
     const [outline, setOutline] = useState<StratifyOutline | null>(null);
-    const hasInitialRun = useRef(false);
+    const lastProcessedLen = useRef(0);
 
     const runLlm = async (currentHistory: ChatMessage[]) => {
         onLlmStatusChange(true);
+        onStreamingUpdate({ role: 'assistant', content: '', reasoning: '' });
+        
         let accumulatedText = '', accumulatedReasoning = '';
         try {
             const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
@@ -56,30 +62,49 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
                 stream: true
             }, (data) => {
                 if (data.reasoning) accumulatedReasoning += data.reasoning;
-                if (data.content) {
-                    accumulatedText += data.content;
-                    const pages = extractCompletedPages(accumulatedText);
-                    const titleMatch = accumulatedText.match(/"title"\s*:\s*"(.*?)"/);
-                    if (pages.length > 0) {
-                        setOutline({ title: titleMatch ? titleMatch[1] : '报告大纲', pages });
-                    }
+                if (data.content) accumulatedText += data.content;
+
+                // 实时同步到左侧聊天面板
+                onStreamingUpdate({ 
+                    role: 'assistant', 
+                    content: accumulatedText.includes('{') ? "正在规划大纲结构..." : accumulatedText, 
+                    reasoning: accumulatedReasoning 
+                });
+
+                // 实时解析右侧大纲预览
+                const pages = extractCompletedPages(accumulatedText);
+                const titleMatch = accumulatedText.match(/"title"\s*:\s*"(.*?)"/);
+                if (pages.length > 0 || titleMatch) {
+                    setOutline({ title: titleMatch ? titleMatch[1] : '报告大纲', pages });
                 }
             }, () => {
                 onLlmStatusChange(false);
-                const assistantMsg: ChatMessage = { role: 'assistant', content: "大纲已规划完毕，请确认或提出修改。", reasoning: accumulatedReasoning };
-                onHistoryUpdate([...currentHistory, assistantMsg]);
+                const finalMsg: ChatMessage = { 
+                    role: 'assistant', 
+                    content: "大纲已根据您的要求重新规划，请确认或继续提出修改意见。", 
+                    reasoning: accumulatedReasoning 
+                };
+                onHistoryUpdate([...currentHistory, finalMsg]);
+                onStreamingUpdate(null);
             }, (err) => {
                 onLlmStatusChange(false);
+                onStreamingUpdate(null);
                 alert('生成失败: ' + err.message);
             });
-        } catch (e) { onLlmStatusChange(false); }
+        } catch (e) { 
+            onLlmStatusChange(false);
+            onStreamingUpdate(null);
+        }
     };
 
+    // 监听历史记录，如果最后一条是 user 发出的，则触发生成
     useEffect(() => {
-        if (!hasInitialRun.current && history.length > 0) {
-            hasInitialRun.current = true;
+        if (history.length > lastProcessedLen.current) {
             const lastMsg = history[history.length - 1];
-            if (lastMsg.role === 'user') runLlm(history);
+            if (lastMsg.role === 'user') {
+                runLlm(history);
+            }
+            lastProcessedLen.current = history.length;
         }
     }, [history]);
 
@@ -87,15 +112,17 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         <div className="h-full flex flex-col bg-white overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm">
                 <div>
-                    <h2 className="text-xl font-black text-slate-800 tracking-tight">{outline?.title || '正在规划大纲...'}</h2>
-                    <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">{outline?.pages.length || 0} PAGES MAPPED</p>
+                    <h2 className="text-xl font-black text-slate-800 tracking-tight">
+                        {outline?.title || (outline === null ? '等待输入主题...' : '正在生成中...')}
+                    </h2>
+                    <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">{outline?.pages.length || 0} SECTIONS PLANNED</p>
                 </div>
                 <button 
                     onClick={() => outline && onConfirm(outline)}
                     disabled={!outline || outline.pages.length === 0}
                     className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
                 >
-                    确认大纲 <CheckIcon className="w-4 h-4" />
+                    确认并开始创作 <CheckIcon className="w-4 h-4" />
                 </button>
             </div>
 
@@ -114,7 +141,7 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
                     )) : (
                         <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-300">
                             <ViewGridIcon className="w-12 h-12 animate-pulse" />
-                            <p className="text-sm font-bold">AI 正在构思章节结构...</p>
+                            <p className="text-sm font-bold">请在左侧对话框输入您的想法...</p>
                         </div>
                     )}
                 </div>

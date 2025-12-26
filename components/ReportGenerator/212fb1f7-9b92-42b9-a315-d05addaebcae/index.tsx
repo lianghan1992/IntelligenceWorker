@@ -46,7 +46,7 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
     if (msg.hidden) return null;
 
     return (
-        <div className={`flex gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-1`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-slate-900 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
                 {isUser ? <UserIcon className="w-4 h-4"/> : <SparklesIcon className="w-4 h-4"/>}
             </div>
@@ -61,17 +61,21 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
                                 className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded hover:bg-indigo-100 transition-colors mb-2"
                             >
                                 <BrainIcon className={`w-3 h-3 ${isStreaming ? 'animate-pulse' : ''}`} />
-                                <span>深度思考中</span>
+                                <span>{isStreaming ? '正在深度思考...' : '思考过程'}</span>
                                 <ChevronDownIcon className={`w-3 h-3 transition-transform ${showReasoning ? 'rotate-180' : ''}`} />
                             </button>
                             {showReasoning && (
-                                <div className="p-3 bg-slate-50/50 rounded-lg border border-slate-100 text-[11px] font-mono text-slate-500 whitespace-pre-wrap mb-2 leading-relaxed">
+                                <div className="p-3 bg-slate-50/50 rounded-lg border border-slate-100 text-[11px] font-mono text-slate-500 whitespace-pre-wrap mb-2 leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
                                     {msg.reasoning}
+                                    {isStreaming && !msg.content && <span className="inline-block w-1 h-3 ml-1 bg-indigo-400 animate-pulse" />}
                                 </div>
                             )}
                         </div>
                     )}
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap">
+                        {msg.content}
+                        {isStreaming && <span className="inline-block w-1.5 h-3.5 ml-1 bg-indigo-600 animate-pulse align-middle" />}
+                    </div>
                 </div>
             </div>
         </div>
@@ -81,7 +85,7 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
 export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenario, onBack }) => {
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([
-        { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
+        { role: 'assistant', content: '您好！我是您的报告架构师。请在右侧输入参考资料，并在下方告诉我想做的报告主题。' }
     ]);
     const [data, setData] = useState<PPTData>({
         topic: '',
@@ -91,6 +95,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
     });
     const [chatInput, setChatInput] = useState('');
     const [isLlmActive, setIsLlmActive] = useState(false);
+    const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
 
     // 自动滚动聊天
@@ -98,44 +103,34 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
         if (chatScrollRef.current) {
             chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
         }
-    }, [history, isLlmActive]);
+    }, [history, streamingMessage]);
 
-    const handleSendMessage = async () => {
+    // 初始化工作流：将 Step 1 的输入转换为 history
+    const handleInitWorkflow = async (topic: string, materials: string) => {
+        try {
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+            const newHistory: ChatMessage[] = [
+                { role: 'system', content: prompt.content, hidden: true },
+                { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                { role: 'user', content: topic, hidden: false }
+            ];
+            setData(prev => ({ ...prev, topic, referenceMaterials: materials }));
+            setHistory(newHistory);
+            setStage('outline');
+        } catch (e) {
+            setStage('outline');
+        }
+    };
+
+    const handleSendMessage = () => {
         if (!chatInput.trim() || isLlmActive) return;
         const userInput = chatInput.trim();
         setChatInput('');
-
-        if (stage === 'collect') {
-            // Step 1 -> Step 2 切换逻辑
-            try {
-                setIsLlmActive(true);
-                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
-                const materials = data.referenceMaterials;
-                
-                const initialHistory: ChatMessage[] = [
-                    { role: 'system', content: prompt.content, hidden: true },
-                    { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
-                    { role: 'user', content: userInput, hidden: false }
-                ];
-                
-                setData(prev => ({ ...prev, topic: userInput }));
-                setHistory(initialHistory);
-                setStage('outline');
-                // 这里不需要在这里手动调用 runLlm，Step2Outline 里的 useEffect 会监测 history 变化并触发
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setIsLlmActive(false);
-            }
-        } else {
-            // 普通对话逻辑
-            setHistory(prev => [...prev, { role: 'user', content: userInput }]);
-        }
+        setHistory(prev => [...prev, { role: 'user', content: userInput }]);
     };
 
     return (
         <div className="flex flex-col h-full bg-[#f8fafc] font-sans overflow-hidden">
-            {/* Header */}
             <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between z-30 shadow-sm">
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-2 -ml-2 text-slate-500 hover:text-indigo-600 transition-colors">
@@ -153,9 +148,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                 <div className="w-20" />
             </header>
 
-            {/* Main Layout - 始终保持 1:2 分栏 */}
             <div className="flex-1 flex overflow-hidden">
-                {/* Persistent Chat Sidebar (1/3) */}
                 <aside className="w-1/3 flex flex-col bg-white border-r border-slate-200 shadow-xl z-20">
                     <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
                         <SparklesIcon className="w-5 h-5 text-indigo-600" />
@@ -163,28 +156,24 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={chatScrollRef}>
-                        {history.map((msg, i) => (
-                            <MessageBubble key={i} msg={msg} isStreaming={isLlmActive && i === history.length - 1} />
-                        ))}
-                        {isLlmActive && history[history.length - 1].role !== 'assistant' && (
+                        {history.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
+                        {streamingMessage && <MessageBubble msg={streamingMessage} isStreaming={true} />}
+                        {isLlmActive && !streamingMessage && (
                             <div className="flex gap-3 mb-6 animate-pulse opacity-60">
                                 <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                                     <RefreshIcon className="w-4 h-4 animate-spin"/>
                                 </div>
-                                <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">
-                                    AI 正在思考并创作中...
-                                </div>
+                                <div className="bg-slate-100 rounded-2xl px-4 py-2 text-xs font-bold text-slate-500">AI 正在构思中...</div>
                             </div>
                         )}
                     </div>
 
-                    {/* Chat Input */}
                     <div className="p-4 border-t border-slate-100 bg-white">
                         <div className="relative">
                             <textarea 
                                 value={chatInput}
                                 onChange={e => setChatInput(e.target.value)}
-                                placeholder={stage === 'collect' ? "输入您的报告主题或想法..." : "输入修改建议，AI将重新规划..."}
+                                placeholder={stage === 'collect' ? "输入报告主题或想法..." : "输入修改建议，AI将重新规划..."}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20 shadow-inner"
                                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
                             />
@@ -199,16 +188,14 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                     </div>
                 </aside>
 
-                {/* Workspace (2/3) */}
                 <main className="flex-1 bg-slate-50/50 overflow-hidden relative">
-                    {stage === 'collect' && (
-                        <Step1Collect onUpdateMaterials={(m) => setData(prev => ({ ...prev, referenceMaterials: m }))} />
-                    )}
+                    {stage === 'collect' && <Step1Collect onNext={handleInitWorkflow} />}
                     {stage === 'outline' && (
                         <Step2Outline 
                             history={history}
                             onHistoryUpdate={setHistory}
                             onLlmStatusChange={setIsLlmActive}
+                            onStreamingUpdate={setStreamingMessage}
                             onConfirm={(outline) => {
                                 setData(prev => ({ 
                                     ...prev, 
@@ -226,16 +213,11 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                             onUpdatePages={newPages => setData(prev => ({ ...prev, pages: newPages }))}
                             onHistoryUpdate={setHistory}
                             onLlmStatusChange={setIsLlmActive}
+                            onStreamingUpdate={setStreamingMessage}
                             onFinish={() => setStage('finalize')}
                         />
                     )}
-                    {stage === 'finalize' && (
-                        <Step4Finalize 
-                            topic={data.topic}
-                            pages={data.pages}
-                            onBackToCompose={() => setStage('compose')}
-                        />
-                    )}
+                    {stage === 'finalize' && <Step4Finalize topic={data.topic} pages={data.pages} onBackToCompose={() => setStage('compose')} />}
                 </main>
             </div>
         </div>

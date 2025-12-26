@@ -10,14 +10,14 @@ interface Step3ComposeProps {
     onUpdatePages: (newPages: PPTData['pages']) => void;
     onHistoryUpdate: (newHistory: ChatMessage[]) => void;
     onLlmStatusChange: (isActive: boolean) => void;
+    onStreamingUpdate: (msg: ChatMessage | null) => void;
     onFinish: () => void;
 }
 
 const PROMPT_ID = "c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2";
 
-export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUpdatePages, onHistoryUpdate, onLlmStatusChange, onFinish }) => {
+export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUpdatePages, onHistoryUpdate, onLlmStatusChange, onStreamingUpdate, onFinish }) => {
     const [activeIdx, setActiveIdx] = useState(0);
-    const [editingContent, setEditingContent] = useState<string | null>(null);
     const pagesRef = useRef(pages);
     useEffect(() => { pagesRef.current = pages; }, [pages]);
 
@@ -26,6 +26,8 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
         if (!page || (page.content && !force) || page.isGenerating) return;
 
         onLlmStatusChange(true);
+        onStreamingUpdate({ role: 'assistant', content: `正在深度撰写第 ${idx + 1} 页：${page.title}...`, reasoning: '' });
+        
         const updatedStart = [...pagesRef.current];
         updatedStart[idx] = { ...page, content: '', isGenerating: true };
         onUpdatePages(updatedStart);
@@ -55,21 +57,33 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                         onUpdatePages(nextPages);
                     }
                 }
+                // 实时更新左侧流式思考
+                onStreamingUpdate({ role: 'assistant', content: `正在创作第 ${idx + 1} 页内容...`, reasoning: accumulatedReasoning });
             }, () => {
                 onLlmStatusChange(false);
+                onStreamingUpdate(null);
                 const nextPages = [...pagesRef.current];
                 nextPages[idx] = { ...nextPages[idx], isGenerating: false };
                 onUpdatePages(nextPages);
-                // 同步进度到左侧聊天
-                onHistoryUpdate([...history, { role: 'assistant', content: `✅ 第 ${idx + 1} 页《${page.title}》已撰写完成。`, reasoning: accumulatedReasoning }]);
+                
+                // 正式提交一条历史记录
+                onHistoryUpdate([...history, { 
+                    role: 'assistant', 
+                    content: `✅ 第 ${idx + 1} 页《${page.title}》已创作完成。`, 
+                    reasoning: accumulatedReasoning 
+                }]);
             }, (err) => {
                 onLlmStatusChange(false);
+                onStreamingUpdate(null);
                 const nextPages = [...pagesRef.current];
                 nextPages[idx] = { ...nextPages[idx], isGenerating: false, content: `生成失败: ${err.message}` };
                 onUpdatePages(nextPages);
             });
-        } catch (e) { onLlmStatusChange(false); }
-    }, [history, onUpdatePages, onHistoryUpdate]);
+        } catch (e) { 
+            onLlmStatusChange(false);
+            onStreamingUpdate(null);
+        }
+    }, [history, onUpdatePages, onHistoryUpdate, onLlmStatusChange, onStreamingUpdate]);
 
     useEffect(() => {
         const isAnyGenerating = pages.some(p => p.isGenerating);
@@ -86,7 +100,6 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
 
     return (
         <div className="flex h-full bg-white overflow-hidden">
-            {/* Page Navigator Side */}
             <div className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col flex-shrink-0">
                 <div className="p-4 border-b border-slate-200 bg-slate-50 font-black text-[10px] text-slate-400 uppercase tracking-widest">
                     目录导航
@@ -99,7 +112,7 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-bold truncate">{p.title}</p>
                                     <div className="mt-1">
-                                        {p.isGenerating ? <span className="text-[9px] text-blue-500 animate-pulse">撰写中...</span> : p.content ? <span className="text-[9px] text-emerald-600">已完成</span> : <span className="text-[9px] text-slate-300">待开始</span>}
+                                        {p.isGenerating ? <span className="text-[9px] text-blue-500 animate-pulse">创作中...</span> : p.content ? <span className="text-[9px] text-emerald-600">已完成</span> : <span className="text-[9px] text-slate-300">待开始</span>}
                                     </div>
                                 </div>
                             </div>
@@ -108,15 +121,14 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                 </div>
             </div>
 
-            {/* Content Area */}
             <div className="flex-1 flex flex-col min-w-0 bg-white relative">
                 {activePage ? (
                     <>
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white z-10">
                             <h3 className="font-bold text-slate-800 text-lg truncate flex-1">{activePage.title}</h3>
                             <div className="flex gap-2">
-                                <button onClick={() => setEditingContent(activePage.content)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1">
-                                    <PencilIcon className="w-3.5 h-3.5" /> 编辑
+                                <button onClick={() => generatePageContent(activeIdx, true)} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1">
+                                    <RefreshIcon className="w-3.5 h-3.5" /> 重新生成
                                 </button>
                             </div>
                         </div>
@@ -127,7 +139,8 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-slate-300 gap-4 mt-20">
                                         <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center animate-pulse"><DocumentTextIcon className="w-8 h-8 text-indigo-200" /></div>
-                                        <p>AI 正在全力撰写本章节内容...</p>
+                                        <p className="font-bold">AI 正在全力撰写本章节内容...</p>
+                                        <p className="text-xs">您可以关注左侧聊天窗查看深度思考流</p>
                                     </div>
                                 )}
                             </div>
