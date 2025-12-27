@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
     getDeepInsightTasks, 
@@ -43,66 +43,80 @@ const formatFileSize = (bytes?: number) => {
 
 // --- Sub-components ---
 
-const HeroSection: React.FC<{ featuredTask: DeepInsightTask | null; onRead: (task: DeepInsightTask) => void }> = ({ featuredTask, onRead }) => {
-    if (!featuredTask) return null;
+const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsightTask) => void }> = ({ tasks, onRead }) => {
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
+
+    // Auto-rotate
+    useEffect(() => {
+        if (tasks.length <= 1 || isHovered) return;
+        
+        const interval = setInterval(() => {
+            setCurrentIndex(prev => (prev + 1) % tasks.length);
+        }, 5000); // 5 seconds per slide
+
+        return () => clearInterval(interval);
+    }, [tasks.length, isHovered]);
+
+    if (!tasks || tasks.length === 0) return null;
+
+    const currentTask = tasks[currentIndex];
 
     return (
-        <section className="w-full bg-white relative overflow-hidden border-b border-slate-200">
+        <section 
+            className="w-full bg-white relative overflow-hidden border-b border-slate-200"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             {/* Background Effects */}
             <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-transparent z-10 pointer-events-none"></div>
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(#136dec 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
             
-            <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 lg:py-16 relative z-20 w-full">
-                <div className="flex flex-col md:flex-row gap-12 items-center">
+            <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 lg:py-16 relative z-20 w-full transition-opacity duration-500">
+                <div className="flex flex-col md:flex-row gap-12 items-center" key={currentTask.id}>
                     {/* Text Content */}
-                    <div className="flex-1 flex flex-col gap-6 items-start z-20 max-w-2xl">
+                    <div className="flex-1 flex flex-col gap-6 items-start z-20 max-w-2xl animate-in fade-in slide-in-from-left-4 duration-500">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600">
                             <span className="relative flex h-2 w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
                             </span>
-                            <span className="text-xs font-bold uppercase tracking-wider">最新发布 · {new Date(featuredTask.created_at).getFullYear()}</span>
+                            <span className="text-xs font-bold uppercase tracking-wider">最新发布 · {new Date(currentTask.created_at).getFullYear()}</span>
                         </div>
                         <div className="flex flex-col gap-3 text-left">
-                            <h1 className="text-slate-900 text-3xl md:text-5xl font-black leading-tight tracking-tight">
-                                {featuredTask.file_name.replace(/\.[^/.]+$/, "")}
-                                <br/>
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">深度洞察报告</span>
+                            <h1 className="text-slate-900 text-3xl md:text-5xl font-black leading-tight tracking-tight line-clamp-2" title={currentTask.file_name}>
+                                {currentTask.file_name.replace(/\.[^/.]+$/, "")}
                             </h1>
                             <h2 className="text-slate-500 text-base md:text-lg font-normal leading-relaxed max-w-xl line-clamp-3">
-                                {featuredTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${featuredTask.processed_pages > 0 ? `包含 ${featuredTask.processed_pages} 页精读内容。` : ''}`}
+                                {currentTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${currentTask.processed_pages > 0 ? `包含 ${currentTask.processed_pages} 页精读内容。` : ''}`}
                             </h2>
                         </div>
                         <div className="flex flex-wrap gap-4 mt-4">
                             <button 
-                                onClick={() => onRead(featuredTask)}
+                                onClick={() => onRead(currentTask)}
                                 className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-blue-600 hover:bg-blue-700 transition-all text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:scale-95"
                             >
-                                <DocumentTextIcon className="w-5 h-5" />
+                                <EyeIcon className="w-5 h-5" />
                                 <span>立即阅读</span>
-                            </button>
-                            <button className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-200 text-slate-700 transition-all text-base font-bold shadow-sm">
-                                <EyeIcon className="w-5 h-5 text-slate-400" />
-                                <span>查看详情</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Visual Cover */}
-                    <div className="flex-1 w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer" onClick={() => onRead(featuredTask)}>
+                    <div className="flex-1 w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-transform duration-700 group-hover:scale-105 flex items-center justify-center">
-                            {featuredTask.cover_image ? (
-                                <img src={featuredTask.cover_image} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                            {currentTask.cover_image ? (
+                                <img src={currentTask.cover_image} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                             ) : (
                                 <div className="text-center p-8 opacity-50">
                                     <DocumentTextIcon className="w-32 h-32 mx-auto text-slate-300 mb-4" />
-                                    <div className="text-4xl font-black text-slate-300 uppercase tracking-widest">{featuredTask.file_type}</div>
+                                    <div className="text-4xl font-black text-slate-300 uppercase tracking-widest">{currentTask.file_type}</div>
                                 </div>
                             )}
                         </div>
                         
                         {/* Overlay Info */}
-                        <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md p-4 rounded-xl border border-white/50 shadow-xl max-w-[240px] hidden md:block animate-in slide-in-from-bottom-4 duration-700">
+                        <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-md p-4 rounded-xl border border-white/50 shadow-xl max-w-[240px] hidden md:block animate-in slide-in-from-bottom-4 duration-700 delay-100">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                                     <SparklesIcon className="w-5 h-5" />
@@ -116,6 +130,37 @@ const HeroSection: React.FC<{ featuredTask: DeepInsightTask | null; onRead: (tas
                         </div>
                     </div>
                 </div>
+
+                {/* Indicators */}
+                {tasks.length > 1 && (
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                        {tasks.map((_, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => setCurrentIndex(idx)}
+                                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
+                            />
+                        ))}
+                    </div>
+                )}
+                
+                {/* Arrows */}
+                 {tasks.length > 1 && (
+                    <>
+                        <button 
+                            onClick={() => setCurrentIndex(prev => (prev - 1 + tasks.length) % tasks.length)}
+                            className="absolute left-4 md:left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+                        >
+                            <ChevronLeftIcon className="w-6 h-6" />
+                        </button>
+                        <button 
+                            onClick={() => setCurrentIndex(prev => (prev + 1) % tasks.length)}
+                            className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
+                        >
+                            <ChevronRightIcon className="w-6 h-6" />
+                        </button>
+                    </>
+                 )}
             </div>
         </section>
     );
@@ -132,9 +177,9 @@ const ReportCard: React.FC<{
     const bgGradient = GRADIENTS[gradientIdx];
 
     return (
-        <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full">
+        <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-visible hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full relative z-0 hover:z-10">
             {/* Cover Area */}
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 group-cursor-pointer" onClick={isCompleted ? onRead : undefined}>
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 rounded-t-xl group-cursor-pointer" onClick={isCompleted ? onRead : undefined}>
                 {task.cover_image ? (
                      <img 
                         src={task.cover_image} 
@@ -172,9 +217,22 @@ const ReportCard: React.FC<{
                     <h3 className="text-slate-900 text-lg font-bold leading-snug mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors" title={task.file_name}>
                         {task.file_name.replace(/\.[^/.]+$/, "")}
                     </h3>
-                    <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
-                        {task.summary || (isCompleted ? 'AI 已完成深度解析，点击查看结构化报告内容。' : '正在进行 OCR 识别与语义分析...')}
-                    </p>
+                    
+                    {/* Summary with Hover Tooltip */}
+                    <div className="relative group/summary">
+                        <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
+                            {task.summary || (isCompleted ? 'AI 已完成深度解析，点击查看结构化报告内容。' : '正在进行 OCR 识别与语义分析...')}
+                        </p>
+                        {/* Hover Popup for full summary */}
+                        {task.summary && (
+                            <div className="absolute left-0 bottom-full mb-2 w-64 p-4 bg-white text-slate-700 text-xs leading-relaxed rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover/summary:opacity-100 group-hover/summary:visible transition-all duration-200 z-50 pointer-events-none">
+                                <div className="font-bold mb-1 text-slate-900">摘要预览</div>
+                                {task.summary}
+                                {/* Arrow */}
+                                <div className="absolute left-4 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white drop-shadow-sm"></div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Meta Info */}
@@ -194,20 +252,14 @@ const ReportCard: React.FC<{
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 mt-1">
+                <div className="mt-1">
                     <button 
                         onClick={(e) => { e.stopPropagation(); if(isCompleted) onRead(); }}
                         disabled={!isCompleted}
-                        className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all text-sm font-bold border border-blue-100 hover:border-blue-600 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center justify-center gap-1.5 h-9 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all text-sm font-bold shadow-md shadow-blue-200 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
                     >
-                        <SparklesIcon className="w-4 h-4" />
-                        <span>AI 解读</span>
-                    </button>
-                    <button 
-                        className="flex items-center justify-center h-9 w-9 rounded-lg bg-white text-slate-400 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all border border-slate-200"
-                        title="下载源文件"
-                    >
-                        <DownloadIcon className="w-5 h-5" />
+                        <EyeIcon className="w-4 h-4" />
+                        <span>立即阅读</span>
                     </button>
                 </div>
             </div>
@@ -267,7 +319,8 @@ export const DeepDives: React.FC = () => {
         return sorted;
     }, [tasks, sortOption]);
 
-    const featuredTask = sortedTasks.length > 0 ? sortedTasks[0] : null;
+    // Carousel Items (Top 5)
+    const featuredTasks = useMemo(() => sortedTasks.slice(0, 5), [sortedTasks]);
 
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
@@ -302,8 +355,8 @@ export const DeepDives: React.FC = () => {
 
             <main className="flex-1 flex flex-col items-center w-full">
                 
-                {/* 2. Hero Section */}
-                {!isLoading && tasks.length > 0 && <HeroSection featuredTask={featuredTask} onRead={setReaderTask} />}
+                {/* 2. Hero Section (Carousel) */}
+                {!isLoading && featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
 
                 {/* 3. Filter Section */}
                 <section className="w-full max-w-[1440px] px-4 md:px-10 py-8">
