@@ -351,6 +351,28 @@ export const generatePdf = async (htmlContent: string, filename?: string): Promi
     return response.blob();
 };
 
+/**
+ * 批量 HTML 转 PDF 并合并
+ * 使用后端接口: POST /v1/pdf/batch
+ */
+export const generateBatchPdf = async (htmlFiles: { html: string; filename: string }[]): Promise<Blob> => {
+    const url = `${STRATIFY_SERVICE_PATH}/v1/pdf/batch`;
+    const token = localStorage.getItem('accessToken');
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ html_files: htmlFiles }),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`批量 PDF 生成失败: ${errorText}`);
+    }
+    return response.blob();
+};
+
 export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }): Promise<any> => {
     return apiFetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
         method: 'POST',

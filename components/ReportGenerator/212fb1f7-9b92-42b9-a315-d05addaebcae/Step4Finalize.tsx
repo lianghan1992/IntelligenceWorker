@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData, ChatMessage } from './index';
-import { streamChatCompletions, getPromptDetail, generatePdf } from '../../../api/stratify'; 
+import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../../api/stratify'; 
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon
@@ -115,22 +115,15 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const handleExportFull = async () => {
         setIsExporting(true);
         try {
-            const combinedHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <style>
-                        body { margin: 0; padding: 0; }
-                        .page-break { page-break-after: always; }
-                    </style>
-                </head>
-                <body>
-                    ${pages.map(p => `<div>${p.html || ''}</div><div class="page-break"></div>`).join('')}
-                </body>
-                </html>
-            `;
-            const blob = await generatePdf(combinedHtml, `${topic}.pdf`);
+            // 构建批量导出参数
+            const pdfPages = pages.map((p, idx) => ({
+                html: p.html || '',
+                filename: `page_${idx + 1}`
+            })).filter(item => item.html);
+
+            if (pdfPages.length === 0) throw new Error("没有可导出的已渲染页面");
+
+            const blob = await generateBatchPdf(pdfPages);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -139,8 +132,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-        } catch (e) {
-            alert('导出失败');
+        } catch (e: any) {
+            alert('导出失败: ' + (e.message || '未知错误'));
         } finally {
             setIsExporting(false);
         }
