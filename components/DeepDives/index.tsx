@@ -21,116 +21,108 @@ const formatFileSize = (bytes?: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-// --- Component: Professional List Row ---
-const InsightRow: React.FC<{ 
+// --- Component: Efficient List Item ---
+const InsightListItem: React.FC<{ 
     task: DeepInsightTask; 
     categoryName: string;
     onClick: () => void; 
 }> = ({ task, categoryName, onClick }) => {
     const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'done'>('idle');
-    const [isHovered, setIsHovered] = useState(false);
+    // 如果任务本身已经是 completed，我们认为 AI 已经就绪，可以直接查看
+    // 这里的 aiStatus 仅用于前端模拟点击“生成”后的加载效果
+    
+    // 实际状态判断
+    const isReady = task.status === 'completed' || aiStatus === 'done';
+    const isProcessing = task.status === 'processing' || aiStatus === 'loading';
+    const isFailed = task.status === 'failed';
 
-    // 模拟 AI 生成过程
-    const handleGenerateSummary = (e: React.MouseEvent) => {
+    const handleGenerate = (e: React.MouseEvent) => {
         e.stopPropagation();
         setAiStatus('loading');
+        // 模拟请求
         setTimeout(() => {
             setAiStatus('done');
         }, 1500);
     };
 
     const dateStr = new Date(task.created_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
-    const isCompleted = task.status === 'completed';
-
-    // 状态渲染逻辑
-    const renderAiStatus = () => {
-        if (aiStatus === 'loading') {
-            return (
-                <div className="flex items-center gap-2 text-indigo-600 animate-pulse">
-                    <RefreshIcon className="w-4 h-4 animate-spin" />
-                    <span className="text-xs font-medium">分析中...</span>
-                </div>
-            );
-        }
-        if (aiStatus === 'done') {
-            return (
-                <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                    <CheckCircleIcon className="w-4 h-4" />
-                    <span className="text-xs font-bold">摘要已就绪</span>
-                </div>
-            );
-        }
-        // Idle state: Default (Not generated yet)
-        return (
-            <button 
-                onClick={handleGenerateSummary}
-                className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all duration-200 group/btn
-                    ${isHovered 
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200' 
-                        : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600'}
-                `}
-            >
-                <SparklesIcon className={`w-3.5 h-3.5 ${isHovered ? 'text-white' : 'text-indigo-500'}`} />
-                <span className="text-xs font-bold">AI 深度分析</span>
-            </button>
-        );
-    };
 
     return (
         <div 
-            onClick={isCompleted ? onClick : undefined}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
+            onClick={isReady ? onClick : undefined}
             className={`
-                relative flex items-center gap-4 p-4 border-b border-slate-100 bg-white transition-all duration-200
-                ${isCompleted ? 'cursor-pointer hover:bg-slate-50' : 'opacity-60 cursor-not-allowed'}
+                group flex items-center gap-4 p-4 bg-white border-b border-slate-100 transition-all duration-200
+                ${isReady ? 'cursor-pointer hover:bg-slate-50' : 'hover:bg-slate-50/50'}
             `}
         >
-            {/* 1. Icon & Type */}
-            <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
-                {task.file_type === 'PDF' ? (
-                    <DocumentTextIcon className={`w-6 h-6 ${isHovered ? 'text-red-500' : ''} transition-colors`} />
-                ) : (
-                    <DocumentTextIcon className={`w-6 h-6 ${isHovered ? 'text-orange-500' : ''} transition-colors`} />
-                )}
+            {/* 1. Left: File Icon */}
+            <div className="flex-shrink-0">
+                <div className={`
+                    w-10 h-10 rounded-lg flex items-center justify-center border shadow-sm text-[10px] font-black uppercase
+                    ${task.file_type === 'PDF' 
+                        ? 'bg-red-50 border-red-100 text-red-600' 
+                        : 'bg-orange-50 border-orange-100 text-orange-600'}
+                `}>
+                    {task.file_type}
+                </div>
             </div>
 
-            {/* 2. Main Info */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-                <div className="flex items-center gap-2">
-                    <h3 className={`text-sm font-bold truncate transition-colors ${isHovered ? 'text-indigo-700' : 'text-slate-800'}`} title={task.file_name}>
-                        {task.file_name.replace(/\.(pdf|ppt|pptx|doc|docx)$/i, '')}
-                    </h3>
-                    {!isCompleted && (
-                        <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">处理中</span>
+            {/* 2. Middle: Main Info (High Density) */}
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <h3 className={`text-sm font-bold truncate pr-4 ${isReady ? 'text-slate-800 group-hover:text-indigo-600 transition-colors' : 'text-slate-600'}`} title={task.file_name}>
+                    {task.file_name.replace(/\.(pdf|ppt|pptx|doc|docx)$/i, '')}
+                </h3>
+                
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] font-medium border border-slate-200">
+                        {categoryName}
+                    </span>
+                    <span className="w-px h-2 bg-slate-300"></span>
+                    <span>{formatFileSize(task.file_size)}</span>
+                    <span className="w-px h-2 bg-slate-300"></span>
+                    <span>{task.total_pages > 0 ? `${task.total_pages} P` : '-'}</span>
+                    <span className="w-px h-2 bg-slate-300"></span>
+                    <span>{dateStr}</span>
+                </div>
+            </div>
+
+            {/* 3. Right: AI Action & Tools */}
+            <div className="flex items-center gap-4">
+                
+                {/* AI Status / Button */}
+                <div className="w-32 flex justify-end">
+                    {isReady ? (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onClick(); }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-100 group/btn"
+                        >
+                            <SparklesIcon className="w-3.5 h-3.5" />
+                            <span>AI 导读</span>
+                        </button>
+                    ) : isProcessing ? (
+                        <div className="flex items-center gap-1.5 text-xs text-blue-500 font-medium px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                            <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                            <span>分析中...</span>
+                        </div>
+                    ) : isFailed ? (
+                        <span className="text-xs text-red-500 font-medium px-3 py-1.5 bg-red-50 rounded-lg border border-red-100">
+                            处理失败
+                        </span>
+                    ) : (
+                        <button 
+                            onClick={handleGenerate}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-slate-500 rounded-lg text-xs font-bold border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                        >
+                            <PlayIcon className="w-3.5 h-3.5" />
+                            <span>立即分析</span>
+                        </button>
                     )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-500">
-                    <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium">{categoryName}</span>
-                    <span className="w-px h-3 bg-slate-300"></span>
-                    <span className="font-mono">{formatFileSize(task.file_size)}</span>
-                </div>
-            </div>
 
-            {/* 3. AI Action Area (The "Control" part) */}
-            <div className="w-40 flex justify-end">
-                {renderAiStatus()}
-            </div>
-
-            {/* 4. Meta & Actions */}
-            <div className="w-48 flex items-center justify-end gap-6 text-right">
-                <div className="flex flex-col items-end text-xs text-slate-400 font-mono">
-                    <span>{dateStr}</span>
-                    <span>{task.total_pages > 0 ? `${task.total_pages} 页` : '-'}</span>
-                </div>
-                
-                <div className={`flex items-center gap-1 transition-opacity duration-200 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-                    <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="下载">
+                {/* Secondary Actions (Visible on Hover) */}
+                <div className="flex items-center gap-1 w-16 justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="下载">
                         <DownloadIcon className="w-4 h-4" />
-                    </button>
-                    <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors" title="阅读">
-                        <ChevronRightIcon className="w-4 h-4" />
                     </button>
                 </div>
             </div>
@@ -162,7 +154,8 @@ export const DeepDives: React.FC = () => {
             ]);
             setCategories(cats);
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
-            const validItems = items.filter(t => t.status !== 'failed');
+            // 过滤掉失败的，或者你可以选择保留并显示错误状态
+            const validItems = items; 
             setTasks(validItems);
         } catch (error) {
             console.error("Failed to load data", error);
@@ -236,42 +229,42 @@ export const DeepDives: React.FC = () => {
             <div className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-8 py-6">
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
                     
-                    {/* Table Header */}
-                    <div className="flex items-center gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        <div className="w-12 text-center">FMT</div>
-                        <div className="flex-1">文档名称 (DOCUMENT)</div>
-                        <div className="w-40 text-left pl-3">AI 状态 (INSIGHT)</div>
-                        <div className="w-48 text-right pr-12">信息 (META)</div>
+                    {/* Header Row */}
+                    <div className="flex items-center gap-4 px-6 py-3 bg-slate-50/80 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="w-10 text-center">FMT</div>
+                        <div className="flex-1">文档信息 (DOCUMENT INFO)</div>
+                        <div className="w-32 text-right pr-6">AI 状态</div>
+                        <div className="w-16 text-center">操作</div>
                     </div>
 
                     {/* Rows */}
                     <div className="flex-1">
                         {isLoading ? (
-                            <div className="p-12 space-y-6">
+                            <div className="p-8 space-y-4">
                                 {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="flex gap-4 animate-pulse">
-                                        <div className="w-12 h-12 bg-slate-100 rounded-xl"></div>
-                                        <div className="flex-1 space-y-2 py-2">
-                                            <div className="w-1/3 h-4 bg-slate-100 rounded"></div>
-                                            <div className="w-1/4 h-3 bg-slate-50 rounded"></div>
+                                    <div key={i} className="flex gap-4 animate-pulse px-4 py-2 border-b border-slate-50">
+                                        <div className="w-10 h-10 bg-slate-100 rounded-lg"></div>
+                                        <div className="flex-1 space-y-2 py-1">
+                                            <div className="w-1/3 h-3 bg-slate-100 rounded"></div>
+                                            <div className="w-1/4 h-2 bg-slate-50 rounded"></div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : tasks.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                                    <CloudIcon className="w-10 h-10 text-slate-300" />
+                                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                                    <CloudIcon className="w-8 h-8 text-slate-300" />
                                 </div>
                                 <h3 className="text-slate-600 font-bold mb-1">暂无文档数据</h3>
                                 <p className="text-slate-400 text-sm max-w-xs">请在后台上传或等待爬虫任务完成</p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-slate-50">
+                            <div>
                                 {tasks.map((task) => {
                                     const categoryName = categories.find(c => c.id === task.category_id)?.name || '未分类';
                                     return (
-                                        <InsightRow
+                                        <InsightListItem
                                             key={task.id}
                                             task={task}
                                             categoryName={categoryName}
@@ -286,9 +279,9 @@ export const DeepDives: React.FC = () => {
                     {/* Footer */}
                     <div className="px-6 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400 flex justify-between items-center">
                         <span>共展示 {tasks.length} 份文档</span>
-                        <div className="flex gap-1">
-                            <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                            <span>AI Ready</span>
+                        <div className="flex gap-2">
+                             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> 已就绪</span>
+                             <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> 待分析</span>
                         </div>
                     </div>
                 </div>
