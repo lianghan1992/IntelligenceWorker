@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
 import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc } from '../../../api/intelligence';
 import { 
-    CloudIcon, RefreshIcon, SearchIcon, FilterIcon, CalendarIcon, 
+    CloudIcon, RefreshIcon, SearchIcon, CalendarIcon, 
     DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon
 } from '../../icons';
 import { DocUploadModal } from './DocUploadModal';
@@ -70,7 +69,7 @@ export const DocumentManager: React.FC = () => {
     const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
     const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
     
-    // History Upload Queue States
+    // Batch Upload States
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [uploadQueue, setUploadQueue] = useState<UploadTask[]>([]);
     const historyFileInputRef = useRef<HTMLInputElement>(null);
@@ -150,10 +149,10 @@ export const DocumentManager: React.FC = () => {
         setPage(1);
     };
 
-    // --- 批量历史文档上传按钮点击 ---
+    // --- 批量历史文档上传触发 ---
     const handleHistoryUploadClick = () => {
         if (!selectedTagId) {
-            alert("请先从左侧选择一个分类标签，再进行批量上传。");
+            alert("请先从左侧选择一个分类标签。");
             return;
         }
         historyFileInputRef.current?.click();
@@ -164,45 +163,47 @@ export const DocumentManager: React.FC = () => {
         if (!files || files.length === 0 || !selectedTagId) return;
 
         const fileArray = Array.from(files);
+        // 严格正则：必须 YYYY.MM.DD 开头
         const historyRegex = /^(\d{4})\.(\d{2})\.(\d{2})\.(.+)$/;
         
-        const newQueue: UploadTask[] = fileArray.map(file => {
-            const match = file.name.match(historyRegex);
-            let publishDate = '';
-            let newName = file.name;
-            let isValid = false;
+        const newTasks: UploadTask[] = [];
+        let skippedCount = 0;
 
+        fileArray.forEach(file => {
+            const match = file.name.match(historyRegex);
             if (match) {
                 const [_, yyyy, mm, dd, extractedName] = match;
-                publishDate = `${yyyy}-${mm}-${dd}T10:00:00`;
-                newName = extractedName;
-                isValid = true;
+                newTasks.push({
+                    id: crypto.randomUUID(),
+                    file,
+                    newName: extractedName,
+                    publishDate: `${yyyy}-${mm}-${dd}T10:00:00`,
+                    size: file.size,
+                    progress: 0,
+                    speed: 0,
+                    status: 'waiting',
+                    pointUuid: selectedTagId
+                });
+            } else {
+                skippedCount++;
             }
-
-            return {
-                id: crypto.randomUUID(),
-                file,
-                newName,
-                publishDate,
-                size: file.size,
-                progress: 0,
-                speed: 0,
-                status: isValid ? 'waiting' : 'error',
-                errorMessage: isValid ? '' : '文件名格式不符 (需为 YYYY.MM.DD.名称.pdf)',
-                pointUuid: selectedTagId
-            };
         });
 
-        setUploadQueue(prev => [...prev, ...newQueue]);
-        setIsProgressModalOpen(true);
+        if (newTasks.length > 0) {
+            setUploadQueue(prev => [...prev, ...newTasks]);
+            setIsProgressModalOpen(true);
+        }
+
+        if (skippedCount > 0) {
+            alert(`已过滤 ${skippedCount} 个命名不规范的文件（需以 YYYY.MM.DD. 开头）`);
+        }
         
-        // 清空 input 方便下次选择
         if (historyFileInputRef.current) historyFileInputRef.current.value = '';
     };
 
     return (
         <div className="h-full flex bg-slate-50 relative">
-            {/* Left Sidebar: Tag Navigation */}
+            {/* Left Sidebar */}
             <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <h3 className="font-bold text-gray-700 flex items-center gap-2 text-sm uppercase tracking-wide">
@@ -211,7 +212,6 @@ export const DocumentManager: React.FC = () => {
                     <button 
                         onClick={() => setIsTagManagerOpen(true)}
                         className="p-1.5 hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 rounded transition-colors"
-                        title="管理标签"
                     >
                         <GearIcon className="w-4 h-4" />
                     </button>
@@ -244,19 +244,16 @@ export const DocumentManager: React.FC = () => {
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Toolbar */}
                 <div className="p-4 border-b border-gray-200 bg-white z-10 flex flex-col gap-4">
                     <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                {selectedTagId ? tags.find(t => t.uuid === selectedTagId)?.name : '所有文档'}
-                                <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{total}</span>
-                            </h2>
-                        </div>
+                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            {selectedTagId ? tags.find(t => t.uuid === selectedTagId)?.name : '所有文档'}
+                            <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{total}</span>
+                        </h2>
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setIsMoveModalOpen(true)}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                                className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:border-indigo-300 transition-all shadow-sm"
                             >
                                 <ArrowRightIcon className="w-4 h-4" /> 批量迁移
                             </button>
@@ -272,7 +269,6 @@ export const DocumentManager: React.FC = () => {
                             <button 
                                 onClick={handleHistoryUploadClick}
                                 disabled={!selectedTagId}
-                                title={!selectedTagId ? "请先选择分类标签" : "上传符合 YYYY.MM.DD.xxx 格式的历史文档"}
                                 className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
                                     !selectedTagId
                                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
@@ -299,26 +295,15 @@ export const DocumentManager: React.FC = () => {
                                 placeholder="搜索文件名..." 
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && setPage(1)}
-                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-shadow"
+                                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
                             />
                         </div>
 
                         <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 text-sm text-gray-600">
                             <CalendarIcon className="w-4 h-4 text-gray-400" />
-                            <input 
-                                type="date" 
-                                value={startDate} 
-                                onChange={e => setStartDate(e.target.value)} 
-                                className="bg-transparent outline-none w-32 cursor-pointer"
-                            />
+                            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent outline-none w-32 cursor-pointer" />
                             <span className="text-gray-300">-</span>
-                            <input 
-                                type="date" 
-                                value={endDate} 
-                                onChange={e => setEndDate(e.target.value)} 
-                                className="bg-transparent outline-none w-32 cursor-pointer"
-                            />
+                            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent outline-none w-32 cursor-pointer" />
                         </div>
 
                         <button onClick={() => fetchDocs()} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 border border-transparent hover:border-gray-200 transition-colors">
@@ -339,15 +324,14 @@ export const DocumentManager: React.FC = () => {
                                     <th className="px-6 py-3 font-medium w-32 text-center">状态</th>
                                     <th className="px-6 py-3 font-medium w-24 text-right">页数</th>
                                     <th className="px-6 py-3 font-medium w-40 text-right">发布时间</th>
-                                    <th className="px-6 py-3 font-medium w-40 text-right">上传时间</th>
                                     <th className="px-6 py-3 font-medium w-32 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {isLoading && docs.length === 0 ? (
-                                    <tr><td colSpan={8} className="py-20 text-center"><Spinner /></td></tr>
+                                    <tr><td colSpan={7} className="py-20 text-center"><Spinner /></td></tr>
                                 ) : docs.length === 0 ? (
-                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400">暂无文档</td></tr>
+                                    <tr><td colSpan={7} className="py-20 text-center text-gray-400">暂无文档</td></tr>
                                 ) : (
                                     docs.map(doc => (
                                         <tr key={doc.uuid} className="hover:bg-slate-50 transition-colors group">
@@ -364,32 +348,15 @@ export const DocumentManager: React.FC = () => {
                                             <td className="px-6 py-4 text-center">
                                                 {getStatusBadge(doc)}
                                             </td>
-                                            <td className="px-6 py-4 font-mono text-xs text-right">{doc.page_count} P</td>
+                                            <td className="px-6 py-4 font-mono text-xs text-right">
+                                                {doc.page_count > 0 ? `${doc.page_count} P` : '-'}
+                                            </td>
                                             <td className="px-6 py-4 text-xs font-mono text-right">{new Date(doc.publish_date).toLocaleDateString()}</td>
-                                            <td className="px-6 py-4 text-xs font-mono text-gray-400 text-right">{new Date(doc.created_at).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    <button 
-                                                        onClick={() => setPreviewDoc(doc)}
-                                                        className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded transition-colors" 
-                                                        title="预览"
-                                                    >
-                                                        <EyeIcon className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDownload(doc)}
-                                                        className="p-1.5 hover:bg-green-50 text-green-600 rounded transition-colors" 
-                                                        title="下载"
-                                                    >
-                                                        <DownloadIcon className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => setDocToDelete(doc)}
-                                                        className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors" 
-                                                        title="删除"
-                                                    >
-                                                        <TrashIcon className="w-4 h-4" />
-                                                    </button>
+                                                    <button onClick={() => setPreviewDoc(doc)} className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded transition-colors"><EyeIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDownload(doc)} className="p-1.5 hover:bg-green-50 text-green-600 rounded transition-colors"><DownloadIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => setDocToDelete(doc)} className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors"><TrashIcon className="w-4 h-4" /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -414,40 +381,11 @@ export const DocumentManager: React.FC = () => {
             </div>
 
             {/* Modals */}
-            {isTagManagerOpen && (
-                <DocTagManagerModal 
-                    isOpen={isTagManagerOpen} 
-                    onClose={() => { setIsTagManagerOpen(false); fetchTags(); }} 
-                    tags={tags}
-                />
-            )}
-
-            {isUploadModalOpen && (
-                <DocUploadModal 
-                    isOpen={isUploadModalOpen} 
-                    onClose={() => setIsUploadModalOpen(false)} 
-                    onSuccess={() => { fetchDocs(); setIsUploadModalOpen(false); fetchTags(); }}
-                    tags={tags}
-                />
-            )}
-
-            {isMoveModalOpen && (
-                <DocMoveModal 
-                    isOpen={isMoveModalOpen} 
-                    onClose={() => setIsMoveModalOpen(false)} 
-                    onSuccess={() => { fetchDocs(); setIsMoveModalOpen(false); fetchTags(); }}
-                    tags={tags}
-                />
-            )}
-
-            {previewDoc && (
-                <DocPreviewModal 
-                    isOpen={!!previewDoc} 
-                    doc={previewDoc} 
-                    onClose={() => setPreviewDoc(null)} 
-                />
-            )}
-
+            {isTagManagerOpen && <DocTagManagerModal isOpen={isTagManagerOpen} onClose={() => { setIsTagManagerOpen(false); fetchTags(); }} tags={tags} />}
+            {isUploadModalOpen && <DocUploadModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { fetchDocs(); setIsUploadModalOpen(false); fetchTags(); }} tags={tags} />}
+            {isMoveModalOpen && <DocMoveModal isOpen={isMoveModalOpen} onClose={() => setIsMoveModalOpen(false)} onSuccess={() => { fetchDocs(); setIsMoveModalOpen(false); fetchTags(); }} tags={tags} />}
+            {previewDoc && <DocPreviewModal isOpen={!!previewDoc} doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+            
             <BatchUploadProgressModal 
                 isOpen={isProgressModalOpen}
                 tasks={uploadQueue}
@@ -458,7 +396,7 @@ export const DocumentManager: React.FC = () => {
             {docToDelete && (
                 <ConfirmationModal
                     title="删除文档"
-                    message={`确定要删除文档 "${docToDelete.original_filename}" 吗？此操作将永久删除文件及相关数据，不可恢复。`}
+                    message={`确定要删除文档 "${docToDelete.original_filename}" 吗？此操作将永久删除文件及相关数据。`}
                     onConfirm={handleDelete}
                     onCancel={() => setDocToDelete(null)}
                     confirmText="删除"

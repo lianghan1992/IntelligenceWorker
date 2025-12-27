@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CloudIcon, CloseIcon, CheckIcon, RefreshIcon, ChevronDownIcon, ClockIcon } from '../../icons';
 
@@ -12,7 +11,6 @@ export interface UploadTask {
     speed: number;
     status: 'waiting' | 'uploading' | 'processing' | 'completed' | 'error';
     errorMessage?: string;
-    pageCount?: number;
     pointUuid: string;
 }
 
@@ -41,12 +39,11 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
     const [tasks, setTasks] = useState<UploadTask[]>(initialTasks);
     const [isMinimized, setIsMinimized] = useState(false);
     const activeUploadsCount = useRef(0);
-    const MAX_CONCURRENT = 2; // 控制同时上传的请求数
+    const MAX_CONCURRENT = 2; 
 
-    // 当父组件有新任务加入时同步
+    // 同步外部任务到内部状态
     useEffect(() => {
         if (initialTasks.length > 0) {
-            // 只添加新任务
             setTasks(prev => {
                 const existingIds = new Set(prev.map(t => t.id));
                 const newTasks = initialTasks.filter(t => !existingIds.has(t.id));
@@ -55,7 +52,7 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
         }
     }, [initialTasks]);
 
-    // 核心调度器：监控等待中的任务并启动上传
+    // 核心调度循环
     useEffect(() => {
         const waitingTask = tasks.find(t => t.status === 'waiting');
         if (waitingTask && activeUploadsCount.current < MAX_CONCURRENT) {
@@ -71,7 +68,6 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
         updateTask(taskId, { status: 'uploading', progress: 0 });
 
         const formData = new FormData();
-        // 创建重命名后的 File 对象
         const renamedFile = new File([task.file], task.newName, { type: task.file.type });
         formData.append('files', renamedFile);
         formData.append('point_uuid', task.pointUuid);
@@ -80,45 +76,32 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/intelspider/uploaded-docs/upload');
         
-        // 鉴权
         const token = localStorage.getItem('accessToken');
         if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
         let startTime = Date.now();
         let lastLoaded = 0;
+        const lastUpdateRef = { current: Date.now() };
 
         xhr.upload.onprogress = (event) => {
             if (event.lengthComputable) {
                 const now = Date.now();
-                const duration = (now - startTime) / 1000;
                 const loaded = event.loaded;
                 const progress = Math.round((loaded / event.total) * 100);
+                const timeDiff = (now - lastUpdateRef.current) / 1000;
+                const instantSpeed = timeDiff > 0 ? (loaded - lastLoaded) / timeDiff : 0;
                 
-                // 计算瞬时速度 (每秒)
-                const instantSpeed = duration > 0 ? (loaded - lastLoaded) / ((now - lastUpdateRef.current) / 1000) : 0;
-                
+                // 留 1% 给后端处理阶段
                 updateTask(taskId, { progress: progress === 100 ? 99 : progress, speed: instantSpeed });
                 lastLoaded = loaded;
                 lastUpdateRef.current = now;
             }
         };
-        const lastUpdateRef = { current: Date.now() };
 
         xhr.onload = () => {
             activeUploadsCount.current--;
             if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    const uploadedDoc = response[0];
-                    updateTask(taskId, { 
-                        status: 'completed', 
-                        progress: 100, 
-                        pageCount: uploadedDoc.page_count,
-                        speed: 0 
-                    });
-                } catch (e) {
-                    updateTask(taskId, { status: 'completed', progress: 100, speed: 0 });
-                }
+                updateTask(taskId, { status: 'completed', progress: 100, speed: 0 });
             } else {
                 updateTask(taskId, { status: 'error', errorMessage: '服务器响应异常', speed: 0 });
             }
@@ -126,7 +109,7 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
 
         xhr.onerror = () => {
             activeUploadsCount.current--;
-            updateTask(taskId, { status: 'error', errorMessage: '网络连接故障', speed: 0 });
+            updateTask(taskId, { status: 'error', errorMessage: '网络故障', speed: 0 });
         };
 
         xhr.send(formData);
@@ -141,7 +124,7 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
     const completedCount = tasks.filter(t => t.status === 'completed').length;
     const isProcessing = tasks.some(t => t.status === 'uploading' || t.status === 'waiting');
 
-    // 如果面板关闭了但任务还在跑，显示一个小悬浮球
+    // 最小化状态显示悬浮球
     if (!isOpen || isMinimized) {
         return (
             <div 
@@ -152,7 +135,6 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                     {tasks.length - completedCount}
                 </div>
                 <CloudIcon className={`w-7 h-7 text-white ${isProcessing ? 'animate-bounce' : ''}`} />
-                <div className="absolute inset-0 rounded-full border-2 border-indigo-400 animate-ping opacity-20"></div>
             </div>
         );
     }
@@ -167,7 +149,7 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                             {isProcessing ? <RefreshIcon className="w-4 h-4 animate-spin" /> : <CheckIcon className="w-4 h-4" />}
                         </div>
                         <div>
-                            <h3 className="text-sm font-bold text-slate-800">上传队列管理</h3>
+                            <h3 className="text-sm font-bold text-slate-800">批量上传任务</h3>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                                 {completedCount} / {tasks.length} 已完成
                             </p>
@@ -183,7 +165,7 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                     </div>
                 </div>
 
-                {/* Task List */}
+                {/* List */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2 bg-slate-50/30">
                     {tasks.map(task => (
                         <div key={task.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
@@ -195,8 +177,8 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                                         {task.status === 'uploading' && (
                                             <span className="text-[10px] text-indigo-500 font-mono font-bold">{formatSpeed(task.speed)}</span>
                                         )}
-                                        {task.pageCount !== undefined && (
-                                            <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">{task.pageCount} P</span>
+                                        {task.status === 'completed' && (
+                                            <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1 rounded">正在解析...</span>
                                         )}
                                     </div>
                                 </div>
@@ -213,7 +195,6 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                                 </div>
                             </div>
                             
-                            {/* Progress Bar */}
                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                 <div 
                                     className={`h-full transition-all duration-300 ${
@@ -231,16 +212,12 @@ export const BatchUploadProgressModal: React.FC<BatchUploadProgressModalProps> =
                     ))}
                 </div>
 
-                {/* Footer Footer */}
                 <div className="p-3 border-t bg-white flex justify-between items-center rounded-b-2xl">
-                    <div className="text-[10px] text-slate-400">
+                    <div className="text-[10px] text-slate-400 italic">
                         提示: 面板收起后上传将在后台继续
                     </div>
                     {!isProcessing && (
-                        <button 
-                            onClick={onClear}
-                            className="text-xs font-bold text-slate-500 hover:text-red-500 transition-colors"
-                        >
+                        <button onClick={onClear} className="text-xs font-bold text-slate-500 hover:text-red-500 transition-colors">
                             清空列表
                         </button>
                     )}
