@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
-import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc, uploadDocs } from '../../../api/intelligence';
+import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc } from '../../../api/intelligence';
 import { 
     CloudIcon, RefreshIcon, SearchIcon, FilterIcon, CalendarIcon, 
     DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon
@@ -10,6 +10,7 @@ import { DocUploadModal } from './DocUploadModal';
 import { DocMoveModal } from './DocMoveModal';
 import { DocPreviewModal } from './DocPreviewModal';
 import { DocTagManagerModal } from './DocTagManagerModal';
+import { BatchUploadProgressModal, UploadTask } from './BatchUploadProgressModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
@@ -52,10 +53,9 @@ const getStatusBadge = (doc: UploadedDocument) => {
 export const DocumentManager: React.FC = () => {
     const [docs, setDocs] = useState<UploadedDocument[]>([]);
     const [tags, setTags] = useState<DocTag[]>([]);
-    const [selectedTagId, setSelectedTagId] = useState<string>(''); // '' means All
+    const [selectedTagId, setSelectedTagId] = useState<string>('');
     
     const [isLoading, setIsLoading] = useState(false);
-    const [isHistoryUploading, setIsHistoryUploading] = useState(false);
     const [total, setTotal] = useState(0);
     
     // Filters
@@ -70,11 +70,14 @@ export const DocumentManager: React.FC = () => {
     const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
     const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
     
+    // History Upload Queue States
+    const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+    const [uploadQueue, setUploadQueue] = useState<UploadTask[]>([]);
+    const historyFileInputRef = useRef<HTMLInputElement>(null);
+
     // Delete State
     const [docToDelete, setDocToDelete] = useState<UploadedDocument | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
-
-    const historyFileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchTags = async () => {
         try {
@@ -134,7 +137,7 @@ export const DocumentManager: React.FC = () => {
             await deleteUploadedDoc(docToDelete.uuid);
             setDocToDelete(null);
             fetchDocs();
-            fetchTags(); // Update counts
+            fetchTags();
         } catch (e: any) {
             alert(`删除失败: ${e.message}`);
         } finally {
@@ -147,7 +150,7 @@ export const DocumentManager: React.FC = () => {
         setPage(1);
     };
 
-    // --- 批量历史文档上传逻辑 ---
+    // --- 批量历史文档上传按钮点击 ---
     const handleHistoryUploadClick = () => {
         if (!selectedTagId) {
             alert("请先从左侧选择一个分类标签，再进行批量上传。");
@@ -160,70 +163,45 @@ export const DocumentManager: React.FC = () => {
         const files = e.target.files;
         if (!files || files.length === 0 || !selectedTagId) return;
 
-        setIsHistoryUploading(true);
         const fileArray = Array.from(files);
-        
-        // 正则：匹配 YYYY.MM.DD.文件名.格式
         const historyRegex = /^(\d{4})\.(\d{2})\.(\d{2})\.(.+)$/;
         
-        // 按日期分组，因为 API 每次调用只支持一个发布日期
-        const groups: Record<string, File[]> = {};
-        const skippedFiles: string[] = [];
-
-        fileArray.forEach(file => {
+        const newQueue: UploadTask[] = fileArray.map(file => {
             const match = file.name.match(historyRegex);
+            let publishDate = '';
+            let newName = file.name;
+            let isValid = false;
+
             if (match) {
-                const [_, yyyy, mm, dd, newName] = match;
-                const isoDate = `${yyyy}-${mm}-${dd}T10:00:00`; // 统一定位在上午10点
-                
-                // 创建一个重命名后的新 File 对象（删除日期前缀）
-                const renamedFile = new File([file], newName, { type: file.type });
-                
-                if (!groups[isoDate]) groups[isoDate] = [];
-                groups[isoDate].push(renamedFile);
-            } else {
-                skippedFiles.push(file.name);
+                const [_, yyyy, mm, dd, extractedName] = match;
+                publishDate = `${yyyy}-${mm}-${dd}T10:00:00`;
+                newName = extractedName;
+                isValid = true;
             }
+
+            return {
+                id: crypto.randomUUID(),
+                file,
+                newName,
+                publishDate,
+                size: file.size,
+                progress: 0,
+                speed: 0,
+                status: isValid ? 'waiting' : 'error',
+                errorMessage: isValid ? '' : '文件名格式不符 (需为 YYYY.MM.DD.名称.pdf)',
+                pointUuid: selectedTagId
+            };
         });
 
-        if (skippedFiles.length > 0 && skippedFiles.length === fileArray.length) {
-            alert("选中的文件都不符合 'YYYY.MM.DD.文件名' 的命名格式，请检查后重试。");
-            setIsHistoryUploading(false);
-            return;
-        }
-
-        try {
-            const dateKeys = Object.keys(groups);
-            let successCount = 0;
-
-            // 串行或并行执行上传请求
-            for (const isoDate of dateKeys) {
-                await uploadDocs({
-                    files: groups[isoDate],
-                    point_uuid: selectedTagId,
-                    publish_date: isoDate
-                });
-                successCount += groups[isoDate].length;
-            }
-
-            let msg = `成功上传 ${successCount} 份历史文档。`;
-            if (skippedFiles.length > 0) {
-                msg += `\n注意：有 ${skippedFiles.length} 个文件因格式不符被跳过。`;
-            }
-            alert(msg);
-            
-            fetchDocs();
-            fetchTags();
-        } catch (error: any) {
-            alert(`批量上传过程中出现错误: ${error.message}`);
-        } finally {
-            setIsHistoryUploading(false);
-            if (historyFileInputRef.current) historyFileInputRef.current.value = '';
-        }
+        setUploadQueue(prev => [...prev, ...newQueue]);
+        setIsProgressModalOpen(true);
+        
+        // 清空 input 方便下次选择
+        if (historyFileInputRef.current) historyFileInputRef.current.value = '';
     };
 
     return (
-        <div className="h-full flex bg-slate-50">
+        <div className="h-full flex bg-slate-50 relative">
             {/* Left Sidebar: Tag Navigation */}
             <div className="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
                 <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -274,12 +252,6 @@ export const DocumentManager: React.FC = () => {
                                 {selectedTagId ? tags.find(t => t.uuid === selectedTagId)?.name : '所有文档'}
                                 <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{total}</span>
                             </h2>
-                            {isHistoryUploading && (
-                                <div className="flex items-center gap-2 text-indigo-600 text-xs font-bold animate-pulse">
-                                    <RefreshIcon className="w-3 h-3 animate-spin" />
-                                    历史文档处理中...
-                                </div>
-                            )}
                         </div>
                         <div className="flex gap-2">
                             <button 
@@ -289,7 +261,6 @@ export const DocumentManager: React.FC = () => {
                                 <ArrowRightIcon className="w-4 h-4" /> 批量迁移
                             </button>
 
-                            {/* 批量历史上传按钮 */}
                             <input 
                                 type="file" 
                                 ref={historyFileInputRef} 
@@ -300,10 +271,10 @@ export const DocumentManager: React.FC = () => {
                             />
                             <button 
                                 onClick={handleHistoryUploadClick}
-                                disabled={!selectedTagId || isHistoryUploading}
+                                disabled={!selectedTagId}
                                 title={!selectedTagId ? "请先选择分类标签" : "上传符合 YYYY.MM.DD.xxx 格式的历史文档"}
                                 className={`flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-bold transition-all shadow-sm ${
-                                    !selectedTagId || isHistoryUploading
+                                    !selectedTagId
                                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
                                     : 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100'
                                 }`}
@@ -476,6 +447,13 @@ export const DocumentManager: React.FC = () => {
                     onClose={() => setPreviewDoc(null)} 
                 />
             )}
+
+            <BatchUploadProgressModal 
+                isOpen={isProgressModalOpen}
+                tasks={uploadQueue}
+                onClose={() => { setIsProgressModalOpen(false); fetchDocs(); fetchTags(); }}
+                onClear={() => setUploadQueue([])}
+            />
 
             {docToDelete && (
                 <ConfirmationModal
