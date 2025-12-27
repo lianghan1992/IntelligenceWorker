@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
     getDeepInsightTasks, 
@@ -47,7 +47,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isHovered, setIsHovered] = useState(false);
 
-    // Auto-rotate
+    // Auto-rotate logic
     useEffect(() => {
         if (tasks.length <= 1 || isHovered) return;
         
@@ -86,6 +86,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                         <div className="flex flex-col gap-3 text-left">
                             <h1 className="text-slate-900 text-3xl md:text-5xl font-black leading-tight tracking-tight line-clamp-2" title={currentTask.file_name}>
                                 {currentTask.file_name.replace(/\.[^/.]+$/, "")}
+                                <br/>
                             </h1>
                             <h2 className="text-slate-500 text-base md:text-lg font-normal leading-relaxed max-w-xl line-clamp-3">
                                 {currentTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${currentTask.processed_pages > 0 ? `包含 ${currentTask.processed_pages} 页精读内容。` : ''}`}
@@ -98,6 +99,10 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                             >
                                 <EyeIcon className="w-5 h-5" />
                                 <span>立即阅读</span>
+                            </button>
+                            <button className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-200 text-slate-700 transition-all text-base font-bold shadow-sm">
+                                <ViewGridIcon className="w-5 h-5 text-slate-400" />
+                                <span>查看详情</span>
                             </button>
                         </div>
                     </div>
@@ -225,9 +230,14 @@ const ReportCard: React.FC<{
                         </p>
                         {/* Hover Popup for full summary */}
                         {task.summary && (
-                            <div className="absolute left-0 bottom-full mb-2 w-64 p-4 bg-white text-slate-700 text-xs leading-relaxed rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover/summary:opacity-100 group-hover/summary:visible transition-all duration-200 z-50 pointer-events-none">
-                                <div className="font-bold mb-1 text-slate-900">摘要预览</div>
-                                {task.summary}
+                            <div className="absolute left-0 bottom-full mb-2 w-72 p-4 bg-white text-slate-700 text-xs leading-relaxed rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover/summary:opacity-100 group-hover/summary:visible transition-all duration-200 z-50 pointer-events-none transform translate-y-2 group-hover/summary:translate-y-0">
+                                <div className="font-bold mb-1 text-slate-900 flex items-center gap-1">
+                                    <SparklesIcon className="w-3 h-3 text-indigo-500"/>
+                                    摘要预览
+                                </div>
+                                <div className="max-h-40 overflow-y-auto custom-scrollbar">
+                                    {task.summary}
+                                </div>
                                 {/* Arrow */}
                                 <div className="absolute left-4 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white drop-shadow-sm"></div>
                             </div>
