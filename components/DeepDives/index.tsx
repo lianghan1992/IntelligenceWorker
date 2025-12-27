@@ -285,15 +285,21 @@ export const DeepDives: React.FC = () => {
     const [sortOption, setSortOption] = useState('newest');
     const [readerTask, setReaderTask] = useState<DeepInsightTask | null>(null);
 
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [total, setTotal] = useState(0);
+    const limit = 12;
+
     // Initial Load
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
+            // Parallel fetch categories and tasks
             const [cats, tasksRes] = await Promise.all([
                 getDeepInsightCategories().catch(() => []),
                 getDeepInsightTasks({ 
-                    limit: 100, 
-                    page: 1, 
+                    limit, 
+                    page, 
                     category_id: selectedCategoryId, 
                     search: searchQuery 
                 }).catch(() => ({ items: [], total: 0 }))
@@ -301,11 +307,18 @@ export const DeepDives: React.FC = () => {
             setCategories(cats);
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
             setTasks(items);
+            // Handle total from API response
+            setTotal((tasksRes as any).total || 0);
         } catch (error) {
             console.error("Failed to load data", error);
         } finally {
             setIsLoading(false);
         }
+    }, [selectedCategoryId, searchQuery, page]);
+
+    // Reset page on filter change
+    useEffect(() => {
+        setPage(1);
     }, [selectedCategoryId, searchQuery]);
 
     useEffect(() => {
@@ -315,7 +328,8 @@ export const DeepDives: React.FC = () => {
         return () => clearTimeout(timer);
     }, [loadData]);
 
-    // Derived Data
+    // Derived Data - Client-side sort if API doesn't support
+    // (If API supports sort, pass it to getDeepInsightTasks instead)
     const sortedTasks = useMemo(() => {
         let sorted = [...tasks];
         if (sortOption === 'newest') {
@@ -327,7 +341,43 @@ export const DeepDives: React.FC = () => {
     }, [tasks, sortOption]);
 
     // Carousel Items (Top 5)
+    // In a real app, you might want to fetch 'featured' separately or use the first few of the first page
     const featuredTasks = useMemo(() => sortedTasks.slice(0, 5), [sortedTasks]);
+
+    // Pagination Logic
+    const totalPages = Math.ceil(total / limit);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+            // Scroll to top of grid area if needed, but not whole page to keep hero visible
+             const gridElement = document.getElementById('report-grid-section');
+             if (gridElement) {
+                 gridElement.scrollIntoView({ behavior: 'smooth' });
+             }
+        }
+    };
+
+    // Generate page numbers for display (e.g., 1, 2, ..., 10)
+    const getPageNumbers = () => {
+        const pages = [];
+        const maxVisiblePages = 5;
+        
+        if (totalPages <= maxVisiblePages) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            // Always show first, last, current, and surrounding
+            if (page <= 3) {
+                pages.push(1, 2, 3, 4, '...', totalPages);
+            } else if (page >= totalPages - 2) {
+                pages.push(1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+            } else {
+                pages.push(1, '...', page - 1, page, page + 1, '...', totalPages);
+            }
+        }
+        return pages;
+    };
+
 
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
@@ -340,7 +390,7 @@ export const DeepDives: React.FC = () => {
                 {!isLoading && featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
 
                 {/* 2. Filter Section */}
-                <section className="w-full max-w-[1440px] px-4 md:px-10 py-8">
+                <section className="w-full max-w-[1440px] px-4 md:px-10 py-8" id="report-grid-section">
                     <div className="flex flex-col gap-6">
                         {/* Tags */}
                         <div className="flex flex-wrap items-center gap-3">
@@ -403,7 +453,7 @@ export const DeepDives: React.FC = () => {
                                 </label>
                             </div>
                             <div className="flex items-center gap-2 text-sm text-slate-500 w-full lg:w-auto justify-end">
-                                <span>共找到 <span className="text-blue-600 font-bold text-base">{tasks.length}</span> 份报告</span>
+                                <span>共找到 <span className="text-blue-600 font-bold text-base">{total}</span> 份报告</span>
                             </div>
                         </div>
                     </div>
@@ -451,17 +501,41 @@ export const DeepDives: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Pagination (Static for now as per example, but logic is easy to add) */}
-                    {!isLoading && tasks.length > 0 && (
+                    {/* Pagination - Server Side */}
+                    {!isLoading && totalPages > 1 && (
                         <div className="flex justify-center mt-12">
                             <nav className="flex items-center gap-2">
-                                <button className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 transition-all shadow-sm">
+                                <button 
+                                    onClick={() => handlePageChange(page - 1)}
+                                    disabled={page === 1}
+                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
                                     <ChevronLeftIcon className="w-4 h-4" />
                                 </button>
-                                <button className="flex items-center justify-center w-9 h-9 rounded-lg bg-blue-600 text-white font-bold text-sm shadow-md shadow-blue-200">1</button>
-                                <button className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 transition-all text-sm font-medium shadow-sm">2</button>
-                                <span className="text-slate-400 px-1">...</span>
-                                <button className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 transition-all shadow-sm">
+                                
+                                {getPageNumbers().map((p, i) => (
+                                    typeof p === 'number' ? (
+                                        <button
+                                            key={i}
+                                            onClick={() => handlePageChange(p)}
+                                            className={`flex items-center justify-center w-9 h-9 rounded-lg font-bold text-sm shadow-sm transition-all ${
+                                                page === p 
+                                                ? 'bg-blue-600 text-white shadow-blue-200' 
+                                                : 'border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50'
+                                            }`}
+                                        >
+                                            {p}
+                                        </button>
+                                    ) : (
+                                        <span key={i} className="text-slate-400 px-1 select-none">...</span>
+                                    )
+                                ))}
+
+                                <button 
+                                    onClick={() => handlePageChange(page + 1)}
+                                    disabled={page === totalPages}
+                                    className="flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-blue-600 hover:border-blue-600 hover:bg-blue-50 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
                                     <ChevronRightIcon className="w-4 h-4" />
                                 </button>
                             </nav>
