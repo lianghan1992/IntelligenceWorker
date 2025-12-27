@@ -33,6 +33,7 @@ const CATEGORY_ICONS: Record<string, React.FC<any>> = {
     '政策法规': ShieldCheckIcon
 };
 
+// Correct file size formatting based on backend bytes
 const formatFileSize = (bytes?: number) => {
     if (bytes === 0 || bytes === undefined) return '0 B';
     const k = 1024;

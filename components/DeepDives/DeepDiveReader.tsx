@@ -13,11 +13,11 @@ interface DeepDiveReaderProps {
     onClose: () => void;
 }
 
-// Helper for formatting bytes (Corrected logic)
-const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
+// Helper for formatting bytes
+const formatFileSize = (bytes?: number) => {
+    if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
@@ -96,7 +96,6 @@ const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = (
 export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [scale, setScale] = useState(1.0);
-    const [currentPage, setCurrentPage] = useState(1);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const handleDownload = async () => {
@@ -118,25 +117,21 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         }
     };
 
-    // Handle scroll to update current page indicator
-    const handleScroll = () => {
-        if (!scrollContainerRef.current) return;
-        // Logic for updating current page could be added here
-    };
-
     const pages = Array.from({ length: task.total_pages }, (_, i) => i + 1);
 
     return (
-        <div className="fixed inset-0 z-40 flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200 pt-16"> 
-            {/* Added pt-16 to offset the global header, and z-40 to sit below global header (usually z-50) */}
+        // z-40 ensures it sits below the main App Header (usually z-50)
+        // pt-[64px] or similar offsets the fixed header height
+        <div className="fixed inset-0 z-40 flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200 pt-16 sm:pt-[72px]">
             
             {/* Reader Toolbar */}
-            <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-4 md:px-6 py-3 shadow-sm h-14 flex-shrink-0">
+            <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-4 md:px-6 py-3 shadow-sm h-14 flex-shrink-0 z-10">
                 <div className="flex items-center gap-4 md:gap-6 min-w-0">
                     <div className="flex items-center gap-2 text-slate-900">
                         <div className="flex items-center justify-center size-8 bg-indigo-50 rounded-lg text-indigo-600">
                             <TagIcon className="w-4 h-4" />
                         </div>
+                        {/* Display Category Name instead of generic title */}
                         <h2 className="text-sm md:text-base font-bold leading-tight tracking-tight truncate max-w-[120px] md:max-w-xs">
                             {task.category_name || '默认分类'}
                         </h2>
@@ -208,7 +203,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                     </div>
 
                     {/* Right Column: Sidebar (Metadata & Actions) - Hidden on Mobile, maybe toggleable in future */}
-                    <div className="hidden lg:flex lg:w-96 flex-col gap-6 p-6 overflow-y-auto bg-white border-t lg:border-t-0">
+                    <div className="hidden lg:flex lg:w-96 flex-col gap-6 p-6 overflow-y-auto bg-white border-t lg:border-t-0 z-10">
                         
                         {/* Report Header Info */}
                         <div className="flex flex-col gap-4">
@@ -223,7 +218,6 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             <h1 className="text-xl font-bold text-slate-900 leading-tight">
                                 {task.file_name}
                             </h1>
-                            {/* Specific text removed here as requested */}
                         </div>
 
                         {/* Main Action */}
