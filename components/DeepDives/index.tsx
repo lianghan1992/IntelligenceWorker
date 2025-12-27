@@ -34,11 +34,11 @@ const CATEGORY_ICONS: Record<string, React.FC<any>> = {
 };
 
 const formatFileSize = (bytes?: number) => {
-    if (bytes === undefined || bytes === null || bytes === 0) return '-';
+    if (bytes === 0 || bytes === undefined) return '0 B';
     const k = 1024;
-    const sizes = ['KB', 'MB', 'GB'];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + '' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 // --- Sub-components ---
@@ -73,7 +73,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(#136dec 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
             
             <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 lg:py-16 relative z-20 w-full transition-opacity duration-500">
-                <div className="flex flex-col md:flex-row gap-12 items-center" key={currentTask.id}>
+                <div className="flex flex-col md:flex-row gap-8 md:gap-12 items-center" key={currentTask.id}>
                     {/* Text Content */}
                     <div className="flex-1 flex flex-col gap-6 items-start z-20 max-w-2xl animate-in fade-in slide-in-from-left-4 duration-500">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600">
@@ -92,23 +92,19 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                                 {currentTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${currentTask.processed_pages > 0 ? `包含 ${currentTask.processed_pages} 页精读内容。` : ''}`}
                             </h2>
                         </div>
-                        <div className="flex flex-wrap gap-4 mt-4">
+                        <div className="flex flex-wrap gap-4 mt-4 w-full md:w-auto">
                             <button 
                                 onClick={() => onRead(currentTask)}
-                                className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-blue-600 hover:bg-blue-700 transition-all text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:scale-95"
+                                className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-blue-600 hover:bg-blue-700 transition-all text-white text-base font-bold shadow-lg shadow-blue-600/30 hover:shadow-xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:scale-95 w-full md:w-auto"
                             >
                                 <EyeIcon className="w-5 h-5" />
                                 <span>立即阅读</span>
-                            </button>
-                            <button className="flex items-center justify-center gap-2 rounded-lg h-12 px-8 bg-white hover:bg-slate-50 border border-slate-200 hover:border-blue-200 text-slate-700 transition-all text-base font-bold shadow-sm">
-                                <ViewGridIcon className="w-5 h-5 text-slate-400" />
-                                <span>查看详情</span>
                             </button>
                         </div>
                     </div>
 
                     {/* Visual Cover */}
-                    <div className="flex-1 w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
+                    <div className="flex-1 w-full h-[240px] sm:h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-transform duration-700 group-hover:scale-105 flex items-center justify-center">
                             {currentTask.cover_image ? (
                                 <img src={currentTask.cover_image} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
@@ -138,12 +134,12 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
 
                 {/* Indicators */}
                 {tasks.length > 1 && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                    <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
                         {tasks.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => setCurrentIndex(idx)}
-                                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
+                                className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentIndex ? 'w-6 md:w-8 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'}`}
                             />
                         ))}
                     </div>
@@ -228,9 +224,9 @@ const ReportCard: React.FC<{
                         <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
                             {task.summary || (isCompleted ? 'AI 已完成深度解析，点击查看结构化报告内容。' : '正在进行 OCR 识别与语义分析...')}
                         </p>
-                        {/* Hover Popup for full summary */}
+                        {/* Hover Popup for full summary - Hidden on mobile, visible on hover desktop */}
                         {task.summary && (
-                            <div className="absolute left-0 bottom-full mb-2 w-72 p-4 bg-white text-slate-700 text-xs leading-relaxed rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover/summary:opacity-100 group-hover/summary:visible transition-all duration-200 z-50 pointer-events-none transform translate-y-2 group-hover/summary:translate-y-0">
+                            <div className="hidden md:block absolute left-0 bottom-full mb-2 w-72 p-4 bg-white text-slate-700 text-xs leading-relaxed rounded-xl shadow-xl border border-slate-200 opacity-0 invisible group-hover/summary:opacity-100 group-hover/summary:visible transition-all duration-200 z-50 pointer-events-none transform translate-y-2 group-hover/summary:translate-y-0">
                                 <div className="font-bold mb-1 text-slate-900 flex items-center gap-1">
                                     <SparklesIcon className="w-3 h-3 text-indigo-500"/>
                                     摘要预览
@@ -246,7 +242,7 @@ const ReportCard: React.FC<{
                 </div>
 
                 {/* Meta Info */}
-                <div className="flex items-center gap-3 text-slate-400 text-xs border-t border-slate-100 pt-3">
+                <div className="flex items-center gap-3 text-slate-400 text-xs border-t border-slate-100 pt-3 flex-wrap">
                     <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
                         <CalendarIcon className="w-3.5 h-3.5" />
                         <span className="font-mono">{new Date(task.created_at).toLocaleDateString()}</span>
@@ -335,40 +331,14 @@ export const DeepDives: React.FC = () => {
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
             
-            {/* 1. Header (Sticky) */}
-            <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 bg-white/90 backdrop-blur-md px-4 py-3 lg:px-10 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="size-8 flex items-center justify-center text-blue-600 bg-blue-50 rounded-lg">
-                            <DocumentTextIcon className="w-5 h-5" />
-                        </div>
-                        <h2 className="text-slate-900 text-lg font-bold leading-tight tracking-tight">智能汽车报告库</h2>
-                    </div>
-                </div>
-
-                <div className="flex flex-1 justify-end gap-4 items-center">
-                    <div className="hidden md:flex flex-col min-w-40 h-10 max-w-64 group relative">
-                        <div className="flex w-full flex-1 items-stretch rounded-lg h-full border border-slate-200 bg-slate-50 group-focus-within:border-blue-500 group-focus-within:bg-white group-focus-within:ring-2 group-focus-within:ring-blue-500/10 transition-all">
-                            <div className="text-slate-400 flex items-center justify-center pl-3">
-                                <SearchIcon className="w-5 h-5" />
-                            </div>
-                            <input 
-                                className="flex w-full min-w-0 flex-1 bg-transparent border-none focus:ring-0 px-3 text-sm text-slate-700 placeholder:text-slate-400" 
-                                placeholder="搜索报告标题..." 
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </header>
+            {/* Header Removed as requested */}
 
             <main className="flex-1 flex flex-col items-center w-full">
                 
-                {/* 2. Hero Section (Carousel) */}
+                {/* 1. Hero Section (Carousel) */}
                 {!isLoading && featuredTasks.length > 0 && <HeroSection tasks={featuredTasks} onRead={setReaderTask} />}
 
-                {/* 3. Filter Section */}
+                {/* 2. Filter Section */}
                 <section className="w-full max-w-[1440px] px-4 md:px-10 py-8">
                     <div className="flex flex-col gap-6">
                         {/* Tags */}
@@ -397,16 +367,26 @@ export const DeepDives: React.FC = () => {
                             })}
                         </div>
 
-                        {/* Toolbar */}
-                        <div className="flex flex-col md:flex-row gap-4 items-end md:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <div className="flex flex-wrap gap-4 flex-1 w-full md:w-auto">
-                                <label className="flex items-center gap-3 min-w-[200px]">
+                        {/* Toolbar - Combined Search and Filters */}
+                        <div className="flex flex-col lg:flex-row gap-4 items-end lg:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="flex flex-wrap gap-4 flex-1 w-full lg:w-auto">
+                                <label className="flex items-center gap-2 min-w-[200px] w-full md:w-auto">
+                                    <SearchIcon className="w-4 h-4 text-slate-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="搜索报告标题..." 
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-3 pr-3 text-sm text-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                                    />
+                                </label>
+                                <label className="flex items-center gap-3 min-w-[200px] w-full md:w-auto">
                                     <span className="text-slate-500 text-sm whitespace-nowrap font-medium">发布时间</span>
                                     <div className="relative w-full">
                                         <input className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-3 pr-10 text-sm text-slate-700 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" placeholder="选择日期范围" type="date"/>
                                     </div>
                                 </label>
-                                <label className="flex items-center gap-3 min-w-[180px]">
+                                <label className="flex items-center gap-3 min-w-[180px] w-full md:w-auto">
                                     <span className="text-slate-500 text-sm whitespace-nowrap font-medium">排序方式</span>
                                     <div className="relative w-full">
                                         <select 
@@ -421,14 +401,14 @@ export const DeepDives: React.FC = () => {
                                     </div>
                                 </label>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <div className="flex items-center gap-2 text-sm text-slate-500 w-full lg:w-auto justify-end">
                                 <span>共找到 <span className="text-blue-600 font-bold text-base">{tasks.length}</span> 份报告</span>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                {/* 4. Grid Section */}
+                {/* 3. Grid Section */}
                 <section className="w-full max-w-[1440px] px-4 md:px-10 pb-20">
                     {isLoading ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

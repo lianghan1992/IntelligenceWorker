@@ -5,7 +5,7 @@ import { downloadDeepInsightOriginalPdf, getDeepInsightPagePreviewUrl } from '..
 import { 
     CloseIcon, DownloadIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon,
     RefreshIcon, ViewGridIcon, SearchIcon, SparklesIcon, BrainIcon, ShieldCheckIcon,
-    CalendarIcon, CloudIcon, LockClosedIcon, MenuIcon, PlusIcon
+    CalendarIcon, CloudIcon, LockClosedIcon, MenuIcon, PlusIcon, TagIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
@@ -13,13 +13,13 @@ interface DeepDiveReaderProps {
     onClose: () => void;
 }
 
-// Helper for formatting bytes
-const formatFileSize = (bytes?: number) => {
-    if (!bytes) return '未知大小';
+// Helper for formatting bytes (Corrected logic)
+const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
 // Single Page Image Component with Lazy Loading
@@ -121,34 +121,25 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
     // Handle scroll to update current page indicator
     const handleScroll = () => {
         if (!scrollContainerRef.current) return;
-        const container = scrollContainerRef.current;
-        const children = container.children[0].children; // The inner div's children (pages)
-        
-        let bestVisiblePage = 1;
-        let maxVisibility = 0;
-
-        // Simple visibility check
-        // Ideally we would use IntersectionObserver for this too, but scroll check is fine for the indicator
-        const containerRect = container.getBoundingClientRect();
-        const containerCenter = containerRect.top + containerRect.height / 2;
-
-        // Approximate logic: Find element closest to center
-        // Note: This assumes `PageImage` wraps are direct children or wrapped simply.
+        // Logic for updating current page could be added here
     };
 
     const pages = Array.from({ length: task.total_pages }, (_, i) => i + 1);
 
     return (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200 pt-16"> 
+            {/* Added pt-16 to offset the global header, and z-40 to sit below global header (usually z-50) */}
             
-            {/* Top Navigation */}
-            <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-6 py-3 shadow-sm h-16">
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-3 text-slate-900 cursor-pointer" onClick={onClose}>
-                        <div className="flex items-center justify-center size-8 bg-blue-600/10 rounded-lg text-blue-600">
-                            <ViewGridIcon className="w-5 h-5" />
+            {/* Reader Toolbar */}
+            <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-4 md:px-6 py-3 shadow-sm h-14 flex-shrink-0">
+                <div className="flex items-center gap-4 md:gap-6 min-w-0">
+                    <div className="flex items-center gap-2 text-slate-900">
+                        <div className="flex items-center justify-center size-8 bg-indigo-50 rounded-lg text-indigo-600">
+                            <TagIcon className="w-4 h-4" />
                         </div>
-                        <h2 className="text-slate-900 text-lg font-bold leading-tight tracking-tight">智车智库</h2>
+                        <h2 className="text-sm md:text-base font-bold leading-tight tracking-tight truncate max-w-[120px] md:max-w-xs">
+                            {task.category_name || '默认分类'}
+                        </h2>
                     </div>
                     <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
                         <span className="text-slate-300">|</span>
@@ -158,14 +149,14 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                     </div>
                 </div>
 
-                <div className="flex flex-1 justify-end gap-6 items-center">
-                     {/* Scale Controls */}
-                    <div className="hidden sm:flex items-center gap-2 bg-slate-100 rounded-lg p-1">
+                <div className="flex flex-1 justify-end gap-3 md:gap-6 items-center">
+                     {/* Scale Controls - Hidden on Mobile */}
+                    <div className="hidden md:flex items-center gap-2 bg-slate-100 rounded-lg p-1">
                         <button 
                             onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
                             className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
                         >
-                            <span className="text-lg font-bold select-none">-</span>
+                            <span className="text-lg font-bold select-none leading-none px-1">-</span>
                         </button>
                         <span className="text-xs font-semibold w-12 text-center text-slate-700">
                             {Math.round(scale * 100)}%
@@ -179,11 +170,10 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                     </div>
 
                     <div className="flex items-center gap-3">
-                         <div className="hidden sm:flex items-center gap-2 text-sm text-slate-500 mr-2">
-                             {/* Simple Page Indicator - could be improved with scroll listener */}
+                         <div className="hidden md:flex items-center gap-2 text-sm text-slate-500 mr-2">
                             <span>共 {task.total_pages} 页</span>
                         </div>
-                        <div className="h-4 w-px bg-slate-300 mx-1"></div>
+                        <div className="hidden md:block h-4 w-px bg-slate-300 mx-1"></div>
                         <button onClick={onClose} className="p-1.5 hover:bg-slate-200 rounded-full text-slate-600 transition-colors">
                             <CloseIcon className="w-5 h-5" />
                         </button>
@@ -192,14 +182,14 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
             </header>
 
             {/* Main Content Layout */}
-            <main className="flex-1 w-full max-w-[1600px] mx-auto overflow-hidden relative">
-                <div className="grid grid-cols-1 lg:grid-cols-12 h-full">
+            <main className="flex-1 w-full max-w-[1920px] mx-auto overflow-hidden relative">
+                <div className="flex h-full flex-col lg:flex-row">
                     
                     {/* Left Column: PDF Viewer (Scrollable) */}
-                    <div className="lg:col-span-8 xl:col-span-9 h-full bg-slate-100/50 border-r border-slate-200 overflow-hidden relative">
+                    <div className="flex-1 h-full bg-slate-100/50 lg:border-r border-slate-200 overflow-hidden relative">
                         <div 
                             ref={scrollContainerRef}
-                            className="h-full overflow-y-auto custom-scrollbar p-8 scroll-smooth"
+                            className="h-full overflow-y-auto custom-scrollbar p-4 md:p-8 scroll-smooth"
                         >
                             {pages.length > 0 ? (
                                 <div className="flex flex-col items-center min-h-full pb-20">
@@ -217,8 +207,8 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         </div>
                     </div>
 
-                    {/* Right Column: Sidebar (Metadata & Actions) */}
-                    <div className="hidden lg:flex lg:col-span-4 xl:col-span-3 flex-col gap-6 p-6 overflow-y-auto bg-white">
+                    {/* Right Column: Sidebar (Metadata & Actions) - Hidden on Mobile, maybe toggleable in future */}
+                    <div className="hidden lg:flex lg:w-96 flex-col gap-6 p-6 overflow-y-auto bg-white border-t lg:border-t-0">
                         
                         {/* Report Header Info */}
                         <div className="flex flex-col gap-4">
@@ -233,10 +223,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             <h1 className="text-xl font-bold text-slate-900 leading-tight">
                                 {task.file_name}
                             </h1>
-                            <div className="flex items-center gap-2 text-sm text-slate-500">
-                                <ShieldCheckIcon className="w-4 h-4 text-green-600" />
-                                <span>智车研究院 · 严选</span>
-                            </div>
+                            {/* Specific text removed here as requested */}
                         </div>
 
                         {/* Main Action */}
@@ -250,17 +237,17 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         </button>
 
                         {/* AI Summary Card */}
-                        <div className="rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-5 shadow-sm relative overflow-hidden group">
+                        <div className="rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-5 shadow-sm relative overflow-hidden group flex-1 min-h-[200px] flex flex-col">
                             <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none text-blue-600">
                                 <BrainIcon className="w-20 h-20" />
                             </div>
-                            <div className="flex items-center gap-2 mb-3 text-blue-800">
+                            <div className="flex items-center gap-2 mb-3 text-blue-800 flex-shrink-0">
                                 <SparklesIcon className="w-5 h-5" />
                                 <h3 className="font-bold">AI 核心解读</h3>
                             </div>
                             
                             {task.summary ? (
-                                <div className="text-sm text-slate-600 leading-relaxed space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+                                <div className="text-sm text-slate-600 leading-relaxed space-y-2 overflow-y-auto custom-scrollbar pr-1 flex-1">
                                     {task.summary.split('\n').map((para, i) => (
                                         para.trim() && <p key={i}>{para}</p>
                                     ))}
@@ -273,12 +260,12 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         </div>
 
                         {/* Metadata Details */}
-                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex-shrink-0">
                             <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
                                 <h3 className="font-semibold text-slate-900 text-sm">文档信息</h3>
                             </div>
                             <div className="px-5 py-2">
-                                <div className="grid grid-cols-[30%_1fr] gap-y-4 py-3 items-center text-sm">
+                                <div className="grid grid-cols-[30%_1fr] gap-y-3 py-3 items-center text-sm">
                                     <div className="text-slate-500">发布时间</div>
                                     <div className="font-medium text-slate-900">
                                         {new Date(task.created_at).toLocaleDateString()}
