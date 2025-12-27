@@ -657,6 +657,10 @@ export interface UploadedDocument {
     process_stage?: string;
     process_progress?: number;
     error_message?: string | null;
+    
+    // Enhanced fields
+    summary?: string;
+    cover_image?: string;
 }
 
 export interface DocTag {

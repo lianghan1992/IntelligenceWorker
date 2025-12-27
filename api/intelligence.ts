@@ -362,6 +362,12 @@ export const uploadDocs = (data: { files: File[], point_uuid: string, publish_da
 export const deleteUploadedDoc = (uuid: string): Promise<{ message: string }> => 
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
 
+export const regenerateDocumentSummary = (uuid: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-summary`, { method: 'POST' });
+
+export const regenerateDocumentCover = (uuid: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-cover`, { method: 'POST' });
+
 export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/download`;
     const token = localStorage.getItem('accessToken');

@@ -1,19 +1,30 @@
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
-import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc } from '../../../api/intelligence';
+import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc, regenerateDocumentSummary, regenerateDocumentCover } from '../../../api/intelligence';
 import { 
     CloudIcon, RefreshIcon, SearchIcon, CalendarIcon, 
-    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon
+    DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon,
+    PhotoIcon, SparklesIcon, DocumentTextIcon
 } from '../../icons';
 import { DocUploadModal } from './DocUploadModal';
 import { DocMoveModal } from './DocMoveModal';
 import { DocPreviewModal } from './DocPreviewModal';
 import { DocTagManagerModal } from './DocTagManagerModal';
+import { DocDetailInfoModal } from './DocDetailInfoModal';
 import { BatchUploadProgressModal, UploadTask } from './BatchUploadProgressModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+    </svg>
+);
+
+const WhiteSpinner: React.FC = () => (
+    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -62,12 +73,14 @@ export const DocumentManager: React.FC = () => {
     const [search, setSearch] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
 
     // Modal States
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
     const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
     const [previewDoc, setPreviewDoc] = useState<UploadedDocument | null>(null);
+    const [detailDoc, setDetailDoc] = useState<UploadedDocument | null>(null);
     
     // Batch Upload States
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
@@ -77,6 +90,10 @@ export const DocumentManager: React.FC = () => {
     // Delete State
     const [docToDelete, setDocToDelete] = useState<UploadedDocument | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // Batch Action States
+    const [isBatchGeneratingSummary, setIsBatchGeneratingSummary] = useState(false);
+    const [isBatchGeneratingCover, setIsBatchGeneratingCover] = useState(false);
 
     const fetchTags = async () => {
         try {
@@ -98,6 +115,7 @@ export const DocumentManager: React.FC = () => {
             });
             setDocs(res.items);
             setTotal(res.total);
+            setSelectedDocIds(new Set()); // Reset selection on fetch
         } catch (e) {
             console.error(e);
         } finally {
@@ -149,6 +167,53 @@ export const DocumentManager: React.FC = () => {
         setPage(1);
     };
 
+    const toggleDocSelection = (uuid: string) => {
+        const newSet = new Set(selectedDocIds);
+        if (newSet.has(uuid)) newSet.delete(uuid);
+        else newSet.add(uuid);
+        setSelectedDocIds(newSet);
+    };
+
+    const toggleAllSelection = () => {
+        if (selectedDocIds.size === docs.length && docs.length > 0) {
+            setSelectedDocIds(new Set());
+        } else {
+            setSelectedDocIds(new Set(docs.map(d => d.uuid)));
+        }
+    };
+
+    const handleBatchRegenSummary = async () => {
+        if (selectedDocIds.size === 0) return;
+        setIsBatchGeneratingSummary(true);
+        try {
+            const promises = Array.from(selectedDocIds).map(id => regenerateDocumentSummary(id));
+            await Promise.all(promises);
+            alert(`已触发 ${selectedDocIds.size} 个文档的摘要生成任务`);
+            setSelectedDocIds(new Set());
+            fetchDocs(); // Refresh to potentially show processing status if API supported it, or just clear selection
+        } catch (e: any) {
+            alert(`批量生成摘要失败: ${e.message}`);
+        } finally {
+            setIsBatchGeneratingSummary(false);
+        }
+    };
+
+    const handleBatchRegenCover = async () => {
+        if (selectedDocIds.size === 0) return;
+        setIsBatchGeneratingCover(true);
+        try {
+            const promises = Array.from(selectedDocIds).map(id => regenerateDocumentCover(id));
+            await Promise.all(promises);
+            alert(`已触发 ${selectedDocIds.size} 个文档的封面生成任务`);
+            setSelectedDocIds(new Set());
+            fetchDocs();
+        } catch (e: any) {
+            alert(`批量生成封面失败: ${e.message}`);
+        } finally {
+            setIsBatchGeneratingCover(false);
+        }
+    };
+
     // --- 批量历史文档上传触发 ---
     const handleHistoryUploadClick = () => {
         if (!selectedTagId) {
@@ -163,7 +228,6 @@ export const DocumentManager: React.FC = () => {
         if (!files || files.length === 0 || !selectedTagId) return;
 
         const fileArray = Array.from(files);
-        // 严格正则：必须 YYYY.MM.DD 开头
         const historyRegex = /^(\d{4})\.(\d{2})\.(\d{2})\.(.+)$/;
         
         const newTasks: UploadTask[] = [];
@@ -246,10 +310,33 @@ export const DocumentManager: React.FC = () => {
             <div className="flex-1 flex flex-col min-w-0">
                 <div className="p-4 border-b border-gray-200 bg-white z-10 flex flex-col gap-4">
                     <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            {selectedTagId ? tags.find(t => t.uuid === selectedTagId)?.name : '所有文档'}
-                            <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{total}</span>
-                        </h2>
+                        <div className="flex items-center gap-4">
+                            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                {selectedTagId ? tags.find(t => t.uuid === selectedTagId)?.name : '所有文档'}
+                                <span className="text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{total}</span>
+                            </h2>
+                            {selectedDocIds.size > 0 && (
+                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                                    <span className="text-xs text-gray-500 font-medium bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                        已选 {selectedDocIds.size}
+                                    </span>
+                                    <button 
+                                        onClick={handleBatchRegenSummary}
+                                        disabled={isBatchGeneratingSummary}
+                                        className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-bold flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        {isBatchGeneratingSummary ? <Spinner /> : <DocumentTextIcon className="w-3.5 h-3.5" />} 摘要
+                                    </button>
+                                    <button 
+                                        onClick={handleBatchRegenCover}
+                                        disabled={isBatchGeneratingCover}
+                                        className="text-xs px-3 py-1.5 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors font-bold flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                        {isBatchGeneratingCover ? <Spinner /> : <PhotoIcon className="w-3.5 h-3.5" />} 封面
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex gap-2">
                             <button 
                                 onClick={() => setIsMoveModalOpen(true)}
@@ -318,25 +405,52 @@ export const DocumentManager: React.FC = () => {
                         <table className="w-full text-sm text-left text-gray-600">
                             <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
                                 <tr>
-                                    <th className="px-6 py-3 font-medium">文件名</th>
+                                    <th className="px-4 py-3 w-10 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
+                                            checked={docs.length > 0 && selectedDocIds.size === docs.length}
+                                            onChange={toggleAllSelection}
+                                        />
+                                    </th>
+                                    <th className="px-6 py-3 font-medium">文件名 / 封面</th>
                                     <th className="px-6 py-3 font-medium w-32">大小/类型</th>
                                     <th className="px-6 py-3 font-medium w-40">标签</th>
                                     <th className="px-6 py-3 font-medium w-32 text-center">状态</th>
                                     <th className="px-6 py-3 font-medium w-24 text-right">页数</th>
                                     <th className="px-6 py-3 font-medium w-40 text-right">发布时间</th>
-                                    <th className="px-6 py-3 font-medium w-32 text-center">操作</th>
+                                    <th className="px-6 py-3 font-medium w-40 text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {isLoading && docs.length === 0 ? (
-                                    <tr><td colSpan={7} className="py-20 text-center"><Spinner /></td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center"><Spinner /></td></tr>
                                 ) : docs.length === 0 ? (
-                                    <tr><td colSpan={7} className="py-20 text-center text-gray-400">暂无文档</td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400">暂无文档</td></tr>
                                 ) : (
                                     docs.map(doc => (
                                         <tr key={doc.uuid} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="px-4 py-4 text-center">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                    checked={selectedDocIds.has(doc.uuid)}
+                                                    onChange={() => toggleDocSelection(doc.uuid)}
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 font-medium text-gray-900">
-                                                <div className="truncate max-w-xs font-bold" title={doc.original_filename}>{doc.original_filename}</div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-10 flex-shrink-0 bg-slate-100 border border-slate-200 rounded overflow-hidden flex items-center justify-center">
+                                                        {doc.cover_image ? (
+                                                            <img src={doc.cover_image} alt="cover" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <DocumentTextIcon className="w-4 h-4 text-slate-300" />
+                                                        )}
+                                                    </div>
+                                                    <div className="truncate max-w-xs font-bold" title={doc.original_filename}>
+                                                        {doc.original_filename}
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div>{formatSize(doc.file_size)}</div>
@@ -354,9 +468,16 @@ export const DocumentManager: React.FC = () => {
                                             <td className="px-6 py-4 text-xs font-mono text-right">{new Date(doc.publish_date).toLocaleDateString()}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => setPreviewDoc(doc)} className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded transition-colors"><EyeIcon className="w-4 h-4" /></button>
-                                                    <button onClick={() => handleDownload(doc)} className="p-1.5 hover:bg-green-50 text-green-600 rounded transition-colors"><DownloadIcon className="w-4 h-4" /></button>
-                                                    <button onClick={() => setDocToDelete(doc)} className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                                    <button 
+                                                        onClick={() => setDetailDoc(doc)} 
+                                                        className="p-1.5 hover:bg-purple-50 text-purple-600 rounded transition-colors"
+                                                        title="查看详情与元数据"
+                                                    >
+                                                        <SparklesIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => setPreviewDoc(doc)} className="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded transition-colors" title="预览页面"><EyeIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => handleDownload(doc)} className="p-1.5 hover:bg-green-50 text-green-600 rounded transition-colors" title="下载"><DownloadIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => setDocToDelete(doc)} className="p-1.5 hover:bg-red-50 text-red-600 rounded transition-colors" title="删除"><TrashIcon className="w-4 h-4" /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -385,6 +506,7 @@ export const DocumentManager: React.FC = () => {
             {isUploadModalOpen && <DocUploadModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} onSuccess={() => { fetchDocs(); setIsUploadModalOpen(false); fetchTags(); }} tags={tags} />}
             {isMoveModalOpen && <DocMoveModal isOpen={isMoveModalOpen} onClose={() => setIsMoveModalOpen(false)} onSuccess={() => { fetchDocs(); setIsMoveModalOpen(false); fetchTags(); }} tags={tags} />}
             {previewDoc && <DocPreviewModal isOpen={!!previewDoc} doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+            {detailDoc && <DocDetailInfoModal isOpen={!!detailDoc} doc={detailDoc} onClose={() => setDetailDoc(null)} onRefresh={fetchDocs} />}
             
             <BatchUploadProgressModal 
                 isOpen={isProgressModalOpen}
