@@ -286,6 +286,8 @@ export interface DeepInsightTask {
     processed_pages: number;
     category_id?: string;
     category_name?: string; // New field for display
+    summary?: string;
+    cover_image?: string;
     created_at: string;
     updated_at: string;
 }

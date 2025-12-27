@@ -62,7 +62,8 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
 
     const query = createApiQuery(apiParams);
     // Use the specific endpoint for published docs (completed docs under tags)
-    const res = await apiFetch<{ items: any[], total: number, page: number, page_size: number }>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/docs${query}`);
+    // IMPORTANT: Assuming this endpoint now returns summary and cover_image in the list items as per requirements
+    const res = await apiFetch<{ items: UploadedDocument[], total: number, page: number, page_size: number }>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/docs${query}`);
     
     // Map response to DeepInsightTask interface for UI compatibility
     const items: DeepInsightTask[] = res.items.map(doc => ({
@@ -76,6 +77,9 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         processed_pages: doc.process_progress === 100 ? doc.page_count : 0, 
         category_id: doc.point_uuid, 
         category_name: doc.point_name,
+        // Map new fields
+        summary: doc.summary,
+        cover_image: doc.cover_image,
         created_at: doc.publish_date || doc.created_at, // Prefer publish_date
         updated_at: doc.created_at
     }));
@@ -133,6 +137,9 @@ export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTas
         processed_pages: Math.floor((doc.process_progress || 0) / 100 * doc.page_count),
         category_id: doc.point_uuid,
         category_name: doc.point_name,
+        // Map new fields
+        summary: doc.summary,
+        cover_image: doc.cover_image,
         created_at: doc.publish_date || doc.created_at,
         updated_at: doc.created_at
     };
@@ -187,8 +194,16 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
     return response.blob();
 };
 
-// Fetch cover image (using page 1 preview)
+// Fetch cover image (using page 1 preview or the generated cover_image url)
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
+    // We first check if the task has a cover_image URL from the backend
+    try {
+        const doc = await getDeepInsightTask(taskId);
+        if (doc.cover_image) return doc.cover_image;
+    } catch(e) {
+        // Fallback
+    }
+    // Fallback to page 1 preview
     return getDeepInsightPagePreviewUrl(taskId, 1);
 };
 

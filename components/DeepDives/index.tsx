@@ -70,7 +70,7 @@ const HeroSection: React.FC<{ featuredTask: DeepInsightTask | null; onRead: (tas
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-500">深度洞察报告</span>
                             </h1>
                             <h2 className="text-slate-500 text-base md:text-lg font-normal leading-relaxed max-w-xl line-clamp-3">
-                                本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。{featuredTask.processed_pages > 0 ? `包含 ${featuredTask.processed_pages} 页精读内容。` : ''}
+                                {featuredTask.summary || `本报告利用 AI 深度解析技术，为您提炼核心观点、数据图表及行业趋势。${featuredTask.processed_pages > 0 ? `包含 ${featuredTask.processed_pages} 页精读内容。` : ''}`}
                             </h2>
                         </div>
                         <div className="flex flex-wrap gap-4 mt-4">
@@ -91,10 +91,14 @@ const HeroSection: React.FC<{ featuredTask: DeepInsightTask | null; onRead: (tas
                     {/* Visual Cover */}
                     <div className="flex-1 w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer" onClick={() => onRead(featuredTask)}>
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-transform duration-700 group-hover:scale-105 flex items-center justify-center">
-                            <div className="text-center p-8 opacity-50">
-                                <DocumentTextIcon className="w-32 h-32 mx-auto text-slate-300 mb-4" />
-                                <div className="text-4xl font-black text-slate-300 uppercase tracking-widest">{featuredTask.file_type}</div>
-                            </div>
+                            {featuredTask.cover_image ? (
+                                <img src={featuredTask.cover_image} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                            ) : (
+                                <div className="text-center p-8 opacity-50">
+                                    <DocumentTextIcon className="w-32 h-32 mx-auto text-slate-300 mb-4" />
+                                    <div className="text-4xl font-black text-slate-300 uppercase tracking-widest">{featuredTask.file_type}</div>
+                                </div>
+                            )}
                         </div>
                         
                         {/* Overlay Info */}
@@ -131,10 +135,19 @@ const ReportCard: React.FC<{
         <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full">
             {/* Cover Area */}
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 group-cursor-pointer" onClick={isCompleted ? onRead : undefined}>
-                <div className={`absolute inset-0 bg-gradient-to-br ${bgGradient} opacity-10 group-hover:opacity-20 transition-opacity`}></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <DocumentTextIcon className={`w-16 h-16 text-slate-300 group-hover:scale-110 transition-transform duration-500`} />
-                </div>
+                {task.cover_image ? (
+                     <img 
+                        src={task.cover_image} 
+                        alt={task.file_name} 
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                     />
+                ) : (
+                    <div className={`absolute inset-0 bg-gradient-to-br ${bgGradient} opacity-10 group-hover:opacity-20 transition-opacity`}>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <DocumentTextIcon className={`w-16 h-16 text-slate-300 group-hover:scale-110 transition-transform duration-500`} />
+                        </div>
+                    </div>
+                )}
                 
                 {/* Category Badge */}
                 <div className="absolute top-3 left-3">
@@ -160,7 +173,7 @@ const ReportCard: React.FC<{
                         {task.file_name.replace(/\.[^/.]+$/, "")}
                     </h3>
                     <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
-                        {isCompleted ? 'AI 已完成深度解析，点击查看结构化报告内容。' : '正在进行 OCR 识别与语义分析...'}
+                        {task.summary || (isCompleted ? 'AI 已完成深度解析，点击查看结构化报告内容。' : '正在进行 OCR 识别与语义分析...')}
                     </p>
                 </div>
 
@@ -255,11 +268,6 @@ export const DeepDives: React.FC = () => {
     }, [tasks, sortOption]);
 
     const featuredTask = sortedTasks.length > 0 ? sortedTasks[0] : null;
-    const gridTasks = sortedTasks.slice(1); // Skip the first one if shown in Hero, or show all? 
-    // Let's show all in grid as well for easy access, or maybe filter?
-    // User requirement: "Replicate". Example shows Hero separate. 
-    // Let's keep it consistent: Featured is nice, but grid should probably contain everything or everything minus featured.
-    // I'll show everything in grid to be safe, filtering is confusing sometimes.
 
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
