@@ -71,16 +71,23 @@ export const SourceConfig: React.FC = () => {
         try {
             const res = await getSpiderSources();
             setSources(res);
-            if (res.length > 0 && !selectedSource) {
-                setSelectedSource(res[0]);
-            } else if (selectedSource) {
-                // Update selected source data (e.g. counts) if it exists in new list
-                const updated = res.find(s => s.uuid === selectedSource.uuid);
-                if (updated) setSelectedSource(updated);
-            }
+            
+            setSelectedSource(prev => {
+                // If list is empty, clear selection
+                if (!res || res.length === 0) return null;
+                
+                // If no previous selection, select first
+                if (!prev) return res[0];
+                
+                // Try to find the previously selected item in the new list to update counts
+                const found = res.find(s => s.uuid === prev.uuid);
+                
+                // If found, return the new object (with updated counts), otherwise fallback to first
+                return found || res[0];
+            });
         } catch (e) { console.error(e); }
         finally { setIsLoadingSources(false); }
-    }, [selectedSource]);
+    }, []);
 
     const fetchPoints = useCallback(async () => {
         if (!selectedSource) {
