@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { createSpiderPoint, updateSpiderPoint } from '../../../api/intelligence';
 import { CloseIcon, RssIcon, ClockIcon } from '../../icons';
@@ -27,6 +28,50 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
     const [monthDay, setMonthDay] = useState(1);
     const [customCron, setCustomCron] = useState('30 13 */2 * *');
 
+    // Helper to parse cron string to UI state
+    const parseCronToState = (cronStr: string) => {
+        const parts = cronStr.split(' ');
+        if (parts.length !== 5) return; // Invalid basic cron
+
+        const [mm, hh, dom, mon, dow] = parts;
+        const timeStr = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+
+        // Interval Mode: "mm hh */n * *"
+        if (dom.startsWith('*/') && mon === '*' && dow === '*') {
+            setCronMode('interval');
+            setTime(timeStr);
+            setIntervalDays(parseInt(dom.substring(2)) || 1);
+            return;
+        }
+        // Daily Mode (Special case of Interval): "mm hh * * *"
+        if (dom === '*' && mon === '*' && dow === '*') {
+            setCronMode('interval');
+            setTime(timeStr);
+            setIntervalDays(1);
+            return;
+        }
+
+        // Weekly Mode: "mm hh * * n"
+        if (dom === '*' && mon === '*' && !isNaN(parseInt(dow))) {
+            setCronMode('weekly');
+            setTime(timeStr);
+            setWeekDay(parseInt(dow));
+            return;
+        }
+
+        // Monthly Mode: "mm hh n * *"
+        if (!isNaN(parseInt(dom)) && mon === '*' && dow === '*') {
+            setCronMode('monthly');
+            setTime(timeStr);
+            setMonthDay(parseInt(dom));
+            return;
+        }
+
+        // Default to Custom
+        setCronMode('custom');
+        setCustomCron(cronStr);
+    };
+
     // Initialize state when opening
     useEffect(() => {
         if (isOpen) {
@@ -35,8 +80,12 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
                 setUrl(pointToEdit.url || pointToEdit.point_url || '');
                 setPages(pointToEdit.initial_pages || 100);
                 setCron(pointToEdit.cron_schedule || '0 8 */1 * *');
-                setCronMode('custom'); // Default to custom for editing existing cron to avoid parsing logic complexity
-                setCustomCron(pointToEdit.cron_schedule || '');
+                // Parse cron to restore UI
+                if (pointToEdit.cron_schedule) {
+                    parseCronToState(pointToEdit.cron_schedule);
+                } else {
+                    setCronMode('custom');
+                }
             } else {
                 // Reset for create
                 setName('');
@@ -66,7 +115,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
         let newCron = '';
 
         if (cronMode === 'interval') {
-            newCron = `${validM} ${validH} */${Math.max(1, intervalDays)} * *`;
+            newCron = `${validM} ${validH} ${intervalDays === 1 ? '*' : '*/' + intervalDays} * *`;
         } else if (cronMode === 'weekly') {
             newCron = `${validM} ${validH} * * ${weekDay}`;
         } else if (cronMode === 'monthly') {

@@ -1,11 +1,12 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderSource, SpiderPoint, IntelligencePointPublic } from '../../../types';
 import { 
     getSpiderSources, createSpiderSource, getSpiderPoints, triggerSpiderTask,
     deleteSource, deleteSpiderPoint, disableSpiderPoint, enableSpiderPoint
 } from '../../../api/intelligence';
-import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon, StopIcon, CheckCircleIcon, PencilIcon } from '../../icons';
+import { ServerIcon, PlusIcon, RefreshIcon, PlayIcon, RssIcon, TrashIcon, ClockIcon, ViewListIcon, StopIcon, CheckCircleIcon, PencilIcon, DocumentTextIcon } from '../../icons';
 import { PointModal } from './PointModal';
 import { TaskDrawer } from './TaskDrawer';
 import { ConfirmationModal } from '../ConfirmationModal';
@@ -16,6 +17,31 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+// Helper to format Cron nicely
+const formatCronDisplay = (cron: string) => {
+    const parts = cron.split(' ');
+    if (parts.length !== 5) return cron;
+
+    const [mm, hh, dom, mon, dow] = parts;
+    const time = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+
+    if (dom.startsWith('*/') && mon === '*' && dow === '*') {
+        const days = dom.substring(2);
+        return `每 ${days} 天 ${time}`;
+    }
+    if (dom === '*' && mon === '*' && dow === '*') {
+        return `每天 ${time}`;
+    }
+    if (dom === '*' && mon === '*' && !isNaN(parseInt(dow))) {
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+        return `每周${days[parseInt(dow)]} ${time}`;
+    }
+    if (!isNaN(parseInt(dom)) && mon === '*' && dow === '*') {
+        return `每月 ${dom} 日 ${time}`;
+    }
+    return cron;
+};
 
 export const SourceConfig: React.FC = () => {
     const [sources, setSources] = useState<SpiderSource[]>([]);
@@ -47,6 +73,10 @@ export const SourceConfig: React.FC = () => {
             setSources(res);
             if (res.length > 0 && !selectedSource) {
                 setSelectedSource(res[0]);
+            } else if (selectedSource) {
+                // Update selected source data (e.g. counts) if it exists in new list
+                const updated = res.find(s => s.uuid === selectedSource.uuid);
+                if (updated) setSelectedSource(updated);
             }
         } catch (e) { console.error(e); }
         finally { setIsLoadingSources(false); }
@@ -172,7 +202,14 @@ export const SourceConfig: React.FC = () => {
                                     <span className="truncate pr-2">{src.name}</span>
                                     {selectedSource?.uuid === src.uuid && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
                                 </div>
-                                {src.main_url && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{src.main_url}</div>}
+                                <div className="flex items-center gap-2 mt-1">
+                                    {src.total_articles !== undefined && (
+                                        <span className="text-[10px] text-gray-400 bg-white px-1.5 rounded border border-gray-100 flex items-center gap-1">
+                                            <DocumentTextIcon className="w-3 h-3"/> {src.total_articles}
+                                        </span>
+                                    )}
+                                    {src.main_url && <div className="text-[10px] text-gray-400 truncate">{src.main_url}</div>}
+                                </div>
                             </div>
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setDeletingSource(src); }}
@@ -250,9 +287,20 @@ export const SourceConfig: React.FC = () => {
                                         </div>
                                         
                                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-4 bg-gray-50 p-2 md:p-3 rounded-lg">
-                                            <div className="col-span-2"><span className="text-gray-400">调度规则:</span> <span className="font-mono text-indigo-600 font-bold">{point.cron_schedule}</span></div>
-                                            <div><span className="text-gray-400">上次采集:</span> {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', second: '2-digit'}) : 'Never'}</div>
-                                            <div><span className="text-gray-400">深度:</span> {point.initial_pages !== undefined ? `${point.initial_pages} 页` : '-'}</div>
+                                            <div className="col-span-2">
+                                                <span className="text-gray-400">调度规则:</span> 
+                                                <span className="font-bold text-indigo-600 ml-1" title={point.cron_schedule}>
+                                                    {formatCronDisplay(point.cron_schedule)}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-400">文章总数:</span>
+                                                <span className="font-bold text-gray-700 ml-1">{point.total_articles || 0}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-400">上次采集:</span> 
+                                                {point.last_crawled_at ? new Date(point.last_crawled_at).toLocaleString('zh-CN', {month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit'}) : 'Never'}
+                                            </div>
                                         </div>
 
                                         <div className="flex justify-between items-center border-t border-gray-50 pt-3">

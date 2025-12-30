@@ -1,4 +1,5 @@
 
+
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
 
 export interface User {
@@ -79,6 +80,7 @@ export interface IntelligencePointPublic {
     status: string;
     max_depth?: number;
     initial_pages?: number;
+    total_articles?: number;
 }
 
 export interface IntelligenceSourcePublic {
@@ -172,6 +174,7 @@ export interface SpiderPoint {
     initial_pages?: number;
     source_uuid: string;
     source_name: string;
+    total_articles?: number;
 }
 
 export interface SpiderArticle {
@@ -220,6 +223,8 @@ export interface SpiderTask {
     end_time?: string;
     page_number?: number;
     articles_collected?: number;
+    source_name?: string;
+    point_name?: string;
 }
 
 export interface SpiderTaskCounts {

@@ -1,8 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { IntelligenceTaskPublic } from '../../../types';
 import { getSpiderTasks } from '../../../api/intelligence';
-import { RefreshIcon, PlayIcon, CheckCircleIcon, ShieldExclamationIcon, ClockIcon } from '../../icons';
+import { RefreshIcon, PlayIcon, CheckCircleIcon, ShieldExclamationIcon, ClockIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -45,6 +46,7 @@ export const TaskList: React.FC = () => {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const pageSize = 10;
+    const totalPages = Math.ceil(total / pageSize) || 1;
 
     const fetchTasks = useCallback(async () => {
         setIsLoading(true);
@@ -55,7 +57,7 @@ export const TaskList: React.FC = () => {
                  setTasks(res as IntelligenceTaskPublic[]);
                  setTotal(res.length);
             } else {
-                 setTasks(res.items as IntelligenceTaskPublic[] || []);
+                 setTasks(res.items || []);
                  setTotal(res.total || 0);
             }
         } catch (e) { console.error(e); }
@@ -75,7 +77,7 @@ export const TaskList: React.FC = () => {
 
             <div className="flex-1 overflow-auto">
                 <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b sticky top-0 z-10">
                         <tr>
                             <th className="px-6 py-3 font-bold">来源 / 采集点</th>
                             <th className="px-6 py-3 font-bold">类型</th>
@@ -129,17 +131,17 @@ export const TaskList: React.FC = () => {
                     <button 
                         disabled={page <= 1} 
                         onClick={() => setPage(p => p - 1)} 
-                        className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
+                        className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
                     >
-                        上一页
+                        <ChevronLeftIcon className="w-4 h-4"/>
                     </button>
-                    <span className="px-2 py-1">{page}</span>
+                    <span className="px-2 py-1 font-medium text-gray-700">{page} / {totalPages}</span>
                     <button 
-                        disabled={tasks.length < pageSize} 
+                        disabled={page >= totalPages} 
                         onClick={() => setPage(p => p + 1)} 
-                        className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
+                        className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50 transition-colors"
                     >
-                        下一页
+                        <ChevronRightIcon className="w-4 h-4"/>
                     </button>
                 </div>
             </div>

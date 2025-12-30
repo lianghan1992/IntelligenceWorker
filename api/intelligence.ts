@@ -1,4 +1,5 @@
 
+
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -19,10 +20,10 @@ export const getSources = (): Promise<IntelligenceSourcePublic[]> => getSpiderSo
     name: s.name,
     source_name: s.name,
     main_url: s.main_url,
-    total_points: 0,
-    total_articles: 0,
-    points_count: 0,
-    articles_count: 0,
+    total_points: s.total_points || 0,
+    total_articles: s.total_articles || 0,
+    points_count: s.total_points || 0,
+    articles_count: s.total_articles || 0,
     created_at: '',
     updated_at: ''
 })));
@@ -56,7 +57,8 @@ export const getPoints = (params?: { source_name?: string }): Promise<Intelligen
         created_at: '',
         updated_at: '',
         status: p.is_active ? 'active' : 'inactive',
-        initial_pages: p.initial_pages
+        initial_pages: p.initial_pages,
+        total_articles: p.total_articles || 0
     })));
 };
 
