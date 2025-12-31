@@ -141,18 +141,6 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
     return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles${query}`);
 }
 
-export const exportArticlesCsv = async (params: any): Promise<Blob> => {
-    const apiParams = { ...params };
-    const query = createApiQuery(apiParams);
-    const url = `${INTELSPIDER_SERVICE_PATH}/articles/export${query}`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Export failed');
-    return response.blob();
-}
-
 export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then(a => ({
     id: a.uuid,
     title: a.title,
@@ -176,6 +164,26 @@ export const deleteSpiderArticle = (uuid: string): Promise<void> =>
 
 export const getTodayArticleCount = (): Promise<{ count: number }> => 
     apiFetch<{ count: number }>(`${INTELSPIDER_SERVICE_PATH}/stats/today_articles_count`);
+
+export const exportBatchSearchArticles = async (data: { queries: any[] }): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/export/batch_search`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    headers.set('Content-Type', 'application/json');
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || '导出失败');
+    }
+    return response.blob();
+};
 
 // Search
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<ArticlePublic>> => getArticles(params); 

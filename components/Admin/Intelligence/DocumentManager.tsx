@@ -186,7 +186,7 @@ export const DocumentManager: React.FC = () => {
         if (selectedDocIds.size === 0) return;
         setIsBatchGeneratingSummary(true);
         try {
-            const promises = Array.from(selectedDocIds).map(id => regenerateDocumentSummary(id));
+            const promises = (Array.from(selectedDocIds) as string[]).map(id => regenerateDocumentSummary(id));
             await Promise.all(promises);
             alert(`已触发 ${selectedDocIds.size} 个文档的摘要生成任务`);
             setSelectedDocIds(new Set());
@@ -202,7 +202,7 @@ export const DocumentManager: React.FC = () => {
         if (selectedDocIds.size === 0) return;
         setIsBatchGeneratingCover(true);
         try {
-            const promises = Array.from(selectedDocIds).map(id => regenerateDocumentCover(id));
+            const promises = (Array.from(selectedDocIds) as string[]).map(id => regenerateDocumentCover(id));
             await Promise.all(promises);
             alert(`已触发 ${selectedDocIds.size} 个文档的封面生成任务`);
             setSelectedDocIds(new Set());
@@ -227,7 +227,7 @@ export const DocumentManager: React.FC = () => {
         const files = e.target.files;
         if (!files || files.length === 0 || !selectedTagId) return;
 
-        const fileArray = Array.from(files);
+        const fileArray = Array.from(files) as File[];
         const historyRegex = /^(\d{4})\.(\d{2})\.(\d{2})\.(.+)$/;
         
         const newTasks: UploadTask[] = [];
