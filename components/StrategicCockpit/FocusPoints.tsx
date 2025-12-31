@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { ApiPoi } from '../../types';
-import { TagIcon, GearIcon } from '../icons';
+import { TagIcon, GearIcon, PlusIcon } from '../icons';
 
 interface FocusPointsProps {
     onManageClick: () => void;
@@ -12,18 +13,15 @@ interface FocusPointsProps {
 
 export const FocusPoints: React.FC<FocusPointsProps> = ({ onManageClick, pois, isLoading, onPoiClick, activeQuery }) => {
     return (
-        <div className="mt-2">
-            <div className="flex items-center justify-between px-4 py-2 mb-2">
-                <h3 className="text-sm font-bold text-gray-500">
-                    我的关注点
-                </h3>
-                <button onClick={onManageClick} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="管理关注点">
-                    <GearIcon className="w-4 h-4" />
-                </button>
+        <div className="flex items-center h-full pl-4 border-l border-slate-200 ml-4">
+            <div className="flex items-center gap-2 mr-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex-shrink-0">
+                <TagIcon className="w-3.5 h-3.5" />
+                <span>我的关注</span>
             </div>
-            <div className="space-y-1">
+            
+            <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar max-w-[400px] xl:max-w-[600px]">
                 {isLoading ? (
-                    <div className="px-4 py-2 text-sm text-gray-400 animate-pulse">加载中...</div>
+                    <div className="text-xs text-slate-300 animate-pulse px-2">加载中...</div>
                 ) : pois.length > 0 ? (
                     pois.map(poi => {
                         const isActive = activeQuery.type === 'poi' && activeQuery.value === poi.content;
@@ -32,24 +30,29 @@ export const FocusPoints: React.FC<FocusPointsProps> = ({ onManageClick, pois, i
                                 key={poi.id} 
                                 onClick={() => onPoiClick(poi.content, poi.content)}
                                 className={`
-                                    w-full text-left px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-200 truncate flex items-center gap-3
+                                    flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5 border
                                     ${isActive 
-                                        ? 'bg-purple-100 text-purple-900 font-semibold' 
-                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm' 
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-purple-300 hover:text-purple-600'
                                     }
                                 `}
-                                title={poi.content}
+                                title={poi.keywords ? `关键词: ${poi.keywords}` : poi.content}
                             >
-                                <TagIcon className={`w-4 h-4 ${isActive ? 'text-purple-700' : 'text-gray-400'}`} />
                                 {poi.content}
                             </button>
                         );
                     })
                 ) : (
-                    <div className="px-4 py-4 text-sm text-gray-500 text-center bg-gray-50 rounded-xl mx-2 border border-gray-100 border-dashed">
-                        暂无关注点
-                    </div>
+                    <span className="text-xs text-slate-400">暂无关注点</span>
                 )}
+                
+                <button 
+                    onClick={onManageClick} 
+                    className="flex-shrink-0 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors border border-dashed border-slate-300 hover:border-indigo-300" 
+                    title="管理关注点"
+                >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                </button>
             </div>
         </div>
     );

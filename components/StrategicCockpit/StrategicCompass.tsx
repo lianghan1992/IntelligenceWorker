@@ -23,23 +23,20 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     activeQuery
 }) => {
     
-    const handlePrimaryClick = (category: Category) => {
-        const key = category.key;
-        setSelectedLook(key);
+    const handleCategoryClick = (category: Category) => {
+        setSelectedLook(category.key);
+        // Reset sub-look when switching main category
+        setSelectedSubLook(null);
         
-        if (category.children.length > 0) {
-            const firstSub = category.children[0];
-            if (firstSub) {
-                if (key !== selectedLook) {
-                    setSelectedSubLook(firstSub.key);
-                    onSubCategoryClick(firstSub.keywords, firstSub.label);
-                }
-            } else {
-                setSelectedSubLook(null);
-            }
-        } else { 
-            setSelectedSubLook(null);
-            onSubCategoryClick('*', category.label); 
+        // If it has no children, trigger filter immediately
+        if (category.children.length === 0) {
+            onSubCategoryClick('*', category.label);
+        } else {
+            // Optional: Auto-select first child? Or wait for user?
+            // Let's select the first child by default for smoother UX in horizontal mode
+            const firstChild = category.children[0];
+            setSelectedSubLook(firstChild.key);
+            onSubCategoryClick(firstChild.keywords, firstChild.label);
         }
     };
 
@@ -48,70 +45,57 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
         onSubCategoryClick(subCategory.keywords, subCategory.label);
     }
 
+    const activeCategory = categories.find(c => c.key === selectedLook);
+
     return (
-        <nav className="space-y-2">
-            {categories.map((category) => {
-                const isPrimaryActive = selectedLook === category.key;
-                return (
-                    <div key={category.key}>
-                        {/* Primary Category Item */}
-                        <div 
-                            onClick={() => handlePrimaryClick(category)}
+        <div className="flex flex-col w-full">
+            {/* Level 1: Main Categories */}
+            <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar pb-1">
+                {categories.map((category) => {
+                    const isPrimaryActive = selectedLook === category.key;
+                    return (
+                        <button
+                            key={category.key}
+                            onClick={() => handleCategoryClick(category)}
                             className={`
-                                group flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all duration-300 select-none border
+                                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap
                                 ${isPrimaryActive 
-                                    ? 'bg-white border-indigo-100 shadow-sm text-indigo-900' 
-                                    : 'bg-transparent border-transparent text-slate-600 hover:bg-white hover:shadow-sm hover:text-slate-900'
+                                    ? 'bg-slate-800 text-white shadow-md' 
+                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                                 }
                             `}
                         >
-                            <div className="flex items-center gap-3">
-                                <div className={`p-1.5 rounded-lg transition-colors ${isPrimaryActive ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:text-slate-700'}`}>
-                                    <category.icon className="w-4 h-4" />
-                                </div>
-                                <span className={`text-sm font-medium ${isPrimaryActive ? 'font-bold' : ''}`}>{category.label}</span>
-                            </div>
-                            {category.children.length > 0 && (
-                                <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isPrimaryActive ? 'rotate-180 text-indigo-500' : ''}`} />
-                            )}
-                        </div>
+                            <category.icon className={`w-4 h-4 ${isPrimaryActive ? 'text-white' : 'text-slate-400'}`} />
+                            <span>{category.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
 
-                        {/* Sub Categories */}
-                        <div className={`
-                            overflow-hidden transition-all duration-300 ease-in-out
-                            ${isPrimaryActive && category.children.length > 0 ? 'max-h-96 opacity-100 mt-1 mb-3' : 'max-h-0 opacity-0'}
-                        `}>
-                            <div className="space-y-1 pl-4 pr-2 relative">
-                                {/* Vertical Line */}
-                                <div className="absolute left-[21px] top-0 bottom-0 w-[2px] bg-slate-100 rounded-full"></div>
-                                
-                                {category.children.map(subCategory => {
-                                    const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
-                                    return (
-                                        <button
-                                            key={subCategory.key}
-                                            onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
-                                            className={`
-                                                relative w-full text-left pl-8 pr-4 py-2 rounded-xl text-sm transition-all duration-200 flex items-center ml-1
-                                                ${isSubActive
-                                                    ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm' 
-                                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium'
-                                                }
-                                            `}
-                                        >
-                                            {/* Dot Indicator */}
-                                            {isSubActive && (
-                                                <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[5px] w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white shadow-sm z-10"></span>
-                                            )}
-                                            {subCategory.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
-        </nav>
+            {/* Level 2: Sub Categories (Conditional Render below) */}
+            {activeCategory && activeCategory.children.length > 0 && (
+                <div className="flex items-center space-x-2 mt-2 overflow-x-auto no-scrollbar pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="w-3 h-3 border-l border-b border-slate-300 rounded-bl-md mb-2 ml-2 flex-shrink-0"></div>
+                    {activeCategory.children.map(subCategory => {
+                        const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
+                        return (
+                            <button
+                                key={subCategory.key}
+                                onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
+                                className={`
+                                    px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap border
+                                    ${isSubActive
+                                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' 
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                    }
+                                `}
+                            >
+                                {subCategory.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
     );
 };
