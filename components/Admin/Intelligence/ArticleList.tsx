@@ -1,7 +1,6 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderArticle } from '../../../types';
+import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
 import { 
     getSpiderArticles, 
     deleteSpiderArticle, 
@@ -12,9 +11,11 @@ import {
     updateIntelGeminiCookies,
     toggleIntelHtmlGeneration,
     toggleRetrospectiveHtmlGeneration,
-    triggerAnalysis
+    triggerAnalysis,
+    getSpiderSources, // Added
+    getSpiderPoints   // Added
 } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon } from '../../icons';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -35,6 +36,16 @@ const WhiteSpinner: React.FC = () => (
 const formatBeijingTime = (dateStr: string | undefined) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+};
+
+const formatDateOnly = (dateStr: string | undefined) => {
+    if (!dateStr) return '-';
+    // Returns YYYY-MM-DD
+    const date = new Date(dateStr);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({ articleId, onClose }) => {
@@ -96,9 +107,22 @@ export const ArticleList: React.FC = () => {
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     
+    // Metadata for Filters
+    const [sources, setSources] = useState<SpiderSource[]>([]);
+    const [points, setPoints] = useState<SpiderPoint[]>([]);
+
+    // Filter State
+    const [filterSource, setFilterSource] = useState('');
+    const [filterPoint, setFilterPoint] = useState('');
+    const [filterAtomized, setFilterAtomized] = useState(''); // '' | 'true' | 'false'
+    const [filterDateStart, setFilterDateStart] = useState('');
+    const [filterDateEnd, setFilterDateEnd] = useState('');
+    const [isFiltersVisible, setIsFiltersVisible] = useState(false);
+    
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // HTML Generation State
     const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -116,6 +140,21 @@ export const ArticleList: React.FC = () => {
     const [isTogglingHtml, setIsTogglingHtml] = useState(false);
     const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
     const [isTogglingRetro, setIsTogglingRetro] = useState(false);
+
+    // Load Metadata
+    useEffect(() => {
+        getSpiderSources().then(setSources).catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        if (filterSource) {
+            getSpiderPoints(filterSource).then(setPoints).catch(console.error);
+        } else {
+            setPoints([]);
+        }
+        // Reset point filter if source changes
+        setFilterPoint('');
+    }, [filterSource]);
 
     // --- Gemini Actions ---
     const fetchGeminiStatus = async () => {
@@ -186,13 +225,21 @@ export const ArticleList: React.FC = () => {
     const fetchArticles = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await getSpiderArticles({ page, limit: 20 });
+            const res = await getSpiderArticles({ 
+                page, 
+                limit: 20,
+                source_uuid: filterSource || undefined,
+                point_uuid: filterPoint || undefined,
+                is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
+                start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
+                end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
+            });
             setArticles(res.items);
             setTotal(res.total);
             setSelectedIds(new Set()); 
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [page]);
+    }, [page, filterSource, filterPoint, filterAtomized, filterDateStart, filterDateEnd]);
 
     useEffect(() => { fetchArticles(); }, [fetchArticles]);
 
@@ -255,6 +302,70 @@ export const ArticleList: React.FC = () => {
         }
     };
 
+    const handleExportCsv = async () => {
+        setIsExporting(true);
+        try {
+            // 1. Fetch all matching data (Looping pages)
+            let allItems: SpiderArticle[] = [];
+            let currentPage = 1;
+            const pageSize = 100;
+            
+            while (true) {
+                const res = await getSpiderArticles({
+                    page: currentPage,
+                    limit: pageSize,
+                    source_uuid: filterSource || undefined,
+                    point_uuid: filterPoint || undefined,
+                    is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
+                    start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
+                    end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
+                });
+                
+                allItems = [...allItems, ...res.items];
+                if (allItems.length >= res.total || res.items.length === 0) break;
+                currentPage++;
+            }
+
+            // 2. Format as CSV
+            // Headers: 文章标题、发布时间、情报源、文章内容、URL
+            const headers = ['文章标题', '发布时间', '情报源', '文章内容', 'URL'];
+            
+            const escapeCsv = (str: string | undefined | null) => {
+                if (!str) return '""';
+                // Escape double quotes by doubling them, wrap in quotes to handle commas and newlines
+                return `"${String(str).replace(/"/g, '""')}"`;
+            };
+
+            const rows = allItems.map(item => {
+                return [
+                    escapeCsv(item.title),
+                    escapeCsv(formatDateOnly(item.publish_date || item.created_at)), // Use YYYY-MM-DD
+                    escapeCsv(item.source_name),
+                    escapeCsv(item.content),
+                    escapeCsv(item.original_url || item.url)
+                ].join(',');
+            });
+
+            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // Add BOM for Chinese char support in Excel
+
+            // 3. Trigger Download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `文章导出_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+        } catch (e: any) {
+            alert('导出失败: ' + e.message);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     const handleDownloadPdf = async (article: SpiderArticle) => {
         if (!article.uuid || pdfDownloadingId === article.uuid) return;
         setPdfDownloadingId(article.uuid);
@@ -292,51 +403,89 @@ export const ArticleList: React.FC = () => {
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
-            {/* ... (Previous header/toolbar code remains the same) ... */}
-            <div className="px-4 py-3 border-b bg-purple-50/50 flex flex-col sm:flex-row gap-3 justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600">
-                        <SparklesIcon className="w-4 h-4" />
+            {/* Filter Panel (Collapsible or always visible) */}
+            <div className="border-b border-gray-100 bg-gray-50/80 p-4">
+                <div className="flex flex-col gap-4">
+                    {/* Top Row: Filters */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <FilterIcon className="w-4 h-4 text-gray-400" />
+                            <span className="text-xs font-bold text-gray-500 uppercase">筛选</span>
+                        </div>
+                        
+                        <select 
+                            value={filterSource} 
+                            onChange={e => { setFilterSource(e.target.value); setPage(1); }}
+                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 min-w-[120px] outline-none"
+                        >
+                            <option value="">所有情报源</option>
+                            {sources.map(s => <option key={s.uuid} value={s.uuid}>{s.name}</option>)}
+                        </select>
+
+                        <select 
+                            value={filterPoint} 
+                            onChange={e => { setFilterPoint(e.target.value); setPage(1); }}
+                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 min-w-[120px] outline-none"
+                            disabled={!filterSource}
+                        >
+                            <option value="">所有情报点</option>
+                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name}</option>)}
+                        </select>
+
+                        <select 
+                            value={filterAtomized} 
+                            onChange={e => { setFilterAtomized(e.target.value); setPage(1); }}
+                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 outline-none"
+                        >
+                            <option value="">原子化状态 (全部)</option>
+                            <option value="true">已原子化</option>
+                            <option value="false">未原子化</option>
+                        </select>
+
+                        <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
+
+                        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
+                            <CalendarIcon className="w-3.5 h-3.5 text-gray-400 ml-1" />
+                            <input 
+                                type="date" 
+                                value={filterDateStart}
+                                onChange={e => { setFilterDateStart(e.target.value); setPage(1); }}
+                                className="text-xs text-gray-600 outline-none border-none bg-transparent w-24"
+                                placeholder="开始日期"
+                            />
+                            <span className="text-gray-300">-</span>
+                            <input 
+                                type="date" 
+                                value={filterDateEnd}
+                                onChange={e => { setFilterDateEnd(e.target.value); setPage(1); }}
+                                className="text-xs text-gray-600 outline-none border-none bg-transparent w-24"
+                                placeholder="结束日期"
+                            />
+                        </div>
+
+                        <div className="flex-1"></div>
+
+                        <button 
+                            onClick={handleExportCsv}
+                            disabled={isExporting}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
+                        >
+                            {isExporting ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                            导出 CSV
+                        </button>
                     </div>
-                    <span className="text-sm font-bold text-gray-700">Gemini 引擎 (v3.1)</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${geminiStatus?.valid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                        {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效'}
-                    </span>
-                    <button onClick={fetchGeminiStatus} className="text-gray-400 hover:text-gray-600">
-                        <RefreshIcon className={`w-3.5 h-3.5 ${isCheckingGemini ? 'animate-spin' : ''}`} />
-                    </button>
-                </div>
-                <div className="flex items-center gap-2">
-                     <button 
-                        onClick={() => setIsHtmlSettingsOpen(true)}
-                        className="text-xs px-3 py-1.5 bg-white border border-purple-100 text-purple-700 rounded-lg hover:bg-purple-50 font-bold transition-colors shadow-sm flex items-center gap-1"
-                    >
-                        <DocumentTextIcon className="w-3.5 h-3.5"/> HTML 生成
-                    </button>
-                    <button 
-                        onClick={() => setIsRetroSettingsOpen(true)}
-                        className="text-xs px-3 py-1.5 bg-white border border-orange-100 text-orange-700 rounded-lg hover:bg-orange-50 font-bold transition-colors shadow-sm flex items-center gap-1"
-                    >
-                        <ClockIcon className="w-3.5 h-3.5"/> HTML 追溯
-                    </button>
-                    <button 
-                        onClick={() => setIsCookieModalOpen(true)}
-                        className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold transition-colors shadow-sm"
-                    >
-                        更新 Cookie
-                    </button>
                 </div>
             </div>
 
-            {/* Article List Header */}
-            <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+            {/* Article List Header Actions */}
+            <div className="p-4 border-b bg-white flex justify-between items-center">
                 <div className="flex items-center gap-4">
                     <h3 className="font-bold text-gray-700 text-lg flex items-center gap-2">
                         <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 采集文章 ({total})
                     </h3>
                     {selectedIds.size > 0 && (
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                            <span className="text-xs text-gray-500 font-medium bg-white border px-2 py-1 rounded">已选 {selectedIds.size} 项</span>
+                            <span className="text-xs text-gray-500 font-medium bg-slate-50 px-2 py-1 rounded border border-slate-200">已选 {selectedIds.size} 项</span>
                             <button 
                                 onClick={handleBatchGenerate}
                                 disabled={isBatchGenerating}
