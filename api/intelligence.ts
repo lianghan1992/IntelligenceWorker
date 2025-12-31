@@ -185,6 +185,21 @@ export const exportBatchSearchArticles = async (data: { queries: any[] }): Promi
     return response.blob();
 };
 
+export const exportArticles = async (params: any): Promise<Blob> => {
+    const query = createApiQuery(params);
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/export${query}`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || '导出失败');
+    }
+    return response.blob();
+};
+
 // Search
 export const searchArticlesFiltered = (params: any): Promise<PaginatedResponse<ArticlePublic>> => getArticles(params); 
 

@@ -13,7 +13,8 @@ import {
     toggleRetrospectiveHtmlGeneration,
     triggerAnalysis,
     getSpiderSources, 
-    getSpiderPoints
+    getSpiderPoints,
+    exportArticles
 } from '../../../api/intelligence';
 import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
@@ -37,16 +38,6 @@ const WhiteSpinner: React.FC = () => (
 const formatBeijingTime = (dateStr: string | undefined) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-};
-
-const formatDateOnly = (dateStr: string | undefined) => {
-    if (!dateStr) return '-';
-    // Returns YYYY-MM-DD
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
 };
 
 const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({ articleId, onClose }) => {
@@ -99,6 +90,76 @@ const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({
     );
 };
 
+// Export Options Modal
+const ExportOptionsModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: (compressToken: number) => void;
+    isExporting: boolean;
+}> = ({ isOpen, onClose, onConfirm, isExporting }) => {
+    const [enableCompression, setEnableCompression] = useState(false);
+    const [tokenLimit, setTokenLimit] = useState(800000);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-xl w-full max-w-md shadow-2xl p-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <DownloadIcon className="w-5 h-5 text-indigo-600" />
+                    导出文章数据
+                </h3>
+                
+                <div className="space-y-4 mb-6">
+                    <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                        将导出当前筛选条件下的所有文章为 CSV 文件。
+                    </p>
+
+                    <div className="border rounded-xl p-4 transition-colors border-slate-200">
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                            <input 
+                                type="checkbox" 
+                                checked={enableCompression} 
+                                onChange={e => setEnableCompression(e.target.checked)}
+                                className="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
+                            />
+                            <span className="font-bold text-slate-700 text-sm">启用 LLM 智能压缩</span>
+                        </label>
+                        
+                        {enableCompression && (
+                            <div className="mt-3 pl-8 animate-in slide-in-from-top-2">
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">目标 Token 上限</label>
+                                <input 
+                                    type="number" 
+                                    value={tokenLimit}
+                                    onChange={e => setTokenLimit(Number(e.target.value))}
+                                    step={10000}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none font-mono"
+                                />
+                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                    系统将优先保留短文章原文，对长文章进行智能摘要，确保总导出内容不超过此限制，适合直接作为 LLM 上下文使用。
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} disabled={isExporting} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg transition-colors">取消</button>
+                    <button 
+                        onClick={() => onConfirm(enableCompression ? tokenLimit : 0)}
+                        disabled={isExporting}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition-colors shadow-md flex items-center gap-2"
+                    >
+                        {isExporting ? <WhiteSpinner /> : <DownloadIcon className="w-4 h-4" />}
+                        {isExporting ? '处理中...' : '开始导出'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const ArticleList: React.FC = () => {
     const [articles, setArticles] = useState<SpiderArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -127,6 +188,8 @@ export const ArticleList: React.FC = () => {
     
     // Batch Search Export Modal
     const [isBatchExportModalOpen, setIsBatchExportModalOpen] = useState(false);
+    // Export Options Modal
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     // HTML Generation State
     const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -306,63 +369,28 @@ export const ArticleList: React.FC = () => {
         }
     };
 
-    const handleExportCsv = async () => {
+    const confirmExport = async (compressToken: number) => {
         setIsExporting(true);
         try {
-            // 1. Fetch all matching data (Looping pages)
-            let allItems: SpiderArticle[] = [];
-            let currentPage = 1;
-            const pageSize = 100;
-            
-            while (true) {
-                const res = await getSpiderArticles({
-                    page: currentPage,
-                    limit: pageSize,
-                    source_uuid: filterSource || undefined,
-                    point_uuid: filterPoint || undefined,
-                    is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
-                    start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
-                    end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
-                });
-                
-                allItems = [...allItems, ...res.items];
-                if (allItems.length >= res.total || res.items.length === 0) break;
-                currentPage++;
-            }
-
-            // 2. Format as CSV
-            // Headers: 文章标题、发布时间、情报源、文章内容、URL
-            const headers = ['文章标题', '发布时间', '情报源', '文章内容', 'URL'];
-            
-            const escapeCsv = (str: string | undefined | null) => {
-                if (!str) return '""';
-                // Escape double quotes by doubling them, wrap in quotes to handle commas and newlines
-                return `"${String(str).replace(/"/g, '""')}"`;
-            };
-
-            const rows = allItems.map(item => {
-                return [
-                    escapeCsv(item.title),
-                    escapeCsv(formatDateOnly(item.publish_date || item.created_at)), // Use YYYY-MM-DD
-                    escapeCsv(item.source_name),
-                    escapeCsv(item.content),
-                    escapeCsv(item.original_url || item.url)
-                ].join(',');
+            const blob = await exportArticles({
+                source_uuid: filterSource || undefined,
+                point_uuid: filterPoint || undefined,
+                is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
+                start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
+                end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined,
+                compress_to_tokens: compressToken > 0 ? compressToken : undefined
             });
 
-            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // Add BOM for Chinese char support in Excel
-
-            // 3. Trigger Download
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `文章导出_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `articles_export_${new Date().toISOString().slice(0,10)}${compressToken > 0 ? '_compressed' : ''}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            setIsExportModalOpen(false);
         } catch (e: any) {
             alert('导出失败: ' + e.message);
         } finally {
@@ -478,7 +506,7 @@ export const ArticleList: React.FC = () => {
                         </button>
 
                         <button 
-                            onClick={handleExportCsv}
+                            onClick={() => setIsExportModalOpen(true)}
                             disabled={isExporting}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
                         >
@@ -739,6 +767,15 @@ export const ArticleList: React.FC = () => {
                     isOpen={isBatchExportModalOpen}
                     onClose={() => setIsBatchExportModalOpen(false)}
                     sources={sources}
+                />
+            )}
+
+            {isExportModalOpen && (
+                <ExportOptionsModal 
+                    isOpen={isExportModalOpen}
+                    onClose={() => setIsExportModalOpen(false)}
+                    onConfirm={confirmExport}
+                    isExporting={isExporting}
                 />
             )}
 
