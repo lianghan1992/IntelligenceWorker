@@ -376,8 +376,8 @@ export const ArticleList: React.FC = () => {
                 source_uuid: filterSource || undefined,
                 point_uuid: filterPoint || undefined,
                 is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
-                start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
-                end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined,
+                start_date: filterDateStart || undefined, // Send YYYY-MM-DD string directly
+                end_date: filterDateEnd || undefined,     // Send YYYY-MM-DD string directly
                 compress_to_tokens: compressToken > 0 ? compressToken : undefined
             });
 
