@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
+import { SpiderArticle } from '../../../types';
 import { 
     getSpiderArticles, 
     deleteSpiderArticle, 
@@ -12,10 +13,10 @@ import {
     toggleIntelHtmlGeneration,
     toggleRetrospectiveHtmlGeneration,
     triggerAnalysis,
-    getSpiderSources, // Added
-    getSpiderPoints   // Added
+    getSourcesAndPoints,
+    exportArticlesCsv
 } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon } from '../../icons';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, DownloadIcon, FilterIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 
@@ -36,16 +37,6 @@ const WhiteSpinner: React.FC = () => (
 const formatBeijingTime = (dateStr: string | undefined) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-};
-
-const formatDateOnly = (dateStr: string | undefined) => {
-    if (!dateStr) return '-';
-    // Returns YYYY-MM-DD
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
 };
 
 const HtmlViewerModal: React.FC<{ articleId: string; onClose: () => void }> = ({ articleId, onClose }) => {
@@ -107,22 +98,20 @@ export const ArticleList: React.FC = () => {
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     
-    // Metadata for Filters
-    const [sources, setSources] = useState<SpiderSource[]>([]);
-    const [points, setPoints] = useState<SpiderPoint[]>([]);
+    // Filters State
+    const [sourceOptions, setSourceOptions] = useState<any[]>([]);
+    const [filters, setFilters] = useState({
+        source_uuid: '',
+        point_uuid: '',
+        is_atomized: '' as string, // 'true' | 'false' | ''
+        start_date: '',
+        end_date: ''
+    });
+    const [isExporting, setIsExporting] = useState(false);
 
-    // Filter State
-    const [filterSource, setFilterSource] = useState('');
-    const [filterPoint, setFilterPoint] = useState('');
-    const [filterAtomized, setFilterAtomized] = useState(''); // '' | 'true' | 'false'
-    const [filterDateStart, setFilterDateStart] = useState('');
-    const [filterDateEnd, setFilterDateEnd] = useState('');
-    const [isFiltersVisible, setIsFiltersVisible] = useState(false);
-    
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isBatchGenerating, setIsBatchGenerating] = useState(false);
-    const [isExporting, setIsExporting] = useState(false);
 
     // HTML Generation State
     const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -141,20 +130,11 @@ export const ArticleList: React.FC = () => {
     const [isRetroSettingsOpen, setIsRetroSettingsOpen] = useState(false);
     const [isTogglingRetro, setIsTogglingRetro] = useState(false);
 
-    // Load Metadata
+    // --- Load Metadata ---
     useEffect(() => {
-        getSpiderSources().then(setSources).catch(console.error);
+        getSourcesAndPoints().then(setSourceOptions).catch(console.error);
+        fetchGeminiStatus();
     }, []);
-
-    useEffect(() => {
-        if (filterSource) {
-            getSpiderPoints(filterSource).then(setPoints).catch(console.error);
-        } else {
-            setPoints([]);
-        }
-        // Reset point filter if source changes
-        setFilterPoint('');
-    }, [filterSource]);
 
     // --- Gemini Actions ---
     const fetchGeminiStatus = async () => {
@@ -168,10 +148,6 @@ export const ArticleList: React.FC = () => {
             setIsCheckingGemini(false);
         }
     };
-
-    useEffect(() => {
-        fetchGeminiStatus();
-    }, []);
 
     const handleUpdateCookie = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -228,20 +204,45 @@ export const ArticleList: React.FC = () => {
             const res = await getSpiderArticles({ 
                 page, 
                 limit: 20,
-                source_uuid: filterSource || undefined,
-                point_uuid: filterPoint || undefined,
-                is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
-                start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
-                end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
+                source_uuid: filters.source_uuid || undefined,
+                point_uuid: filters.point_uuid || undefined,
+                is_atomized: filters.is_atomized === 'true' ? true : (filters.is_atomized === 'false' ? false : undefined),
+                start_date: filters.start_date || undefined,
+                end_date: filters.end_date || undefined
             });
             setArticles(res.items);
             setTotal(res.total);
             setSelectedIds(new Set()); 
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [page, filterSource, filterPoint, filterAtomized, filterDateStart, filterDateEnd]);
+    }, [page, filters]);
 
     useEffect(() => { fetchArticles(); }, [fetchArticles]);
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            const blob = await exportArticlesCsv({
+                source_uuid: filters.source_uuid || undefined,
+                point_uuid: filters.point_uuid || undefined,
+                is_atomized: filters.is_atomized === 'true' ? true : (filters.is_atomized === 'false' ? false : undefined),
+                start_date: filters.start_date || undefined,
+                end_date: filters.end_date || undefined
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `articles_export_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (e: any) {
+            alert('导出失败: ' + (e.message || '未知错误'));
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const toggleSelect = (id: string) => {
         if (!id) return;
@@ -302,70 +303,6 @@ export const ArticleList: React.FC = () => {
         }
     };
 
-    const handleExportCsv = async () => {
-        setIsExporting(true);
-        try {
-            // 1. Fetch all matching data (Looping pages)
-            let allItems: SpiderArticle[] = [];
-            let currentPage = 1;
-            const pageSize = 100;
-            
-            while (true) {
-                const res = await getSpiderArticles({
-                    page: currentPage,
-                    limit: pageSize,
-                    source_uuid: filterSource || undefined,
-                    point_uuid: filterPoint || undefined,
-                    is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
-                    start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
-                    end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
-                });
-                
-                allItems = [...allItems, ...res.items];
-                if (allItems.length >= res.total || res.items.length === 0) break;
-                currentPage++;
-            }
-
-            // 2. Format as CSV
-            // Headers: 文章标题、发布时间、情报源、文章内容、URL
-            const headers = ['文章标题', '发布时间', '情报源', '文章内容', 'URL'];
-            
-            const escapeCsv = (str: string | undefined | null) => {
-                if (!str) return '""';
-                // Escape double quotes by doubling them, wrap in quotes to handle commas and newlines
-                return `"${String(str).replace(/"/g, '""')}"`;
-            };
-
-            const rows = allItems.map(item => {
-                return [
-                    escapeCsv(item.title),
-                    escapeCsv(formatDateOnly(item.publish_date || item.created_at)), // Use YYYY-MM-DD
-                    escapeCsv(item.source_name),
-                    escapeCsv(item.content),
-                    escapeCsv(item.original_url || item.url)
-                ].join(',');
-            });
-
-            const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n'); // Add BOM for Chinese char support in Excel
-
-            // 3. Trigger Download
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `文章导出_${new Date().toISOString().slice(0,10)}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
-        } catch (e: any) {
-            alert('导出失败: ' + e.message);
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
     const handleDownloadPdf = async (article: SpiderArticle) => {
         if (!article.uuid || pdfDownloadingId === article.uuid) return;
         setPdfDownloadingId(article.uuid);
@@ -401,105 +338,111 @@ export const ArticleList: React.FC = () => {
         }
     };
 
+    const pointsForSelectedSource = filters.source_uuid 
+        ? sourceOptions.find(s => s.uuid === filters.source_uuid)?.points || []
+        : [];
+
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
-            {/* Filter Panel (Collapsible or always visible) */}
-            <div className="border-b border-gray-100 bg-gray-50/80 p-4">
-                <div className="flex flex-col gap-4">
-                    {/* Top Row: Filters */}
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2">
-                            <FilterIcon className="w-4 h-4 text-gray-400" />
-                            <span className="text-xs font-bold text-gray-500 uppercase">筛选</span>
-                        </div>
-                        
-                        <select 
-                            value={filterSource} 
-                            onChange={e => { setFilterSource(e.target.value); setPage(1); }}
-                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 min-w-[120px] outline-none"
-                        >
-                            <option value="">所有情报源</option>
-                            {sources.map(s => <option key={s.uuid} value={s.uuid}>{s.name}</option>)}
-                        </select>
+            {/* --- Gemini Status Bar --- */}
+            <div className="px-4 py-2 border-b bg-purple-50/50 flex flex-col sm:flex-row gap-3 justify-between items-center text-xs">
+                <div className="flex items-center gap-3">
+                    <div className="p-1 bg-purple-100 rounded text-purple-600"><SparklesIcon className="w-3.5 h-3.5" /></div>
+                    <span className="font-bold text-gray-700">Gemini 引擎 (v3.1)</span>
+                    <span className={`px-1.5 py-0.5 rounded border font-medium ${geminiStatus?.valid ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {geminiStatus?.valid ? 'Cookie 有效' : 'Cookie 无效'}
+                    </span>
+                    <button onClick={fetchGeminiStatus} className="text-gray-400 hover:text-gray-600"><RefreshIcon className={`w-3 h-3 ${isCheckingGemini ? 'animate-spin' : ''}`} /></button>
+                </div>
+                <div className="flex items-center gap-2">
+                     <button onClick={() => setIsHtmlSettingsOpen(true)} className="px-2 py-1 bg-white border border-purple-100 text-purple-700 rounded hover:bg-purple-50 font-bold transition-colors shadow-sm flex items-center gap-1">
+                        <DocumentTextIcon className="w-3 h-3"/> HTML 生成
+                    </button>
+                    <button onClick={() => setIsRetroSettingsOpen(true)} className="px-2 py-1 bg-white border border-orange-100 text-orange-700 rounded hover:bg-orange-50 font-bold transition-colors shadow-sm flex items-center gap-1">
+                        <ClockIcon className="w-3 h-3"/> HTML 追溯
+                    </button>
+                    <button onClick={() => setIsCookieModalOpen(true)} className="px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 font-bold transition-colors shadow-sm">
+                        更新 Cookie
+                    </button>
+                </div>
+            </div>
 
+            {/* --- Filter & Action Bar --- */}
+            <div className="p-4 border-b bg-gray-50 flex flex-col gap-4">
+                <div className="flex flex-wrap items-center gap-3">
+                    {/* Filters */}
+                    <div className="flex items-center gap-2">
+                        <FilterIcon className="w-4 h-4 text-gray-400" />
                         <select 
-                            value={filterPoint} 
-                            onChange={e => { setFilterPoint(e.target.value); setPage(1); }}
-                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 min-w-[120px] outline-none"
-                            disabled={!filterSource}
+                            value={filters.source_uuid}
+                            onChange={e => setFilters({...filters, source_uuid: e.target.value, point_uuid: ''})}
+                            className="bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none max-w-[150px]"
                         >
-                            <option value="">所有情报点</option>
-                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name}</option>)}
+                            <option value="">所有来源</option>
+                            {sourceOptions.map(s => <option key={s.uuid} value={s.uuid}>{s.name}</option>)}
                         </select>
-
                         <select 
-                            value={filterAtomized} 
-                            onChange={e => { setFilterAtomized(e.target.value); setPage(1); }}
-                            className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 outline-none"
+                            value={filters.point_uuid}
+                            onChange={e => setFilters({...filters, point_uuid: e.target.value})}
+                            className="bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none max-w-[150px]"
+                            disabled={!filters.source_uuid}
                         >
-                            <option value="">原子化状态 (全部)</option>
+                            <option value="">所有采集点</option>
+                            {pointsForSelectedSource.map((p: any) => <option key={p.uuid} value={p.uuid}>{p.name}</option>)}
+                        </select>
+                        <select 
+                            value={filters.is_atomized}
+                            onChange={e => setFilters({...filters, is_atomized: e.target.value})}
+                            className="bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none w-24"
+                        >
+                            <option value="">全部状态</option>
                             <option value="true">已原子化</option>
                             <option value="false">未原子化</option>
                         </select>
+                    </div>
 
-                        <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block"></div>
+                    {/* Date Range */}
+                    <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-300 text-xs">
+                        <span className="text-gray-400">日期:</span>
+                        <input type="date" value={filters.start_date} onChange={e => setFilters({...filters, start_date: e.target.value})} className="outline-none text-gray-600 w-24 cursor-pointer" />
+                        <span className="text-gray-300">-</span>
+                        <input type="date" value={filters.end_date} onChange={e => setFilters({...filters, end_date: e.target.value})} className="outline-none text-gray-600 w-24 cursor-pointer" />
+                    </div>
 
-                        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1">
-                            <CalendarIcon className="w-3.5 h-3.5 text-gray-400 ml-1" />
-                            <input 
-                                type="date" 
-                                value={filterDateStart}
-                                onChange={e => { setFilterDateStart(e.target.value); setPage(1); }}
-                                className="text-xs text-gray-600 outline-none border-none bg-transparent w-24"
-                                placeholder="开始日期"
-                            />
-                            <span className="text-gray-300">-</span>
-                            <input 
-                                type="date" 
-                                value={filterDateEnd}
-                                onChange={e => { setFilterDateEnd(e.target.value); setPage(1); }}
-                                className="text-xs text-gray-600 outline-none border-none bg-transparent w-24"
-                                placeholder="结束日期"
-                            />
-                        </div>
+                    <button onClick={() => { setPage(1); fetchArticles(); }} className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-colors">
+                        <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    
+                    <div className="flex-1"></div>
 
-                        <div className="flex-1"></div>
+                    {/* Actions */}
+                    <button 
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                        {isExporting ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                        导出 CSV
+                    </button>
+                </div>
 
+                {selectedIds.size > 0 && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-1 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+                        <span className="text-xs font-bold text-indigo-700 px-2">已选 {selectedIds.size} 项</span>
+                        <div className="h-4 w-px bg-indigo-200"></div>
                         <button 
-                            onClick={handleExportCsv}
-                            disabled={isExporting}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm disabled:opacity-50"
+                            onClick={handleBatchGenerate}
+                            disabled={isBatchGenerating}
+                            className="flex items-center gap-1.5 px-3 py-1 bg-purple-600 text-white rounded-md text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-70"
                         >
-                            {isExporting ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
-                            导出 CSV
+                            {isBatchGenerating ? <WhiteSpinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
+                            批量原子化
                         </button>
                     </div>
-                </div>
-            </div>
-
-            {/* Article List Header Actions */}
-            <div className="p-4 border-b bg-white flex justify-between items-center">
-                <div className="flex items-center gap-4">
-                    <h3 className="font-bold text-gray-700 text-lg flex items-center gap-2">
-                        <DocumentTextIcon className="w-5 h-5 text-indigo-600"/> 采集文章 ({total})
-                    </h3>
-                    {selectedIds.size > 0 && (
-                        <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                            <span className="text-xs text-gray-500 font-medium bg-slate-50 px-2 py-1 rounded border border-slate-200">已选 {selectedIds.size} 项</span>
-                            <button 
-                                onClick={handleBatchGenerate}
-                                disabled={isBatchGenerating}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-70"
-                            >
-                                {isBatchGenerating ? <WhiteSpinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
-                                批量原子化
-                            </button>
-                        </div>
-                    )}
-                </div>
-                <button onClick={fetchArticles} className="p-2 hover:bg-gray-200 rounded text-gray-500 border bg-white shadow-sm transition-all"><RefreshIcon className={`w-4 h-4 ${isLoading?'animate-spin':''}`}/></button>
+                )}
             </div>
             
+            {/* List Content */}
             <div className="flex-1 overflow-auto bg-slate-50/50 p-4 md:p-6 custom-scrollbar">
                 {/* Desktop Table View */}
                 <div className="hidden md:block bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
@@ -734,11 +677,128 @@ export const ArticleList: React.FC = () => {
                 />
             )}
             
-            {/* ... Modal rendering ... */}
-            {isCookieModalOpen && (/* ... */ null)}
-            {isHtmlSettingsOpen && (/* ... */ null)}
-            {isRetroSettingsOpen && (/* ... */ null)}
-            {/* Note: In full code, these modals are rendered as in previous version, just omitted for brevity here */}
+            {/* Modal rendering */}
+            {isCookieModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+                    <div className="bg-white rounded-xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <SparklesIcon className="w-5 h-5 text-purple-600" /> 更新 Gemini Cookie
+                            </h3>
+                            <button onClick={() => setIsCookieModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateCookie} className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSID</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psid}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psid: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSID 值..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">__Secure-1PSIDTS</label>
+                                <input 
+                                    type="password"
+                                    value={cookieForm.secure_1psidts}
+                                    onChange={e => setCookieForm({...cookieForm, secure_1psidts: e.target.value})}
+                                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                    placeholder="输入 __Secure-1PSIDTS 值..."
+                                />
+                            </div>
+                            <div className="flex justify-end pt-2">
+                                <button 
+                                    type="submit" 
+                                    disabled={isUpdatingCookie}
+                                    className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isUpdatingCookie ? <WhiteSpinner /> : '保存更新'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {isHtmlSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <DocumentTextIcon className="w-5 h-5 text-blue-600" /> HTML 生成管理
+                            </h3>
+                            <button onClick={() => setIsHtmlSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                开启后，系统将在爬取文章时自动调用 LLM 将 Markdown 内容转换为美化的 HTML 格式。这可能会增加 Token 消耗。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button 
+                                    onClick={() => handleHtmlToggle(true)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启生成
+                                </button>
+                                <button 
+                                    onClick={() => handleHtmlToggle(false)}
+                                    disabled={isTogglingHtml}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingHtml ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止生成
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isRetroSettingsOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[80] p-4 animate-in fade-in zoom-in-95">
+                    <div className="bg-white rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+                                <ClockIcon className="w-5 h-5 text-orange-600" /> HTML 历史追溯
+                            </h3>
+                            <button onClick={() => setIsRetroSettingsOpen(false)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500">
+                                <CloseIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <p className="text-sm text-gray-600 mb-6 bg-orange-50 p-3 rounded-lg border border-orange-100">
+                                开启后，系统将在后台对历史已采集但未生成HTML的文章进行追溯生成。这会消耗额外的 Token 额度。
+                            </p>
+                            <div className="flex gap-3 justify-center">
+                                <button
+                                    onClick={() => handleRetroToggle(true)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                                    开启追溯
+                                </button>
+                                <button
+                                    onClick={() => handleRetroToggle(false)}
+                                    disabled={isTogglingRetro}
+                                    className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isTogglingRetro ? <WhiteSpinner /> : <StopIcon className="w-4 h-4" />}
+                                    停止追溯
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

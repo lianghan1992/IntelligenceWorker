@@ -1,5 +1,4 @@
 
-
 import { INTELSPIDER_SERVICE_PATH } from '../config';
 import { apiFetch, createApiQuery } from './helper';
 import { 
@@ -140,6 +139,18 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
     }
     const query = createApiQuery(apiParams);
     return apiFetch<PaginatedResponse<SpiderArticle>>(`${INTELSPIDER_SERVICE_PATH}/articles${query}`);
+}
+
+export const exportArticlesCsv = async (params: any): Promise<Blob> => {
+    const apiParams = { ...params };
+    const query = createApiQuery(apiParams);
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/export${query}`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Export failed');
+    return response.blob();
 }
 
 export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then(a => ({
