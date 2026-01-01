@@ -49,9 +49,19 @@ const TOOLS = [
 // --- 思考链组件 ---
 const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
     const [isExpanded, setIsExpanded] = useState(true);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom when streaming new content
+    useEffect(() => {
+        if (isStreaming && isExpanded && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [content, isStreaming, isExpanded]);
+
     if (!content) return null;
+
     return (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-sm">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-1">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100/50 transition-colors border-b border-slate-100"
@@ -62,8 +72,12 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
             </button>
             {isExpanded && (
                 <div className="px-4 py-3">
-                    <div className="text-[11px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto custom-scrollbar italic opacity-80">
+                    <div 
+                        ref={scrollRef}
+                        className="text-[11px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto custom-scrollbar italic opacity-80"
+                    >
                         {content}
+                        {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 align-middle bg-indigo-400 animate-pulse"></span>}
                     </div>
                 </div>
             )}
@@ -74,6 +88,22 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 // --- 显式检索片段展示组件 ---
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
+    const [searchStep, setSearchStep] = useState(0);
+    
+    useEffect(() => {
+        if(isSearching) {
+            const interval = setInterval(() => setSearchStep(s => (s + 1) % 3), 800);
+            return () => clearInterval(interval);
+        } else {
+            setSearchStep(0);
+        }
+    }, [isSearching]);
+
+    const searchStatusText = [
+        "正在解析检索意图...",
+        "正在匹配向量数据库...",
+        "正在重排序检索结果..."
+    ];
     
     // 只要处于搜索状态，哪怕没有 query 也要显示 Loading
     if (!query && !isSearching) return null;
@@ -96,7 +126,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="p-2 space-y-2 bg-white/60 border-t border-blue-100/50">
+                <div className="p-2 bg-white/60 border-t border-blue-100/50">
                     {isSearching && (
                         <div className="py-4 flex flex-col items-center justify-center text-blue-400 gap-2">
                              <div className="flex gap-1">
@@ -104,29 +134,33 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
                              </div>
-                             <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">正在匹配向量数据库...</span>
+                             <span className="text-[10px] font-bold uppercase tracking-wider opacity-70 transition-all duration-300 min-w-[120px] text-center">{searchStatusText[searchStep]}</span>
                         </div>
                     )}
-                    {!isSearching && items.map((item, idx) => (
-                        <div 
-                            key={item.id || idx} 
-                            onClick={() => onClick(item)}
-                            className="p-3 bg-white border border-blue-100 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
-                        >
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <span className="flex-shrink-0 w-4 h-4 rounded bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center font-mono">
-                                    {idx + 1}
-                                </span>
-                                <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700">{item.title}</span>
-                                <span className="text-[9px] text-slate-400 font-mono">{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}%</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700 italic">
-                                {item.content}
-                            </p>
+                    {!isSearching && (
+                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                            {items.map((item, idx) => (
+                                <div 
+                                    key={item.id || idx} 
+                                    onClick={() => onClick(item)}
+                                    className="p-3 bg-white border border-blue-100 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
+                                >
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <span className="flex-shrink-0 w-4 h-4 rounded bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center font-mono">
+                                            {idx + 1}
+                                        </span>
+                                        <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700">{item.title}</span>
+                                        <span className="text-[9px] text-slate-400 font-mono">{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}%</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700 italic">
+                                        {item.content}
+                                    </p>
+                                </div>
+                            ))}
+                            {itemCount === 0 && (
+                                <div className="py-3 text-center text-xs text-slate-400 italic">未发现强关联的情报片段。</div>
+                            )}
                         </div>
-                    ))}
-                    {!isSearching && itemCount === 0 && (
-                        <div className="py-3 text-center text-xs text-slate-400 italic">未发现强关联的情报片段。</div>
                     )}
                 </div>
             )}
