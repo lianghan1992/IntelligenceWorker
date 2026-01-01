@@ -75,7 +75,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
-    // 只要有 query (说明触发了检索) 或者正在检索状态，就应该渲染，给用户反馈
+    // 只要处于搜索状态，哪怕没有 query 也要显示 Loading
     if (!query && !isSearching) return null;
 
     const itemCount = items ? items.length : 0;
@@ -88,7 +88,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
             >
                 {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600" />}
                 <span className="flex-1 text-left truncate">
-                    {isSearching ? `正在检索情报库: "${query || '分析中...'}"` : `已完成检索: "${query}"`}
+                    {isSearching ? `正在检索情报库: "${query || '分析意图中...'}"` : `已完成检索: "${query}"`}
                 </span>
                 {!isSearching && itemCount > 0 && (
                     <span className="ml-1 bg-blue-200/60 px-1.5 py-0.5 rounded-full text-[9px] text-blue-800 font-mono flex-shrink-0">{itemCount} 来源</span>
@@ -173,7 +173,7 @@ export const AIChatPanel: React.FC<{
             if (match) {
                 try { return JSON.parse(match[1]); } catch (e2) { /* ignore */ }
             }
-            // 3. 尝试提取首尾大括号
+            // 3. 尝试提取首尾大括号 (Greedy)
             const jsonStart = str.indexOf('{');
             const jsonEnd = str.lastIndexOf('}');
             if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -192,14 +192,20 @@ export const AIChatPanel: React.FC<{
         setIsStreaming(true);
 
         const currentHistory = [...messages, userMsg];
+        const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+        
+        // 关键 Prompt 修改：注入当前时间，强制要求检索
         const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
-Always search the knowledge base if the user asks for specific data, news, or technical parameters.
-CRITICAL: Use Markdown for your final response. Use bold text, tables, and lists to make the report look professional.
+Current Date: ${currentDate}.
+Your Knowledge Cutoff is old, so you MUST use the "search_knowledge_base" tool for ANY queries regarding recent sales data (2024-2026), personnel changes, or specific news.
+DO NOT say "According to my knowledge base" unless you have actually called the tool and received results.
+If you need data, output the JSON tool call immediately.
 Use Chinese for your responses.`;
 
         let accumulatedContent = '';
         let accumulatedReasoning = '';
         let nativeToolCall: any = null;
+        let isToolCallDetected = false;
 
         try {
             // 第一阶段：生成决策与工具调用
@@ -221,15 +227,24 @@ Use Chinese for your responses.`;
                     const call = chunk.tool_calls[0];
                     if (call.function?.name) nativeToolCall.name = call.function.name;
                     if (call.function?.arguments) nativeToolCall.arguments += call.function.arguments;
+                    isToolCallDetected = true;
                 }
 
-                // UI 优化：如果内容看起来像是在写 JSON (可能是工具调用)，暂时隐藏内容，只显示思考
-                // 防止用户看到原始 JSON 字符串
+                // 手动检测：如果内容看起来像是在写 JSON (可能是工具调用)，或者出现了“正在检索”等字样
                 const contentTrimmed = accumulatedContent.trimStart();
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
+                
+                // 即使没有 JSON，如果模型口头说要检索，我们也准备拦截
+                // 注意：这种 heuristic 可能会误判，但为了用户体验，宁可多显式状态
+                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('search_knowledge_base'))) {
+                    isToolCallDetected = true;
+                }
 
-                if (isJsonStart) {
-                     updateLastAssistantMessage("", accumulatedReasoning);
+                if (isJsonStart || isToolCallDetected) {
+                     // 处于工具调用生成阶段，UI 上不显示乱码，只显示“正在分析...”或保留之前的推理
+                     // 但我们需要强制更新 UI 为“搜索中”
+                     if (!isSearching) setIsSearching(true);
+                     updateLastAssistantMessage("", accumulatedReasoning, "分析中...");
                 } else {
                      updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
                 }
@@ -278,12 +293,12 @@ Use Chinese for your responses.`;
 
                 const citations = searchRes.items || [];
                 const context = citations.map((item, idx) => 
-                    `[${idx+1}] 标题: ${item.title}\n内容: ${item.content}`
+                    `[${idx+1}] 标题: ${item.title}\n发布时间: ${item.publish_date}\n内容: ${item.content}`
                 ).join('\n\n') || "未找到相关内部情报片段。";
 
                 const toolResponseMsg = {
                     role: 'system',
-                    content: `### 检索到的关键事实库 (关键词: ${finalToolQuery}):\n${context}\n\n请基于以上检索事实，并结合你的专家知识，为用户提供一份结构化的 Markdown 分析报告。必须引用来源标注如 [1], [2]。`
+                    content: `### 检索结果 (关键词: ${finalToolQuery}):\n${context}\n\n请严格基于以上事实回答用户。如果检索结果没有提及，请明确说明“知识库暂无相关数据”，不要编造。`
                 };
 
                 accumulatedContent = '';
@@ -302,6 +317,9 @@ Use Chinese for your responses.`;
                     if (chunk.content) accumulatedContent += chunk.content;
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
                 });
+            } else if (isToolCallDetected) {
+                // 如果检测到了工具调用的意图但提取失败，回退
+                updateLastAssistantMessage("抱歉，我尝试调用检索工具但遇到了格式解析错误。请稍后再试。", accumulatedReasoning);
             }
 
         } catch (error) {
@@ -321,7 +339,8 @@ Use Chinese for your responses.`;
                     ...last, 
                     content, 
                     reasoning, 
-                    searchQuery: searchQuery || last.searchQuery, // 保持已有的 query
+                    // 只要有了新的 searchQuery，就覆盖旧的；如果传了空且之前有值，保持之前的值，防止闪烁
+                    searchQuery: searchQuery || last.searchQuery, 
                     retrievedItems: retrievedItems || last.retrievedItems,
                     citations: retrievedItems || last.citations 
                 }];
