@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
 
 declare global {
@@ -75,39 +75,39 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     
-    // 如果没有查询词且不处于搜索状态，则不渲染
+    // 只要有 query (说明触发了检索) 或者正在检索状态，就应该渲染，给用户反馈
     if (!query && !isSearching) return null;
 
     const itemCount = items ? items.length : 0;
 
     return (
-        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100">
+        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100/50">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-800 bg-blue-100/50 hover:bg-blue-100 transition-colors"
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <GlobeIcon className="w-3.5 h-3.5" />}
-                <span>
-                    {isSearching ? `正在联网检索: "${query}"...` : `已完成检索: "${query}"`}
+                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600" />}
+                <span className="flex-1 text-left truncate">
+                    {isSearching ? `正在检索情报库: "${query || '分析中...'}"` : `已完成检索: "${query}"`}
                 </span>
                 {!isSearching && itemCount > 0 && (
-                    <span className="ml-1 bg-blue-200/50 px-1.5 py-0.5 rounded-full text-[9px] text-blue-800">{itemCount} 源</span>
+                    <span className="ml-1 bg-blue-200/60 px-1.5 py-0.5 rounded-full text-[9px] text-blue-800 font-mono flex-shrink-0">{itemCount} 来源</span>
                 )}
-                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
                 <div className="p-2 space-y-2 bg-white/60 border-t border-blue-100/50">
-                    {isSearching && itemCount === 0 && (
+                    {isSearching && (
                         <div className="py-4 flex flex-col items-center justify-center text-blue-400 gap-2">
                              <div className="flex gap-1">
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
                              </div>
-                             <span className="text-[10px] font-bold uppercase tracking-wider">正在查询知识库...</span>
+                             <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">正在匹配向量数据库...</span>
                         </div>
                     )}
-                    {items.map((item, idx) => (
+                    {!isSearching && items.map((item, idx) => (
                         <div 
                             key={item.id || idx} 
                             onClick={() => onClick(item)}
@@ -152,12 +152,36 @@ export const AIChatPanel: React.FC<{
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // 使用 setTimeout 确保 DOM 更新后再滚动
+        setTimeout(() => {
+             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
     };
 
     useEffect(() => {
         scrollToBottom();
     }, [messages, isStreaming, isSearching]);
+
+    // 辅助函数：从复杂的 LLM 输出中提取 JSON
+    const extractJson = (str: string) => {
+        try {
+            // 1. 尝试直接解析
+            return JSON.parse(str);
+        } catch (e) {
+            // 2. 尝试提取 markdown 代码块 ```json ... ```
+            const match = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            if (match) {
+                try { return JSON.parse(match[1]); } catch (e2) { /* ignore */ }
+            }
+            // 3. 尝试提取首尾大括号
+            const jsonStart = str.indexOf('{');
+            const jsonEnd = str.lastIndexOf('}');
+            if (jsonStart !== -1 && jsonEnd !== -1) {
+                try { return JSON.parse(str.substring(jsonStart, jsonEnd + 1)); } catch (e3) { /* ignore */ }
+            }
+            return null;
+        }
+    };
 
     const handleSend = async () => {
         if (!input.trim() || isStreaming || isSearching) return;
@@ -199,12 +223,11 @@ Use Chinese for your responses.`;
                     if (call.function?.arguments) nativeToolCall.arguments += call.function.arguments;
                 }
 
-                // 检查是否在内容中“手写”了 JSON 工具请求（容错处理）
-                // 某些模型会输出 ```json { ... } ```
+                // UI 优化：如果内容看起来像是在写 JSON (可能是工具调用)，暂时隐藏内容，只显示思考
+                // 防止用户看到原始 JSON 字符串
                 const contentTrimmed = accumulatedContent.trimStart();
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
 
-                // 如果看起来像是在尝试调用工具，则不更新 content 到 UI，只更新 reasoning
                 if (isJsonStart) {
                      updateLastAssistantMessage("", accumulatedReasoning);
                 } else {
@@ -223,20 +246,26 @@ Use Chinese for your responses.`;
                 } catch (e) { /* ignore */ }
             }
             
-            // 2. 尝试从文本内容的 JSON 块中提取 (容错)
+            // 2. 尝试从文本内容的 JSON 块中提取 (容错处理，应对 DeepSeek 等模型直接输出 JSON 的情况)
             if (!finalToolQuery) {
-                // 匹配 { "tool": ... "query": "..." } 或 { "query": "..." }
-                const jsonMatch = accumulatedContent.match(/\{.*"query":\s*"(.*?)".*\}/s);
-                if (jsonMatch) finalToolQuery = jsonMatch[1];
+                const jsonObj = extractJson(accumulatedContent);
+                if (jsonObj && jsonObj.query) {
+                    finalToolQuery = jsonObj.query;
+                } else if (jsonObj && jsonObj.tool === "search_knowledge_base" && jsonObj.parameters?.query) {
+                     finalToolQuery = jsonObj.parameters.query;
+                }
             }
 
             if (finalToolQuery) {
+                // 状态切换：流式结束 -> 开始搜索
                 setIsStreaming(false);
                 setIsSearching(true);
-                // 立即更新 UI，展示“正在检索”状态
-                // 注意：这里我们传递 finalToolQuery 到 searchQuery 字段，RetrievedIntelligence 组件会因此显示 loading 态
+                
+                // 关键点：立即更新 UI，将 searchQuery 写入消息状态
+                // 这样 RetrievedIntelligence 组件会立即渲染出“正在检索...”状态
                 updateLastAssistantMessage("", accumulatedReasoning, finalToolQuery);
 
+                // 执行检索
                 const searchRes = await searchSemanticSegments({
                     query_text: finalToolQuery,
                     page: 1,
@@ -258,6 +287,7 @@ Use Chinese for your responses.`;
                 };
 
                 accumulatedContent = '';
+                
                 // 第三阶段：生成最终 Markdown 报告
                 await streamChatCompletions({
                     model: MODEL_ID,
@@ -291,7 +321,7 @@ Use Chinese for your responses.`;
                     ...last, 
                     content, 
                     reasoning, 
-                    searchQuery: searchQuery || last.searchQuery,
+                    searchQuery: searchQuery || last.searchQuery, // 保持已有的 query
                     retrievedItems: retrievedItems || last.retrievedItems,
                     citations: retrievedItems || last.citations 
                 }];
@@ -313,17 +343,16 @@ Use Chinese for your responses.`;
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
-        // 关键修复：针对用户气泡（深色背景）和助手气泡（浅色背景）使用不同的 Prose 样式
-        // 用户：强制所有文本为白色/浅色
-        // 助手：使用默认深色文本
-        const proseClass = isUser 
-            ? "prose prose-sm max-w-none text-white prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80"
-            : "prose prose-sm max-w-none text-slate-700 prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
+        // 用户消息使用白色文字，适应深色背景
+        const userProseClass = "prose prose-sm max-w-none text-white prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
+        
+        // AI 消息使用默认深色文字
+        const aiProseClass = "prose prose-sm max-w-none text-slate-700 prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
 
         if (window.marked && typeof window.marked.parse === 'function') {
             return (
                 <div 
-                    className={proseClass}
+                    className={isUser ? userProseClass : aiProseClass}
                     dangerouslySetInnerHTML={{ __html: window.marked.parse(content) }} 
                 />
             );
@@ -376,11 +405,13 @@ Use Chinese for your responses.`;
                                     {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
                                     
                                     {/* Retrieval Process Block (Only Assistant) */}
+                                    {/* 关键逻辑：只要有 searchQuery，就显示检索模块，状态由 isSearching 和 retrievedItems 共同决定 */}
                                     {!isUser && msg.searchQuery && (
                                         <RetrievedIntelligence 
                                             query={msg.searchQuery} 
                                             items={msg.retrievedItems || []} 
-                                            isSearching={isSearching && isLastAssistant && (!msg.retrievedItems || msg.retrievedItems.length === 0)}
+                                            // 如果是最后一条消息，且正在检索（全局状态）或者还没有结果，则显示检索加载态
+                                            isSearching={isLastAssistant && (isSearching || (!msg.retrievedItems && !msg.content))} 
                                             onClick={(item) => onReferenceClick && onReferenceClick(item)}
                                         />
                                     )}
@@ -389,12 +420,13 @@ Use Chinese for your responses.`;
                                     <div className="relative">
                                         {renderMessageContent(msg.content, isUser)}
                                         
-                                        {/* Loading Dots for streaming assistant */}
+                                        {/* Loading Dots for streaming assistant when content is empty and not searching */}
                                         {!isUser && isStreaming && isLastAssistant && !msg.content && !isSearching && !msg.reasoning && (
                                             <div className="flex gap-1 items-center py-2 px-1">
                                                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></div>
                                                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay:'200ms'}}></div>
                                                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay:'400ms'}}></div>
+                                                <span className="text-xs text-indigo-400 ml-2">正在分析...</span>
                                             </div>
                                         )}
                                     </div>
