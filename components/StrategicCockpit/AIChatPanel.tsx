@@ -284,8 +284,14 @@ Use Chinese for your responses.`;
                 const contentTrimmed = accumulatedContent.trimStart();
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
                 
-                // 宽泛检测
-                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('"tool_name"') || contentTrimmed.includes('search_') || contentTrimmed.includes('search_google'))) {
+                // 宽泛检测: 只要包含这些关键词就认为在尝试调用工具
+                if (!isToolCallDetected && (
+                    contentTrimmed.includes('"tool":') || 
+                    contentTrimmed.includes('"tool_name"') || 
+                    contentTrimmed.includes('"action"') || 
+                    contentTrimmed.includes('search_google') ||
+                    contentTrimmed.includes('"source": "google"')
+                )) {
                     isToolCallDetected = true;
                 }
 
@@ -310,18 +316,22 @@ Use Chinese for your responses.`;
                 } catch (e) { /* ignore */ }
             }
             
-            // 2. 文本 JSON 提取 (支持多种格式变体)
+            // 2. 文本 JSON 提取 (支持多种格式变体，增强容错)
             if (!finalToolName || !finalToolQuery) {
                 const jsonObj = extractJson(accumulatedContent);
                 if (jsonObj) {
+                    // Tool Name strategies
                     if (jsonObj.tool) finalToolName = jsonObj.tool;
-                    if (jsonObj.tool_name) finalToolName = jsonObj.tool_name;
-                    if (jsonObj.action) finalToolName = jsonObj.action; // Support 'action' field
+                    else if (jsonObj.tool_name) finalToolName = jsonObj.tool_name;
+                    else if (jsonObj.action) finalToolName = jsonObj.action;
+                    else if (jsonObj.source === 'google' || jsonObj.source === 'internet') finalToolName = 'search_google';
 
+                    // Tool Query strategies
                     if (jsonObj.query) finalToolQuery = jsonObj.query;
                     else if (jsonObj.parameters?.query) finalToolQuery = jsonObj.parameters.query;
                     else if (jsonObj.arguments?.query) finalToolQuery = jsonObj.arguments.query;
-                    else if (Array.isArray(jsonObj.queries) && jsonObj.queries.length > 0) finalToolQuery = jsonObj.queries[0]; // Support 'queries' array
+                    else if (Array.isArray(jsonObj.queries) && jsonObj.queries.length > 0) finalToolQuery = jsonObj.queries[0];
+                    else if (jsonObj.keywords) finalToolQuery = jsonObj.keywords;
                 }
             }
 
@@ -335,17 +345,28 @@ Use Chinese for your responses.`;
                 }
             }
 
-            // 智能回退
-            if (!finalToolQuery && isToolCallDetected) {
-                console.warn("Tool call detected but parsing failed. Falling back to user input.");
-                finalToolQuery = currentInput;
-                // Default to KB if name extraction failed
-                if (!finalToolName) finalToolName = 'search_knowledge_base'; 
-            }
+            // 4. 智能回退与兜底
+            if (isToolCallDetected) {
+                // 如果检测到意图但没提取到 Query，回退使用用户输入
+                if (!finalToolQuery) {
+                    console.warn("Tool call detected but parsing query failed. Falling back to user input.");
+                    finalToolQuery = currentInput;
+                }
 
-            // 默认兜底：如果检测到了 search_google 字符串但没解析出 name
-            if (!finalToolName && accumulatedContent.includes('search_google')) {
-                finalToolName = 'search_google';
+                // 如果没提取到 Name，但 Query 存在，根据 Query 内容或上下文猜测
+                if (!finalToolName && finalToolQuery) {
+                    // 如果内容中有 google 字样，或者 accumulatedContent 里有 google，或者 query 本身像在找新闻
+                    if (
+                        accumulatedContent.toLowerCase().includes('google') || 
+                        accumulatedContent.toLowerCase().includes('internet') ||
+                        finalToolQuery.includes('最新') || 
+                        finalToolQuery.includes('新闻')
+                    ) {
+                        finalToolName = 'search_google';
+                    } else {
+                        finalToolName = 'search_knowledge_base';
+                    }
+                }
             }
 
             if (finalToolQuery) {
@@ -370,11 +391,9 @@ Use Chinese for your responses.`;
 
                         // 2. Extract Links (Look for [Read more](url))
                         const urls = new Set<string>();
-                        // Pattern to match [Read more](https://...) from the user provided example
                         const readMoreRegex = /\[Read more\]\((https?:\/\/[^)]+)\)/g;
                         let match;
                         while ((match = readMoreRegex.exec(searchResultMarkdown)) !== null) {
-                            // Filter out google internal links just in case
                             if (!match[1].includes('google.com/search') && !match[1].includes('google.com/url')) {
                                 urls.add(match[1]);
                             }
@@ -400,13 +419,12 @@ Use Chinese for your responses.`;
                             const contentPromises = topUrls.map(async (url) => {
                                 try {
                                     const content = await fetchJinaReader(url);
-                                    // Simple extraction of title from markdown (first line usually)
                                     const titleMatch = content.match(/^#+\s+(.*)$/m);
                                     const title = titleMatch ? titleMatch[1] : url;
                                     return {
                                         id: url,
                                         title: title.substring(0, 100),
-                                        content: content.substring(0, 3000), // Limit content per article to avoid context overflow
+                                        content: content.substring(0, 3000), // Limit content per article
                                         source_name: 'Google Search',
                                         original_url: url,
                                         created_at: new Date().toISOString(),
