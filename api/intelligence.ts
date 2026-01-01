@@ -231,7 +231,7 @@ export const exportChunks = (data: any): Promise<{ export_data: any }> =>
 /**
  * Fetches webpage content using Jina Reader.
  * @param url The target URL to fetch
- * @param headers Optional custom headers (e.g. for X-Target-Selector)
+ * @param customHeaders Optional custom headers (e.g. for X-Target-Selector)
  * @returns Markdown content string
  */
 export const fetchJinaReader = async (url: string, customHeaders?: Record<string, string>): Promise<string> => {
