@@ -306,6 +306,19 @@ Use Chinese for your responses.`;
                 }
             }
 
+            // 3. 正则兜底提取 (增强容错)
+            if (!finalToolQuery) {
+                const regexMatch = accumulatedContent.match(/"query"\s*:\s*"([^"]+)"/);
+                if (regexMatch) {
+                    finalToolQuery = regexMatch[1];
+                } else {
+                    const regexMatchSingle = accumulatedContent.match(/'query'\s*:\s*'([^']+)'/);
+                    if (regexMatchSingle) {
+                        finalToolQuery = regexMatchSingle[1];
+                    }
+                }
+            }
+
             if (finalToolQuery) {
                 // 状态切换：流式结束 -> 开始搜索
                 setIsStreaming(false);
@@ -354,7 +367,21 @@ Use Chinese for your responses.`;
                 });
             } else if (isToolCallDetected) {
                 // 如果检测到了工具调用的意图但提取失败，回退
-                updateLastAssistantMessage("抱歉，我尝试调用检索工具但遇到了格式解析错误。请稍后再试。", accumulatedReasoning);
+                
+                // 增强判定：只有内容看起来真的像代码/JSON 或者是空的时候，才报错。
+                // 如果是一段正常的对话文本（只是偶然提到了 search_knowledge_base），则直接显示文本。
+                const contentTrimmed = accumulatedContent.trim();
+                const looksLikeCode = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```') || contentTrimmed.length === 0;
+
+                if (nativeToolCall?.name || looksLikeCode) {
+                    updateLastAssistantMessage("抱歉，我尝试调用检索工具但遇到了格式解析错误。请尝试换个说法提问。", accumulatedReasoning);
+                } else {
+                    // 误判为工具调用，实际是普通回复，恢复显示原内容
+                    updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
+                }
+            } else {
+                // 没有检测到工具调用，正常结束（确保最后的状态更新）
+                updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }
 
         } catch (error) {
