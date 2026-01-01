@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions } from '../../api/stratify';
-import { searchSemanticSegments } from '../../api/intelligence';
+import { searchSemanticSegments, fetchJinaReader } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
 
@@ -31,13 +31,30 @@ const TOOLS = [
         type: "function",
         function: {
             name: "search_knowledge_base",
-            description: "Search the automotive intelligence database for real-time data, news, technical parameters, and specific industry facts.",
+            description: "Search the internal automotive intelligence database for stored facts, news, and technical parameters.",
             parameters: {
                 type: "object",
                 properties: {
                     query: {
                         type: "string",
-                        description: "The search keywords or specific factual question to look up in the database."
+                        description: "The search keywords."
+                    }
+                },
+                required: ["query"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "search_google",
+            description: "Search the real-time internet (Google) for very recent news, live events, or specific data not found in the internal database.",
+            parameters: {
+                type: "object",
+                properties: {
+                    query: {
+                        type: "string",
+                        description: "The search keywords for Google."
                     }
                 },
                 required: ["query"]
@@ -100,14 +117,15 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
 
     const searchStatusText = [
         "正在解析检索意图...",
-        "正在匹配向量数据库...",
-        "正在重排序检索结果..."
+        "正在连接数据源...",
+        "正在阅读与整理..."
     ];
     
     // 如果没有检索词且不在搜索中，或者检索词为空，都不显示
     if ((!query && !isSearching) || (query === 'EMPTY_FALLBACK')) return null;
 
     const itemCount = items ? items.length : 0;
+    const isExternal = items.some(i => i.source_name === 'Google Search');
 
     return (
         <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100/50">
@@ -115,9 +133,9 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-800 bg-blue-100/50 hover:bg-blue-100 transition-colors"
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600" />}
+                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600" /> : (isExternal ? <GlobeIcon className="w-3.5 h-3.5 text-blue-600" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600" />)}
                 <span className="flex-1 text-left truncate">
-                    {isSearching ? `正在检索情报库: "${query || '深度分析中...'}"` : `已完成检索: "${query}"`}
+                    {isSearching ? `正在检索${isExternal ? '互联网' : '情报库'}: "${query || '深度分析中...'}"` : `已完成检索: "${query}"`}
                 </span>
                 {!isSearching && itemCount > 0 && (
                     <span className="ml-1 bg-blue-200/60 px-1.5 py-0.5 rounded-full text-[9px] text-blue-800 font-mono flex-shrink-0">{itemCount} 来源</span>
@@ -215,7 +233,7 @@ export const AIChatPanel: React.FC<{
     const handleSend = async () => {
         if (!input.trim() || isStreaming || isSearching) return;
         
-        const currentInput = input.trim(); // 保存用户原始输入
+        const currentInput = input.trim();
         const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: currentInput, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
@@ -224,11 +242,15 @@ export const AIChatPanel: React.FC<{
         const currentHistory = [...messages, userMsg];
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
         
+        // Updated System Prompt to include new tool instructions
         const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
 Current Date: ${currentDate}.
-Your Knowledge Cutoff is old, so you MUST use the "search_knowledge_base" tool for ANY queries regarding recent sales data (2024-2026), personnel changes, or specific news.
-DO NOT say "According to my knowledge base" unless you have actually called the tool and received results.
-If you need data, output the JSON tool call immediately.
+Your Knowledge Cutoff is old.
+1. For internal historical data/facts, use "search_knowledge_base".
+2. For real-time news (today/this month) or specific external info, use "search_google".
+If the user asks about recent events, ALWAYS use "search_google".
+DO NOT say "According to my knowledge base" unless you have actually called a tool.
+Output JSON tool call immediately if data is needed.
 Use Chinese for your responses.`;
 
         let accumulatedContent = '';
@@ -262,8 +284,8 @@ Use Chinese for your responses.`;
                 const contentTrimmed = accumulatedContent.trimStart();
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
                 
-                // 宽泛检测：只要提到工具名，就假设意图是检索
-                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('search_knowledge_base'))) {
+                // 宽泛检测
+                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('search_') || contentTrimmed.includes('search_google'))) {
                     isToolCallDetected = true;
                 }
 
@@ -276,10 +298,12 @@ Use Chinese for your responses.`;
             });
 
             // 第二阶段：提取搜索词并执行检索
+            let finalToolName = '';
             let finalToolQuery = '';
             
             // 1. 原生调用提取
-            if (nativeToolCall?.name === 'search_knowledge_base') {
+            if (nativeToolCall?.name) {
+                finalToolName = nativeToolCall.name;
                 try {
                     const args = JSON.parse(nativeToolCall.arguments);
                     finalToolQuery = args.query;
@@ -287,63 +311,137 @@ Use Chinese for your responses.`;
             }
             
             // 2. 文本 JSON 提取
-            if (!finalToolQuery) {
+            if (!finalToolName || !finalToolQuery) {
                 const jsonObj = extractJson(accumulatedContent);
-                if (jsonObj && jsonObj.query) {
-                    finalToolQuery = jsonObj.query;
-                } else if (jsonObj && jsonObj.tool === "search_knowledge_base" && jsonObj.parameters?.query) {
-                     finalToolQuery = jsonObj.parameters.query;
+                if (jsonObj) {
+                    if (jsonObj.tool) finalToolName = jsonObj.tool;
+                    if (jsonObj.query) finalToolQuery = jsonObj.query;
+                    else if (jsonObj.parameters?.query) finalToolQuery = jsonObj.parameters.query;
                 }
             }
 
-            // 3. 正则强力提取 (支持转义字符和多行)
+            // 3. 正则强力提取
             if (!finalToolQuery) {
-                // 匹配 "query": "..." 结构，允许转义引号
                 const regexMatch = accumulatedContent.match(/"query"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                if (regexMatch) {
-                    finalToolQuery = regexMatch[1];
-                } else {
+                if (regexMatch) finalToolQuery = regexMatch[1];
+                else {
                     const regexMatchSingle = accumulatedContent.match(/'query'\s*:\s*'((?:[^'\\]|\\.)*)'/);
-                    if (regexMatchSingle) {
-                        finalToolQuery = regexMatchSingle[1];
-                    }
+                    if (regexMatchSingle) finalToolQuery = regexMatchSingle[1];
                 }
             }
 
-            // 4. 【关键修正】智能回退机制：如果检测到工具调用意图但提取失败，直接使用用户原问题
-            // 这解决了 "格式解析错误" 导致流程中断的问题
+            // 智能回退
             if (!finalToolQuery && isToolCallDetected) {
                 console.warn("Tool call detected but parsing failed. Falling back to user input.");
-                finalToolQuery = currentInput; // 回退到用户原始输入
+                finalToolQuery = currentInput;
+                // Default to KB if name extraction failed
+                if (!finalToolName) finalToolName = 'search_knowledge_base'; 
             }
 
             if (finalToolQuery) {
-                // 状态切换：流式结束 -> 开始搜索
+                // 状态切换
                 setIsStreaming(false);
                 setIsSearching(true);
-                
-                // 立即更新 UI，显示正在搜索的词
                 updateLastAssistantMessage("", accumulatedReasoning, finalToolQuery);
 
-                // 执行检索
-                const searchRes = await searchSemanticSegments({
-                    query_text: finalToolQuery,
-                    page: 1,
-                    page_size: 10, // 增加返回数量
-                    similarity_threshold: 0.15 // 保持较低阈值以确保召回
-                });
+                let citations: InfoItem[] = [];
+                
+                if (finalToolName === 'search_google') {
+                    // --- Google Search Logic via Jina ---
+                    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(finalToolQuery)}&tbs=qdr:m&num=10`;
+                    
+                    // 1. Fetch Search Results Page
+                    const searchResultMarkdown = await fetchJinaReader(googleUrl, {
+                        'X-Return-Format': 'markdown',
+                        'X-Target-Selector': '#center_col', // User requested specific selector for Google
+                        'X-Remove-Selector': 'header, .class, #id'
+                    });
+
+                    // 2. Extract Links (Look for [Read more](url))
+                    const urls = new Set<string>();
+                    // Pattern to match [Read more](https://...) from the user provided example
+                    const readMoreRegex = /\[Read more\]\((https?:\/\/[^)]+)\)/g;
+                    let match;
+                    while ((match = readMoreRegex.exec(searchResultMarkdown)) !== null) {
+                        // Filter out google internal links just in case
+                        if (!match[1].includes('google.com/search')) {
+                            urls.add(match[1]);
+                        }
+                    }
+
+                    // Fallback: standard markdown links if Read more not found
+                    if (urls.size === 0) {
+                        const standardLinkRegex = /\[.*?\]\((https?:\/\/[^)]+)\)/g;
+                        while ((match = standardLinkRegex.exec(searchResultMarkdown)) !== null) {
+                             if (!match[1].includes('google.com')) {
+                                urls.add(match[1]);
+                             }
+                        }
+                    }
+
+                    const topUrls = Array.from(urls).slice(0, 5);
+                    
+                    if (topUrls.length > 0) {
+                        // Update status
+                        updateLastAssistantMessage("", accumulatedReasoning, `正在阅读 ${topUrls.length} 篇网页...`);
+
+                        // 3. Concurrent Fetch of Article Content
+                        const contentPromises = topUrls.map(async (url) => {
+                            try {
+                                const content = await fetchJinaReader(url);
+                                // Simple extraction of title from markdown (first line usually)
+                                const titleMatch = content.match(/^#+\s+(.*)$/m);
+                                const title = titleMatch ? titleMatch[1] : url;
+                                return {
+                                    id: url,
+                                    title: title.substring(0, 100),
+                                    content: content.substring(0, 2000), // Limit content per article
+                                    source_name: 'Google Search',
+                                    original_url: url,
+                                    created_at: new Date().toISOString(),
+                                    similarity: 1
+                                } as InfoItem;
+                            } catch (e) {
+                                return null;
+                            }
+                        });
+
+                        const fetchedArticles = await Promise.all(contentPromises);
+                        citations = fetchedArticles.filter((item): item is InfoItem => item !== null);
+                    } else {
+                        // Fallback if no links found, use the search result summary itself
+                        citations = [{
+                            id: 'google-summary',
+                            title: 'Google 搜索摘要',
+                            content: searchResultMarkdown.substring(0, 3000),
+                            source_name: 'Google Search',
+                            original_url: googleUrl,
+                            created_at: new Date().toISOString(),
+                            similarity: 1
+                        }];
+                    }
+
+                } else {
+                    // --- Standard KB Search ---
+                    const searchRes = await searchSemanticSegments({
+                        query_text: finalToolQuery,
+                        page: 1,
+                        page_size: 10,
+                        similarity_threshold: 0.15
+                    });
+                    citations = searchRes.items || [];
+                }
 
                 setIsSearching(false);
                 setIsStreaming(true);
 
-                const citations = searchRes.items || [];
                 const context = citations.map((item, idx) => 
-                    `[${idx+1}] 标题: ${item.title}\n发布时间: ${item.publish_date}\n内容: ${item.content}`
-                ).join('\n\n') || "知识库暂无直接匹配的片段。";
+                    `[${idx+1}] 标题: ${item.title}\n来源: ${item.source_name}\n内容: ${item.content}`
+                ).join('\n\n') || "未找到相关信息。";
 
                 const toolResponseMsg = {
                     role: 'system',
-                    content: `### 检索结果 (关键词: ${finalToolQuery}):\n${context}\n\n请综合以上信息回答用户。如果检索结果为空，请根据你的通用知识回答，并明确告知“知识库中暂未收录该具体信息”。`
+                    content: `### ${finalToolName === 'search_google' ? '互联网搜索' : '知识库检索'}结果 (关键词: ${finalToolQuery}):\n${context}\n\n请综合以上信息回答用户。`
                 };
 
                 accumulatedContent = '';
@@ -364,7 +462,6 @@ Use Chinese for your responses.`;
                 });
             } else {
                 // 没有检测到工具调用，正常结束
-                // 此时如果是误判（isToolCallDetected=false），则已经显示了文本
                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }
 
@@ -385,8 +482,6 @@ Use Chinese for your responses.`;
                     ...last, 
                     content, 
                     reasoning, 
-                    // 如果 searchQuery 传递了 null/undefined 但之前有值，保持之前的值，避免 UI 闪烁
-                    // 如果是新的搜索阶段，则覆盖
                     searchQuery: searchQuery !== undefined ? searchQuery : last.searchQuery, 
                     retrievedItems: retrievedItems || last.retrievedItems,
                     citations: retrievedItems || last.citations 

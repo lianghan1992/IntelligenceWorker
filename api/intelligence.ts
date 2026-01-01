@@ -231,14 +231,26 @@ export const exportChunks = (data: any): Promise<{ export_data: any }> =>
 /**
  * Fetches webpage content using Jina Reader.
  * @param url The target URL to fetch
+ * @param headers Optional custom headers (e.g. for X-Target-Selector)
  * @returns Markdown content string
  */
-export const fetchJinaReader = async (url: string): Promise<string> => {
+export const fetchJinaReader = async (url: string, customHeaders?: Record<string, string>): Promise<string> => {
     const jinaUrl = `https://r.jina.ai/${url}`;
     const headers = new Headers();
-    // Headers to request markdown and clean up the page
+    // Default headers
     headers.set('X-Return-Format', 'markdown');
-    headers.set('X-Exclude-Selector', 'header, footer, nav, .footer, .header, .nav, #footer, #header');
+    
+    // If no custom selectors are provided, use defaults to clean up common junk
+    if (!customHeaders || (!customHeaders['X-Exclude-Selector'] && !customHeaders['X-Target-Selector'])) {
+        headers.set('X-Exclude-Selector', 'header, footer, nav, .footer, .header, .nav, #footer, #header');
+    }
+
+    // Apply custom headers (overwriting defaults if keys match)
+    if (customHeaders) {
+        Object.entries(customHeaders).forEach(([key, value]) => {
+            headers.set(key, value);
+        });
+    }
     
     // Note: Calling external URL directly. 
     const response = await fetch(jinaUrl, {
