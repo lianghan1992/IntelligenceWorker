@@ -77,7 +77,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     if (!content) return null;
 
     return (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-1">
+        <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-1 max-w-full">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100/50 transition-colors border-b border-slate-100"
@@ -90,7 +90,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
                 <div className="px-4 py-3">
                     <div 
                         ref={scrollRef}
-                        className="text-[11px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto custom-scrollbar italic opacity-80"
+                        className="text-[11px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto custom-scrollbar italic opacity-80 break-words"
                     >
                         {content}
                         {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 align-middle bg-indigo-400 animate-pulse"></span>}
@@ -128,13 +128,13 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
     const isExternal = items.some(i => i.source_name === 'Google Search');
 
     return (
-        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100/50">
+        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100/50 max-w-full">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-800 bg-blue-100/50 hover:bg-blue-100 transition-colors"
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600" /> : (isExternal ? <GlobeIcon className="w-3.5 h-3.5 text-blue-600" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600" />)}
-                <span className="flex-1 text-left truncate">
+                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-600 flex-shrink-0" /> : (isExternal ? <GlobeIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />)}
+                <span className="flex-1 text-left truncate min-w-0">
                     {isSearching ? `正在检索${isExternal ? '互联网' : '情报库'}: "${query || '深度分析中...'}"` : `已完成检索: "${query}"`}
                 </span>
                 {!isSearching && itemCount > 0 && (
@@ -160,16 +160,16 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                 <div 
                                     key={item.id || idx} 
                                     onClick={() => onClick(item)}
-                                    className="p-3 bg-white border border-blue-100 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
+                                    className="p-3 bg-white border border-blue-100 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group overflow-hidden"
                                 >
                                     <div className="flex items-center gap-2 mb-1.5">
                                         <span className="flex-shrink-0 w-4 h-4 rounded bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center font-mono">
                                             {idx + 1}
                                         </span>
-                                        <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700">{item.title}</span>
-                                        <span className="text-[9px] text-slate-400 font-mono">{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}%</span>
+                                        <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700 min-w-0">{item.title}</span>
+                                        <span className="text-[9px] text-slate-400 font-mono flex-shrink-0">{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}%</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700 italic">
+                                    <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700 italic break-words">
                                         {item.content}
                                     </p>
                                 </div>
@@ -285,7 +285,7 @@ Use Chinese for your responses.`;
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
                 
                 // 宽泛检测
-                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('search_') || contentTrimmed.includes('search_google'))) {
+                if (!isToolCallDetected && (contentTrimmed.includes('"tool":') || contentTrimmed.includes('"tool_name"') || contentTrimmed.includes('search_') || contentTrimmed.includes('search_google'))) {
                     isToolCallDetected = true;
                 }
 
@@ -310,13 +310,18 @@ Use Chinese for your responses.`;
                 } catch (e) { /* ignore */ }
             }
             
-            // 2. 文本 JSON 提取
+            // 2. 文本 JSON 提取 (支持多种格式变体)
             if (!finalToolName || !finalToolQuery) {
                 const jsonObj = extractJson(accumulatedContent);
                 if (jsonObj) {
                     if (jsonObj.tool) finalToolName = jsonObj.tool;
+                    if (jsonObj.tool_name) finalToolName = jsonObj.tool_name;
+                    if (jsonObj.action) finalToolName = jsonObj.action; // Support 'action' field
+
                     if (jsonObj.query) finalToolQuery = jsonObj.query;
                     else if (jsonObj.parameters?.query) finalToolQuery = jsonObj.parameters.query;
+                    else if (jsonObj.arguments?.query) finalToolQuery = jsonObj.arguments.query;
+                    else if (Array.isArray(jsonObj.queries) && jsonObj.queries.length > 0) finalToolQuery = jsonObj.queries[0]; // Support 'queries' array
                 }
             }
 
@@ -338,6 +343,11 @@ Use Chinese for your responses.`;
                 if (!finalToolName) finalToolName = 'search_knowledge_base'; 
             }
 
+            // 默认兜底：如果检测到了 search_google 字符串但没解析出 name
+            if (!finalToolName && accumulatedContent.includes('search_google')) {
+                finalToolName = 'search_google';
+            }
+
             if (finalToolQuery) {
                 // 状态切换
                 setIsStreaming(false);
@@ -350,86 +360,98 @@ Use Chinese for your responses.`;
                     // --- Google Search Logic via Jina ---
                     const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(finalToolQuery)}&tbs=qdr:m&num=10`;
                     
-                    // 1. Fetch Search Results Page
-                    const searchResultMarkdown = await fetchJinaReader(googleUrl, {
-                        'X-Return-Format': 'markdown',
-                        'X-Target-Selector': '#center_col', // User requested specific selector for Google
-                        'X-Remove-Selector': 'header, .class, #id'
-                    });
-
-                    // 2. Extract Links (Look for [Read more](url))
-                    const urls = new Set<string>();
-                    // Pattern to match [Read more](https://...) from the user provided example
-                    const readMoreRegex = /\[Read more\]\((https?:\/\/[^)]+)\)/g;
-                    let match;
-                    while ((match = readMoreRegex.exec(searchResultMarkdown)) !== null) {
-                        // Filter out google internal links just in case
-                        if (!match[1].includes('google.com/search')) {
-                            urls.add(match[1]);
-                        }
-                    }
-
-                    // Fallback: standard markdown links if Read more not found
-                    if (urls.size === 0) {
-                        const standardLinkRegex = /\[.*?\]\((https?:\/\/[^)]+)\)/g;
-                        while ((match = standardLinkRegex.exec(searchResultMarkdown)) !== null) {
-                             if (!match[1].includes('google.com')) {
-                                urls.add(match[1]);
-                             }
-                        }
-                    }
-
-                    const topUrls = Array.from(urls).slice(0, 5);
-                    
-                    if (topUrls.length > 0) {
-                        // Update status
-                        updateLastAssistantMessage("", accumulatedReasoning, `正在阅读 ${topUrls.length} 篇网页...`);
-
-                        // 3. Concurrent Fetch of Article Content
-                        const contentPromises = topUrls.map(async (url) => {
-                            try {
-                                const content = await fetchJinaReader(url);
-                                // Simple extraction of title from markdown (first line usually)
-                                const titleMatch = content.match(/^#+\s+(.*)$/m);
-                                const title = titleMatch ? titleMatch[1] : url;
-                                return {
-                                    id: url,
-                                    title: title.substring(0, 100),
-                                    content: content.substring(0, 2000), // Limit content per article
-                                    source_name: 'Google Search',
-                                    original_url: url,
-                                    created_at: new Date().toISOString(),
-                                    similarity: 1
-                                } as InfoItem;
-                            } catch (e) {
-                                return null;
-                            }
+                    try {
+                        // 1. Fetch Search Results Page
+                        const searchResultMarkdown = await fetchJinaReader(googleUrl, {
+                            'X-Return-Format': 'markdown',
+                            'X-Target-Selector': '#center_col', // User requested specific selector for Google
+                            'X-Remove-Selector': 'header, .class, #id'
                         });
 
-                        const fetchedArticles = await Promise.all(contentPromises);
-                        citations = fetchedArticles.filter((item): item is InfoItem => item !== null);
-                    } else {
-                        // Fallback if no links found, use the search result summary itself
-                        citations = [{
-                            id: 'google-summary',
-                            title: 'Google 搜索摘要',
-                            content: searchResultMarkdown.substring(0, 3000),
-                            source_name: 'Google Search',
-                            original_url: googleUrl,
-                            created_at: new Date().toISOString(),
-                            similarity: 1
-                        }];
+                        // 2. Extract Links (Look for [Read more](url))
+                        const urls = new Set<string>();
+                        // Pattern to match [Read more](https://...) from the user provided example
+                        const readMoreRegex = /\[Read more\]\((https?:\/\/[^)]+)\)/g;
+                        let match;
+                        while ((match = readMoreRegex.exec(searchResultMarkdown)) !== null) {
+                            // Filter out google internal links just in case
+                            if (!match[1].includes('google.com/search') && !match[1].includes('google.com/url')) {
+                                urls.add(match[1]);
+                            }
+                        }
+
+                        // Fallback: standard markdown links if Read more not found
+                        if (urls.size === 0) {
+                            const standardLinkRegex = /\[.*?\]\((https?:\/\/[^)]+)\)/g;
+                            while ((match = standardLinkRegex.exec(searchResultMarkdown)) !== null) {
+                                if (!match[1].includes('google.com') && !match[1].startsWith('/')) {
+                                    urls.add(match[1]);
+                                }
+                            }
+                        }
+
+                        const topUrls = Array.from(urls).slice(0, 5);
+                        
+                        if (topUrls.length > 0) {
+                            // Update status
+                            updateLastAssistantMessage("", accumulatedReasoning, `正在阅读 ${topUrls.length} 篇网页...`);
+
+                            // 3. Concurrent Fetch of Article Content
+                            const contentPromises = topUrls.map(async (url) => {
+                                try {
+                                    const content = await fetchJinaReader(url);
+                                    // Simple extraction of title from markdown (first line usually)
+                                    const titleMatch = content.match(/^#+\s+(.*)$/m);
+                                    const title = titleMatch ? titleMatch[1] : url;
+                                    return {
+                                        id: url,
+                                        title: title.substring(0, 100),
+                                        content: content.substring(0, 3000), // Limit content per article to avoid context overflow
+                                        source_name: 'Google Search',
+                                        original_url: url,
+                                        created_at: new Date().toISOString(),
+                                        similarity: 1
+                                    } as InfoItem;
+                                } catch (e) {
+                                    return null;
+                                }
+                            });
+
+                            const fetchedArticles = await Promise.all(contentPromises);
+                            citations = fetchedArticles.filter((item): item is InfoItem => item !== null && item.content.length > 50);
+                        }
+                        
+                        // If fetching failed or no links, use the search result summary
+                        if (citations.length === 0) {
+                             citations = [{
+                                id: 'google-summary',
+                                title: 'Google 搜索摘要',
+                                content: searchResultMarkdown.substring(0, 4000),
+                                source_name: 'Google Search',
+                                original_url: googleUrl,
+                                created_at: new Date().toISOString(),
+                                similarity: 1
+                            }];
+                        }
+
+                    } catch (e) {
+                        console.error("Google search via Jina failed", e);
+                        citations = [];
                     }
 
                 } else {
                     // --- Standard KB Search ---
-                    const searchRes = await searchSemanticSegments({
-                        query_text: finalToolQuery,
-                        page: 1,
-                        page_size: 10,
-                        similarity_threshold: 0.15
-                    });
-                    citations = searchRes.items || [];
+                    try {
+                        const searchRes = await searchSemanticSegments({
+                            query_text: finalToolQuery,
+                            page: 1,
+                            page_size: 10,
+                            similarity_threshold: 0.15
+                        });
+                        citations = searchRes.items || [];
+                    } catch (e) {
+                        console.error("KB Search failed", e);
+                    }
                 }
 
                 setIsSearching(false);
@@ -504,8 +526,8 @@ Use Chinese for your responses.`;
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
-        const userProseClass = "prose prose-sm max-w-none text-white prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
-        const aiProseClass = "prose prose-sm max-w-none text-slate-700 prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
+        const userProseClass = "prose prose-sm max-w-none text-white break-words prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
+        const aiProseClass = "prose prose-sm max-w-none text-slate-700 break-words prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
 
         if (window.marked && typeof window.marked.parse === 'function') {
             return (
@@ -515,13 +537,13 @@ Use Chinese for your responses.`;
                 />
             );
         }
-        return <div className={`whitespace-pre-wrap text-sm leading-relaxed ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
+        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
     };
 
     return (
-        <div className={`flex flex-col h-full bg-white border-l border-slate-200 shadow-2xl ${className}`}>
+        <div className={`flex flex-col h-full bg-white border-l border-slate-200 shadow-2xl overflow-hidden ${className}`}>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/80 backdrop-blur z-20 shadow-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/80 backdrop-blur z-20 shadow-sm flex-shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-xl text-white shadow-lg shadow-indigo-200">
                         <SparklesIcon className="w-5 h-5" />
@@ -540,21 +562,21 @@ Use Chinese for your responses.`;
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar bg-slate-50/10 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-5 space-y-8 custom-scrollbar bg-slate-50/10 scroll-smooth overflow-x-hidden">
                 {messages.map((msg, idx) => {
                     const isUser = msg.role === 'user';
                     const isLastAssistant = !isUser && idx === messages.length - 1;
 
                     return (
-                        <div key={msg.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-3 duration-500`}>
+                        <div key={msg.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-3 duration-500 max-w-full`}>
                             <div className={`w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md transform transition-transform hover:scale-110 ${
                                 isUser ? 'bg-slate-900 text-white' : 'bg-white text-indigo-600 border border-slate-100'
                             }`}>
                                 {isUser ? <UserIcon className="w-5 h-5"/> : <SparklesIcon className="w-5 h-5"/>}
                             </div>
                             
-                            <div className={`flex flex-col max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
-                                <div className={`px-5 py-4 rounded-2xl shadow-sm border transition-all duration-300 ${
+                            <div className={`flex flex-col max-w-[85%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+                                <div className={`px-5 py-4 rounded-2xl shadow-sm border transition-all duration-300 w-full ${
                                     isUser 
                                         ? 'bg-slate-900 border-slate-800 text-white rounded-tr-sm' 
                                         : 'bg-white border-slate-200 text-slate-800 rounded-tl-sm'
@@ -575,7 +597,7 @@ Use Chinese for your responses.`;
                                     )}
 
                                     {/* Message Content */}
-                                    <div className="relative">
+                                    <div className="relative break-words overflow-hidden">
                                         {renderMessageContent(msg.content, isUser)}
                                         
                                         {/* Loading Dots for streaming assistant when content is empty and not searching */}
@@ -600,7 +622,7 @@ Use Chinese for your responses.`;
             </div>
 
             {/* Input Area */}
-            <div className="p-5 bg-white border-t border-slate-100 relative z-30">
+            <div className="p-5 bg-white border-t border-slate-100 relative z-30 flex-shrink-0">
                 <div className="relative bg-slate-50 border border-slate-200 rounded-[24px] shadow-inner focus-within:ring-4 focus-within:ring-indigo-500/5 focus-within:border-indigo-400 focus-within:bg-white transition-all duration-300">
                     <textarea
                         value={input}
