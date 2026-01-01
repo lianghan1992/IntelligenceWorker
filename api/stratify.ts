@@ -24,6 +24,8 @@ export const streamGenerate = async (
 export interface ChatCompletionRequest {
     model: string;
     messages: Array<{ role: string; content: string | any[] }>;
+    tools?: any[];
+    tool_choice?: string | object;
     stream?: boolean;
     temperature?: number;
     top_p?: number;
@@ -32,7 +34,7 @@ export interface ChatCompletionRequest {
 
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
-    onData: (data: { content?: string; reasoning?: string }) => void, // Changed signature
+    onData: (data: { content?: string; reasoning?: string; tool_calls?: any[] }) => void,
     onDone?: () => void,
     onError?: (err: any) => void
 ) => {
@@ -84,16 +86,16 @@ export const streamChatCompletions = async (
                     
                     if (delta) {
                         // Support both standard content and reasoning_content (DeepSeek/SiliconFlow)
-                        // Some providers use `reasoning`, some use `reasoning_content`
                         const content = delta.content;
                         const reasoning = delta.reasoning_content || delta.reasoning; 
+                        const tool_calls = delta.tool_calls;
                         
-                        if (content || reasoning) {
-                            onData({ content, reasoning });
+                        if (content || reasoning || tool_calls) {
+                            onData({ content, reasoning, tool_calls });
                         }
                     }
                 } catch (e) {
-                    // Ignore parse errors for partial chunks or keepalives
+                    // Ignore parse errors for partial chunks
                 }
             }
         }
@@ -159,13 +161,11 @@ export const streamGeminiCookieChat = async (
 
                 try {
                     const json = JSON.parse(dataStr);
-                    // Gemini Cookie API format: { "content": "...", "reasoning": "..." }
-                    // Directly map to onData
                     if (json.content || json.reasoning) {
                         onData({ content: json.content, reasoning: json.reasoning });
                     }
                 } catch (e) {
-                    // Ignore parse errors
+                    // Ignore
                 }
             }
         }
@@ -250,13 +250,7 @@ export const getPrompts = (params: any = {}): Promise<StratifyPrompt[]> => {
     return apiFetch<StratifyPrompt[]>(`${STRATIFY_SERVICE_PATH}/prompts${query}`);
 }
 
-// NEW: Get single prompt detail (useful for fetching by ID)
-// Using list filter fallback if specific endpoint absent, but trying RESTful ID first
 export const getPromptDetail = async (id: string): Promise<StratifyPrompt> => {
-    // Try to find it in the list via query param if ID lookup isn't explicit
-    // But since `DELETE /prompts/{id}` exists, `GET /prompts` usually returns list.
-    // We will fetch the list with ?id=id or filter client side to be safe if backend doesn't support /prompts/{id}
-    // Optimization: Assuming we might need to filter.
     const all = await getPrompts(); 
     const found = all.find(p => p.id === id);
     if (!found) throw new Error(`Prompt ${id} not found`);
@@ -351,10 +345,6 @@ export const generatePdf = async (htmlContent: string, filename?: string): Promi
     return response.blob();
 };
 
-/**
- * 批量 HTML 转 PDF 并合并
- * 使用后端接口: POST /v1/pdf/batch
- */
 export const generateBatchPdf = async (htmlFiles: { html: string; filename: string }[]): Promise<Blob> => {
     const url = `${STRATIFY_SERVICE_PATH}/v1/pdf/batch`;
     const token = localStorage.getItem('accessToken');
