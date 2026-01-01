@@ -90,6 +90,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
     const [isExpanded, setIsExpanded] = useState(true);
     const [searchStep, setSearchStep] = useState(0);
     
+    // 模拟搜索步骤进度展示，减少用户等待焦虑
     useEffect(() => {
         if(isSearching) {
             const interval = setInterval(() => setSearchStep(s => (s + 1) % 3), 800);
