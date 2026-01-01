@@ -2,10 +2,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, PuzzleIcon, RefreshIcon, CheckCircleIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, PuzzleIcon, RefreshIcon, CheckCircleIcon, DocumentTextIcon, SearchIcon } from '../icons';
 import { InfoItem } from '../../types';
 
-// Add type declaration for marked
 declare global {
   interface Window {
     marked?: {
@@ -19,15 +18,14 @@ interface Message {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
     reasoning?: string;
-    toolCallId?: string;
+    searchQuery?: string; // 显式存储搜索词
+    retrievedItems?: InfoItem[]; // 显式存储检索到的原始片段
     citations?: InfoItem[];
     timestamp?: number;
 }
 
-// Default Model Configuration - Updated to Nex-AGI variant
 const MODEL_ID = "openrouter@nex-agi/deepseek-v3.1-nex-n1:free";
 
-// Define standard tools for the model
 const TOOLS = [
     {
         type: "function",
@@ -48,11 +46,12 @@ const TOOLS = [
     }
 ];
 
+// --- 思考链组件 ---
 const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     if (!content) return null;
     return (
-        <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden">
+        <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100/50 transition-colors"
@@ -62,8 +61,8 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
                 <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="px-3 py-2 bg-slate-50 border-t border-slate-100">
-                    <div className="text-[10px] font-mono text-slate-500 whitespace-pre-wrap break-words leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
+                <div className="px-3 py-2 bg-white/30 border-t border-slate-100">
+                    <div className="text-[10px] font-mono text-slate-500 whitespace-pre-wrap break-words leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">
                         {content}
                     </div>
                 </div>
@@ -72,36 +71,46 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     );
 };
 
-const CitationCard: React.FC<{ item: InfoItem; index: number; onClick: () => void }> = ({ item, index, onClick }) => (
-    <div 
-        onClick={onClick}
-        className="group relative flex gap-3 p-3 bg-white border border-indigo-50 rounded-xl cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all duration-200"
-    >
-        <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold font-mono mt-0.5 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-            {index}
+// --- 显式检索片段展示组件 ---
+const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; onClick: (item: InfoItem) => void }> = ({ query, items, onClick }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    if (!items || items.length === 0) return null;
+
+    return (
+        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/30 overflow-hidden animate-in fade-in slide-in-from-top-1">
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-indigo-700 bg-indigo-100/50 hover:bg-indigo-100 transition-colors"
+            >
+                <SearchIcon className="w-3.5 h-3.5" />
+                <span>检索到 <span className="font-mono">{items.length}</span> 条情报片段: "{query}"</span>
+                <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            {isExpanded && (
+                <div className="p-2 space-y-2 bg-white/40">
+                    {items.map((item, idx) => (
+                        <div 
+                            key={item.id} 
+                            onClick={() => onClick(item)}
+                            className="p-2.5 bg-white border border-indigo-50 rounded-lg cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all group"
+                        >
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="flex-shrink-0 w-4 h-4 rounded bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center font-mono">
+                                    {idx + 1}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-700 truncate flex-1">{item.title}</span>
+                                <span className="text-[9px] text-slate-400">{item.source_name}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700">
+                                {item.content}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-        <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-bold text-slate-800 truncate mb-1 group-hover:text-indigo-700 transition-colors">
-                {item.title}
-            </h4>
-            <div className="flex items-center gap-2 text-[10px] text-slate-400 mb-1.5">
-                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 text-slate-500">
-                    {item.source_name}
-                </span>
-                <span>•</span>
-                <span className={item.similarity && item.similarity > 0.8 ? 'text-green-600 font-medium' : ''}>
-                    相似度 {((item.similarity || 0) * 100).toFixed(0)}%
-                </span>
-            </div>
-            <p className="text-[10px] text-slate-600 line-clamp-2 leading-relaxed opacity-80 group-hover:opacity-100">
-                {item.content}
-            </p>
-        </div>
-        <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <ArrowRightIcon className="w-3 h-3 text-indigo-400" />
-        </div>
-    </div>
-);
+    );
+};
 
 export const AIChatPanel: React.FC<{ 
     className?: string; 
@@ -128,7 +137,6 @@ export const AIChatPanel: React.FC<{
         scrollToBottom();
     }, [messages, isStreaming, isSearching]);
 
-    // Agentic RAG Logic
     const handleSend = async () => {
         if (!input.trim() || isStreaming || isSearching) return;
         
@@ -138,8 +146,6 @@ export const AIChatPanel: React.FC<{
         setIsStreaming(true);
 
         const currentHistory = [...messages, userMsg];
-
-        // 1. Pass: Ask LLM (with native tools)
         const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
 You have access to a tool to search for real-time intelligence.
 Always search the database if the user asks for specific data, news, or technical parameters.
@@ -151,6 +157,7 @@ Use Chinese for your responses.`;
         let manualJsonDetected = false;
 
         try {
+            // 第一阶段：意图识别与工具调用
             await streamChatCompletions({
                 model: MODEL_ID,
                 messages: [
@@ -164,7 +171,6 @@ Use Chinese for your responses.`;
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
                 
-                // Handle native tool_calls from stream
                 if (chunk.tool_calls) {
                     if (!nativeToolCall) nativeToolCall = { id: '', name: '', arguments: '' };
                     const call = chunk.tool_calls[0];
@@ -173,7 +179,6 @@ Use Chinese for your responses.`;
                     if (call.function?.arguments) nativeToolCall.arguments += call.function.arguments;
                 }
 
-                // Aesthetic Check: Hide streaming text if it looks like manual JSON (fallback)
                 if (accumulatedContent.trimStart().startsWith('{')) {
                      manualJsonDetected = true;
                      updateLastMessage("", accumulatedReasoning);
@@ -182,20 +187,15 @@ Use Chinese for your responses.`;
                 }
             });
 
-            // 2. Decision Phase
+            // 第二阶段：执行检索
             let finalToolQuery = '';
-            
-            // Check native tool call first
             if (nativeToolCall && nativeToolCall.name === 'search_knowledge_base') {
                 try {
                     const args = JSON.parse(nativeToolCall.arguments);
                     finalToolQuery = args.query;
-                } catch (e) {
-                    console.error("Failed to parse native tool args:", e);
-                }
+                } catch (e) { console.error(e); }
             }
             
-            // Fallback: Check manual JSON detection (some models are better at this)
             if (!finalToolQuery) {
                 const jsonMatch = accumulatedContent.match(/\{.*"tool":\s*"search_knowledge_base".*"\}/s);
                 if (jsonMatch) {
@@ -206,12 +206,12 @@ Use Chinese for your responses.`;
                 }
             }
 
-            // 3. Execution Phase
             if (finalToolQuery) {
                 setIsStreaming(false);
                 setIsSearching(true);
+                // 此时更新 UI，显式记录正在检索的词
+                updateLastMessage("", accumulatedReasoning, finalToolQuery);
 
-                // Perform Search
                 const searchRes = await searchSemanticSegments({
                     query_text: finalToolQuery,
                     page: 1,
@@ -222,21 +222,18 @@ Use Chinese for your responses.`;
                 setIsSearching(false);
                 setIsStreaming(true);
 
-                const context = searchRes.items?.map((item, idx) => 
+                const citations = searchRes.items || [];
+                const context = citations.map((item, idx) => 
                     `[${idx+1}] Title: ${item.title}\nSource: ${item.source_name}\nDate: ${item.publish_date}\nContent: ${item.content}`
                 ).join('\n\n') || "未找到相关情报。";
 
-                // Inject Context
                 const toolResponseMsg = {
                     role: 'system',
                     content: `检索结果 (Query: "${finalToolQuery}"):\n${context}\n\n请根据以上检索到的事实回答用户。如果检索结果中包含数据，请务必准确引用。使用 [1], [2] 标注来源。`
                 };
 
-                const citations = searchRes.items || [];
                 accumulatedContent = '';
-                // accumulatedReasoning = ''; // We can keep first reasoning or clear it. Let's keep for full context.
-
-                // Second LLM Pass
+                // 第三阶段：生成最终答案
                 await streamChatCompletions({
                     model: MODEL_ID,
                     messages: [
@@ -248,10 +245,9 @@ Use Chinese for your responses.`;
                 }, (chunk) => {
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
-                    updateLastMessage(accumulatedContent, accumulatedReasoning, citations);
+                    updateLastMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
                 });
             } else if (manualJsonDetected && !accumulatedContent) {
-                // If it looked like JSON but we failed to parse or execute, show what we have
                 updateLastMessage(accumulatedContent, accumulatedReasoning);
             }
 
@@ -264,13 +260,29 @@ Use Chinese for your responses.`;
         }
     };
 
-    const updateLastMessage = (content: string, reasoning: string, citations?: InfoItem[]) => {
+    const updateLastMessage = (content: string, reasoning: string, searchQuery?: string, retrievedItems?: InfoItem[]) => {
         setMessages(prev => {
             const last = prev[prev.length - 1];
             if (last && last.role === 'assistant') {
-                return [...prev.slice(0, -1), { ...last, content, reasoning, citations: citations || last.citations }];
+                return [...prev.slice(0, -1), { 
+                    ...last, 
+                    content, 
+                    reasoning, 
+                    searchQuery: searchQuery || last.searchQuery,
+                    retrievedItems: retrievedItems || last.retrievedItems,
+                    citations: retrievedItems || last.citations 
+                }];
             } else {
-                return [...prev, { id: crypto.randomUUID(), role: 'assistant', content, reasoning, citations, timestamp: Date.now() }];
+                return [...prev, { 
+                    id: crypto.randomUUID(), 
+                    role: 'assistant', 
+                    content, 
+                    reasoning, 
+                    searchQuery, 
+                    retrievedItems, 
+                    citations: retrievedItems,
+                    timestamp: Date.now() 
+                }];
             }
         });
     };
@@ -304,7 +316,7 @@ Use Chinese for your responses.`;
                     </div>
                     <div>
                         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-tight">AI 情报副驾驶</h3>
-                        <p className="text-[10px] text-slate-400 font-mono">DeepSeek V3.1 Nex-N1</p>
+                        <p className="text-[10px] text-slate-400 font-mono tracking-tight">Agentic RAG Engine v3.1</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -313,40 +325,46 @@ Use Chinese for your responses.`;
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-slate-50/30 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-slate-50/20 scroll-smooth">
                 {messages.map((msg, idx) => {
                     const isUser = msg.role === 'user';
+                    const isLastAssistant = !isUser && idx === messages.length - 1;
+
                     return (
                         <div key={msg.id} className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''} animate-in fade-in slide-in-from-bottom-2`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm mt-1 ${isUser ? 'bg-slate-800 text-white' : 'bg-white text-indigo-600 border border-slate-100'}`}>
                                 {isUser ? <UserIcon className="w-4 h-4"/> : <SparklesIcon className="w-4 h-4"/>}
                             </div>
                             <div className={`flex flex-col max-w-[85%] ${isUser ? 'items-end' : 'items-start'}`}>
-                                <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                <div className={`px-4 py-3 rounded-2xl text-[13px] leading-relaxed shadow-sm ${
                                     isUser 
                                         ? 'bg-slate-800 text-white rounded-tr-sm' 
                                         : 'bg-white border border-slate-100 text-slate-700 rounded-tl-sm'
                                 }`}>
-                                    {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && idx === messages.length - 1} />}
-                                    {renderMessageContent(msg.content)}
-                                </div>
-                                
-                                {/* Citations */}
-                                {msg.citations && msg.citations.length > 0 && (
-                                    <div className="mt-3 w-full space-y-2 animate-in fade-in slide-in-from-top-1 px-1">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                           <PuzzleIcon className="w-3 h-3" /> 参考来源
-                                        </div>
-                                        {msg.citations.map((cite, index) => (
-                                            <CitationCard 
-                                                key={cite.id} 
-                                                item={cite} 
-                                                index={index + 1}
-                                                onClick={() => onReferenceClick && onReferenceClick(cite)} 
-                                            />
-                                        ))}
+                                    {/* Reasoning Block */}
+                                    {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
+                                    
+                                    {/* Explicit Retrieval Logic Display */}
+                                    {!isUser && msg.searchQuery && (
+                                        <RetrievedIntelligence 
+                                            query={msg.searchQuery} 
+                                            items={msg.retrievedItems || []} 
+                                            onClick={(item) => onReferenceClick && onReferenceClick(item)}
+                                        />
+                                    )}
+
+                                    {/* Final Content */}
+                                    <div className="relative">
+                                        {renderMessageContent(msg.content)}
+                                        {!isUser && isStreaming && isLastAssistant && !msg.content && !isSearching && (
+                                            <div className="flex gap-1 items-center py-2">
+                                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}}></div>
+                                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}}></div>
+                                                <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}}></div>
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     );
@@ -357,7 +375,10 @@ Use Chinese for your responses.`;
                         <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center">
                             <PuzzleIcon className="w-4 h-4 text-indigo-600 animate-spin" />
                         </div>
-                        <span className="text-xs font-bold text-indigo-600">正在深入检索情报知识库...</span>
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-indigo-600">正在深入检索情报知识库...</span>
+                            <span className="text-[10px] text-slate-400">正在执行向量相似度匹配与重排序</span>
+                        </div>
                     </div>
                 )}
                 
@@ -382,7 +403,10 @@ Use Chinese for your responses.`;
                     />
                     <div className="flex justify-between items-center px-2 pb-2">
                         <div className="flex gap-1 px-2">
-                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">RAG Engine Enabled</span>
+                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                               <CheckCircleIcon className="w-3 h-3 text-green-500" />
+                               Grounding Engine Ready
+                           </span>
                         </div>
                         <button 
                             onClick={handleSend}
@@ -398,7 +422,7 @@ Use Chinese for your responses.`;
                     </div>
                 </div>
                 <div className="text-[10px] text-center text-slate-400 mt-2">
-                    内容由 Nex-N1 实时生成。支持长文本理解与复杂推理。
+                    Agent 会根据问题自动判断是否需要检索。
                 </div>
             </div>
         </div>
