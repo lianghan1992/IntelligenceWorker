@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, PuzzleIcon, RefreshIcon, CheckCircleIcon, DocumentTextIcon, SearchIcon, GlobeIcon } from '../icons';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon } from '../icons';
 import { InfoItem } from '../../types';
 
 declare global {
@@ -74,29 +74,42 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 // --- 显式检索片段展示组件 ---
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
+    
+    // 如果没有查询词且不处于搜索状态，则不渲染
     if (!query && !isSearching) return null;
 
+    const itemCount = items ? items.length : 0;
+
     return (
-        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm">
+        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/50 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm ring-1 ring-blue-100">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-blue-800 bg-blue-100/50 hover:bg-blue-100 transition-colors"
             >
                 {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin" /> : <GlobeIcon className="w-3.5 h-3.5" />}
-                <span>{isSearching ? `正在检索: "${query}"` : `已完成检索: "${query}"`}</span>
+                <span>
+                    {isSearching ? `正在联网检索: "${query}"...` : `已完成检索: "${query}"`}
+                </span>
+                {!isSearching && itemCount > 0 && (
+                    <span className="ml-1 bg-blue-200/50 px-1.5 py-0.5 rounded-full text-[9px] text-blue-800">{itemCount} 源</span>
+                )}
                 <ChevronDownIcon className={`w-3.5 h-3.5 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
-                <div className="p-2 space-y-2 bg-white/40 border-t border-blue-100/50">
-                    {isSearching && items.length === 0 && (
-                        <div className="py-6 flex flex-col items-center justify-center text-blue-400 gap-2">
-                             <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
-                             <span className="text-[10px] font-bold uppercase tracking-wider">Scouring Knowledge Base</span>
+                <div className="p-2 space-y-2 bg-white/60 border-t border-blue-100/50">
+                    {isSearching && itemCount === 0 && (
+                        <div className="py-4 flex flex-col items-center justify-center text-blue-400 gap-2">
+                             <div className="flex gap-1">
+                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
+                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
+                             </div>
+                             <span className="text-[10px] font-bold uppercase tracking-wider">正在查询知识库...</span>
                         </div>
                     )}
                     {items.map((item, idx) => (
                         <div 
-                            key={item.id} 
+                            key={item.id || idx} 
                             onClick={() => onClick(item)}
                             className="p-3 bg-white border border-blue-100 rounded-lg cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
                         >
@@ -107,12 +120,12 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                                 <span className="text-[11px] font-bold text-slate-800 truncate flex-1 group-hover:text-blue-700">{item.title}</span>
                                 <span className="text-[9px] text-slate-400 font-mono">{(item.similarity ? item.similarity * 100 : 0).toFixed(0)}%</span>
                             </div>
-                            <p className="text-[10px] text-slate-500 line-clamp-1 leading-relaxed pl-6 group-hover:text-slate-700 italic">
+                            <p className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed pl-6 group-hover:text-slate-700 italic">
                                 {item.content}
                             </p>
                         </div>
                     ))}
-                    {!isSearching && items.length === 0 && (
+                    {!isSearching && itemCount === 0 && (
                         <div className="py-3 text-center text-xs text-slate-400 italic">未发现强关联的情报片段。</div>
                     )}
                 </div>
@@ -187,8 +200,11 @@ Use Chinese for your responses.`;
                 }
 
                 // 检查是否在内容中“手写”了 JSON 工具请求（容错处理）
-                const isJsonStart = accumulatedContent.trimStart().startsWith('{') || accumulatedContent.trimStart().startsWith('```json');
+                // 某些模型会输出 ```json { ... } ```
+                const contentTrimmed = accumulatedContent.trimStart();
+                const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
 
+                // 如果看起来像是在尝试调用工具，则不更新 content 到 UI，只更新 reasoning
                 if (isJsonStart) {
                      updateLastAssistantMessage("", accumulatedReasoning);
                 } else {
@@ -198,6 +214,8 @@ Use Chinese for your responses.`;
 
             // 第二阶段：提取搜索词并执行检索
             let finalToolQuery = '';
+            
+            // 1. 尝试从原生工具调用中提取
             if (nativeToolCall?.name === 'search_knowledge_base') {
                 try {
                     const args = JSON.parse(nativeToolCall.arguments);
@@ -205,8 +223,9 @@ Use Chinese for your responses.`;
                 } catch (e) { /* ignore */ }
             }
             
-            // 容错：正则匹配手写 JSON
+            // 2. 尝试从文本内容的 JSON 块中提取 (容错)
             if (!finalToolQuery) {
+                // 匹配 { "tool": ... "query": "..." } 或 { "query": "..." }
                 const jsonMatch = accumulatedContent.match(/\{.*"query":\s*"(.*?)".*\}/s);
                 if (jsonMatch) finalToolQuery = jsonMatch[1];
             }
@@ -214,7 +233,8 @@ Use Chinese for your responses.`;
             if (finalToolQuery) {
                 setIsStreaming(false);
                 setIsSearching(true);
-                // 立即更新 UI 展示正在检索
+                // 立即更新 UI，展示“正在检索”状态
+                // 注意：这里我们传递 finalToolQuery 到 searchQuery 字段，RetrievedIntelligence 组件会因此显示 loading 态
                 updateLastAssistantMessage("", accumulatedReasoning, finalToolQuery);
 
                 const searchRes = await searchSemanticSegments({
@@ -290,26 +310,25 @@ Use Chinese for your responses.`;
         });
     };
 
-    const renderMessageContent = (content: string) => {
+    const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
+        
+        // 关键修复：针对用户气泡（深色背景）和助手气泡（浅色背景）使用不同的 Prose 样式
+        // 用户：强制所有文本为白色/浅色
+        // 助手：使用默认深色文本
+        const proseClass = isUser 
+            ? "prose prose-sm max-w-none text-white prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80"
+            : "prose prose-sm max-w-none text-slate-700 prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
+
         if (window.marked && typeof window.marked.parse === 'function') {
             return (
                 <div 
-                    className="prose prose-sm max-w-none 
-                        prose-p:my-2 prose-p:leading-relaxed prose-p:text-slate-700
-                        prose-headings:font-black prose-headings:text-slate-900 prose-headings:mb-3 prose-headings:mt-4
-                        prose-h1:text-lg prose-h2:text-base prose-h3:text-sm
-                        prose-ul:my-2 prose-ul:pl-5 prose-li:my-1
-                        prose-strong:font-bold prose-strong:text-indigo-700
-                        prose-table:w-full prose-table:border prose-table:border-slate-200 prose-table:text-[12px]
-                        prose-th:bg-slate-50 prose-th:p-2 prose-td:p-2 prose-td:border-t
-                        prose-blockquote:border-l-4 prose-blockquote:border-indigo-200 prose-blockquote:bg-indigo-50/50 prose-blockquote:py-1 prose-blockquote:px-3 prose-blockquote:italic
-                        text-slate-700"
+                    className={proseClass}
                     dangerouslySetInnerHTML={{ __html: window.marked.parse(content) }} 
                 />
             );
         }
-        return <div className="whitespace-pre-wrap text-sm leading-relaxed">{content}</div>;
+        return <div className={`whitespace-pre-wrap text-sm leading-relaxed ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
     };
 
     return (
@@ -353,22 +372,24 @@ Use Chinese for your responses.`;
                                         ? 'bg-slate-900 border-slate-800 text-white rounded-tr-sm' 
                                         : 'bg-white border-slate-200 text-slate-800 rounded-tl-sm'
                                 }`}>
-                                    {/* Reasoning Block */}
+                                    {/* Reasoning Block (Only Assistant) */}
                                     {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
                                     
-                                    {/* Retrieval Process Block */}
+                                    {/* Retrieval Process Block (Only Assistant) */}
                                     {!isUser && msg.searchQuery && (
                                         <RetrievedIntelligence 
                                             query={msg.searchQuery} 
                                             items={msg.retrievedItems || []} 
-                                            isSearching={isSearching && isLastAssistant && (msg.retrievedItems?.length === 0)}
+                                            isSearching={isSearching && isLastAssistant && (!msg.retrievedItems || msg.retrievedItems.length === 0)}
                                             onClick={(item) => onReferenceClick && onReferenceClick(item)}
                                         />
                                     )}
 
-                                    {/* AI Message Content */}
+                                    {/* Message Content */}
                                     <div className="relative">
-                                        {renderMessageContent(msg.content)}
+                                        {renderMessageContent(msg.content, isUser)}
+                                        
+                                        {/* Loading Dots for streaming assistant */}
                                         {!isUser && isStreaming && isLastAssistant && !msg.content && !isSearching && !msg.reasoning && (
                                             <div className="flex gap-1 items-center py-2 px-1">
                                                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></div>
