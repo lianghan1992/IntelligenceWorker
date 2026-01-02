@@ -252,15 +252,20 @@ export const AIChatPanel: React.FC<{
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
         
         // Updated System Prompt to include new tool instructions
+        // CRITICAL: Strictly enforcing JSON only output for tools to avoid conversational noise.
         const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
 Current Date: ${currentDate}.
 Your Knowledge Cutoff is old.
-1. For internal historical data/facts, use "search_knowledge_base".
-2. For real-time news (today/this month) or specific external info, use "search_google".
-If the user asks about recent events, ALWAYS use "search_google".
-DO NOT say "According to my knowledge base" unless you have actually called a tool.
-Output JSON tool call immediately if data is needed.
-Use Chinese for your responses.`;
+
+Tools available:
+1. "search_knowledge_base": For internal historical data/facts.
+2. "search_google": For real-time news (today/this month) or specific external info.
+
+INSTRUCTIONS:
+- If the user asks about recent events (today, this week/month) or specific data, YOU MUST USE A TOOL.
+- When using a tool, output ONLY the JSON object. DO NOT output any conversational text like "Okay, I will search..." before or after the JSON.
+- Format: { "tool": "search_google", "query": "..." }
+- If no tool is needed, answer directly in Chinese.`;
 
         let accumulatedContent = '';
         let accumulatedReasoning = '';
@@ -294,6 +299,7 @@ Use Chinese for your responses.`;
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
                 
                 // 宽泛检测: 只要包含这些关键词就认为在尝试调用工具
+                // Fix: Added explicit checks for the specific keys seen in the user issue
                 if (!isToolCallDetected && (
                     contentTrimmed.includes('"tool":') || 
                     contentTrimmed.includes('"tool_name"') || 
@@ -306,6 +312,7 @@ Use Chinese for your responses.`;
 
                 if (isJsonStart || isToolCallDetected) {
                      if (!isSearching) setIsSearching(true);
+                     // CRITICAL FIX: Clear content when tool call is detected to prevent "Inverted" UI
                      updateLastAssistantMessage("", accumulatedReasoning, "分析中...");
                 } else {
                      updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
@@ -333,7 +340,8 @@ Use Chinese for your responses.`;
                     finalToolName = jsonObj.action || jsonObj.tool || jsonObj.tool_name || jsonObj.function || finalToolName;
                     
                     // Tool Query strategies
-                    finalToolQuery = jsonObj.query || jsonObj.keywords || jsonObj.parameters?.query || jsonObj.arguments?.query || finalToolQuery;
+                    // Fix: Added 'search_query' which was used by the model in the user report
+                    finalToolQuery = jsonObj.query || jsonObj.keywords || jsonObj.parameters?.query || jsonObj.arguments?.query || jsonObj.search_query || finalToolQuery;
                     
                     // Support 'queries' array
                     if (!finalToolQuery && Array.isArray(jsonObj.queries) && jsonObj.queries.length > 0) {
@@ -359,10 +367,12 @@ Use Chinese for your responses.`;
             }
 
             // 4. 智能回退与兜底
+            // Check if intention was clearly to search google even if JSON parsing failed slightly
             const intentDetected = isToolCallDetected || 
                                    !!finalToolName || 
                                    accumulatedContent.includes('search_google') || 
-                                   accumulatedContent.includes('"action":');
+                                   accumulatedContent.includes('"action":') ||
+                                   accumulatedContent.includes('"tool_name":');
 
             if (intentDetected && !finalToolQuery) {
                  console.warn("Intent detected but no query parsed. Using user input.");
@@ -384,8 +394,9 @@ Use Chinese for your responses.`;
 
             if (finalToolQuery) {
                 // 状态切换
-                setIsStreaming(false);
+                setIsStreaming(false); // Stop the first stream visual
                 setIsSearching(true);
+                // Clear the raw JSON text from UI, show query instead
                 updateLastAssistantMessage("", accumulatedReasoning, finalToolQuery);
 
                 let citations: InfoItem[] = [];
@@ -489,7 +500,7 @@ Use Chinese for your responses.`;
                 }
 
                 setIsSearching(false);
-                setIsStreaming(true);
+                setIsStreaming(true); // Restart streaming for final answer
 
                 const context = citations.map((item, idx) => 
                     `[${idx+1}] 标题: ${item.title}\n来源: ${item.source_name}\n内容: ${item.content}`
@@ -517,7 +528,7 @@ Use Chinese for your responses.`;
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
                 });
             } else {
-                // 没有检测到工具调用，正常结束
+                // 没有检测到工具调用，或者解析完全失败，正常结束
                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }
 
@@ -560,6 +571,15 @@ Use Chinese for your responses.`;
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
+        // Remove any lingering JSON artifacts if the model output them despite instructions
+        let displayContent = content;
+        if (!isUser) {
+             // Basic heuristic to hide raw tool calls if they leaked into final output
+             if (displayContent.trim().startsWith('{') && displayContent.includes('tool')) {
+                 return <div className="text-xs text-slate-400 italic">正在处理工具调用...</div>;
+             }
+        }
+
         const userProseClass = "prose prose-sm max-w-none text-white break-words prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
         const aiProseClass = "prose prose-sm max-w-none text-slate-700 break-words prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50";
 
@@ -567,11 +587,11 @@ Use Chinese for your responses.`;
             return (
                 <div 
                     className={isUser ? userProseClass : aiProseClass}
-                    dangerouslySetInnerHTML={{ __html: window.marked.parse(content) }} 
+                    dangerouslySetInnerHTML={{ __html: window.marked.parse(displayContent) }} 
                 />
             );
         }
-        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
+        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{displayContent}</div>;
     };
 
     return (
