@@ -1,3 +1,4 @@
+
 // src/config.ts
 
 /**
@@ -5,16 +6,13 @@
  * 注意：在生产环境中，这些敏感信息应该通过环境变量等更安全的方式进行管理。
  */
 
-// 通用API前缀，用于代理路由。
-// 后端已通过 root_path="/api" 修复了重定向问题，
-// 因此前端所有请求应恢复使用此 /api 前缀。
-export const API_BASE_URL = '/api';
+// 通用API前缀。现在指向独立的后端服务器地址。
+export const API_BASE_URL = 'https://autoinsight.jingyu.today:8081';
 
 // Full path for the user authentication & subscription service
 export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
 
 // Full path for the main intelligence data service
-// Updated to point to the new IntelSpider service
 export const INTELSPIDER_SERVICE_PATH = `${API_BASE_URL}/intelspider`;
 
 // Full path for livestream analysis service
