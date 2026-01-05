@@ -7,7 +7,7 @@
  */
 
 // 通用API前缀。现在指向独立的后端服务器地址。
-export const API_BASE_URL = 'https://intelligenceworker.jingyu.today:8081';
+export const API_BASE_URL = 'https://autoinsight_api.jingyu.today:8081';
 
 // Full path for the user authentication & subscription service
 export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
