@@ -7,8 +7,8 @@ import { apiFetch } from './helper';
 
 // --- Auth API ---
 export const login = (email: string, password: string): Promise<{ accessToken: string; user: User }> =>
-    // 添加末尾斜杠以适配某些后端配置，防止 POST 被 307 重定向导致丢失 Body
-    apiFetch<{ accessToken: string; user: User }>(`${USER_SERVICE_PATH}/login/`, {
+    // 移除末尾斜杠，避免 307 Temporary Redirect，确保 POST 请求体能正确到达后端
+    apiFetch<{ accessToken: string; user: User }>(`${USER_SERVICE_PATH}/login`, {
         method: 'POST',
         body: JSON.stringify({ 
             email, 
@@ -18,9 +18,10 @@ export const login = (email: string, password: string): Promise<{ accessToken: s
     });
 
 export const register = (username: string, email: string, password: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/register/`, {
+    // 移除末尾斜杠
+    apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/register`, {
         method: 'POST',
         body: JSON.stringify({ username, email, password }),
     });
 
-export const getMe = (): Promise<User> => apiFetch<User>(`${USER_SERVICE_PATH}/me/`);
+export const getMe = (): Promise<User> => apiFetch<User>(`${USER_SERVICE_PATH}/me`);
