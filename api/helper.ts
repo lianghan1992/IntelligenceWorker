@@ -4,8 +4,12 @@
 // --- Generic API Fetch Helper ---
 export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
+    
+    // 关键修复：登录和注册请求不应携带旧的 Token，防止后端鉴权中间件在校验账号密码前先报错 401
+    const isAuthRequest = url.includes('/login') || url.includes('/register');
     const token = localStorage.getItem('accessToken');
-    if (token) {
+    
+    if (token && !isAuthRequest) {
         headers.set('Authorization', `Bearer ${token}`);
     }
     
@@ -18,9 +22,14 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
     const response = await fetch(url, { ...options, headers });
 
     if (response.status === 401) {
-        localStorage.removeItem('accessToken');
-        window.location.reload();
-        throw new Error('认证失败，请重新登录。');
+        // 关键修复：如果是正常的业务请求 Token 过期，则清除 Token 并刷新
+        // 但如果是登录请求本身返回 401（账号密码错），则不应刷新页面，否则用户看不到报错信息
+        if (!isAuthRequest) {
+            localStorage.removeItem('accessToken');
+            window.location.reload();
+            throw new Error('认证失败，请重新登录。');
+        }
+        // 对于登录请求的 401，我们直接交给业务逻辑处理，不触发 reload
     }
 
     if (!response.ok) {
