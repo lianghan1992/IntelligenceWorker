@@ -1,5 +1,7 @@
+
 // src/api/livestream.ts
 
+import { LIVESTREAM_SERVICE_PATH } from '../config';
 import { PaginatedResponse, LivestreamTask } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -21,8 +23,10 @@ const fileToBase64 = (file: File): Promise<string> => {
     });
 };
 
-const TASKS_PATH = '/api/livestream/tasks';
-const PROMPTS_PATH = '/api/livestream/prompts';
+// 使用配置中的路径，结构为 /livestream/api/...
+const BASE_PATH = `${LIVESTREAM_SERVICE_PATH}/api`;
+const TASKS_PATH = `${BASE_PATH}/tasks`;
+const PROMPTS_PATH = `${BASE_PATH}/prompts`;
 
 
 // --- Livestream / Events API ---
@@ -62,6 +66,9 @@ export const createLivestreamTask = async (data: {
 };
 
 export const deleteLivestreamTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}`, { method: 'DELETE' });
+
+export const cleanupTask = (taskId: string): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${TASKS_PATH}/${taskId}/cleanup`, { method: 'POST' });
 
 export const startTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}/start`, { method: 'POST' });
 export const stopTask = (taskId: string): Promise<void> => apiFetch<void>(`${TASKS_PATH}/${taskId}/stop`, { method: 'POST' });
