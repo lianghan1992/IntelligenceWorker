@@ -1,11 +1,12 @@
+
 /// <reference lib="WebWorker" />
 
 export {}; // Mark as module
 
 const sw = self as unknown as ServiceWorkerGlobalScope;
 
-// 强制升级版本号 v3 -> v4
-const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v4';
+// 强制升级版本号 v4 -> v5
+const CACHE_NAME = 'ai-auto-intelligence-platform-cache-v5';
 
 // Add assets that are absolutely essential for the app shell to work offline.
 const urlsToCache = [
@@ -78,7 +79,6 @@ sw.addEventListener('fetch', (event) => {
   }
 
   // HTML: Network First (Strategy Change)
-  // 以前可能是 Cache First，现在改为 HTML 文件永远优先网络，确保发布即更新
   if (request.destination === 'document') {
     event.respondWith(
       fetch(request)
