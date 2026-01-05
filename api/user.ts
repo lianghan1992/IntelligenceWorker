@@ -1,3 +1,4 @@
+
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
@@ -6,25 +7,41 @@ import {
 import { apiFetch, createApiQuery } from './helper';
 
 // --- User Management API (Admin) ---
-export const getUsers = (params: any): Promise<PaginatedResponse<UserListItem>> => {
-    const query = createApiQuery(params);
-    // Add trailing slash to avoid backend redirect that causes Mixed Content error
-    return apiFetch<PaginatedResponse<UserListItem>>(`${USER_SERVICE_PATH}/${query}`);
+export const getUsers = async (params: any): Promise<PaginatedResponse<UserListItem>> => {
+    // Map 'limit' to 'size' for the new API standard if present
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    
+    const query = createApiQuery(apiParams);
+    // Updated endpoint: /api/user/users (was /user)
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/users${query}`);
+    
+    // Map response to frontend type
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size, // Map 'size' back to 'limit'
+        totalPages: response.total_pages // Map 'total_pages' back to 'totalPages'
+    };
 }
 
 export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
-    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/${userId}`, {
+    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 
 export const deleteUser = (userId: string): Promise<void> =>
-    apiFetch<void>(`${USER_SERVICE_PATH}/${userId}`, {
+    apiFetch<void>(`${USER_SERVICE_PATH}/users/${userId}`, {
         method: 'DELETE',
     });
 
 export const getUserProfileDetails = (userId: string): Promise<UserProfileDetails> =>
-    apiFetch<UserProfileDetails>(`${USER_SERVICE_PATH}/${userId}/profile/details`);
+    apiFetch<UserProfileDetails>(`${USER_SERVICE_PATH}/users/${userId}/profile/details`);
 
 // --- Plans API ---
 export const getPlans = (): Promise<PlanDetails> => apiFetch<PlanDetails>(`${USER_SERVICE_PATH}/plans`);

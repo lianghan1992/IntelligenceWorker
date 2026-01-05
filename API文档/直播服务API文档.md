@@ -1,24 +1,25 @@
 # 直播录制服务 最新 API 文档
 
-说明：所有接口前缀为 `/api`，返回均为 JSON；时间字段统一为北京时间字符串（`YYYY-MM-DD HH:MM:SS`）。
+说明：所有接口前缀为 `/api/livestream`，返回均为 JSON；时间字段统一为北京时间字符串（`YYYY-MM-DD HH:MM:SS`）。
 
 ## 接口总览
-- 创建任务：`POST /api/tasks`
-- 启动任务：`POST /api/tasks/{task_id}/start`
-- 停止任务：`POST /api/tasks/{task_id}/stop`
-- 删除任务：`DELETE /api/tasks/{task_id}`
-- 查询任务状态：`GET /api/tasks/{task_id}`
-- 获取总结报告文本：`GET /api/tasks/{task_id}/summary`
-- 查询任务列表：`GET /api/tasks`
-- 重新抽帧与总结：`POST /api/tasks/{task_id}/reprocess`
-- 重新总结：`POST /api/tasks/{task_id}/resummarize`
-- 获取可用提示词：`GET /api/prompts`
+- 创建任务：`POST /api/livestream/tasks`
+- 启动任务：`POST /api/livestream/tasks/{task_id}/start`
+- 停止任务：`POST /api/livestream/tasks/{task_id}/stop`
+- 删除任务：`DELETE /api/livestream/tasks/{task_id}`
+- 清理任务文件：`POST /api/livestream/tasks/{task_id}/cleanup`
+- 查询任务状态：`GET /api/livestream/tasks/{task_id}`
+- 获取总结报告文本：`GET /api/livestream/tasks/{task_id}/summary`
+- 查询任务列表：`GET /api/livestream/tasks`
+- 重新抽帧与总结：`POST /api/livestream/tasks/{task_id}/reprocess`
+- 重新总结：`POST /api/livestream/tasks/{task_id}/resummarize`
+- 获取可用提示词：`GET /api/livestream/prompts`
 
 ---
 
 ## 创建任务
 - 接口介绍：创建一个新的直播录制或直链下载任务。若 `live_url` 为 `.mp4`/`.m3u8`/`.flv`，系统会自动走直链分段下载；否则按平台页面录制。
-- 接口方法：`POST /api/tasks`
+- 接口方法：`POST /api/livestream/tasks`
 - 字段说明：
   - `live_url`：字符串，平台页面或直链地址。
   - `task_name`：字符串，任务名称。
@@ -28,8 +29,8 @@
   - `direct_download`：布尔，可选，存在直链时是否直接按直链处理（系统可自动判定）。
   - `cover_image_b64`：字符串，必填，创建时上传的封面图片（服务端压缩至 ≤300KB 并存储）。
 - curl 示例：
-```
-curl -sS -X POST http://127.0.0.1:7651/api/tasks \
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks \
   -H 'Content-Type: application/json' \
   -d '{
     "live_url": "https://live.bilibili.com/8178490",
@@ -40,7 +41,7 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks \
   }'
 ```
 - 返回示例：
-```
+```json
 { "task_id": "66c0e799-d0e7-4de6-95ea-dbd45022d11a", "status": "listening", "message": "任务创建成功，已开始监听直播状态" }
 ```
 
@@ -48,14 +49,14 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks \
 
 ## 启动任务
 - 接口介绍：启动或重新启动一个任务（仅当任务状态为 `listening` 或 `failed` 时允许）。
-- 接口方法：`POST /api/tasks/{task_id}/start`
+- 接口方法：`POST /api/livestream/tasks/{task_id}/start`
 - 字段说明：无请求体；根据任务已有的 `start_time` 判断是否为计划启动。
 - curl 示例：
-```
-curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/start
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks/<task_id>/start
 ```
 - 返回示例：
-```
+```json
 { "task_id": "<task_id>", "status": "listening", "message": "任务已启动监听/等待录制", "scheduled_at": "2025-11-18 10:00:00", "scheduled": true }
 ```
 
@@ -63,14 +64,14 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/start
 
 ## 停止任务
 - 接口介绍：请求停止录制或下载；系统会结束 ffmpeg/下载进程并继续后续收尾。
-- 接口方法：`POST /api/tasks/{task_id}/stop`
+- 接口方法：`POST /api/livestream/tasks/{task_id}/stop`
 - 字段说明：无请求体。
 - curl 示例：
-```
-curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/stop
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks/<task_id>/stop
 ```
 - 返回示例：
-```
+```json
 { "task_id": "<task_id>", "status": "stopping", "message": "任务停止中" }
 ```
 （若当前为 `listening`，则直接返回 `{ "status": "stopped" }`）
@@ -79,31 +80,46 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/stop
 
 ## 删除任务
 - 接口介绍：删除任务及其目录（如存在），并从数据库移除记录。
-- 接口方法：`DELETE /api/tasks/{task_id}`
+- 接口方法：`DELETE /api/livestream/tasks/{task_id}`
 - 字段说明：无请求体。
 - curl 示例：
-```
-curl -sS -X DELETE http://127.0.0.1:7651/api/tasks/<task_id>
+```bash
+curl -sS -X DELETE http://127.0.0.1:7651/api/livestream/tasks/<task_id>
 ```
 - 返回示例：
-```
+```json
 { "task_id": "<task_id>", "status": "deleted", "message": "任务已删除" }
+```
+
+---
+
+## 清理任务文件
+- 接口介绍：清理任务的临时文件（如 frames、segments_audio 文件夹），保留核心结果。
+- 接口方法：`POST /api/livestream/tasks/{task_id}/cleanup`
+- 字段说明：无请求体。仅允许对非运行中（failed/finished/stopped）的任务执行。
+- curl 示例：
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks/<task_id>/cleanup
+```
+- 返回示例：
+```json
+{ "task_id": "<task_id>", "status": "cleaned", "deleted": ["frames", "segments_audio"], "message": "已清理临时文件" }
 ```
 
 ---
 
 ## 查询任务状态
 - 接口介绍：返回某个任务的完整记录（包含 `stats_json` 动态统计信息）。
-- 接口方法：`GET /api/tasks/{task_id}`
+- 接口方法：`GET /api/livestream/tasks/{task_id}`
 - 字段说明（响应中的主要字段）：
   - `id`、`task_name`、`live_url`、`company`、`start_time`、`summary_prompt`、`status`、`created_at`、`updated_at`、`dir`、`cover_image_b64`。
   - `stats_json`：对象，任务的动态统计信息与元数据（详见下文“stats_json 字段说明”）。
 - curl 示例：
-```
-curl -sS http://127.0.0.1:7651/api/tasks/<task_id>
+```bash
+curl -sS http://127.0.0.1:7651/api/livestream/tasks/<task_id>
 ```
 - 返回示例（截断）：
-```
+```json
 {
   "id": "<task_id>",
   "task_name": "B站直播测试",
@@ -135,22 +151,23 @@ curl -sS http://127.0.0.1:7651/api/tasks/<task_id>
 
 ## 查询任务列表（重点：stats_json 字段与流程）
 - 接口介绍：分页返回所有任务列表，支持按车企与开始日期筛选；每条记录包含动态 `stats_json`。
-- 接口方法：`GET /api/tasks`
+- 接口方法：`GET /api/livestream/tasks`
 - 字段说明（查询参数）：
   - `page`：整数，默认 `1`。
-  - `page_size`：整数，默认 `20`。
+  - `size`：整数，默认 `20`。
   - `company`：字符串，可选，按车企名称模糊筛选（数据库 ILIKE）。
   - `start_date`：字符串，可选，格式 `YYYY-MM-DD`，筛选指定日期及之后的任务（按 `start_time`）。
 - curl 示例：
-```
-curl -sS 'http://127.0.0.1:7651/api/tasks?page=1&page_size=20&company=捷途汽车&start_date=2025-11-18'
+```bash
+curl -sS 'http://127.0.0.1:7651/api/livestream/tasks?page=1&size=20&company=捷途汽车&start_date=2025-11-18'
 ```
 - 返回示例（截断）：
-```
+```json
 {
   "total": 132,
   "page": 1,
-  "page_size": 20,
+  "size": 20,
+  "total_pages": 7,
   "items": [
     {
       "id": "<task_id>",
@@ -204,11 +221,11 @@ curl -sS 'http://127.0.0.1:7651/api/tasks?page=1&page_size=20&company=捷途汽�
 
 ## 获取原始识别稿（Raw_Manuscript.md）
 - 接口介绍：返回任务的原始识别稿（逐帧识别结果汇总）。若文件不存在则返回 404。
-- 接口方法：`GET /api/tasks/{task_id}/manuscript`
+- 接口方法：`GET /api/livestream/tasks/{task_id}/manuscript`
 - 字段说明：无请求体。
 - curl 示例：
-```
-curl -sS http://127.0.0.1:7651/api/tasks/<task_id>/manuscript
+```bash
+curl -sS http://127.0.0.1:7651/api/livestream/tasks/<task_id>/manuscript
 ```
 - 返回示例（`text/plain; charset=utf-8`）：
 ```
@@ -217,11 +234,11 @@ frames:1\nconfidence:medium\nraw_text:......\n---\nframes:2\nconfidence:high\nra
 
 ## 获取最终报告文本（Final_Report.md）
 - 接口介绍：返回任务生成的最终总结报告文本。若未生成则返回 404。
-- 接口方法：`GET /api/tasks/{task_id}/summary`
+- 接口方法：`GET /api/livestream/tasks/{task_id}/summary`
 - 字段说明：无请求体。
 - curl 示例：
-```
-curl -sS http://127.0.0.1:7651/api/tasks/<task_id>/summary
+```bash
+curl -sS http://127.0.0.1:7651/api/livestream/tasks/<task_id>/summary
 ```
 - 返回示例（`text/plain; charset=utf-8`）：
 ```
@@ -232,18 +249,18 @@ curl -sS http://127.0.0.1:7651/api/tasks/<task_id>/summary
 
 ## 重新抽帧与总结
 - 接口介绍：对直链原始文件或分段文件重新抽帧识别并生成新的总结报告。
-- 接口方法：`POST /api/tasks/{task_id}/reprocess`
+- 接口方法：`POST /api/livestream/tasks/{task_id}/reprocess`
 - 字段说明（请求体，可选）：
   - `fps_scale`：浮点，抽帧密度系数。
   - `prompt`：字符串，视觉分析提示词文件名。
 - curl 示例：
-```
-curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/reprocess \
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks/<task_id>/reprocess \
   -H 'Content-Type: application/json' \
   -d '{ "fps_scale": 1.0, "prompt": "04.峰会论坛总结.md" }'
 ```
 - 返回示例：
-```
+```json
 { "task_id": "<task_id>", "status": "finished", "message": "已重新抽帧识别并生成总结", "summary_path": "recordings/.../Final_Report.md" }
 ```
 
@@ -251,17 +268,17 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/reprocess \
 
 ## 重新总结
 - 接口介绍：基于已存在的 `Raw_Manuscript.md` 重新生成 `Final_Report.md`。
-- 接口方法：`POST /api/tasks/{task_id}/resummarize`
+- 接口方法：`POST /api/livestream/tasks/{task_id}/resummarize`
 - 字段说明（请求体，可选）：
   - `summary_prompt`：字符串，新的总结提示词文件名。
 - curl 示例：
-```
-curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/resummarize \
+```bash
+curl -sS -X POST http://127.0.0.1:7651/api/livestream/tasks/<task_id>/resummarize \
   -H 'Content-Type: application/json' \
   -d '{ "summary_prompt": "04.峰会论坛总结.md" }'
 ```
 - 返回示例：
-```
+```json
 { "task_id": "<task_id>", "status": "finished", "message": "已重新生成总结", "summary_path": "recordings/.../Final_Report.md" }
 ```
 
@@ -269,14 +286,14 @@ curl -sS -X POST http://127.0.0.1:7651/api/tasks/<task_id>/resummarize \
 
 ## 获取可用提示词
 - 接口介绍：返回 `prompts/` 目录下可选提示词文件名（已排除默认两个：`default_summary.md` 与 `vision_analysis.md`）。
-- 接口方法：`GET /api/prompts`
+- 接口方法：`GET /api/livestream/prompts`
 - 字段说明：无请求体。
 - curl 示例：
-```
-curl -sS http://127.0.0.1:7651/api/prompts
+```bash
+curl -sS http://127.0.0.1:7651/api/livestream/prompts
 ```
 - 返回示例：
-```
+```json
 { "prompts": ["01.车企发布会摘要总结.md", "04.峰会论坛总结.md", ...] }
 ```
 

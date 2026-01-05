@@ -10,13 +10,13 @@
 export const API_BASE_URL = 'https://autoinsight_api.jingyu.today:8081';
 
 // Full path for the user authentication & subscription service
-export const USER_SERVICE_PATH = `${API_BASE_URL}/user`;
+export const USER_SERVICE_PATH = `${API_BASE_URL}/api/user`;
 
 // Full path for the main intelligence data service
 export const INTELSPIDER_SERVICE_PATH = `${API_BASE_URL}/intelspider`;
 
 // Full path for livestream analysis service
-export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/livestream`;
+export const LIVESTREAM_SERVICE_PATH = `${API_BASE_URL}/api/livestream`;
 
 // Full path for competitiveness dashboard service (Legacy admin endpoints)
 export const COMPETITIVENESS_SERVICE_PATH = `${API_BASE_URL}/competitiveness`;

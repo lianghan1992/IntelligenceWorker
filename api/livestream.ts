@@ -23,16 +23,31 @@ const fileToBase64 = (file: File): Promise<string> => {
     });
 };
 
-// 使用配置中的路径，结构为 /livestream/api/...
-const BASE_PATH = `${LIVESTREAM_SERVICE_PATH}/api`;
-const TASKS_PATH = `${BASE_PATH}/tasks`;
-const PROMPTS_PATH = `${BASE_PATH}/prompts`;
+// 使用配置中的路径，结构为 /api/livestream/...
+const TASKS_PATH = `${LIVESTREAM_SERVICE_PATH}/tasks`;
+const PROMPTS_PATH = `${LIVESTREAM_SERVICE_PATH}/prompts`;
 
 
 // --- Livestream / Events API ---
-export const getLivestreamTasks = (params: { page?: number; page_size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
-    const query = createApiQuery(params);
-    return apiFetch<PaginatedResponse<LivestreamTask>>(`${TASKS_PATH}${query}`);
+export const getLivestreamTasks = async (params: { page?: number; page_size?: number; size?: number; [key: string]: any }): Promise<PaginatedResponse<LivestreamTask>> => {
+    // Map 'page_size' to 'size' for the new API standard
+    const apiParams = { ...params };
+    if (apiParams.page_size) {
+        apiParams.size = apiParams.page_size;
+        delete apiParams.page_size;
+    }
+    
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${TASKS_PATH}${query}`);
+
+    // Map response to frontend type
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size, // Map 'size' back to 'limit'
+        totalPages: response.total_pages // Map 'total_pages' back to 'totalPages'
+    };
 };
 
 export const getLivestreamTaskById = (taskId: string): Promise<LivestreamTask> =>
