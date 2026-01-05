@@ -162,6 +162,7 @@ export interface SpiderSource {
     main_url: string;
     total_points: number;
     total_articles: number;
+    created_at?: string;
 }
 
 export interface SpiderPoint {
