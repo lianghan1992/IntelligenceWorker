@@ -240,7 +240,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 <div id="ppt-canvas-container" className="flex-1 flex items-center justify-center overflow-hidden">
                     {activePage && activePage.html && !activePage.isGenerating ? (
                         <div 
-                            className="bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] origin-center transition-transform duration-500"
+                            className="bg-white shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)] origin-center"
                             style={{ 
                                 width: '1600px', 
                                 height: '900px',
