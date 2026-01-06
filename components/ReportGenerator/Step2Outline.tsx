@@ -52,9 +52,17 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         
         let accumulatedText = '', accumulatedReasoning = '';
         try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").catch(() => ({ 
+                content: "请根据用户需求生成大纲JSON，包含title和pages数组。",
+                channel_code: "openai",
+                model_id: "gpt-4o"
+            }));
+
+            // Construct model ID correctly
+            const modelName = (prompt as any).channel_code ? `${(prompt as any).channel_code}@${(prompt as any).model_id}` : 'gpt-4o';
+
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
+                model: modelName,
                 messages: currentHistory.map(m => ({ role: m.role, content: m.content })),
                 stream: true
             }, (data) => {
@@ -104,7 +112,7 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
 
     return (
         <div className="h-full flex flex-col bg-white overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm flex-shrink-0">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white z-10 shadow-sm">
                 <div>
                     <h2 className="text-xl font-black text-slate-800 tracking-tight">
                         {outline?.title || (outline === null ? '等待输入主题...' : '正在生成中...')}
