@@ -4,7 +4,7 @@ import { StratifyOutline } from '../../types';
 import { 
     SparklesIcon, BrainIcon, ChevronDownIcon, ArrowRightIcon,
     RefreshIcon, TrashIcon, CheckIcon, DocumentTextIcon,
-    HomeIcon
+    HomeIcon, ChevronRightIcon
 } from '../icons';
 import { Step1Collect } from './Step1Collect';
 import { Step2Outline } from './Step2Outline';
@@ -12,6 +12,7 @@ import { Step3Compose } from './Step3Compose';
 import { Step4Finalize } from './Step4Finalize';
 import { getPromptDetail } from '../../api/stratify';
 
+// --- Types ---
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
 export interface ChatMessage {
@@ -36,10 +37,10 @@ export interface PPTData {
     pages: PPTPageData[];
 }
 
-const STORAGE_KEY = 'auto_insight_ppt_session_v2_root';
+const STORAGE_KEY = 'auto_insight_pro_editor_v1';
 
 const DEFAULT_HISTORY: ChatMessage[] = [
-    { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
+    { role: 'assistant', content: '您好。我是您的报告架构师。\n请在右侧上传资料，或直接在下方输入研究主题。' }
 ];
 
 const DEFAULT_DATA: PPTData = {
@@ -51,16 +52,44 @@ const DEFAULT_DATA: PPTData = {
 
 // --- Pro-Editor Components ---
 
-const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ msg, isStreaming }) => {
+// 1. Thinking Block (Collapsible Code-like block)
+const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    if (!content) return null;
+
+    return (
+        <div className="my-2 rounded-md border border-slate-200 bg-slate-50 overflow-hidden">
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:bg-slate-100 transition-colors select-none"
+            >
+                <BrainIcon className={`w-3 h-3 ${isStreaming ? 'animate-pulse text-indigo-500' : ''}`} />
+                <span>思维链 {isStreaming ? '生成中...' : ''}</span>
+                <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isExpanded && (
+                <div className="px-3 py-2 border-t border-slate-100">
+                    <div className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed">
+                        {content}
+                        {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 align-middle bg-indigo-500 animate-pulse"></span>}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 2. Message Item (User vs AI)
+const MessageItem: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ msg, isStreaming }) => {
     const isUser = msg.role === 'user';
-    const [showReasoning, setShowReasoning] = useState(true);
     
     if (msg.hidden) return null;
 
     if (isUser) {
         return (
-            <div className="flex justify-end mb-6 animate-in fade-in slide-in-from-bottom-2">
-                <div className="bg-white border border-slate-200 px-4 py-3 rounded-md shadow-sm max-w-[90%] text-sm text-slate-800 leading-relaxed">
+            <div className="flex justify-end mb-6 animate-in fade-in slide-in-from-bottom-1">
+                <div className="bg-white border border-slate-200 px-4 py-3 rounded-md shadow-sm max-w-[90%] text-sm text-slate-800 leading-relaxed tracking-wide">
                     {msg.content}
                 </div>
             </div>
@@ -68,39 +97,24 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
     }
 
     return (
-        <div className="flex gap-4 mb-8 animate-in fade-in slide-in-from-bottom-2 group">
-            <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
-                <SparklesIcon className="w-3.5 h-3.5 text-white" />
-            </div>
-            
+        <div className="flex gap-3 mb-8 animate-in fade-in slide-in-from-bottom-1 group">
             <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-bold text-slate-400 mb-1.5 uppercase tracking-wider flex items-center gap-2">
-                    AI ARCHITECT
-                    {isStreaming && <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>}
+                {/* Agent Label */}
+                <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-4 h-4 rounded-sm bg-indigo-600 flex items-center justify-center">
+                        <SparklesIcon className="w-2.5 h-2.5 text-white" />
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">AI Architect</span>
                 </div>
 
-                <div className="text-sm text-slate-700 leading-7 border-l-2 border-slate-100 pl-4 transition-colors hover:border-indigo-100">
+                {/* Content Container (Notion Style) */}
+                <div className="pl-3 border-l-2 border-indigo-100 group-hover:border-indigo-200 transition-colors">
                     {msg.reasoning && (
-                        <div className="mb-3">
-                            <button 
-                                onClick={() => setShowReasoning(!showReasoning)}
-                                className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400 hover:text-indigo-600 transition-colors select-none mb-2"
-                            >
-                                <BrainIcon className={`w-3 h-3 ${isStreaming ? 'animate-pulse text-indigo-500' : ''}`} />
-                                <span>{isStreaming ? '正在思考...' : '思考过程'}</span>
-                                <ChevronDownIcon className={`w-3 h-3 transition-transform duration-300 ${showReasoning ? 'rotate-180' : ''}`} />
-                            </button>
-                            {showReasoning && (
-                                <div className="p-3 bg-slate-50 rounded-md border border-slate-100 text-[11px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto custom-scrollbar">
-                                    {msg.reasoning}
-                                    {isStreaming && !msg.content && <span className="inline-block w-1.5 h-3 ml-1 bg-indigo-400 animate-pulse" />}
-                                </div>
-                            )}
-                        </div>
+                        <ThinkingBlock content={msg.reasoning} isStreaming={!!isStreaming} />
                     )}
-                    <div className="whitespace-pre-wrap markdown-body">
+                    <div className="text-sm text-slate-700 leading-7 markdown-body">
                         {msg.content}
-                        {isStreaming && <span className="inline-block w-1.5 h-4 ml-0.5 bg-indigo-600 animate-pulse align-sub" />}
+                        {isStreaming && !msg.reasoning && <span className="inline-block w-1.5 h-4 ml-1 align-sub bg-indigo-600 animate-pulse"></span>}
                     </div>
                 </div>
             </div>
@@ -108,7 +122,8 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
     );
 };
 
-const StepIndicator: React.FC<{ currentStage: PPTStage }> = ({ currentStage }) => {
+// 3. Step Progress Bar (Minimalist)
+const StepProgress: React.FC<{ currentStage: PPTStage }> = ({ currentStage }) => {
     const steps: { id: PPTStage; label: string }[] = [
         { id: 'collect', label: '1. 灵感' },
         { id: 'outline', label: '2. 大纲' },
@@ -119,23 +134,23 @@ const StepIndicator: React.FC<{ currentStage: PPTStage }> = ({ currentStage }) =
     const currentIndex = steps.findIndex(s => s.id === currentStage);
 
     return (
-        <div className="flex items-center bg-slate-100 p-1 rounded-lg">
+        <div className="flex items-center gap-1 bg-slate-100/50 p-1 rounded-lg">
             {steps.map((step, idx) => {
                 const isActive = idx === currentIndex;
-                const isCompleted = idx < currentIndex;
+                const isPast = idx < currentIndex;
                 
                 return (
                     <div 
                         key={step.id} 
                         className={`
-                            px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-300 flex items-center gap-2
+                            px-3 py-1 rounded-md text-xs font-bold transition-all duration-200 flex items-center gap-1.5
                             ${isActive 
-                                ? 'bg-white text-indigo-600 shadow-sm' 
-                                : isCompleted ? 'text-slate-600' : 'text-slate-400'
+                                ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
+                                : isPast ? 'text-slate-500' : 'text-slate-300'
                             }
                         `}
                     >
-                        {isCompleted && <CheckIcon className="w-3 h-3" />}
+                        {isPast && <CheckIcon className="w-3 h-3" />}
                         <span>{step.label}</span>
                     </div>
                 );
@@ -145,7 +160,7 @@ const StepIndicator: React.FC<{ currentStage: PPTStage }> = ({ currentStage }) =
 };
 
 export const ReportGenerator: React.FC = () => {
-    // --- State Initialization ---
+    // --- State ---
     const [stage, setStage] = useState<PPTStage>(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -165,7 +180,7 @@ export const ReportGenerator: React.FC = () => {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsedData = JSON.parse(saved).data;
-                // Important: Reset transient "generating" flags on load
+                // Reset transient states
                 if (parsedData.pages) {
                     parsedData.pages = parsedData.pages.map((p: any) => ({ ...p, isGenerating: false }));
                 }
@@ -186,8 +201,7 @@ export const ReportGenerator: React.FC = () => {
         setSaveStatus('saving');
         const stateToSave = { stage, history, data, chatInput };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-        
-        const timer = setTimeout(() => setSaveStatus('saved'), 800);
+        const timer = setTimeout(() => setSaveStatus('saved'), 600);
         return () => clearTimeout(timer);
     }, [stage, history, data, chatInput]);
 
@@ -202,7 +216,7 @@ export const ReportGenerator: React.FC = () => {
     }, [history, streamingMessage]);
 
     const handleReset = () => {
-        if (confirm('确定要清空当前任务并重新开始吗？')) {
+        if (confirm('确定要重置当前任务吗？所有未保存的进度将丢失。')) {
             localStorage.removeItem(STORAGE_KEY);
             setStage('collect');
             setHistory(DEFAULT_HISTORY);
@@ -216,16 +230,16 @@ export const ReportGenerator: React.FC = () => {
         const userInput = chatInput.trim();
         setChatInput('');
 
+        // If in Collect stage, typing means setting the topic and moving to Outline
         if (stage === 'collect') {
             try {
                 setIsLlmActive(true);
-                // 使用默认 Prompt ID, 这里假设了一个 ID, 实际应替换为真实有效的 Prompt ID
-                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").catch(() => ({ content: "你是一个专业的报告生成助手，请根据用户提供的资料和主题生成大纲。" }));
-                const materials = data.referenceMaterials;
+                // Placeholder for prompt fetching logic
+                const promptContent = "你是一个专业的报告生成助手。请根据用户提供的资料和主题生成大纲JSON。";
                 
                 const initialHistory: ChatMessage[] = [
-                    { role: 'system', content: prompt.content, hidden: true },
-                    { role: 'user', content: `参考资料如下：\n${materials}`, hidden: true },
+                    { role: 'system', content: promptContent, hidden: true },
+                    { role: 'user', content: `参考资料如下：\n${data.referenceMaterials || '无'}`, hidden: true },
                     { role: 'user', content: userInput, hidden: false }
                 ];
                 
@@ -238,89 +252,100 @@ export const ReportGenerator: React.FC = () => {
                 setIsLlmActive(false);
             }
         } else {
+            // In other stages, it's just a chat message (for context adjustment or refinement)
             setHistory(prev => [...prev, { role: 'user', content: userInput }]);
         }
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#f8fafc] font-sans text-slate-900 overflow-hidden">
-            {/* 1. Command Bar (Header) */}
-            <header className="h-16 flex-shrink-0 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-30 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="flex flex-col h-full bg-[#f8fafc] font-sans text-slate-900 overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
+            
+            {/* 1. Command Bar (Header) - Ultra Slim */}
+            <header className="h-14 flex-shrink-0 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 flex items-center justify-between z-30 sticky top-0">
                 <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white">
-                        <SparklesIcon className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-sm font-bold text-slate-800">AI 智能研报生成</h1>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                            {saveStatus === 'saving' ? (
-                                <RefreshIcon className="w-3 h-3 animate-spin" />
-                            ) : (
-                                <CheckIcon className="w-3 h-3 text-green-500" />
-                            )}
-                            {saveStatus === 'saving' ? 'Saving...' : 'Auto Saved'}
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-slate-900 rounded-md flex items-center justify-center text-white shadow-sm">
+                            <DocumentTextIcon className="w-3.5 h-3.5" />
                         </div>
+                        <h1 className="text-sm font-bold text-slate-800 tracking-tight">Auto Insight <span className="text-slate-400 font-normal">| Pro Editor</span></h1>
+                    </div>
+                    
+                    <div className="h-4 w-px bg-slate-200"></div>
+                    
+                    <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
+                        {saveStatus === 'saving' ? (
+                            <RefreshIcon className="w-3 h-3 animate-spin text-slate-400" />
+                        ) : (
+                            <CheckIcon className="w-3 h-3 text-emerald-500" />
+                        )}
+                        <span>{saveStatus === 'saving' ? 'Saving...' : 'All changes saved'}</span>
                     </div>
                 </div>
                 
-                <StepIndicator currentStage={stage} />
+                <div className="absolute left-1/2 -translate-x-1/2">
+                    <StepProgress currentStage={stage} />
+                </div>
                 
-                <button 
-                    onClick={handleReset}
-                    className="text-xs font-bold text-slate-400 hover:text-red-600 transition-colors px-3 py-1.5 rounded-md hover:bg-red-50 flex items-center gap-2"
-                >
-                    <TrashIcon className="w-3.5 h-3.5" />
-                    重置
-                </button>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleReset}
+                        className="text-xs font-bold text-slate-500 hover:text-red-600 transition-colors px-3 py-1.5 rounded-md hover:bg-slate-50"
+                    >
+                        重置任务
+                    </button>
+                    <button className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-md shadow-sm transition-all flex items-center gap-2">
+                        导出 <ChevronDownIcon className="w-3 h-3 text-slate-400" />
+                    </button>
+                </div>
             </header>
 
-            {/* Main Layout */}
+            {/* Main Layout: Split Panes */}
             <div className="flex-1 flex overflow-hidden">
+                
                 {/* 2. AI Copilot (Left Sidebar) */}
                 <aside className="w-[350px] flex flex-col border-r border-slate-200 bg-[#fbfcfd] z-20 flex-shrink-0">
                     <div className="flex-1 overflow-y-auto p-5 custom-scrollbar" ref={chatScrollRef}>
-                        {history.map((msg, i) => <MessageBubble key={i} msg={msg} />)}
-                        {streamingMessage && <MessageBubble msg={streamingMessage} isStreaming={true} />}
+                        {history.map((msg, i) => <MessageItem key={i} msg={msg} />)}
+                        {streamingMessage && <MessageItem msg={streamingMessage} isStreaming={true} />}
                         {isLlmActive && !streamingMessage && (
-                            <div className="flex gap-3 mb-6 animate-pulse opacity-60 pl-1">
-                                <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"></div>
-                                <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce delay-75"></div>
-                                <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce delay-150"></div>
+                            <div className="flex gap-2 mb-6 pl-4 opacity-50">
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-200"></span>
                             </div>
                         )}
-                        <div className="h-4"></div>
+                        <div className="h-8"></div>
                     </div>
 
-                    <div className="p-4 bg-white border-t border-slate-200">
+                    <div className="p-4 border-t border-slate-200 bg-white">
                         <div className="relative group">
                             <textarea 
                                 value={chatInput}
                                 onChange={e => setChatInput(e.target.value)}
-                                placeholder={stage === 'collect' ? "输入报告主题，开始生成..." : "输入反馈，调整当前内容..."}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none h-24 shadow-inner transition-all placeholder:text-slate-400"
+                                placeholder={stage === 'collect' ? "输入报告主题，开始生成..." : "输入反馈调整当前内容..."}
+                                className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none h-24 shadow-inner transition-all placeholder:text-slate-400"
                                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
                             />
                             <button 
                                 onClick={handleSendMessage}
                                 disabled={!chatInput.trim() || isLlmActive}
-                                className="absolute right-2 bottom-2 p-1.5 bg-slate-900 text-white rounded-md hover:bg-indigo-600 disabled:opacity-50 disabled:hover:bg-slate-900 transition-colors shadow-sm"
+                                className="absolute right-2 bottom-2 p-1.5 bg-white text-indigo-600 border border-slate-200 rounded-md hover:bg-indigo-600 hover:text-white hover:border-indigo-600 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-slate-400 transition-all shadow-sm"
                             >
                                 <ArrowRightIcon className="w-3.5 h-3.5" />
                             </button>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-2 text-center flex justify-between px-1">
-                            <span>Shift + Enter 换行</span>
-                            <span>{chatInput.length} chars</span>
+                        <div className="text-[10px] text-slate-300 mt-2 text-center flex justify-between px-1 font-medium">
+                            <span>Markdown Supported</span>
+                            <span>Shift + Enter for new line</span>
                         </div>
                     </div>
                 </aside>
 
                 {/* 3. Canvas (Right Workspace) */}
-                <main className="flex-1 bg-white relative overflow-hidden flex flex-col">
-                    {/* Shadow gradient for depth */}
-                    <div className="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-slate-200/30 to-transparent pointer-events-none z-10"></div>
+                <main className="flex-1 bg-gray-50/50 relative overflow-hidden flex flex-col">
+                    <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-40 pointer-events-none"></div>
                     
-                    <div className="flex-1 h-full overflow-hidden">
+                    <div className="flex-1 h-full overflow-hidden relative z-10">
                         {stage === 'collect' && (
                             <Step1Collect onUpdateMaterials={(m) => setData(prev => ({ ...prev, referenceMaterials: m }))} />
                         )}

@@ -57,7 +57,7 @@ export const KnowledgeSearchModal: React.FC<KnowledgeSearchModalProps> = ({ isOp
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-white/50 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
-            <div className="bg-white w-full max-w-2xl h-[70vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative z-10 animate-in zoom-in-95">
+            <div className="bg-white w-full max-w-2xl h-[70vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative z-10 animate-in zoom-in-95 ring-1 ring-black/5">
                 <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-gray-50/50">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
                         <PuzzleIcon className="w-5 h-5 text-indigo-600" /> 引用知识库
@@ -69,7 +69,7 @@ export const KnowledgeSearchModal: React.FC<KnowledgeSearchModalProps> = ({ isOp
                         <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input 
                             type="text" 
-                            className="flex-1 pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                            className="flex-1 pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-shadow focus:bg-white"
                             placeholder="输入关键词..."
                             value={query}
                             onChange={e => setQuery(e.target.value)}
