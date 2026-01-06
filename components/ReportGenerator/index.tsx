@@ -1,48 +1,27 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { StratifyScenario } from '../../types';
-import { getScenarios } from '../../api/stratify';
-import { ScenarioSelector } from './ScenarioSelector';
-// 使用最新的通用工作台组件 (基于 Chat + Preview 模式)
-import { ScenarioWorkstation } from './5e99897c-6d91-4c72-88e5-653ea162e52b/index'; 
+// Import PPT Generation Scenario directly
+import { ScenarioWorkstation as ScenarioWorkstation_PPT } from './212fb1f7-9b92-42b9-a315-d05addaebcae/index';
+
+// Define the static scenario configuration for PPT Agent
+const PPT_SCENARIO: StratifyScenario = {
+    id: '212fb1f7-9b92-42b9-a315-d05addaebcae',
+    name: 'ppt_agent',
+    title: 'AI 智能研报生成 (PPT Agent)',
+    description: 'Automated Research Report Generation Agent',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+};
 
 export const ReportGenerator: React.FC = () => {
-    const [scenarios, setScenarios] = useState<StratifyScenario[]>([]);
-    const [selectedScenario, setSelectedScenario] = useState<StratifyScenario | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchScenarios = async () => {
-            try {
-                const data = await getScenarios();
-                setScenarios(data);
-            } catch (e) {
-                console.error("Failed to load scenarios", e);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        fetchScenarios();
-    }, []);
-
-    // 如果选中了场景，进入工作台
-    if (selectedScenario) {
-        return (
-            <div className="h-full w-full bg-white">
-                <ScenarioWorkstation 
-                    scenario={selectedScenario} 
-                    onBack={() => setSelectedScenario(null)} 
-                />
-            </div>
-        );
-    }
-
-    // 否则显示场景选择器
+    // Directly render the PPT workstation. 
+    // We pass an empty function for onBack since this is now the root view for this module.
     return (
-        <div className="h-full w-full bg-slate-50">
-            <ScenarioSelector 
-                scenarios={scenarios} 
-                onSelect={setSelectedScenario} 
+        <div className="h-full w-full bg-white">
+            <ScenarioWorkstation_PPT 
+                scenario={PPT_SCENARIO} 
+                onBack={() => {}} 
             />
         </div>
     );
