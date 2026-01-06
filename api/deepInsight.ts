@@ -66,8 +66,8 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         category_id: t.category_id,
         created_at: t.created_at,
         updated_at: t.updated_at,
-        // Construct cover image URL dynamically using auth token
-        cover_image: t.id ? `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${t.id}/cover?token=${localStorage.getItem('accessToken')}` : undefined
+        // Don't set cover_image string here, components must fetch it as Blob
+        cover_image: undefined
     }));
 
     return {
@@ -169,9 +169,6 @@ export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: numb
 };
 
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
-    // This might need a specific endpoint or mapped via pages list
-    // Assuming backend might not expose raw HTML text directly for security/CORS, 
-    // but if it does:
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
@@ -193,20 +190,27 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
 
 // Preview Helper
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover`;
     const token = localStorage.getItem('accessToken');
-    return `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover?token=${token}`;
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    try {
+        const response = await fetch(url, { headers });
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        console.warn("Failed to fetch cover", e);
+        return null;
+    }
 };
 
 export const getDeepInsightPagePreview = async (docId: string, pageNum: number): Promise<Blob> => {
-    // Backend doesn't have explicit page preview image endpoint in summary, 
-    // assuming it might serve images via pages list or similar.
-    // For now, mapping to pdf page download as placeholder or if backend supports img:
-    // const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${docId}/pages/${pageNum}/image`;
     throw new Error("Page preview image endpoint not yet implemented in backend spec");
 };
 
 export const getDeepInsightPagePreviewUrl = async (docId: string, pageNum: number): Promise<string | null> => {
-    // Return null to force fallback or implement if backend adds image support
     return null; 
 }
 

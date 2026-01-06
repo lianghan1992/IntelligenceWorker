@@ -3,14 +3,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
     getDeepInsightTasks, 
-    getDeepInsightCategories
+    getDeepInsightCategories,
+    fetchDeepInsightCover
 } from '../../api';
 import { 
     SearchIcon, DocumentTextIcon, CalendarIcon, 
-    SparklesIcon, DownloadIcon,
-    CloudIcon, ClockIcon, EyeIcon, 
+    SparklesIcon, CloudIcon, EyeIcon, 
     ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,
-    FilterIcon, LightningBoltIcon, GlobeIcon, ShieldCheckIcon, TruckIcon,
+    LightningBoltIcon, GlobeIcon, ShieldCheckIcon, TruckIcon,
     ViewGridIcon
 } from '../icons';
 import { DeepDiveReader } from './DeepDiveReader';
@@ -47,6 +47,7 @@ const formatFileSize = (bytes?: number) => {
 const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsightTask) => void }> = ({ tasks, onRead }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isHovered, setIsHovered] = useState(false);
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
 
     // Auto-rotate logic
     useEffect(() => {
@@ -59,9 +60,25 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
         return () => clearInterval(interval);
     }, [tasks.length, isHovered]);
 
-    if (!tasks || tasks.length === 0) return null;
-
     const currentTask = tasks[currentIndex];
+
+    // Fetch cover for current hero item
+    useEffect(() => {
+        if (!currentTask) return;
+        let active = true;
+        
+        fetchDeepInsightCover(currentTask.id).then(url => {
+            if (active && url) setCoverUrl(url);
+        });
+
+        return () => { 
+            active = false; 
+            if (coverUrl) URL.revokeObjectURL(coverUrl);
+            setCoverUrl(null); 
+        };
+    }, [currentTask?.id]);
+
+    if (!tasks || tasks.length === 0 || !currentTask) return null;
 
     return (
         <section 
@@ -107,8 +124,8 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                     {/* Visual Cover */}
                     <div className="flex-1 w-full h-[240px] sm:h-[300px] md:h-[400px] rounded-2xl overflow-hidden relative shadow-2xl shadow-slate-200 border border-white group cursor-pointer animate-in fade-in zoom-in-95 duration-500" onClick={() => onRead(currentTask)}>
                         <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 transition-transform duration-700 group-hover:scale-105 flex items-center justify-center">
-                            {currentTask.cover_image ? (
-                                <img src={currentTask.cover_image} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                            {coverUrl ? (
+                                <img src={coverUrl} alt="Cover" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                             ) : (
                                 <div className="text-center p-8 opacity-50">
                                     <DocumentTextIcon className="w-32 h-32 mx-auto text-slate-300 mb-4" />
@@ -177,14 +194,27 @@ const ReportCard: React.FC<{
     // Deterministic gradient based on id
     const gradientIdx = (task.id.charCodeAt(0) || 0) % GRADIENTS.length;
     const bgGradient = GRADIENTS[gradientIdx];
+    const [coverUrl, setCoverUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        // Only attempt to fetch cover if completed (to avoid 404s on processing) 
+        // OR if backend supports getting covers during processing? Assuming completed for now.
+        if (task.status === 'completed') {
+             fetchDeepInsightCover(task.id).then(url => {
+                if (active && url) setCoverUrl(url);
+            });
+        }
+        return () => { active = false; if (coverUrl) URL.revokeObjectURL(coverUrl); };
+    }, [task.id, task.status]);
 
     return (
         <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-visible hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full relative z-0 hover:z-10">
             {/* Cover Area */}
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-100 rounded-t-xl group-cursor-pointer" onClick={isCompleted ? onRead : undefined}>
-                {task.cover_image ? (
+                {coverUrl ? (
                      <img 
-                        src={task.cover_image} 
+                        src={coverUrl} 
                         alt={task.file_name} 
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                      />
@@ -207,7 +237,7 @@ const ReportCard: React.FC<{
                 {!isCompleted && (
                      <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center">
                         <span className="bg-white px-3 py-1 rounded-full shadow-sm border border-slate-100 text-xs font-bold text-slate-500 flex items-center gap-2">
-                            <ClockIcon className="w-3.5 h-3.5 animate-spin" /> 处理中...
+                            <SparklesIcon className="w-3.5 h-3.5 animate-spin" /> 处理中...
                         </span>
                      </div>
                 )}
@@ -329,7 +359,6 @@ export const DeepDives: React.FC = () => {
     }, [loadData]);
 
     // Derived Data - Client-side sort if API doesn't support
-    // (If API supports sort, pass it to getDeepInsightTasks instead)
     const sortedTasks = useMemo(() => {
         let sorted = [...tasks];
         if (sortOption === 'newest') {
@@ -340,17 +369,12 @@ export const DeepDives: React.FC = () => {
         return sorted;
     }, [tasks, sortOption]);
 
-    // Carousel Items (Top 5)
-    // In a real app, you might want to fetch 'featured' separately or use the first few of the first page
     const featuredTasks = useMemo(() => sortedTasks.slice(0, 5), [sortedTasks]);
-
-    // Pagination Logic
     const totalPages = Math.ceil(total / limit);
 
     const handlePageChange = (newPage: number) => {
         if (newPage >= 1 && newPage <= totalPages) {
             setPage(newPage);
-            // Scroll to top of grid area if needed, but not whole page to keep hero visible
              const gridElement = document.getElementById('report-grid-section');
              if (gridElement) {
                  gridElement.scrollIntoView({ behavior: 'smooth' });
@@ -358,7 +382,6 @@ export const DeepDives: React.FC = () => {
         }
     };
 
-    // Generate page numbers for display (e.g., 1, 2, ..., 10)
     const getPageNumbers = () => {
         const pages = [];
         const maxVisiblePages = 5;
@@ -366,7 +389,6 @@ export const DeepDives: React.FC = () => {
         if (totalPages <= maxVisiblePages) {
             for (let i = 1; i <= totalPages; i++) pages.push(i);
         } else {
-            // Always show first, last, current, and surrounding
             if (page <= 3) {
                 pages.push(1, 2, 3, 4, '...', totalPages);
             } else if (page >= totalPages - 2) {
@@ -382,8 +404,6 @@ export const DeepDives: React.FC = () => {
     return (
         <div className="relative min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
             
-            {/* Header Removed as requested */}
-
             <main className="flex-1 flex flex-col items-center w-full">
                 
                 {/* 1. Hero Section (Carousel) */}
