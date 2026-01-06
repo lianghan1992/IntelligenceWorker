@@ -1,8 +1,4 @@
 
-import { StratifyScenario } from '../../types';
-
-// 仅保留场景选择所需的 props 定义
-export interface ScenarioSelectorProps {
-    scenarios: StratifyScenario[];
-    onSelect: (scenario: StratifyScenario) => void;
-}
+// Types are now defined in index.tsx for simplicity and cleaner imports.
+// This file is kept empty or can be deleted.
+export {};
