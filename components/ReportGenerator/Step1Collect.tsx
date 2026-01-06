@@ -1,20 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { SparklesIcon, DocumentTextIcon, GlobeIcon, PuzzleIcon, CloseIcon, RefreshIcon } from '../icons';
+import { SparklesIcon, DocumentTextIcon, GlobeIcon, PuzzleIcon, CloseIcon, RefreshIcon, ArrowRightIcon } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
 import { KnowledgeSearchModal } from './KnowledgeSearchModal';
 
 interface Step1CollectProps {
     onUpdateMaterials: (materials: string) => void;
+    onNext: (topic: string) => void;
 }
 
-export const Step1Collect: React.FC<Step1CollectProps> = ({ onUpdateMaterials }) => {
+export const Step1Collect: React.FC<Step1CollectProps> = ({ onUpdateMaterials, onNext }) => {
+    const [topicInput, setTopicInput] = useState('');
     const [urlInput, setUrlInput] = useState('');
     const [materials, setMaterials] = useState<Array<{ id: string; name: string; content: string }>>([]);
     const [isFetching, setIsFetching] = useState(false);
     const [isKMOpen, setIsKMOpen] = useState(false);
 
-    // 每次资料变动时同步给父组件
+    // Sync materials
     useEffect(() => {
         const combined = materials.map(m => `--- 资料名: ${m.name} ---\n内容: ${m.content}`).join('\n\n');
         onUpdateMaterials(combined);
@@ -53,80 +55,99 @@ export const Step1Collect: React.FC<Step1CollectProps> = ({ onUpdateMaterials })
     };
 
     return (
-        <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
-            <div className="max-w-3xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-800">汇聚参考资料</h2>
-                    <p className="text-slate-500 text-sm font-medium">在开始报告生成前，请在此添加相关的行业研报、竞争情报或技术白皮书。</p>
+        <div className="h-full flex items-center justify-center p-4 relative">
+            {/* Center Core Node */}
+            <div className="w-full max-w-2xl flex flex-col items-center gap-8 animate-in fade-in zoom-in duration-700">
+                
+                <div className="text-center space-y-4">
+                    <div className="inline-flex items-center justify-center p-4 bg-indigo-50 rounded-full border-2 border-indigo-100 shadow-xl shadow-indigo-100 mb-2">
+                        <SparklesIcon className="w-10 h-10 text-indigo-600" />
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight">定义研究核心</h2>
+                    <p className="text-slate-500 text-sm font-medium max-w-md mx-auto">
+                        输入您想生成的研报主题。AI 将以此为圆心，结合右侧资料库构建逻辑蓝图。
+                    </p>
                 </div>
 
-                <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-200 ring-1 ring-black/5 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex gap-2">
-                            <input 
-                                value={urlInput}
-                                onChange={e => setUrlInput(e.target.value)}
-                                placeholder="输入网页 URL 抓取..."
-                                className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 shadow-inner"
-                            />
-                            <button 
-                                onClick={handleAddUrl}
-                                disabled={isFetching || !urlInput.trim()}
-                                className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 shadow-md"
-                            >
-                                {isFetching ? <RefreshIcon className="w-5 h-5 animate-spin" /> : <GlobeIcon className="w-5 h-5" />}
-                            </button>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => setIsKMOpen(true)} className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100">
-                                <PuzzleIcon className="w-4 h-4" /> 知识库
-                            </button>
-                            <label className="flex-1 py-2 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-indigo-50 hover:text-indigo-700 transition-all flex items-center justify-center gap-2 border border-slate-100 cursor-pointer">
-                                <DocumentTextIcon className="w-4 h-4" /> 本地文件
-                                <input type="file" className="hidden" onChange={handleFileChange} />
-                            </label>
-                        </div>
+                {/* Main Input */}
+                <div className="w-full relative group">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl opacity-20 group-hover:opacity-40 blur transition duration-500"></div>
+                    <div className="relative bg-white rounded-xl shadow-lg flex items-center p-2 border border-slate-100">
+                        <input 
+                            value={topicInput}
+                            onChange={e => setTopicInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && topicInput.trim() && onNext(topicInput)}
+                            placeholder="例如：小米汽车 SU7 产品竞争力深度分析..."
+                            className="flex-1 px-6 py-4 text-lg font-bold text-slate-800 placeholder:text-slate-300 outline-none bg-transparent"
+                            autoFocus
+                        />
+                        <button 
+                            onClick={() => onNext(topicInput)}
+                            disabled={!topicInput.trim()}
+                            className="p-3 bg-slate-900 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:bg-slate-200 transition-all active:scale-95"
+                        >
+                            <ArrowRightIcon className="w-6 h-6" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Side: Data Injector (Knowledge Base) */}
+            <div className="absolute top-10 right-10 bottom-10 w-80 bg-white/80 backdrop-blur-xl border border-slate-200 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-700">
+                <div className="p-5 border-b border-slate-100 bg-slate-50/80">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <PuzzleIcon className="w-4 h-4 text-indigo-500" /> 
+                        Data Injection ({materials.length})
+                    </h3>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                    {/* Add Controls */}
+                    <div className="grid grid-cols-2 gap-2 mb-4">
+                        <button onClick={() => setIsKMOpen(true)} className="flex items-center justify-center gap-2 py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors border border-indigo-100">
+                            <PuzzleIcon className="w-4 h-4" /> 知识库引用
+                        </button>
+                        <label className="flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer">
+                            <DocumentTextIcon className="w-4 h-4" /> 本地上传
+                            <input type="file" className="hidden" onChange={handleFileChange} />
+                        </label>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-50">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block">已添加的资料库 ({materials.length})</label>
-                        <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                            {materials.length === 0 ? (
-                                <div className="py-12 flex flex-col items-center justify-center text-slate-300 text-xs italic border-2 border-dashed border-slate-100 rounded-2xl bg-slate-50/50">
-                                    暂无资料引用，AI 将仅根据通用知识创作
-                                </div>
-                            ) : (
-                                materials.map(m => (
-                                    <div key={m.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 group shadow-sm">
-                                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500">
-                                                <DocumentTextIcon className="w-4 h-4" />
-                                            </div>
-                                            <span className="text-xs font-bold text-slate-700 truncate">{m.name}</span>
-                                        </div>
-                                        <button onClick={() => setMaterials(prev => prev.filter(i => i.id !== m.id))} className="p-2 text-slate-300 hover:text-red-500 transition-colors">
-                                            <CloseIcon className="w-4 h-4" />
-                                        </button>
+                    <div className="relative">
+                        <input 
+                            value={urlInput}
+                            onChange={e => setUrlInput(e.target.value)}
+                            placeholder="抓取 URL..."
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none pr-8"
+                        />
+                        <button 
+                            onClick={handleAddUrl}
+                            disabled={isFetching || !urlInput.trim()}
+                            className="absolute right-1 top-1 p-1.5 text-slate-400 hover:text-indigo-600"
+                        >
+                            <RefreshIcon className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4 space-y-2">
+                        {materials.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 text-[10px]">暂无外挂资料，将使用模型通用知识</div>
+                        ) : (
+                            materials.map(m => (
+                                <div key={m.id} className="group flex items-start gap-2 p-3 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-indigo-200 transition-colors">
+                                    <div className="mt-0.5 p-1 bg-slate-100 rounded text-slate-500">
+                                        <DocumentTextIcon className="w-3 h-3" />
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-indigo-900 rounded-[32px] p-8 text-white relative overflow-hidden shadow-xl shadow-indigo-200/50">
-                    <div className="absolute top-0 right-0 p-6 opacity-10">
-                        <SparklesIcon className="w-32 h-32" />
-                    </div>
-                    <div className="relative z-10">
-                        <h4 className="font-bold mb-2 flex items-center gap-2">
-                            <SparklesIcon className="w-5 h-5 text-indigo-300" />
-                            智能体已就绪
-                        </h4>
-                        <p className="text-indigo-100/70 text-sm leading-relaxed">
-                            请在左侧对话框告诉我们您的报告主题（例如：小米SU7技术架构深度剖析）。<br/>
-                            我们将结合右侧的参考资料为您生成大纲。
-                        </p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-700 truncate">{m.name}</p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">{m.content.length} chars</p>
+                                    </div>
+                                    <button onClick={() => setMaterials(prev => prev.filter(i => i.id !== m.id))} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <CloseIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
             </div>
