@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StratifyOutline } from '../../../types';
 import { streamChatCompletions, getPromptDetail } from '../../../api/stratify';
 import { ViewGridIcon, CheckIcon } from '../../icons';
-import { ChatMessage } from '../index';
+import { ChatMessage } from './index';
 
 interface Step2OutlineProps {
     history: ChatMessage[];
@@ -13,6 +13,9 @@ interface Step2OutlineProps {
     onConfirm: (outline: StratifyOutline) => void;
 }
 
+/**
+ * 容错性 JSON 数组解析，用于流式提取 pages
+ */
 const extractCompletedPages = (jsonStr: string): any[] => {
     try {
         const pagesStartMatch = jsonStr.match(/"pages"\s*:\s*\[/);
@@ -52,29 +55,23 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         
         let accumulatedText = '', accumulatedReasoning = '';
         try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").catch(() => ({ 
-                content: "请根据用户需求生成大纲JSON，包含title和pages数组。",
-                channel_code: "openai",
-                model_id: "gpt-4o"
-            }));
-
-            // Construct model ID correctly
-            const modelName = (prompt as any).channel_code ? `${(prompt as any).channel_code}@${(prompt as any).model_id}` : 'gpt-4o';
-
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
             await streamChatCompletions({
-                model: modelName,
+                model: `${prompt.channel_code}@${prompt.model_id}`,
                 messages: currentHistory.map(m => ({ role: m.role, content: m.content })),
                 stream: true
             }, (data) => {
                 if (data.reasoning) accumulatedReasoning += data.reasoning;
                 if (data.content) accumulatedText += data.content;
 
+                // 实时同步到左侧聊天面板
                 onStreamingUpdate({ 
                     role: 'assistant', 
                     content: accumulatedText.includes('{') ? "正在规划大纲结构..." : accumulatedText, 
                     reasoning: accumulatedReasoning 
                 });
 
+                // 实时解析右侧大纲预览
                 const pages = extractCompletedPages(accumulatedText);
                 const titleMatch = accumulatedText.match(/"title"\s*:\s*"(.*?)"/);
                 if (pages.length > 0 || titleMatch) {
@@ -100,6 +97,7 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         }
     };
 
+    // 监听历史记录，如果最后一条是 user 发出的，则触发生成
     useEffect(() => {
         if (history.length > lastProcessedLen.current) {
             const lastMsg = history[history.length - 1];
@@ -122,16 +120,16 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
                 <button 
                     onClick={() => outline && onConfirm(outline)}
                     disabled={!outline || outline.pages.length === 0}
-                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                    className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center gap-2"
                 >
                     确认并开始创作 <CheckIcon className="w-4 h-4" />
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30 custom-scrollbar">
                 <div className="max-w-3xl mx-auto space-y-4">
                     {outline ? outline.pages.map((page, idx) => (
-                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex gap-5 animate-in slide-in-from-bottom-2">
+                        <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex gap-5 animate-in slide-in-from-bottom-2">
                             <div className="flex-shrink-0 w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center font-black text-indigo-600">
                                 {idx + 1}
                             </div>
