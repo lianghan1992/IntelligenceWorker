@@ -49,6 +49,9 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                 const sub = defaultCat.children[0];
                 setSelectedSubLook(sub.key);
                 setActiveQuery({ type: 'sublook', value: sub.keywords, label: sub.label });
+            } else {
+                 // Fallback for no children - use category keywords
+                 setActiveQuery({ type: 'sublook', value: defaultCat.keywords || defaultCat.label, label: defaultCat.label });
             }
         }
     }, []);

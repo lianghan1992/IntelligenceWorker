@@ -24,16 +24,16 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     
     const handleCategoryClick = (category: Category) => {
         setSelectedLook(category.key);
-        // Reset sub-look when switching main category
         setSelectedSubLook(null);
         
-        // Auto-select first child for smoother UX
         if (category.children.length > 0) {
             const firstChild = category.children[0];
             setSelectedSubLook(firstChild.key);
             onSubCategoryClick(firstChild.keywords, firstChild.label);
         } else {
-            onSubCategoryClick('*', category.label);
+            // Use category keywords if available, otherwise label, otherwise *
+            const queryValue = category.keywords || category.label || '*';
+            onSubCategoryClick(queryValue, category.label);
         }
     };
 
@@ -69,7 +69,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                 })}
             </div>
 
-            {/* Level 2: Sub Categories - Text Links Style */}
+            {/* Level 2: Sub Categories - Only render if children exist */}
             {activeCategory && activeCategory.children.length > 0 && (
                 <div className="flex items-center gap-1 mt-2 overflow-x-auto no-scrollbar animate-in fade-in slide-in-from-left-2 duration-300 pl-1">
                     <div className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-2 flex-shrink-0"></div>
