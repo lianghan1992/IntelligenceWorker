@@ -1,8 +1,26 @@
 
-import { StratifyScenario } from '../../types';
+import { StratifyOutline } from '../../types';
 
-// 仅保留场景选择所需的 props 定义
-export interface ScenarioSelectorProps {
-    scenarios: StratifyScenario[];
-    onSelect: (scenario: StratifyScenario) => void;
+export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
+
+export interface ChatMessage {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+    hidden?: boolean;
+    reasoning?: string;
+}
+
+export interface PPTPageData {
+    title: string;
+    summary: string;
+    content: string;
+    html?: string;
+    isGenerating?: boolean;
+}
+
+export interface PPTData {
+    topic: string;
+    referenceMaterials: string;
+    outline: StratifyOutline | null;
+    pages: PPTPageData[];
 }
