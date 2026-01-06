@@ -1,37 +1,31 @@
 
 // src/api/deepInsight.ts
 
-import { DEEP_INSIGHT_SERVICE_PATH, INTELSPIDER_SERVICE_PATH } from '../config';
-import { DeepInsightCategory, DeepInsightTask, DeepInsightPagesResponse, UploadedDocument, DocTag } from '../types';
+import { DEEP_INSIGHT_SERVICE_PATH } from '../config';
+import { DeepInsightCategory, DeepInsightTask, DeepInsightPagesResponse } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
-// --- Categories (Mapped to Tags) ---
+// --- Categories ---
 export const getDeepInsightCategories = async (): Promise<DeepInsightCategory[]> => {
-    const tags = await apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
-    return tags.map(t => ({
-        id: t.uuid,
-        name: t.name,
-        created_at: t.created_at
-    }));
+    return apiFetch<DeepInsightCategory[]>(`${DEEP_INSIGHT_SERVICE_PATH}/categories`);
 };
 
 export const createDeepInsightCategory = (name: string, parent_id?: string): Promise<{ id: string; message: string }> => {
-    // Map to creating a DocTag
-    return apiFetch<{ id: string; message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`, {
+    const formData = new FormData();
+    formData.append('name', name);
+    if (parent_id) formData.append('parent_id', parent_id);
+    return apiFetch<{ id: string; message: string; }>(`${DEEP_INSIGHT_SERVICE_PATH}/categories`, {
         method: 'POST',
-        body: JSON.stringify({ name }), // Parent ID not supported in simple tags yet
-    }).then((res: any) => ({ id: res.uuid, message: 'Category created' }));
+        body: formData,
+    });
 };
 
-export const deleteDeepInsightCategory = (cid: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags/${cid}`, {
+export const deleteDeepInsightCategory = (category_id: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/categories/${category_id}`, {
         method: 'DELETE',
     });
 
-// --- File Management (Raw Uploads) ---
-// Note: The new API integrates upload directly into document creation. 
-// These specific "Raw Upload" endpoints might be deprecated or used for a different workflow.
-// For compatibility, we keep them but warn or redirect if needed.
+// --- Uploads (Raw File Management) ---
 export const getDeepInsightUploads = (): Promise<string[]> =>
     apiFetch<string[]>(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`);
 
@@ -42,58 +36,48 @@ export const deleteDeepInsightUpload = (fileName: string): Promise<{ message: st
 
 export const uploadDeepInsightFiles = (files: File[]): Promise<void> => {
     const uploadFormData = new FormData();
-    files.forEach(f => uploadFormData.append('files', f));
+    files.forEach(f => uploadFormData.append('files', f)); // Backend expects 'files' or 'files[]'
     return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
         method: 'POST',
         body: uploadFormData,
     });
 };
 
-// --- Tasks Core (Mapped to Uploaded Docs / Published Docs) ---
+// --- Tasks Core ---
 
 export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepInsightTask[], total: number, page: number, limit: number }> => {
-    // Mapping params to new API structure
     const apiParams = {
         page: params.page || 1,
-        page_size: params.limit || 20,
-        point_uuid: params.category_id,
-        keyword: params.search
+        limit: params.limit || 20, // Map limit to standard param if needed, usually 'limit' or 'size'
     };
-
-    const query = createApiQuery(apiParams);
-    // Use the specific endpoint for published docs (completed docs under tags)
-    // IMPORTANT: Assuming this endpoint now returns summary and cover_image in the list items as per requirements
-    const res = await apiFetch<{ items: UploadedDocument[], total: number, page: number, page_size: number }>(`${INTELSPIDER_SERVICE_PATH}/doc-tags/docs${query}`);
     
-    // Map response to DeepInsightTask interface for UI compatibility
-    const items: DeepInsightTask[] = res.items.map(doc => ({
-        id: doc.uuid,
-        file_name: doc.original_filename,
-        file_type: doc.original_filename.split('.').pop()?.toUpperCase() || 'PDF',
-        // Backend returns KB, frontend expects Bytes for formatting. Multiply by 1024.
-        file_size: (doc.file_size || 0) * 1024,
-        status: doc.status,
-        total_pages: doc.page_count,
-        processed_pages: doc.process_progress === 100 ? doc.page_count : 0, 
-        category_id: doc.point_uuid, 
-        category_name: doc.point_name,
-        // Map new fields
-        summary: doc.summary,
-        cover_image: doc.cover_image,
-        created_at: doc.publish_date || doc.created_at, // Prefer publish_date
-        updated_at: doc.created_at
+    const query = createApiQuery(apiParams);
+    const res = await apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`);
+
+    // Map backend response to frontend DeepInsightTask interface
+    const items: DeepInsightTask[] = (res.items || []).map((t: any) => ({
+        id: t.id,
+        file_name: t.file_name,
+        file_type: t.file_type || 'PDF',
+        file_size: 0, // Backend list might not return size yet
+        status: t.status,
+        total_pages: t.total_pages || 0,
+        processed_pages: t.processed_pages || 0,
+        category_id: t.category_id,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+        // Construct cover image URL dynamically using auth token
+        cover_image: t.id ? `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${t.id}/cover?token=${localStorage.getItem('accessToken')}` : undefined
     }));
 
     return {
         items,
         total: res.total,
         page: res.page,
-        limit: res.page_size
+        limit: res.size || res.limit || apiParams.limit
     };
 };
 
-// Create a task from an existing file in the upload directory
-// Legacy support
 export const createDeepInsightTask = (fileName: string, category_id?: string): Promise<{ id: string }> => {
     const formData = new FormData();
     formData.append('file_name', fileName);
@@ -104,165 +88,136 @@ export const createDeepInsightTask = (fileName: string, category_id?: string): P
     });
 };
 
-// Start processing a task
 export const startDeepInsightTask = (taskId: string): Promise<{ message: string }> =>
-    Promise.resolve({ message: "Task started" });
-
-// Convenience: Upload -> Create -> Start (New Flow)
-export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
-    if (!category_id) throw new Error("Category (Tag) is required for upload");
-    
-    const formData = new FormData();
-    formData.append('files', file);
-    formData.append('point_uuid', category_id);
-    
-    const res = await apiFetch<UploadedDocument[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, {
+    apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/start`, {
         method: 'POST',
-        body: formData,
     });
-    
-    return { id: res[0].uuid };
+
+// Convenience: Upload -> Create -> Start (New Flow Wrapper)
+export const uploadDeepInsightTask = async (file: File, category_id?: string): Promise<{ id: string }> => {
+    // 1. Upload File
+    const uploadFormData = new FormData();
+    uploadFormData.append('files', file);
+    await apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/uploads`, {
+        method: 'POST',
+        body: uploadFormData,
+    });
+
+    // 2. Create Task
+    const createFormData = new FormData();
+    createFormData.append('file_name', file.name);
+    if (category_id) createFormData.append('category_id', category_id);
+    const taskRes = await apiFetch<{ id: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks`, {
+        method: 'POST',
+        body: createFormData,
+    });
+
+    // 3. Start Processing
+    await startDeepInsightTask(taskRes.id);
+
+    return { id: taskRes.id };
 };
 
-export const getDeepInsightTask = async (taskId: string): Promise<DeepInsightTask> => {
-    const doc = await apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}`);
-    return {
-        id: doc.uuid,
-        file_name: doc.original_filename,
-        file_type: doc.mime_type?.split('/')?.[1]?.toUpperCase() || 'PDF',
-        // Backend returns KB, frontend expects Bytes.
-        file_size: (doc.file_size || 0) * 1024,
-        status: doc.status,
-        total_pages: doc.page_count,
-        processed_pages: Math.floor((doc.process_progress || 0) / 100 * doc.page_count),
-        category_id: doc.point_uuid,
-        category_name: doc.point_name,
-        // Map new fields
-        summary: doc.summary,
-        cover_image: doc.cover_image,
-        created_at: doc.publish_date || doc.created_at,
-        updated_at: doc.created_at
-    };
-};
+export const getDeepInsightTask = (taskId: string): Promise<DeepInsightTask> =>
+    apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}`).then(t => ({
+        id: t.id,
+        file_name: t.file_name,
+        file_type: t.file_type || 'PDF',
+        file_size: 0,
+        status: t.status,
+        total_pages: t.total_pages || 0,
+        processed_pages: t.processed_pages || 0,
+        category_id: t.category_id,
+        created_at: t.created_at,
+        updated_at: t.updated_at,
+    }));
 
 export const getDeepInsightTaskPages = (taskId: string, page = 1, limit = 20): Promise<DeepInsightPagesResponse> =>
-    // Legacy endpoint fallback
-    apiFetch<DeepInsightPagesResponse>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages${createApiQuery({ page, limit })}`)
-    .catch(() => ({ items: [], total: 0 }));
+    apiFetch<DeepInsightPagesResponse>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages${createApiQuery({ page, limit })}`);
 
-// --- Downloads & Previews ---
+export const deleteDeepInsightTask = (taskId: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}`, {
+        method: 'DELETE',
+    });
+
+export const batchDeleteDeepInsightTasks = (ids: string[]): Promise<{ deleted_count: number }> =>
+    apiFetch<{ deleted_count: number }>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/batch-delete`, {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+    });
+
+export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
+    apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/stats`);
+
+export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
+    apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/status`);
+
+// --- Downloads ---
+
+async function downloadBlobWithAuth(url: string): Promise<Blob> {
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Download failed');
+    return response.blob();
+}
 
 export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: number): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/pdf`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('下载失败');
-    return response.blob();
+    return downloadBlobWithAuth(url);
 };
 
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
-    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`; 
+    // This might need a specific endpoint or mapped via pages list
+    // Assuming backend might not expose raw HTML text directly for security/CORS, 
+    // but if it does:
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/html`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    
     const response = await fetch(url, { headers });
-    if (response.status === 404) return ''; 
-    if (!response.ok) throw new Error('加载页面内容失败');
+    if (!response.ok) throw new Error('Failed to load page content');
     return response.text();
 };
 
 export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}/download`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('下载失败');
-    return response.blob();
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/bundle`;
+    return downloadBlobWithAuth(url);
 };
 
 export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}/download`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('下载原始文件失败');
-    return response.blob();
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/original`;
+    return downloadBlobWithAuth(url);
 };
 
-// Fetch cover image (using page 1 preview or the generated cover_image url)
+// Preview Helper
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
-    // We first check if the task has a cover_image URL from the backend
-    try {
-        const doc = await getDeepInsightTask(taskId);
-        if (doc.cover_image) return doc.cover_image;
-    } catch(e) {
-        // Fallback
-    }
-    // Fallback to page 1 preview
-    return getDeepInsightPagePreviewUrl(taskId, 1);
-};
-
-// Fetch Page Preview Image (PNG)
-export const getDeepInsightPagePreview = async (docId: string, pageNum: number): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${docId}/preview/${pageNum}`;
     const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    
-    const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Preview failed');
-    return response.blob();
+    return `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover?token=${token}`;
 };
 
-// Helper to get preview URL for an image (blob)
+export const getDeepInsightPagePreview = async (docId: string, pageNum: number): Promise<Blob> => {
+    // Backend doesn't have explicit page preview image endpoint in summary, 
+    // assuming it might serve images via pages list or similar.
+    // For now, mapping to pdf page download as placeholder or if backend supports img:
+    // const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${docId}/pages/${pageNum}/image`;
+    throw new Error("Page preview image endpoint not yet implemented in backend spec");
+};
+
 export const getDeepInsightPagePreviewUrl = async (docId: string, pageNum: number): Promise<string | null> => {
-    try {
-        const blob = await getDeepInsightPagePreview(docId, pageNum);
-        return URL.createObjectURL(blob);
-    } catch (e) {
-        return null;
-    }
+    // Return null to force fallback or implement if backend adds image support
+    return null; 
 }
 
-// --- Admin APIs (Stats & Management) ---
-export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
-    Promise.resolve({ total: 0, completed: 0, failed: 0, processing: 0, pending: 0 });
 
-export const deleteDeepInsightTask = (taskId: string): Promise<{ ok: boolean }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${taskId}`, {
-        method: 'DELETE',
-    }).then(() => ({ ok: true }));
+// --- Gemini Cookie Management ---
 
-export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
-    getUploadedDocDetail(taskId);
-
-import { getUploadedDocDetail } from './intelligence';
-
-
-// --- Gemini ---
-export const updateDeepInsightGeminiCookies = (data: { secure_1psid: string; secure_1psidts: string; http_proxy?: string }): Promise<{ ok: boolean; message: string }> => {
+export const updateDeepInsightGeminiEnvCookies = (data: { secure_1psid: string; secure_1psidts: string }): Promise<{ message: string }> => {
     const formData = new FormData();
     formData.append('secure_1psid', data.secure_1psid);
     formData.append('secure_1psidts', data.secure_1psidts);
-    if (data.http_proxy) formData.append('http_proxy', data.http_proxy);
-    
-    return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/gemini/cookies`, {
-        method: 'POST',
-        body: formData,
-    });
-};
-
-export const updateDeepInsightGeminiEnvCookies = (data: { secure_1psid: string; secure_1psidts: string }): Promise<{ ok: boolean; message: string }> => {
-    const formData = new FormData();
-    formData.append('secure_1psid', data.secure_1psid);
-    formData.append('secure_1psidts', data.secure_1psidts);
-    
-    return apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/gemini/env-cookies`, {
+    return apiFetch<{ message: string }>(`${DEEP_INSIGHT_SERVICE_PATH}/gemini/env-cookies`, {
         method: 'PUT',
         body: formData,
     });
