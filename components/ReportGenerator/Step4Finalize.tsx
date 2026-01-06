@@ -60,7 +60,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             if (containerRef.current) {
                 const cw = containerRef.current.offsetWidth;
                 const ch = containerRef.current.offsetHeight;
-                const padding = 80; // Padding around the slide
+                const padding = 80; // padding
                 const targetW = 1600;
                 const targetH = 900;
                 
