@@ -181,12 +181,11 @@ export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
 
 // --- Downloads & Images ---
 
-async function downloadBlobWithAuth(url: string): Promise<Blob> {
+async function downloadBlobWithAuth(url: string, accept = '*/*'): Promise<Blob> {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    // Explicitly accept images or pdfs depending on context, but * works
-    headers.set('Accept', '*/*');
+    headers.set('Accept', accept);
     
     const response = await fetch(url, { headers });
     if (!response.ok) {
@@ -199,7 +198,7 @@ async function downloadBlobWithAuth(url: string): Promise<Blob> {
 
 export const downloadDeepInsightPagePdf = async (taskId: string, pageIndex: number): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/pdf`;
-    return downloadBlobWithAuth(url);
+    return downloadBlobWithAuth(url, 'application/pdf');
 };
 
 export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number): Promise<string> => {
@@ -214,12 +213,12 @@ export const getDeepInsightPageHtml = async (taskId: string, pageIndex: number):
 
 export const downloadDeepInsightBundle = async (taskId: string): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/bundle`;
-    return downloadBlobWithAuth(url);
+    return downloadBlobWithAuth(url, 'application/pdf');
 };
 
 export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Blob> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/original`;
-    return downloadBlobWithAuth(url);
+    return downloadBlobWithAuth(url, 'application/pdf');
 };
 
 /**
@@ -229,11 +228,10 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover`;
     try {
-        const blob = await downloadBlobWithAuth(url);
+        const blob = await downloadBlobWithAuth(url, 'image/*');
         if (blob.size === 0) return null;
         return URL.createObjectURL(blob);
     } catch (e) {
-        // console.warn(`Failed to fetch cover for task ${taskId}`, e); 
         // Suppress warning to avoid console spam if cover doesn't exist yet
         return null;
     }
@@ -241,14 +239,12 @@ export const fetchDeepInsightCover = async (taskId: string): Promise<string | nu
 
 /**
  * Fetch the image for a specific page.
- * Assumes endpoint /api/deep_insight/tasks/{task_id}/pages/{page_index}/image based on workflow
+ * Assumes endpoint /api/deep_insight/tasks/{task_id}/pages/{page_index}/image
  */
 export const fetchDeepInsightPageImage = async (taskId: string, pageIndex: number): Promise<string | null> => {
-    // Note: If backend only supports PDF download per page, we might need to fallback.
-    // But usually "cutting images" implies an image endpoint exists.
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/image`;
     try {
-        const blob = await downloadBlobWithAuth(url);
+        const blob = await downloadBlobWithAuth(url, 'image/*');
         if (blob.size === 0) return null;
         return URL.createObjectURL(blob);
     } catch (e) {
@@ -258,8 +254,6 @@ export const fetchDeepInsightPageImage = async (taskId: string, pageIndex: numbe
 };
 
 export const getDeepInsightPagePreviewUrl = async (docId: string, pageNum: number): Promise<string | null> => {
-     // Alias for fetchDeepInsightPageImage to maintain compatibility with component logic if needed,
-     // but prefer using the explicit fetcher above.
      return fetchDeepInsightPageImage(docId, pageNum);
 }
 

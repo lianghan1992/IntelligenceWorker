@@ -38,7 +38,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
                 setIsVisible(true);
                 observer.disconnect();
             }
-        }, { rootMargin: '500px' }); // Preload when 500px away
+        }, { rootMargin: '800px' }); // Preload aggressively
 
         if (ref.current) observer.observe(ref.current);
         return () => observer.disconnect();
@@ -50,7 +50,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
         let active = true;
         setLoading(true);
         
-        // Fetch the image securely
+        // Fetch the image securely using Blob
         fetchDeepInsightPageImage(docId, page.page_index)
             .then(url => {
                 if (active) {
@@ -74,7 +74,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
             className="bg-white relative shadow-lg transition-transform origin-top mx-auto mb-6"
             style={{ 
                 width: `${100 * scale}%`, 
-                aspectRatio: '1/1.414', // A4 Aspect Ratio approx, adjust if image dims known
+                aspectRatio: '1/1.414', // A4 Aspect Ratio approx
                 maxWidth: '900px',
                 minHeight: '400px'
             }}
@@ -113,12 +113,18 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         const loadPages = async () => {
             setIsLoadingPages(true);
             try {
-                // Fetch all pages (assuming sensible limit like 1000 for a single doc reader)
+                // Try to fetch up to 1000 pages at once. 
+                // If backend defaults to 20 despite the limit param, this might need pagination loop, 
+                // but for now we assume backend respects max 1000.
                 const res = await getDeepInsightTaskPages(task.id, 1, 1000);
+                
                 if (res.items && Array.isArray(res.items)) {
                     // Sort by page index to ensure order
                     const sorted = res.items.sort((a, b) => a.page_index - b.page_index);
                     setPages(sorted);
+                } else {
+                    console.warn("Pages API returned unexpected structure:", res);
+                    setPages([]);
                 }
             } catch (e) {
                 console.error("Failed to load page metadata", e);
@@ -226,7 +232,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
                                     <DocumentTextIcon className="w-16 h-16 opacity-20" />
-                                    <p>该文档暂无预览页面</p>
+                                    <p>该文档暂无预览页面或正在处理中</p>
                                     <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm">下载原文件查看</button>
                                 </div>
                             )}
