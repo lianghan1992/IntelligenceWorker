@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    SparklesIcon, ArrowRightIcon, RefreshIcon, CheckIcon, ChevronRightIcon 
+    SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon 
 } from '../icons';
+import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData } from './types';
-import { Step2Outline as OutlineWidget } from './Step2Outline';
 
 interface CopilotSidebarProps {
     stage: PPTStage;
@@ -20,6 +20,44 @@ interface CopilotSidebarProps {
     onReset: () => void;
 }
 
+// --- Thinking Component ---
+const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
+    const [isExpanded, setIsExpanded] = useState(true);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll when streaming
+    useEffect(() => {
+        if (isStreaming && isExpanded && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [content, isStreaming, isExpanded]);
+
+    if (!content) return null;
+
+    return (
+        <div className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50/50 overflow-hidden">
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-bold text-indigo-400 hover:text-indigo-600 transition-colors"
+            >
+                <BrainIcon className={`w-3 h-3 ${isStreaming ? 'animate-pulse' : ''}`} />
+                <span>深度思考过程 {isStreaming ? '...' : ''}</span>
+                <ChevronDownIcon className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            {isExpanded && (
+                <div className="px-3 pb-3">
+                    <div 
+                        ref={scrollRef}
+                        className="text-[10px] font-mono text-slate-500 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto custom-scrollbar border-l-2 border-indigo-200 pl-2"
+                    >
+                        {content}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset
@@ -30,7 +68,112 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     // Auto-scroll chat
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [history, stage]);
+    }, [history, stage, isLlmActive]);
+
+    // --- Core Logic: Generate or Refine Outline ---
+    const runOutlineGeneration = async (userPromptText: string, isRefinement: boolean) => {
+        setIsLlmActive(true);
+        
+        // 1. Construct History Context
+        // If refinement, we include previous history. If new, we start fresh-ish context.
+        const contextMessages = isRefinement 
+            ? history.map(m => ({ role: m.role, content: m.content }))
+            : []; 
+
+        const systemMsg = { 
+            role: 'system', 
+            content: `You are an expert presentation outline generator. 
+            User Input: "${userPromptText}".
+            
+            Task: Create or Refine a hierarchical outline for a presentation/report.
+            Output Format: STRICT JSON ONLY. No markdown code blocks. No conversational filler.
+            Structure: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary of key points..." }, ... ] }
+            
+            If this is a refinement request, modify the existing outline based on the user's feedback. Keep the JSON structure.`
+        };
+
+        const apiMessages = [
+            systemMsg,
+            ...contextMessages,
+            { role: 'user', content: userPromptText }
+        ];
+
+        // 2. Prepare UI State
+        const assistantMsgId = Date.now().toString();
+        setHistory(prev => [
+            ...prev, 
+            { role: 'assistant', content: '', reasoning: '', id: assistantMsgId } // Add placeholder
+        ]);
+
+        let accumulatedContent = '';
+        let accumulatedReasoning = '';
+
+        try {
+            // 3. Call Stream API
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); // Outline Prompt (Or use default model)
+            const modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
+
+            await streamChatCompletions({
+                model: modelToUse, 
+                messages: apiMessages,
+                stream: true
+            }, (chunk) => {
+                if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
+                if (chunk.content) accumulatedContent += chunk.content;
+
+                // Update the last message in history
+                setHistory(prev => {
+                    const newHistory = [...prev];
+                    const lastIdx = newHistory.length - 1;
+                    newHistory[lastIdx] = {
+                        ...newHistory[lastIdx],
+                        reasoning: accumulatedReasoning,
+                        content: accumulatedContent
+                    };
+                    return newHistory;
+                });
+            });
+
+            // 4. Post-Process (Parse JSON)
+            try {
+                // Remove potential markdown blocks if LLM ignores instructions
+                const jsonStr = accumulatedContent.replace(/```json|```/g, '').trim();
+                const parsedOutline = JSON.parse(jsonStr);
+                
+                if (parsedOutline.title && Array.isArray(parsedOutline.pages)) {
+                    setData(prev => ({
+                        ...prev,
+                        topic: parsedOutline.title,
+                        outline: parsedOutline
+                    }));
+                    
+                    // Switch to outline stage if not already, to show the result on the right
+                    if (stage === 'collect') {
+                        setStage('outline');
+                    }
+                    
+                    // Update the chat message to look cleaner (optional: hide raw JSON, show summary)
+                    setHistory(prev => {
+                        const newHistory = [...prev];
+                        const lastIdx = newHistory.length - 1;
+                        newHistory[lastIdx].content = isRefinement 
+                            ? `已根据您的意见更新大纲：**${parsedOutline.title}** (共 ${parsedOutline.pages.length} 页)。\n请在右侧确认大纲结构。`
+                            : `大纲已生成：**${parsedOutline.title}**。\n请在右侧查看完整结构，如有需要可直接告诉我调整意见（例如：“删除第三章”、“增加市场分析页”）。`;
+                        return newHistory;
+                    });
+                }
+            } catch (e) {
+                console.error("JSON Parse Error", e);
+                setHistory(prev => [...prev, { role: 'assistant', content: "生成的内容格式有误，请重试。" }]);
+            }
+
+        } catch (e) {
+            console.error("Generation Error", e);
+            setHistory(prev => [...prev, { role: 'assistant', content: "服务连接失败，请稍后再试。" }]);
+        } finally {
+            setIsLlmActive(false);
+        }
+    };
 
     // --- Handlers ---
 
@@ -39,67 +182,60 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const userInput = input;
         setInput('');
 
-        // 1. Add User Message
+        // 1. Add User Message to UI
         setHistory(prev => [...prev, { role: 'user', content: userInput }]);
 
-        // 2. State Transition Logic
+        // 2. Dispatch Logic
         if (stage === 'collect') {
-            // Set topic and move immediately to outline stage.
-            // The OutlineWidget will handle the API call when it mounts.
-            setData(prev => ({ ...prev, topic: userInput }));
-            setStage('outline');
+            // Initial Generation
+            await runOutlineGeneration(userInput, false);
+        } else if (stage === 'outline') {
+            // Refinement
+            await runOutlineGeneration(`Update the outline based on this feedback: ${userInput}`, true);
         } else {
-            // For other stages, just treat as generic chat (simplified for now)
-            setHistory(prev => [...prev, { role: 'assistant', content: '收到。目前处于生成阶段，请使用界面控件进行操作，或重置以开始新话题。' }]);
+            // Chat during Compose/Finalize (Simple Chat)
+            setHistory(prev => [...prev, { role: 'assistant', content: '进入生成阶段后，暂不支持大纲级别的结构调整。' }]);
         }
     };
 
     // --- Renderers ---
 
-    const renderPageList = () => (
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Generation Queue</div>
-            {data.pages.map((page, idx) => (
-                <div 
-                    key={idx}
-                    onClick={() => setActivePageIndex(idx)}
-                    className={`
-                        group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border
-                        ${activePageIndex === idx 
-                            ? 'bg-indigo-600 border-indigo-500 shadow-md shadow-indigo-900/20' 
-                            : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800 hover:border-slate-600 text-slate-400'
-                        }
-                    `}
-                >
+    const renderChatBubbles = () => (
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar-dark" ref={scrollRef}>
+            {history.filter(m => !m.hidden).map((msg, i) => (
+                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                     <div className={`
-                        w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-[10px] font-bold
-                        ${activePageIndex === idx ? 'bg-white text-indigo-600' : 'bg-slate-700 text-slate-300'}
+                        max-w-[90%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm
+                        ${msg.role === 'user' 
+                            ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                            : 'bg-white text-slate-700 border border-slate-200 rounded-tl-sm'
+                        }
                     `}>
-                        {idx + 1}
+                        {/* Render Thinking Block for Assistant */}
+                        {msg.role === 'assistant' && msg.reasoning && (
+                            <ThinkingBlock 
+                                content={msg.reasoning} 
+                                isStreaming={isLlmActive && i === history.length - 1} 
+                            />
+                        )}
+                        
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-bold truncate ${activePageIndex === idx ? 'text-white' : 'text-slate-300'}`}>
-                            {page.title}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            {page.html ? (
-                                <span className="text-[9px] text-green-400 flex items-center gap-1"><CheckIcon className="w-3 h-3"/> Ready</span>
-                            ) : page.isGenerating ? (
-                                <span className="text-[9px] text-indigo-300 animate-pulse flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> Generating...</span>
-                            ) : (
-                                <span className="text-[9px] text-slate-500">Waiting</span>
-                            )}
-                        </div>
-                    </div>
-                    <ChevronRightIcon className={`w-4 h-4 ${activePageIndex === idx ? 'text-white' : 'text-slate-600 group-hover:text-slate-400'}`} />
                 </div>
             ))}
-             <button 
-                onClick={() => setStage('finalize')}
-                className="w-full mt-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-lg"
-            >
-                <CheckIcon className="w-4 h-4" /> 预览与导出
-            </button>
+             {history.length === 0 && (
+                <div className="mt-20 text-center text-slate-500 px-6">
+                    <SparklesIcon className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p className="text-sm">请输入您的研报主题，AI 将进行深度思考并构建大纲。</p>
+                    <div className="mt-6 flex flex-wrap gap-2 justify-center">
+                        {['小米汽车 SU7 竞品分析', '固态电池技术趋势', '2024 新能源出海报告'].map(t => (
+                            <button key={t} onClick={() => { setInput(t); /* auto trigger logic if needed */ }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-xs text-slate-300 border border-slate-700 transition-colors">
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -119,105 +255,29 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             {/* Dynamic Content Area */}
             <div className="flex-1 flex flex-col min-h-0 relative">
                 
-                {/* Mode 1: Initial Collect (Chat) */}
-                {stage === 'collect' && (
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar-dark" ref={scrollRef}>
-                        {history.filter(m => !m.hidden).map((msg, i) => (
-                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`
-                                    max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed
-                                    ${msg.role === 'user' 
-                                        ? 'bg-indigo-600 text-white rounded-tr-sm' 
-                                        : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tl-sm'
-                                    }
-                                `}>
-                                    {msg.content}
-                                </div>
-                            </div>
-                        ))}
-                         {history.length === 0 && (
-                            <div className="mt-20 text-center text-slate-500 px-6">
-                                <SparklesIcon className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                                <p className="text-sm">请输入您的研报主题，我将为您构建分析框架。</p>
-                                <div className="mt-6 flex flex-wrap gap-2 justify-center">
-                                    {['小米汽车 SU7 竞品分析', '固态电池技术趋势', '2024 新能源出海报告'].map(t => (
-                                        <button key={t} onClick={() => { setInput(t); /* auto trigger not implemented to prompt user */ }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-xs text-slate-300 border border-slate-700 transition-colors">
-                                            {t}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                {/* Always render ChatBubbles */}
+                {renderChatBubbles()}
 
-                {/* Mode 2: Outline Editor (Sidebar Widget) */}
-                {stage === 'outline' && (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="px-5 py-3 bg-slate-800/30 border-b border-slate-700/50 flex justify-between items-center flex-shrink-0">
-                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Outline Editor</span>
-                            <button onClick={() => setStage('collect')} className="text-xs text-indigo-400 hover:underline">修改主题</button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-scrollbar-dark">
-                            <OutlineWidget 
-                                topic={data.topic} 
-                                history={history} 
-                                onHistoryUpdate={setHistory}
-                                onLlmStatusChange={setIsLlmActive} 
-                                onStreamingUpdate={() => {}} 
-                                onConfirm={(outline) => {
-                                    // Transition to compose
-                                    setData(prev => ({ 
-                                        ...prev, 
-                                        outline,
-                                        pages: outline.pages.map(p => ({ 
-                                            title: p.title, 
-                                            summary: p.content, 
-                                            content: '', // Empty initially
-                                            isGenerating: false 
-                                        }))
-                                    }));
-                                    setStage('compose');
-                                    setActivePageIndex(0);
-                                }}
-                            />
-                        </div>
+                {/* Input Area */}
+                <div className="p-4 bg-[#0f172a] border-t border-slate-700/50 z-20 flex-shrink-0">
+                    <div className="relative">
+                        <input 
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                            placeholder={stage === 'collect' ? "输入研报主题..." : "输入修改意见..."}
+                            className="w-full bg-slate-800 text-white placeholder:text-slate-500 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-inner"
+                            disabled={isLlmActive}
+                        />
+                        <button 
+                            onClick={handleSend}
+                            disabled={!input.trim() || isLlmActive}
+                            className="absolute right-2 top-1.5 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-slate-700"
+                        >
+                            {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
+                        </button>
                     </div>
-                )}
-
-                {/* Mode 3: Compose/Finalize (Nav Rail) */}
-                {(stage === 'compose' || stage === 'finalize') && (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                         <div className="px-5 py-4 bg-slate-800/30 border-b border-slate-700/50 flex-shrink-0">
-                            <h3 className="font-bold text-slate-200 text-sm truncate">{data.topic}</h3>
-                            <p className="text-xs text-slate-500 mt-1">共 {data.pages.length} 页</p>
-                        </div>
-                        {renderPageList()}
-                    </div>
-                )}
-
-                {/* Input Area (Only visible in Collect Stage) */}
-                {stage === 'collect' && (
-                    <div className="p-4 bg-[#0f172a] border-t border-slate-700/50 z-20 flex-shrink-0">
-                        <div className="relative">
-                            <input 
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleSend()}
-                                placeholder="输入主题..."
-                                className="w-full bg-slate-800 text-white placeholder:text-slate-500 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-inner"
-                                disabled={isLlmActive}
-                            />
-                            <button 
-                                onClick={handleSend}
-                                disabled={!input.trim() || isLlmActive}
-                                className="absolute right-2 top-1.5 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-slate-700"
-                            >
-                                {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
-                            </button>
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );

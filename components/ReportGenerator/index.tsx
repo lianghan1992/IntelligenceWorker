@@ -65,9 +65,9 @@ const ScenarioWorkstation: React.FC = () => {
     };
 
     return (
-        <div className="flex h-full w-full bg-[#0f172a] overflow-hidden text-slate-100 font-sans">
-            {/* Left: Copilot Sidebar (Fixed Width) */}
-            <div className="w-[400px] flex-shrink-0 flex flex-col border-r border-slate-700/50 bg-[#0f172a] relative z-20">
+        <div className="flex h-full w-full bg-[#f8fafc] overflow-hidden text-slate-900 font-sans">
+            {/* Left: Copilot Sidebar (Fixed Width - Adjusted to be clean) */}
+            <div className="w-[360px] flex-shrink-0 flex flex-col border-r border-slate-200 bg-[#0f172a] relative z-20">
                 <CopilotSidebar 
                     stage={stage}
                     setStage={setStage}
@@ -83,22 +83,16 @@ const ScenarioWorkstation: React.FC = () => {
                 />
             </div>
 
-            {/* Right: Main Canvas (Flex) */}
-            <div className="flex-1 relative bg-slate-100 text-slate-900 overflow-hidden flex flex-col">
-                {/* Background Texture */}
-                <div className="absolute inset-0 opacity-[0.4] pointer-events-none" 
-                     style={{ 
-                         backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', 
-                         backgroundSize: '24px 24px' 
-                     }}>
-                </div>
-                
+            {/* Right: Main Canvas (Flex - The Business Presentation View) */}
+            <div className="flex-1 relative bg-slate-50 overflow-hidden flex flex-col">
                 <MainCanvas 
                     stage={stage}
                     data={data}
                     activePageIndex={activePageIndex}
                     setActivePageIndex={setActivePageIndex}
                     isLlmActive={isLlmActive}
+                    setStage={setStage}
+                    setData={setData}
                 />
             </div>
         </div>
