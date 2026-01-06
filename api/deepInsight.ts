@@ -66,7 +66,7 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         category_id: t.category_id,
         created_at: t.created_at,
         updated_at: t.updated_at,
-        // Don't set cover_image string here, components must fetch it as Blob
+        // Ensure cover_image is undefined so components use the async fetcher
         cover_image: undefined
     }));
 
@@ -189,19 +189,29 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
 };
 
 // Preview Helper
+// Fetches the cover image as a Blob to handle Bearer Token auth correctly, 
+// since <img> tags cannot send headers.
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    // Explicitly accept images
+    headers.set('Accept', 'image/*');
     
     try {
         const response = await fetch(url, { headers });
-        if (!response.ok) return null;
+        if (!response.ok) {
+            if (response.status !== 404) {
+                console.warn(`Cover fetch failed for task ${taskId}: ${response.status}`);
+            }
+            return null;
+        }
         const blob = await response.blob();
+        if (blob.size === 0) return null;
         return URL.createObjectURL(blob);
     } catch (e) {
-        console.warn("Failed to fetch cover", e);
+        console.warn("Network error fetching cover:", e);
         return null;
     }
 };

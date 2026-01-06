@@ -66,6 +66,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
     useEffect(() => {
         if (!currentTask) return;
         let active = true;
+        setCoverUrl(null); // Reset before fetch
         
         fetchDeepInsightCover(currentTask.id).then(url => {
             if (active && url) setCoverUrl(url);
@@ -74,7 +75,6 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
         return () => { 
             active = false; 
             if (coverUrl) URL.revokeObjectURL(coverUrl);
-            setCoverUrl(null); 
         };
     }, [currentTask?.id]);
 
@@ -190,7 +190,9 @@ const ReportCard: React.FC<{
     categoryName: string;
     onRead: () => void;
 }> = ({ task, categoryName, onRead }) => {
-    const isCompleted = task.status === 'completed';
+    // Relaxed check: allow fetching cover for more states, as backend might have cover ready even if processing
+    const isCompleted = ['completed', 'finished', 'success'].includes(task.status.toLowerCase());
+    
     // Deterministic gradient based on id
     const gradientIdx = (task.id.charCodeAt(0) || 0) % GRADIENTS.length;
     const bgGradient = GRADIENTS[gradientIdx];
@@ -198,15 +200,12 @@ const ReportCard: React.FC<{
 
     useEffect(() => {
         let active = true;
-        // Only attempt to fetch cover if completed (to avoid 404s on processing) 
-        // OR if backend supports getting covers during processing? Assuming completed for now.
-        if (task.status === 'completed') {
-             fetchDeepInsightCover(task.id).then(url => {
-                if (active && url) setCoverUrl(url);
-            });
-        }
+        // Attempt to fetch cover for all tasks. If 404, it returns null and shows placeholder.
+        fetchDeepInsightCover(task.id).then(url => {
+            if (active && url) setCoverUrl(url);
+        });
         return () => { active = false; if (coverUrl) URL.revokeObjectURL(coverUrl); };
-    }, [task.id, task.status]);
+    }, [task.id]);
 
     return (
         <article className="group flex flex-col bg-white rounded-xl border border-slate-200 overflow-visible hover:border-blue-300/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/5 h-full relative z-0 hover:z-10">
