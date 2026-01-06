@@ -7,7 +7,15 @@ import { apiFetch, createApiQuery } from './helper';
 
 // --- Categories ---
 export const getDeepInsightCategories = async (): Promise<DeepInsightCategory[]> => {
-    return apiFetch<DeepInsightCategory[]>(`${DEEP_INSIGHT_SERVICE_PATH}/categories`);
+    try {
+        // Safe fetch: if backend returns 404 or error, return empty array to prevent UI crash
+        const res = await apiFetch<DeepInsightCategory[]>(`${DEEP_INSIGHT_SERVICE_PATH}/categories`);
+        if (Array.isArray(res)) return res;
+        return [];
+    } catch (e) {
+        console.warn("Failed to fetch categories, using empty list:", e);
+        return [];
+    }
 };
 
 export const createDeepInsightCategory = (name: string, parent_id?: string): Promise<{ id: string; message: string }> => {
@@ -52,30 +60,41 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
     };
     
     const query = createApiQuery(apiParams);
-    const res = await apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`);
+    
+    try {
+        const res = await apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks${query}`);
 
-    // Map backend response to frontend DeepInsightTask interface
-    const items: DeepInsightTask[] = (res.items || []).map((t: any) => ({
-        id: t.id,
-        file_name: t.file_name,
-        file_type: t.file_type || 'PDF',
-        file_size: t.file_size || 0,
-        status: t.status,
-        total_pages: t.total_pages || 0,
-        processed_pages: t.processed_pages || 0,
-        category_id: t.category_id,
-        created_at: t.created_at,
-        updated_at: t.updated_at,
-        // Ensure cover_image is undefined so components use the async fetcher
-        cover_image: undefined
-    }));
+        // Defensive check for response structure
+        const rawItems = res.items || (Array.isArray(res) ? res : []);
+        const total = res.total || rawItems.length || 0;
 
-    return {
-        items,
-        total: res.total,
-        page: res.page,
-        limit: res.size || res.limit || apiParams.limit
-    };
+        // Map backend response to frontend DeepInsightTask interface
+        const items: DeepInsightTask[] = rawItems.map((t: any) => ({
+            id: t.id,
+            file_name: t.file_name,
+            file_type: t.file_type || 'PDF',
+            file_size: t.file_size || 0,
+            status: t.status,
+            total_pages: t.total_pages || 0,
+            processed_pages: t.processed_pages || 0,
+            category_id: t.category_id,
+            created_at: t.created_at,
+            updated_at: t.updated_at,
+            summary: t.summary,
+            // Ensure cover_image is undefined so components use the async fetcher
+            cover_image: undefined
+        }));
+
+        return {
+            items,
+            total: total,
+            page: res.page || apiParams.page,
+            limit: res.size || res.limit || apiParams.limit
+        };
+    } catch (e) {
+        console.warn("Failed to fetch tasks, returning empty result:", e);
+        return { items: [], total: 0, page: 1, limit: apiParams.limit };
+    }
 };
 
 export const createDeepInsightTask = (fileName: string, category_id?: string): Promise<{ id: string }> => {
@@ -130,6 +149,7 @@ export const getDeepInsightTask = (taskId: string): Promise<DeepInsightTask> =>
         category_id: t.category_id,
         created_at: t.created_at,
         updated_at: t.updated_at,
+        summary: t.summary
     }));
 
 export const getDeepInsightTaskPages = (taskId: string, page = 1, limit = 20): Promise<DeepInsightPagesResponse> =>
@@ -146,8 +166,15 @@ export const batchDeleteDeepInsightTasks = (ids: string[]): Promise<{ deleted_co
         body: JSON.stringify({ ids }),
     });
 
-export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> =>
-    apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/stats`);
+export const getDeepInsightTasksStats = async (): Promise<{ total: number; completed: number; failed: number; processing: number; pending: number }> => {
+    try {
+        const res = await apiFetch<any>(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/stats`);
+        return res;
+    } catch (e) {
+        console.warn("Stats API failed, returning zeros:", e);
+        return { total: 0, completed: 0, failed: 0, processing: 0, pending: 0 };
+    }
+};
 
 export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
     apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/status`);
@@ -206,7 +233,8 @@ export const fetchDeepInsightCover = async (taskId: string): Promise<string | nu
         if (blob.size === 0) return null;
         return URL.createObjectURL(blob);
     } catch (e) {
-        console.warn(`Failed to fetch cover for task ${taskId}`, e);
+        // console.warn(`Failed to fetch cover for task ${taskId}`, e); 
+        // Suppress warning to avoid console spam if cover doesn't exist yet
         return null;
     }
 };

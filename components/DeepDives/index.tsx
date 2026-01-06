@@ -51,16 +51,18 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
 
     // Auto-rotate logic
     useEffect(() => {
-        if (tasks.length <= 1 || isHovered) return;
+        if (!Array.isArray(tasks) || tasks.length <= 1 || isHovered) return;
         
         const interval = setInterval(() => {
             setCurrentIndex(prev => (prev + 1) % tasks.length);
         }, 5000); // 5 seconds per slide
 
         return () => clearInterval(interval);
-    }, [tasks.length, isHovered]);
+    }, [tasks, isHovered]);
 
-    const currentTask = tasks[currentIndex];
+    // Ensure safe access
+    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    const currentTask = safeTasks[currentIndex];
 
     // Fetch cover for current hero item
     useEffect(() => {
@@ -78,7 +80,7 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
         };
     }, [currentTask?.id]);
 
-    if (!tasks || tasks.length === 0 || !currentTask) return null;
+    if (!safeTasks || safeTasks.length === 0 || !currentTask) return null;
 
     return (
         <section 
@@ -151,9 +153,9 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                 </div>
 
                 {/* Indicators */}
-                {tasks.length > 1 && (
+                {safeTasks.length > 1 && (
                     <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-30">
-                        {tasks.map((_, idx) => (
+                        {safeTasks.map((_, idx) => (
                             <button
                                 key={idx}
                                 onClick={() => setCurrentIndex(idx)}
@@ -164,16 +166,16 @@ const HeroSection: React.FC<{ tasks: DeepInsightTask[]; onRead: (task: DeepInsig
                 )}
                 
                 {/* Arrows */}
-                 {tasks.length > 1 && (
+                 {safeTasks.length > 1 && (
                     <>
                         <button 
-                            onClick={() => setCurrentIndex(prev => (prev - 1 + tasks.length) % tasks.length)}
+                            onClick={() => setCurrentIndex(prev => (prev - 1 + safeTasks.length) % safeTasks.length)}
                             className="absolute left-4 md:left-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
                         >
                             <ChevronLeftIcon className="w-6 h-6" />
                         </button>
                         <button 
-                            onClick={() => setCurrentIndex(prev => (prev + 1) % tasks.length)}
+                            onClick={() => setCurrentIndex(prev => (prev + 1) % safeTasks.length)}
                             className="absolute right-4 md:right-10 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/50 hover:bg-white text-slate-500 hover:text-blue-600 backdrop-blur-sm border border-slate-200 shadow-sm transition-all z-30 opacity-0 group-hover:opacity-100"
                         >
                             <ChevronRightIcon className="w-6 h-6" />
@@ -325,7 +327,7 @@ export const DeepDives: React.FC = () => {
         try {
             // Parallel fetch categories and tasks
             const [cats, tasksRes] = await Promise.all([
-                getDeepInsightCategories().catch(() => []),
+                getDeepInsightCategories().catch(() => []), // Safe catch to ensure array
                 getDeepInsightTasks({ 
                     limit, 
                     page, 
@@ -333,13 +335,21 @@ export const DeepDives: React.FC = () => {
                     search: searchQuery 
                 }).catch(() => ({ items: [], total: 0 }))
             ]);
-            setCategories(cats);
+            
+            // Explicit array checks to prevent "map is not a function"
+            setCategories(Array.isArray(cats) ? cats : []);
+            
             const items = Array.isArray(tasksRes) ? tasksRes : (tasksRes.items || []);
             setTasks(items);
+            
             // Handle total from API response
             setTotal((tasksRes as any).total || 0);
         } catch (error) {
             console.error("Failed to load data", error);
+            // Default safe states on critical error
+            setCategories([]);
+            setTasks([]);
+            setTotal(0);
         } finally {
             setIsLoading(false);
         }
@@ -359,6 +369,9 @@ export const DeepDives: React.FC = () => {
 
     // Derived Data - Client-side sort if API doesn't support
     const sortedTasks = useMemo(() => {
+        // Safe check
+        if (!Array.isArray(tasks)) return [];
+
         let sorted = [...tasks];
         if (sortOption === 'newest') {
             sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -369,7 +382,7 @@ export const DeepDives: React.FC = () => {
     }, [tasks, sortOption]);
 
     const featuredTasks = useMemo(() => sortedTasks.slice(0, 5), [sortedTasks]);
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limit) || 1;
 
     const handlePageChange = (newPage: number) => {
         if (newPage >= 1 && newPage <= totalPages) {
@@ -421,7 +434,8 @@ export const DeepDives: React.FC = () => {
                                 <ViewGridIcon className="w-4 h-4" />
                                 <span className="text-sm font-medium">全部</span>
                             </button>
-                            {categories.map(cat => {
+                            {/* Safe check for categories mapping */}
+                            {Array.isArray(categories) && categories.map(cat => {
                                 const Icon = CATEGORY_ICONS[cat.name] || DocumentTextIcon;
                                 const isSelected = selectedCategoryId === cat.id;
                                 return (
@@ -494,7 +508,7 @@ export const DeepDives: React.FC = () => {
                                 </div>
                             ))}
                         </div>
-                    ) : tasks.length === 0 ? (
+                    ) : sortedTasks.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
                             <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100">
                                 <CloudIcon className="w-12 h-12 text-slate-300" />
