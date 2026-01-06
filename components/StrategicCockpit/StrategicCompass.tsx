@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Category, SubCategory } from './data';
-import { ChevronDownIcon } from '../icons';
 
 interface StrategicCompassProps {
     categories: Category[];
@@ -28,15 +27,13 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
         // Reset sub-look when switching main category
         setSelectedSubLook(null);
         
-        // If it has no children, trigger filter immediately
-        if (category.children.length === 0) {
-            onSubCategoryClick('*', category.label);
-        } else {
-            // Optional: Auto-select first child? Or wait for user?
-            // Let's select the first child by default for smoother UX in horizontal mode
+        // Auto-select first child for smoother UX
+        if (category.children.length > 0) {
             const firstChild = category.children[0];
             setSelectedSubLook(firstChild.key);
             onSubCategoryClick(firstChild.keywords, firstChild.label);
+        } else {
+            onSubCategoryClick('*', category.label);
         }
     };
 
@@ -48,45 +45,45 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     const activeCategory = categories.find(c => c.key === selectedLook);
 
     return (
-        <div className="flex flex-col w-full">
-            {/* Level 1: Main Categories */}
-            <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar pb-1">
+        <div className="flex flex-col w-full h-full justify-center">
+            {/* Level 1: Main Categories - Pills Style */}
+            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar pb-1">
                 {categories.map((category) => {
-                    const isPrimaryActive = selectedLook === category.key;
+                    const isActive = selectedLook === category.key;
                     return (
                         <button
                             key={category.key}
                             onClick={() => handleCategoryClick(category)}
                             className={`
-                                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap
-                                ${isPrimaryActive 
-                                    ? 'bg-slate-800 text-white shadow-md' 
-                                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border
+                                ${isActive 
+                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md transform scale-[1.02]' 
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                                 }
                             `}
                         >
-                            <category.icon className={`w-4 h-4 ${isPrimaryActive ? 'text-white' : 'text-slate-400'}`} />
+                            <category.icon className={`w-4 h-4 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} />
                             <span>{category.label}</span>
                         </button>
                     );
                 })}
             </div>
 
-            {/* Level 2: Sub Categories (Conditional Render below) */}
+            {/* Level 2: Sub Categories - Text Links Style */}
             {activeCategory && activeCategory.children.length > 0 && (
-                <div className="flex items-center space-x-2 mt-2 overflow-x-auto no-scrollbar pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="w-3 h-3 border-l border-b border-slate-300 rounded-bl-md mb-2 ml-2 flex-shrink-0"></div>
+                <div className="flex items-center gap-1 mt-2 overflow-x-auto no-scrollbar animate-in fade-in slide-in-from-left-2 duration-300 pl-1">
+                    <div className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-2 flex-shrink-0"></div>
                     {activeCategory.children.map(subCategory => {
-                        const isSubActive = activeQuery.type === 'sublook' && selectedSubLook === subCategory.key;
+                        const isSubActive = selectedSubLook === subCategory.key;
                         return (
                             <button
                                 key={subCategory.key}
                                 onClick={(e) => { e.stopPropagation(); handleSubCategoryClick(subCategory); }}
                                 className={`
-                                    px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap border
+                                    px-3 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap
                                     ${isSubActive
-                                        ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' 
-                                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                        ? 'bg-indigo-50 text-indigo-700 font-bold' 
+                                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                                     }
                                 `}
                             >
