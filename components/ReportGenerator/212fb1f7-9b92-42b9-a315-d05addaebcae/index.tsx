@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StratifyScenario, StratifyOutline } from '../../../types';
 import { 
-    ArrowLeftIcon, SparklesIcon, DocumentTextIcon, ViewGridIcon, 
-    CheckCircleIcon, ChevronRightIcon, GlobeIcon, UserIcon, BrainIcon, ChevronDownIcon, ArrowRightIcon,
-    RefreshIcon
+    SparklesIcon, UserIcon, BrainIcon, ChevronDownIcon, ArrowRightIcon,
+    RefreshIcon, TrashIcon
 } from '../../icons';
 import { Step1Collect } from './Step1Collect';
 import { Step2Outline } from './Step2Outline';
@@ -40,6 +39,19 @@ export interface PPTData {
     outline: StratifyOutline | null;
     pages: PPTPageData[];
 }
+
+const STORAGE_KEY = 'auto_insight_ppt_session_v1';
+
+const DEFAULT_HISTORY: ChatMessage[] = [
+    { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
+];
+
+const DEFAULT_DATA: PPTData = {
+    topic: '',
+    referenceMaterials: '',
+    outline: null,
+    pages: []
+};
 
 // --- 子组件：统一聊天消息气泡 ---
 const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ msg, isStreaming }) => {
@@ -97,34 +109,73 @@ const MessageBubble: React.FC<{ msg: ChatMessage; isStreaming?: boolean }> = ({ 
 };
 
 export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenario }) => {
-    const [stage, setStage] = useState<PPTStage>('collect');
-    const [history, setHistory] = useState<ChatMessage[]>([
-        { role: 'assistant', content: '您好！我是您的报告架构师。请先在右侧上传或抓取参考资料，然后在下方输入您的报告主题或研究想法。' }
-    ]);
-    const [data, setData] = useState<PPTData>({
-        topic: '',
-        referenceMaterials: '',
-        outline: null,
-        pages: []
+    // --- State Initialization with Persistence ---
+    const [stage, setStage] = useState<PPTStage>(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved).stage : 'collect';
+        } catch { return 'collect'; }
     });
-    const [chatInput, setChatInput] = useState('');
+
+    const [history, setHistory] = useState<ChatMessage[]>(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved).history : DEFAULT_HISTORY;
+        } catch { return DEFAULT_HISTORY; }
+    });
+
+    const [data, setData] = useState<PPTData>(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved).data : DEFAULT_DATA;
+        } catch { return DEFAULT_DATA; }
+    });
+
+    const [chatInput, setChatInput] = useState(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved).chatInput : '';
+        } catch { return ''; }
+    });
+
+    // Transient state (not persisted)
     const [isLlmActive, setIsLlmActive] = useState(false);
     const [streamingMessage, setStreamingMessage] = useState<ChatMessage | null>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
 
+    // --- Persistence Effect ---
+    useEffect(() => {
+        const stateToSave = {
+            stage,
+            history,
+            data,
+            chatInput
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    }, [stage, history, data, chatInput]);
+
     // 自动滚动主聊天容器
     useEffect(() => {
         if (chatScrollRef.current) {
-            // 使用 requestAnimationFrame 确保在 DOM 更新后执行滚动
             const container = chatScrollRef.current;
             requestAnimationFrame(() => {
                 container.scrollTo({
                     top: container.scrollHeight,
-                    behavior: isLlmActive ? 'auto' : 'smooth' // 流式输出时使用 auto 减少抖动，非输出时使用 smooth
+                    behavior: isLlmActive ? 'auto' : 'smooth'
                 });
             });
         }
     }, [history, streamingMessage, isLlmActive]);
+
+    const handleReset = () => {
+        if (confirm('确定要清空当前任务并重新开始吗？此操作将丢失所有未保存的进度。')) {
+            localStorage.removeItem(STORAGE_KEY);
+            setStage('collect');
+            setHistory(DEFAULT_HISTORY);
+            setData(DEFAULT_DATA);
+            setChatInput('');
+        }
+    };
 
     const handleSendMessage = async () => {
         if (!chatInput.trim() || isLlmActive) return;
@@ -165,15 +216,31 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                         <SparklesIcon className="w-5 h-5" />
                     </div>
                     <h1 className="text-base font-black text-slate-800 tracking-tight">{scenario.title}</h1>
+                    <div className="h-4 w-px bg-slate-200 mx-2"></div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        {stage === 'collect' ? '自动保存已就绪' : '已自动保存'}
+                    </div>
                 </div>
-                <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
-                    {['collect', 'outline', 'compose', 'finalize'].map((s, idx) => (
-                        <div key={s} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${stage === s ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400'}`}>
-                            {['灵感', '大纲', '创作', '渲染'][idx]}
-                        </div>
-                    ))}
+                
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+                        {['collect', 'outline', 'compose', 'finalize'].map((s, idx) => (
+                            <div key={s} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${stage === s ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-400'}`}>
+                                {['灵感', '大纲', '创作', '渲染'][idx]}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <button 
+                        onClick={handleReset}
+                        className="flex items-center gap-1.5 px-3 py-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all text-xs font-bold"
+                        title="清空当前任务并重新开始"
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                        <span className="hidden sm:inline">重置任务</span>
+                    </button>
                 </div>
-                <div className="w-20" />
             </header>
 
             {/* Main Layout */}
