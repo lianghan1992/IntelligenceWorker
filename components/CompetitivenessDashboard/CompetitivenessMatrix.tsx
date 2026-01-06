@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { TechItem, CompetitivenessDimension } from '../../types';
 import { 
@@ -81,7 +82,9 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             if (!map.has(matchedBrand)) map.set(matchedBrand, new Map());
             const brandMap = map.get(matchedBrand)!;
             
-            const dimObj = dimensions.find(d => d.name === item.tech_dimension);
+            // ROBUST MATCHING: Try to match item dimension to metadata by Name OR ID
+            const dimObj = dimensions.find(d => d.name === item.tech_dimension || d.id === item.tech_dimension);
+            // If matched, use the metadata ID (standard key). If not, use the raw value as fallback key.
             const dimId = dimObj ? dimObj.id : item.tech_dimension;
 
             if (!brandMap.has(dimId)) brandMap.set(dimId, new Map());
@@ -215,11 +218,15 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                 {/* Tech Specs Body - Vertical Stack with Inner Scrolling */}
                                 <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6">
                                     {dimensions.map((dim, dimIndex) => {
-                                        const subDims = dim.sub_dimensions || [];
-                                        const brandDimMap = brandData?.get(dim.id);
+                                        const definedSubDims = dim.sub_dimensions || [];
+                                        const brandDimMap = brandData?.get(dim.id); // Matches UUID
                                         
-                                        // 1. Filter sub-dimensions that actually have data for this brand
-                                        const activeSubDimsForBrand = subDims.filter(sub => brandDimMap?.has(sub));
+                                        // Merge Metadata Sub-dims with Actual Data Sub-dims to ensure nothing is hidden
+                                        const dataSubDims = brandDimMap ? Array.from(brandDimMap.keys()) : [];
+                                        const allRelevantSubDims = Array.from(new Set([...definedSubDims, ...dataSubDims]));
+
+                                        // Filter to show only those that have data for this brand
+                                        const activeSubDimsForBrand = allRelevantSubDims.filter(sub => brandDimMap?.has(sub));
                                         
                                         // 2. If no active sub-dimensions, completely hide (fold) this primary dimension block
                                         if (activeSubDimsForBrand.length === 0) return null;
@@ -303,8 +310,8 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                     {/* Fallback if all dimensions are hidden */}
                                     {dimensions.every(dim => {
                                         const brandDimMap = brandData?.get(dim.id);
-                                        const subDims = dim.sub_dimensions || [];
-                                        return !subDims.some(sub => brandDimMap?.has(sub));
+                                        // Check against all possible keys in map, ignoring metadata mismatch
+                                        return !brandDimMap || brandDimMap.size === 0;
                                     }) && (
                                         <div className="text-center py-10 text-slate-400">
                                             <SparklesIcon className="w-8 h-8 mb-2 mx-auto opacity-20" />
