@@ -254,9 +254,9 @@ export const CompetitivenessDashboard: React.FC = () => {
         const loadData = async () => {
             setIsLoading(true);
             try {
-                // Fetch all items for selected brands (pagination logic might be needed for large datasets)
-                // Here we fetch a reasonable limit for dashboard visualization
-                const data = await getTechItems({ limit: 500 });
+                // Use limit=1000 to ensure we get a comprehensive set of items for the dashboard
+                // Backend now supports overriding size with limit.
+                const data = await getTechItems({ limit: 1000 });
                 // Filter locally for now or update API to accept multiple brands
                 setItems(data.items.filter(i => selectedBrands.includes(i.vehicle_brand) || selectedBrands.some(b => i.vehicle_brand.includes(b))));
             } catch (error) {

@@ -23,7 +23,7 @@ export const getCompetitivenessStats = async (type: 'overview' | 'by-brand' | 'b
     apiFetch<any>(`${COMPETITIVENESS_SERVICE_PATH}/stats/${type}`);
 
 // --- Metadata ---
-export const getDimensions = async (params: { page?: number; size?: number } = { page: 1, size: 1000 }): Promise<CompetitivenessDimension[]> => {
+export const getDimensions = async (params: { page?: number; size?: number; limit?: number } = { page: 1, size: 1000 }): Promise<CompetitivenessDimension[]> => {
     const query = createApiQuery(params);
     const res = await apiFetch<{ items: CompetitivenessDimension[] }>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions${query}`);
     return res.items;
@@ -36,12 +36,6 @@ export const addDimension = (name: string, sub_dimensions: string[]): Promise<Co
     });
 
 export const updateDimension = (name: string, sub_dimensions: string[]): Promise<CompetitivenessDimension> =>
-    // The ID in PUT path usually refers to the ID, but legacy code used name. 
-    // Assuming backend might accept name or ID in path based on previous context, 
-    // but typically ID is safer. If API expects Name in URL for update/delete, encodeURIComponent is correct.
-    // However, doc says `/dimensions/{dimension_id}`. We should try to use ID if available in UI, but name is used here.
-    // If backend supports name lookups on this route, good. Otherwise, UI needs refactor to pass ID.
-    // Given the previous code used name, we stick to name but ensure encoding.
     apiFetch<CompetitivenessDimension>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions/${encodeURIComponent(name)}`, {
         method: 'PUT',
         body: JSON.stringify({ sub_dimensions }),
@@ -52,7 +46,7 @@ export const deleteDimension = (name: string): Promise<void> =>
         method: 'DELETE',
     });
 
-export const getBrands = async (params: { page?: number; size?: number } = { page: 1, size: 1000 }): Promise<string[]> => {
+export const getBrands = async (params: { page?: number; size?: number; limit?: number } = { page: 1, size: 1000 }): Promise<string[]> => {
     const query = createApiQuery(params);
     const res = await apiFetch<{ items: { name: string }[] }>(`${COMPETITIVENESS_SERVICE_PATH}/brands${query}`);
     return res.items.map(i => i.name);
@@ -81,14 +75,16 @@ export const analyzeArticleStage1 = (data: { article_id: string; title?: string;
 // --- Technical Intelligence (Stage 2) ---
 
 export const getTechItems = async (params: { skip?: number; limit?: number; page?: number; size?: number; vehicle_brand?: string; tech_dimension?: string; only_reviewed?: boolean }): Promise<{ items: TechItem[], total: number }> => {
-    // Map skip/limit to page/size if needed, or use page/size directly
+    // UPDATED: Do NOT remove 'limit' if it exists, as backend uses it to override default page size
     const apiParams: any = { ...params };
+    
+    // Legacy support: Calculate page if skip is provided
     if (apiParams.skip !== undefined && apiParams.limit) {
         apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
-        apiParams.size = apiParams.limit;
+        // We keep 'limit' in apiParams so it is sent to backend
         delete apiParams.skip;
-        delete apiParams.limit;
     }
+    
     const query = createApiQuery(apiParams);
     const res = await apiFetch<{ items: TechItem[], total: number }>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items${query}`);
     return res;
@@ -120,9 +116,7 @@ export const getPendingReviews = (params: { skip?: number; limit?: number; page?
     const apiParams: any = { ...params };
     if (apiParams.skip !== undefined && apiParams.limit) {
         apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
-        apiParams.size = apiParams.limit;
         delete apiParams.skip;
-        delete apiParams.limit;
     }
     const query = createApiQuery(apiParams);
     return apiFetch<{ items: TechItem[], total: number }>(`${COMPETITIVENESS_SERVICE_PATH}/reviews/pending${query}`);
@@ -135,6 +129,5 @@ export const approveReviewItem = (itemId: string): Promise<TechItem> => {
 }
 
 export const rejectReviewItems = (itemIds: string[]): Promise<void> => {
-    // Maps to batch delete of unreviewed items
     return batchDeleteTechItems(itemIds);
 }

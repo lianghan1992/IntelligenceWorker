@@ -65,35 +65,57 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
 
     // Data Processing
     const { matrixMap, brandCounts, maxCount } = useMemo(() => {
-        // Map<Brand, Map<DimId, Map<SubName, Item>>>
+        // Map<BrandName, Map<DimensionName, Map<SubDimensionName, Item>>>
         const map = new Map<string, Map<string, Map<string, TechItem>>>();
         
         // 1. Build Map & Deduplicate
         items.forEach(item => {
-            // Fuzzy match brand name
-            let matchedBrand = brands.find(b => item.vehicle_brand.includes(b) || b.includes(item.vehicle_brand));
-            if (!matchedBrand && brands.some(b => item.vehicle_brand.includes(b.replace('汽车', '')))) {
-                 matchedBrand = brands.find(b => item.vehicle_brand.includes(b.replace('汽车', '')));
+            if (!item.vehicle_brand) return;
+
+            // Fuzzy match brand name from metadata brands list
+            // e.g., Metadata "小米汽车" matches Data "小米" or vice versa
+            let matchedBrand = brands.find(b => 
+                b === item.vehicle_brand || 
+                item.vehicle_brand.includes(b) || 
+                b.includes(item.vehicle_brand)
+            );
+            
+            // Fallback: Check simple inclusion without "汽车" suffix
+            if (!matchedBrand) {
+                const cleanItemBrand = item.vehicle_brand.replace('汽车', '').trim();
+                matchedBrand = brands.find(b => {
+                    const cleanRefBrand = b.replace('汽车', '').trim();
+                    return cleanItemBrand === cleanRefBrand || cleanRefBrand.includes(cleanItemBrand) || cleanItemBrand.includes(cleanRefBrand);
+                });
             }
 
-            // Only process if the brand is in the requested list
+            // Only process if the brand is in the selected list
             if (!matchedBrand) return; 
 
             if (!map.has(matchedBrand)) map.set(matchedBrand, new Map());
             const brandMap = map.get(matchedBrand)!;
             
-            // ROBUST MATCHING: Try to match item dimension to metadata by Name OR ID
-            const dimObj = dimensions.find(d => d.name === item.tech_dimension || d.id === item.tech_dimension);
-            // If matched, use the metadata ID (standard key). If not, use the raw value as fallback key.
-            const dimId = dimObj ? dimObj.id : item.tech_dimension;
+            // KEY FIX: Match Dimension by NAME, not ID.
+            // item.tech_dimension is the name string from backend data.
+            // dimensions metadata also has name.
+            // We use the normalized metadata name if found, otherwise raw data name.
+            const dimMetadata = dimensions.find(d => d.name === item.tech_dimension || d.name.includes(item.tech_dimension) || item.tech_dimension.includes(d.name));
+            const dimKey = dimMetadata ? dimMetadata.name : item.tech_dimension;
 
-            if (!brandMap.has(dimId)) brandMap.set(dimId, new Map());
-            const dimMap = brandMap.get(dimId)!;
+            if (!brandMap.has(dimKey)) brandMap.set(dimKey, new Map());
+            const dimMap = brandMap.get(dimKey)!;
             
+            // Sub-dimension Key
+            const subDimKey = item.secondary_tech_dimension || '其他';
+
             // De-duplication: latest & highest reliability
-            const existing = dimMap.get(item.secondary_tech_dimension);
-            if (!existing || item.reliability > existing.reliability || (item.reliability === existing.reliability && new Date(item.updated_at) > new Date(existing.updated_at))) {
-                dimMap.set(item.secondary_tech_dimension, item);
+            const existing = dimMap.get(subDimKey);
+            // Logic: Prefer higher reliability, then newer update
+            if (!existing || 
+                item.reliability > existing.reliability || 
+                (item.reliability === existing.reliability && new Date(item.updated_at) > new Date(existing.updated_at))
+            ) {
+                dimMap.set(subDimKey, item);
             }
         });
 
@@ -172,11 +194,6 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             `}</style>
 
             <div className="flex-1 overflow-x-auto custom-scrollbar p-4 md:p-6 scroll-smooth">
-                {/* 
-                    Mobile Optimization: 
-                    - snap-x snap-mandatory: Enables scroll snapping 
-                    - h-full: Ensures children can fill height 
-                */}
                 <div className="flex gap-4 md:gap-6 min-w-max pb-4 h-full snap-x snap-mandatory md:snap-none items-start">
                     
                     {/* Iterate Columns by Selected Brands */}
@@ -187,8 +204,6 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                         return (
                             <div 
                                 key={brand} 
-                                // Mobile: w-[85vw] creates a carousel effect where next card is visible. Desktop: Fixed width.
-                                // Added h-full to force card to take full height of container, enabling inner scroll.
                                 className="flex-shrink-0 w-[85vw] sm:w-[320px] md:w-[360px] h-full snap-center flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
                                 style={{ animationDelay: `${colIndex * 100}ms` }}
                             >
@@ -215,20 +230,21 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                     </div>
                                 </div>
 
-                                {/* Tech Specs Body - Vertical Stack with Inner Scrolling */}
+                                {/* Tech Specs Body */}
                                 <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6">
                                     {dimensions.map((dim, dimIndex) => {
-                                        const definedSubDims = dim.sub_dimensions || [];
-                                        const brandDimMap = brandData?.get(dim.id); // Matches UUID
+                                        // Retrieve by Name, consistent with the mapping logic above
+                                        const brandDimMap = brandData?.get(dim.name); 
                                         
-                                        // Merge Metadata Sub-dims with Actual Data Sub-dims to ensure nothing is hidden
+                                        // Dynamic Sub-dimensions: Merge metadata definitions with actual data found
+                                        const definedSubDims = dim.sub_dimensions || [];
                                         const dataSubDims = brandDimMap ? Array.from(brandDimMap.keys()) : [];
                                         const allRelevantSubDims = Array.from(new Set([...definedSubDims, ...dataSubDims]));
 
-                                        // Filter to show only those that have data for this brand
+                                        // Filter: Only show sub-dims that actually have data for this brand
                                         const activeSubDimsForBrand = allRelevantSubDims.filter(sub => brandDimMap?.has(sub));
                                         
-                                        // 2. If no active sub-dimensions, completely hide (fold) this primary dimension block
+                                        // If no data for this dimension for this brand, hide the block
                                         if (activeSubDimsForBrand.length === 0) return null;
 
                                         const dimIconColor = getDimensionColor(dimIndex);
@@ -237,13 +253,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
 
                                         return (
                                             <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300 flex-shrink-0">
-                                                {/* Level 1: Primary Dimension Header */}
+                                                {/* Primary Dimension Header */}
                                                 <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
                                                     <div className="flex items-center gap-2">
                                                         <DimIcon className="w-4 h-4 opacity-80" />
                                                         <span className="text-sm font-bold tracking-wide">{dim.name}</span>
                                                     </div>
-                                                    {/* Count Badge */}
                                                     <span className="text-[10px] bg-white/40 backdrop-blur-md px-2 py-0.5 rounded-full font-bold shadow-sm">
                                                         {itemCount}
                                                     </span>
@@ -252,13 +267,11 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                                 <div className="divide-y divide-slate-50">
                                                     {activeSubDimsForBrand.map(sub => {
                                                         const item = brandDimMap?.get(sub);
-                                                        // Item is guaranteed to exist here due to filter above
                                                         if (!item) return null;
 
                                                         const conf = getReliabilityConfig(item.reliability);
                                                         const Icon = conf.icon;
                                                         
-                                                        // "Peer Highlight" Logic
                                                         const isMatch = hoveredTechName && item.name === hoveredTechName;
                                                         const isDimmed = hoveredTechName && item.name !== hoveredTechName;
 
@@ -274,7 +287,7 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                                                 onMouseEnter={() => setHoveredTechName(item.name)}
                                                                 onMouseLeave={() => setHoveredTechName(null)}
                                                             >
-                                                                {/* Level 2: Secondary Dimension Label */}
+                                                                {/* Secondary Dimension Label */}
                                                                 <div className="flex justify-between items-center mb-2">
                                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-1.5 py-0.5 rounded-sm">
                                                                         {sub}
@@ -307,10 +320,9 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                         );
                                     })}
                                     
-                                    {/* Fallback if all dimensions are hidden */}
+                                    {/* Fallback */}
                                     {dimensions.every(dim => {
-                                        const brandDimMap = brandData?.get(dim.id);
-                                        // Check against all possible keys in map, ignoring metadata mismatch
+                                        const brandDimMap = brandData?.get(dim.name);
                                         return !brandDimMap || brandDimMap.size === 0;
                                     }) && (
                                         <div className="text-center py-10 text-slate-400">
