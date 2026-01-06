@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { DeepInsightTask } from '../../types';
-import { downloadDeepInsightOriginalPdf, getDeepInsightPagePreviewUrl } from '../../api/deepInsight';
+import { DeepInsightTask, DeepInsightPage } from '../../types';
 import { 
-    CloseIcon, DownloadIcon, DocumentTextIcon, ChevronLeftIcon, ChevronRightIcon,
-    RefreshIcon, ViewGridIcon, SearchIcon, SparklesIcon, BrainIcon, ShieldCheckIcon,
-    CalendarIcon, CloudIcon, LockClosedIcon, MenuIcon, PlusIcon, TagIcon
+    downloadDeepInsightOriginalPdf, 
+    fetchDeepInsightPageImage,
+    getDeepInsightTaskPages 
+} from '../../api/deepInsight';
+import { 
+    CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
@@ -23,7 +25,7 @@ const formatFileSize = (bytes?: number) => {
 };
 
 // Single Page Image Component with Lazy Loading
-const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = ({ docId, pageNum, scale }) => {
+const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number }> = ({ docId, page, scale }) => {
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -47,19 +49,24 @@ const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = (
         
         let active = true;
         setLoading(true);
-        // Using the preview API for page image
-        getDeepInsightPagePreviewUrl(docId, pageNum)
+        
+        // Fetch the image securely
+        fetchDeepInsightPageImage(docId, page.page_index)
             .then(url => {
                 if (active) {
-                    if (url) setImageUrl(url);
-                    else setError(true);
+                    if (url) {
+                        setImageUrl(url);
+                        setError(false);
+                    } else {
+                        setError(true);
+                    }
                 }
             })
             .catch(() => { if (active) setError(true); })
             .finally(() => { if (active) setLoading(false); });
 
         return () => { active = false; if (imageUrl) URL.revokeObjectURL(imageUrl); };
-    }, [docId, pageNum, isVisible]);
+    }, [docId, page.page_index, isVisible]);
 
     return (
         <div 
@@ -67,14 +74,15 @@ const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = (
             className="bg-white relative shadow-lg transition-transform origin-top mx-auto mb-6"
             style={{ 
                 width: `${100 * scale}%`, 
-                aspectRatio: '1/1.414', // A4 Aspect Ratio approx
-                maxWidth: '900px'
+                aspectRatio: '1/1.414', // A4 Aspect Ratio approx, adjust if image dims known
+                maxWidth: '900px',
+                minHeight: '400px'
             }}
         >
             {loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-50">
                     <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
-                    <span className="text-xs text-slate-400">正在加载第 {pageNum} 页...</span>
+                    <span className="text-xs text-slate-400">正在加载第 {page.page_index} 页...</span>
                 </div>
             ) : error ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-red-50 text-red-400 text-xs flex-col gap-2">
@@ -82,12 +90,12 @@ const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = (
                     页面加载失败
                 </div>
             ) : imageUrl ? (
-                <img src={imageUrl} alt={`Page ${pageNum}`} className="w-full h-full object-contain block" loading="lazy" />
+                <img src={imageUrl} alt={`Page ${page.page_index}`} className="w-full h-full object-contain block" loading="lazy" />
             ) : null}
             
             {/* Page Number Footer */}
             <div className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-400">
-                - {pageNum} -
+                - {page.page_index} -
             </div>
         </div>
     );
@@ -96,7 +104,30 @@ const PageImage: React.FC<{ docId: string; pageNum: number; scale: number }> = (
 export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [scale, setScale] = useState(1.0);
+    const [pages, setPages] = useState<DeepInsightPage[]>([]);
+    const [isLoadingPages, setIsLoadingPages] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Fetch page list first to ensure we render valid pages
+    useEffect(() => {
+        const loadPages = async () => {
+            setIsLoadingPages(true);
+            try {
+                // Fetch all pages (assuming sensible limit like 1000 for a single doc reader)
+                const res = await getDeepInsightTaskPages(task.id, 1, 1000);
+                if (res.items && Array.isArray(res.items)) {
+                    // Sort by page index to ensure order
+                    const sorted = res.items.sort((a, b) => a.page_index - b.page_index);
+                    setPages(sorted);
+                }
+            } catch (e) {
+                console.error("Failed to load page metadata", e);
+            } finally {
+                setIsLoadingPages(false);
+            }
+        };
+        loadPages();
+    }, [task.id]);
 
     const handleDownload = async () => {
         setIsDownloading(true);
@@ -117,11 +148,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
         }
     };
 
-    const pages = Array.from({ length: task.total_pages }, (_, i) => i + 1);
-
     return (
-        // z-40 ensures it sits below the main App Header (usually z-50)
-        // pt-[64px] or similar offsets the fixed header height
         <div className="fixed inset-0 z-40 flex flex-col bg-[#f6f7f8] text-slate-900 font-sans animate-in fade-in duration-200 pt-16 sm:pt-[72px]">
             
             {/* Reader Toolbar */}
@@ -131,9 +158,8 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         <div className="flex items-center justify-center size-8 bg-indigo-50 rounded-lg text-indigo-600">
                             <TagIcon className="w-4 h-4" />
                         </div>
-                        {/* Display Category Name instead of generic title */}
                         <h2 className="text-sm md:text-base font-bold leading-tight tracking-tight truncate max-w-[120px] md:max-w-xs">
-                            {task.category_name || '默认分类'}
+                            {task.category_name || '文档详情'}
                         </h2>
                     </div>
                     <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
@@ -145,7 +171,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                 </div>
 
                 <div className="flex flex-1 justify-end gap-3 md:gap-6 items-center">
-                     {/* Scale Controls - Hidden on Mobile */}
+                     {/* Scale Controls */}
                     <div className="hidden md:flex items-center gap-2 bg-slate-100 rounded-lg p-1">
                         <button 
                             onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
@@ -180,16 +206,21 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
             <main className="flex-1 w-full max-w-[1920px] mx-auto overflow-hidden relative">
                 <div className="flex h-full flex-col lg:flex-row">
                     
-                    {/* Left Column: PDF Viewer (Scrollable) */}
+                    {/* Left Column: Page Viewer */}
                     <div className="flex-1 h-full bg-slate-100/50 lg:border-r border-slate-200 overflow-hidden relative">
                         <div 
                             ref={scrollContainerRef}
                             className="h-full overflow-y-auto custom-scrollbar p-4 md:p-8 scroll-smooth"
                         >
-                            {pages.length > 0 ? (
+                            {isLoadingPages ? (
+                                <div className="flex flex-col items-center justify-center h-full gap-3">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                                    <p className="text-sm text-slate-400">正在获取页面列表...</p>
+                                </div>
+                            ) : pages.length > 0 ? (
                                 <div className="flex flex-col items-center min-h-full pb-20">
                                     {pages.map(page => (
-                                        <PageImage key={page} docId={task.id} pageNum={page} scale={scale} />
+                                        <PageImage key={page.id} docId={task.id} page={page} scale={scale} />
                                     ))}
                                 </div>
                             ) : (
@@ -202,88 +233,42 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                         </div>
                     </div>
 
-                    {/* Right Column: Sidebar (Metadata & Actions) - Hidden on Mobile, maybe toggleable in future */}
-                    <div className="hidden lg:flex lg:w-96 flex-col gap-6 p-6 overflow-y-auto bg-white border-t lg:border-t-0 z-10">
+                    {/* Right Column: Sidebar */}
+                    <div className="hidden lg:flex lg:w-80 xl:w-96 flex-col gap-6 p-6 overflow-y-auto bg-white border-t lg:border-t-0 z-10">
                         
-                        {/* Report Header Info */}
                         <div className="flex flex-col gap-4">
-                            <div className="flex flex-wrap gap-2">
-                                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                    {task.category_name || '通用'}
-                                </span>
-                                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/10">
-                                    {task.file_type}
-                                </span>
-                            </div>
-                            <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                            <h1 className="text-xl font-bold text-slate-900 leading-tight break-words">
                                 {task.file_name}
                             </h1>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                                    {task.file_type}
+                                </span>
+                                <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                                    {formatFileSize(task.file_size)}
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Main Action */}
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading}
-                            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3.5 px-4 rounded-lg shadow-sm shadow-blue-500/30 transition-all active:scale-[0.98] disabled:opacity-70"
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3.5 px-4 rounded-lg shadow-sm transition-all active:scale-[0.98] disabled:opacity-70"
                         >
-                            {isDownloading ? <RefreshIcon className="w-5 h-5 animate-spin"/> : <DownloadIcon className="w-5 h-5" />}
-                            <span>下载完整报告 (PDF)</span>
+                            <DownloadIcon className="w-5 h-5" />
+                            <span>下载完整 PDF</span>
                         </button>
 
-                        {/* AI Summary Card */}
-                        <div className="rounded-xl bg-gradient-to-br from-blue-50 to-white border border-blue-100 p-5 shadow-sm relative overflow-hidden group flex-1 min-h-[200px] flex flex-col">
-                            <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none text-blue-600">
-                                <BrainIcon className="w-20 h-20" />
-                            </div>
-                            <div className="flex items-center gap-2 mb-3 text-blue-800 flex-shrink-0">
-                                <SparklesIcon className="w-5 h-5" />
-                                <h3 className="font-bold">AI 核心解读</h3>
-                            </div>
-                            
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <h3 className="font-bold text-slate-700 mb-2 text-sm">AI 摘要</h3>
                             {task.summary ? (
-                                <div className="text-sm text-slate-600 leading-relaxed space-y-2 overflow-y-auto custom-scrollbar pr-1 flex-1">
-                                    {task.summary.split('\n').map((para, i) => (
-                                        para.trim() && <p key={i}>{para}</p>
-                                    ))}
+                                <div className="text-xs text-slate-600 leading-relaxed space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                    {task.summary}
                                 </div>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">
-                                    暂无摘要，请联系管理员生成。
-                                </p>
+                                <p className="text-xs text-slate-400 italic">暂无摘要信息</p>
                             )}
                         </div>
-
-                        {/* Metadata Details */}
-                        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex-shrink-0">
-                            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-                                <h3 className="font-semibold text-slate-900 text-sm">文档信息</h3>
-                            </div>
-                            <div className="px-5 py-2">
-                                <div className="grid grid-cols-[30%_1fr] gap-y-3 py-3 items-center text-sm">
-                                    <div className="text-slate-500">发布时间</div>
-                                    <div className="font-medium text-slate-900">
-                                        {new Date(task.created_at).toLocaleDateString()}
-                                    </div>
-                                    
-                                    <div className="text-slate-500">文件大小</div>
-                                    <div className="font-medium text-slate-900">
-                                        {formatFileSize(task.file_size)}
-                                    </div>
-                                    
-                                    <div className="text-slate-500">页数</div>
-                                    <div className="font-medium text-slate-900">
-                                        {task.total_pages} 页
-                                    </div>
-                                    
-                                    <div className="text-slate-500">阅读权限</div>
-                                    <div className="font-medium text-green-600 flex items-center gap-1">
-                                        <LockClosedIcon className="w-3.5 h-3.5" />
-                                        免费公开
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </main>

@@ -59,7 +59,7 @@ export const getDeepInsightTasks = async (params: any): Promise<{ items: DeepIns
         id: t.id,
         file_name: t.file_name,
         file_type: t.file_type || 'PDF',
-        file_size: 0, // Backend list might not return size yet
+        file_size: t.file_size || 0,
         status: t.status,
         total_pages: t.total_pages || 0,
         processed_pages: t.processed_pages || 0,
@@ -123,7 +123,7 @@ export const getDeepInsightTask = (taskId: string): Promise<DeepInsightTask> =>
         id: t.id,
         file_name: t.file_name,
         file_type: t.file_type || 'PDF',
-        file_size: 0,
+        file_size: t.file_size || 0,
         status: t.status,
         total_pages: t.total_pages || 0,
         processed_pages: t.processed_pages || 0,
@@ -152,14 +152,21 @@ export const getDeepInsightTasksStats = (): Promise<{ total: number; completed: 
 export const getDeepInsightTaskStatus = (taskId: string): Promise<any> =>
     apiFetch(`${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/status`);
 
-// --- Downloads ---
+// --- Downloads & Images ---
 
 async function downloadBlobWithAuth(url: string): Promise<Blob> {
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
+    // Explicitly accept images or pdfs depending on context, but * works
+    headers.set('Accept', '*/*');
+    
     const response = await fetch(url, { headers });
-    if (!response.ok) throw new Error('Download failed');
+    if (!response.ok) {
+         // Try to read error message
+         const text = await response.text().catch(() => '');
+         throw new Error(`Fetch failed: ${response.status} ${text}`);
+    }
     return response.blob();
 }
 
@@ -188,40 +195,44 @@ export const downloadDeepInsightOriginalPdf = async (taskId: string): Promise<Bl
     return downloadBlobWithAuth(url);
 };
 
-// Preview Helper
-// Fetches the cover image as a Blob to handle Bearer Token auth correctly, 
-// since <img> tags cannot send headers.
+/**
+ * Fetch the cover image for a task.
+ * Corresponds to GET /api/deep_insight/tasks/{task_id}/cover
+ */
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
     const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/cover`;
-    const token = localStorage.getItem('accessToken');
-    const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-    // Explicitly accept images
-    headers.set('Accept', 'image/*');
-    
     try {
-        const response = await fetch(url, { headers });
-        if (!response.ok) {
-            if (response.status !== 404) {
-                console.warn(`Cover fetch failed for task ${taskId}: ${response.status}`);
-            }
-            return null;
-        }
-        const blob = await response.blob();
+        const blob = await downloadBlobWithAuth(url);
         if (blob.size === 0) return null;
         return URL.createObjectURL(blob);
     } catch (e) {
-        console.warn("Network error fetching cover:", e);
+        console.warn(`Failed to fetch cover for task ${taskId}`, e);
         return null;
     }
 };
 
-export const getDeepInsightPagePreview = async (docId: string, pageNum: number): Promise<Blob> => {
-    throw new Error("Page preview image endpoint not yet implemented in backend spec");
+/**
+ * Fetch the image for a specific page.
+ * Assumes endpoint /api/deep_insight/tasks/{task_id}/pages/{page_index}/image based on workflow
+ */
+export const fetchDeepInsightPageImage = async (taskId: string, pageIndex: number): Promise<string | null> => {
+    // Note: If backend only supports PDF download per page, we might need to fallback.
+    // But usually "cutting images" implies an image endpoint exists.
+    const url = `${DEEP_INSIGHT_SERVICE_PATH}/tasks/${taskId}/pages/${pageIndex}/image`;
+    try {
+        const blob = await downloadBlobWithAuth(url);
+        if (blob.size === 0) return null;
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        console.warn(`Failed to fetch page image for task ${taskId} page ${pageIndex}`, e);
+        return null;
+    }
 };
 
 export const getDeepInsightPagePreviewUrl = async (docId: string, pageNum: number): Promise<string | null> => {
-    return null; 
+     // Alias for fetchDeepInsightPageImage to maintain compatibility with component logic if needed,
+     // but prefer using the explicit fetcher above.
+     return fetchDeepInsightPageImage(docId, pageNum);
 }
 
 
