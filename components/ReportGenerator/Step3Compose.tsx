@@ -60,9 +60,9 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     };
 
-    // Render Markdown Helper
-    const renderMarkdown = (content: string) => {
-        if (!content) return null;
+    // Render Markdown Helper with Fix
+    const renderMarkdown = (content: string): { __html: string } | undefined => {
+        if (!content) return undefined;
         if (window.marked) {
             return { __html: window.marked.parse(content) };
         }

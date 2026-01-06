@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon, StopIcon
+    CheckCircleIcon, PlayIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData } from './types';
@@ -212,7 +212,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 }
 
                 // Need model info from prompt usually, assuming getter returns it
-                // For simplicity here, we assume we fetch prompt detail or use defaults
                 const promptDetail = await getPromptDetail(promptId); 
                 const modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
 
@@ -233,7 +232,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     setHistory(prev => {
                         const h = [...prev];
                         h[h.length - 1].reasoning = accReasoning;
-                        // Don't spam content in chat, just show reasoning
+                        // Don't spam content in chat for generation tasks, just show reasoning
                         return h;
                     });
 
