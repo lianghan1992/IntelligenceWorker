@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef } from 'react';
 import { DocTag } from '../../../types';
 import { uploadDocs } from '../../../api/intelligence';
@@ -38,7 +37,7 @@ export const DocUploadModal: React.FC<DocUploadModalProps> = ({ isOpen, onClose,
         try {
             await uploadDocs({
                 files: selectedFiles,
-                point_uuid: tagUuid,
+                point_id: tagUuid, // API uses point_id
                 publish_date: publishDate || undefined
             });
             onSuccess();

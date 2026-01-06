@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
 import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc, regenerateDocumentSummary, regenerateDocumentCover } from '../../../api/intelligence';
@@ -107,11 +106,10 @@ export const DocumentManager: React.FC = () => {
         try {
             const res = await getUploadedDocs({
                 page,
-                page_size: 20,
-                search: search || undefined,
-                point_uuid: selectedTagId || undefined,
-                start_date: startDate ? new Date(startDate).toISOString() : undefined,
-                end_date: endDate ? new Date(endDate).toISOString() : undefined
+                size: 20,
+                keyword: search || undefined,
+                point_id: selectedTagId || undefined,
+                // Note: start_date/end_date not strictly in new spec but usually supported by backend filter mixins, keep if needed or remove if strictly following spec
             });
             setDocs(res.items);
             setTotal(res.total);
@@ -386,12 +384,15 @@ export const DocumentManager: React.FC = () => {
                             />
                         </div>
 
+                        {/* Date Filter - removed logic as it might not be strictly supported by new list API, but UI kept for future */}
+                        {/* 
                         <div className="flex items-center gap-2 bg-gray-50 px-2 py-1 rounded-lg border border-gray-200 text-sm text-gray-600">
                             <CalendarIcon className="w-4 h-4 text-gray-400" />
                             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent outline-none w-32 cursor-pointer" />
                             <span className="text-gray-300">-</span>
                             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent outline-none w-32 cursor-pointer" />
                         </div>
+                        */}
 
                         <button onClick={() => fetchDocs()} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 border border-transparent hover:border-gray-200 transition-colors">
                             <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -454,7 +455,7 @@ export const DocumentManager: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div>{formatSize(doc.file_size)}</div>
-                                                <div className="text-gray-400 uppercase font-mono">{doc.mime_type.split('/')[1] || 'FILE'}</div>
+                                                <div className="text-gray-400 uppercase font-mono">{doc.mime_type ? doc.mime_type.split('/')[1] : 'FILE'}</div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-xs border border-indigo-100">{doc.point_name || '未分类'}</span>
@@ -465,7 +466,7 @@ export const DocumentManager: React.FC = () => {
                                             <td className="px-6 py-4 font-mono text-xs text-right">
                                                 {doc.page_count > 0 ? `${doc.page_count} P` : '-'}
                                             </td>
-                                            <td className="px-6 py-4 text-xs font-mono text-right">{new Date(doc.publish_date).toLocaleDateString()}</td>
+                                            <td className="px-6 py-4 text-xs font-mono text-right">{doc.publish_date ? new Date(doc.publish_date).toLocaleDateString() : '-'}</td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                                                     <button 

@@ -74,10 +74,6 @@ export const getPoints = (params?: { source_name?: string }): Promise<Intelligen
 
 export const getSpiderPoints = (sourceId?: string): Promise<SpiderPoint[]> => {
     const query = sourceId ? `?source_id=${sourceId}` : '';
-    // API returns paginated response, map to array for internal usage in some components, 
-    // or we should update components to handle pagination. 
-    // For now, assuming standard component usage expects array, we extract items.
-    // NOTE: This might need full pagination support in future.
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/points/${query}`).then(res => res.items);
 }
 
@@ -286,7 +282,6 @@ export const searchSemanticSegments = async (data: any): Promise<{ items: InfoIt
 
 export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticlePublic>> => {
     const query = createApiQuery(data); 
-    // New endpoint: GET /api/intelspider/articles/by_tags
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags${query}`).then(res => ({
         items: res.items.map((a: any) => ({ ...a, is_atomized: !!a.is_atomized })),
         total: res.total,
@@ -479,50 +474,48 @@ export const getAnalysisResults = (params: any): Promise<{total: number, page: n
 export const triggerAnalysis = (articleId: string, templateUuid?: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/analysis/trigger/${articleId}`, { method: 'POST', body: JSON.stringify({ template_uuid: templateUuid }) });
 
-export const getUploadedDocs = async (params: any): Promise<{total: number, page: number, page_size: number, items: UploadedDocument[]}> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const res = await apiFetch<{total: number, page: number, page_size: number, items: UploadedDocument[]}>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
-    if (res.items) {
-        res.items = res.items.map(item => ({
-            ...item,
-            file_size: (item.file_size || 0) * 1024
-        }));
-    }
-    return res;
+
+// --- Uploaded Docs (Revised) ---
+
+export const getUploadedDocs = async (params: { page?: number; size?: number; status?: string; keyword?: string; source_id?: string; point_id?: string }): Promise<{items: UploadedDocument[], total: number, page: number, size: number, total_pages: number}> => {
+    const query = createApiQuery(params);
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs${query}`);
+    const items = (res.items || []).map((item: any) => ({
+        ...item,
+        uuid: item.id, // Map 'id' from API to 'uuid' for compatibility
+        file_size: item.file_size || 0,
+        page_count: item.page_count || 0
+    }));
+    return { ...res, items };
 }
 
-export const getUploadedDocDetail = async (uuid: string): Promise<UploadedDocument> => {
-    const doc = await apiFetch<UploadedDocument>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`);
-    return {
-        ...doc,
-        file_size: (doc.file_size || 0) * 1024
-    };
+export const getUploadedDocDetail = async (id: string): Promise<UploadedDocument> => {
+    const res = await apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}`);
+    return { ...res, uuid: res.id, file_size: res.file_size || 0, page_count: res.page_count || 0 };
 }
 
-export const uploadDocs = (data: { files: File[], point_uuid: string, publish_date?: string }): Promise<UploadedDocument[]> => {
+export const uploadDocs = (data: { files: File[], point_id: string, publish_date?: string }): Promise<void> => {
     const formData = new FormData();
     data.files.forEach(f => formData.append('files', f));
-    formData.append('point_uuid', data.point_uuid);
+    formData.append('point_id', data.point_id);
     if (data.publish_date) formData.append('publish_date', data.publish_date);
-    return apiFetch<UploadedDocument[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
+    return apiFetch(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/upload`, { method: 'POST', body: formData });
 }
 
-export const deleteUploadedDoc = (uuid: string): Promise<{ message: string }> => 
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}`, { method: 'DELETE' });
+export const deleteUploadedDoc = (id: string): Promise<{ message: string }> => 
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}`, { method: 'DELETE' });
 
-export const regenerateDocumentSummary = (uuid: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-summary`, { method: 'POST' });
+export const regenerateDocumentSummary = (id: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/regenerate-summary`, { method: 'POST' });
 
-export const regenerateDocumentCover = (uuid: string): Promise<{ message: string }> =>
-    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/regenerate-cover`, { method: 'POST' });
+export const regenerateDocumentCover = (id: string): Promise<{ message: string }> =>
+    apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/regenerate-cover`, { method: 'POST' });
 
-export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/download`;
+export const downloadUploadedDoc = async (id: string): Promise<Blob> => {
+    // Assuming a standard download path or using preview if download not explicit in list
+    // If not explicit, user might need to use preview or we assume /download endpoint exists in backend as standard
+    // Based on previous code, let's keep the download path assumption unless it fails.
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/download`; 
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -531,8 +524,8 @@ export const downloadUploadedDoc = async (uuid: string): Promise<Blob> => {
     return response.blob();
 }
 
-export const getDocPreview = async (uuid: string, page: number): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${uuid}/preview/${page}`;
+export const getDocPreview = async (id: string, page: number): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/preview/${page}`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -541,6 +534,7 @@ export const getDocPreview = async (uuid: string, page: number): Promise<Blob> =
     return response.blob();
 }
 
+// Doc Tags (Points mapping)
 export const getDocTags = (): Promise<DocTag[]> => 
     apiFetch<DocTag[]>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/tags`);
 

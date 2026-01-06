@@ -1,10 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DeepInsightTask, DeepInsightPage } from '../../types';
 import { 
     downloadDeepInsightOriginalPdf, 
-    fetchDeepInsightPageImage,
-    getDeepInsightTaskPages 
+    fetchDeepInsightPageImage
 } from '../../api/deepInsight';
 import { 
     CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon
@@ -25,7 +24,7 @@ const formatFileSize = (bytes?: number) => {
 };
 
 // Single Page Image Component with Lazy Loading
-const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number }> = ({ docId, page, scale }) => {
+const PageImage: React.FC<{ docId: string; pageIndex: number; scale: number }> = ({ docId, pageIndex, scale }) => {
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -51,7 +50,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
         setLoading(true);
         
         // Fetch the image securely using Blob
-        fetchDeepInsightPageImage(docId, page.page_index)
+        fetchDeepInsightPageImage(docId, pageIndex)
             .then(url => {
                 if (active) {
                     if (url) {
@@ -66,7 +65,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
             .finally(() => { if (active) setLoading(false); });
 
         return () => { active = false; if (imageUrl) URL.revokeObjectURL(imageUrl); };
-    }, [docId, page.page_index, isVisible]);
+    }, [docId, pageIndex, isVisible]);
 
     return (
         <div 
@@ -82,7 +81,7 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
             {loading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-50">
                     <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
-                    <span className="text-xs text-slate-400">正在加载第 {page.page_index} 页...</span>
+                    <span className="text-xs text-slate-400">正在加载第 {pageIndex} 页...</span>
                 </div>
             ) : error ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-red-50 text-red-400 text-xs flex-col gap-2">
@@ -90,12 +89,12 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
                     页面加载失败
                 </div>
             ) : imageUrl ? (
-                <img src={imageUrl} alt={`Page ${page.page_index}`} className="w-full h-full object-contain block" loading="lazy" />
+                <img src={imageUrl} alt={`Page ${pageIndex}`} className="w-full h-full object-contain block" loading="lazy" />
             ) : null}
             
             {/* Page Number Footer */}
             <div className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-400">
-                - {page.page_index} -
+                - {pageIndex} -
             </div>
         </div>
     );
@@ -104,36 +103,13 @@ const PageImage: React.FC<{ docId: string; page: DeepInsightPage; scale: number 
 export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [scale, setScale] = useState(1.0);
-    const [pages, setPages] = useState<DeepInsightPage[]>([]);
-    const [isLoadingPages, setIsLoadingPages] = useState(true);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-    // Fetch page list first to ensure we render valid pages
-    useEffect(() => {
-        const loadPages = async () => {
-            setIsLoadingPages(true);
-            try {
-                // Try to fetch up to 1000 pages at once. 
-                // If backend defaults to 20 despite the limit param, this might need pagination loop, 
-                // but for now we assume backend respects max 1000.
-                const res = await getDeepInsightTaskPages(task.id, 1, 1000);
-                
-                if (res.items && Array.isArray(res.items)) {
-                    // Sort by page index to ensure order
-                    const sorted = res.items.sort((a, b) => a.page_index - b.page_index);
-                    setPages(sorted);
-                } else {
-                    console.warn("Pages API returned unexpected structure:", res);
-                    setPages([]);
-                }
-            } catch (e) {
-                console.error("Failed to load page metadata", e);
-            } finally {
-                setIsLoadingPages(false);
-            }
-        };
-        loadPages();
-    }, [task.id]);
+    // Generate page numbers based on total_pages count
+    const pageIndices = useMemo(() => {
+        const count = task.total_pages || 0;
+        return Array.from({ length: count }, (_, i) => i + 1);
+    }, [task.total_pages]);
 
     const handleDownload = async () => {
         setIsDownloading(true);
@@ -218,21 +194,16 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose })
                             ref={scrollContainerRef}
                             className="h-full overflow-y-auto custom-scrollbar p-4 md:p-8 scroll-smooth"
                         >
-                            {isLoadingPages ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-3">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                                    <p className="text-sm text-slate-400">正在获取页面列表...</p>
-                                </div>
-                            ) : pages.length > 0 ? (
+                            {pageIndices.length > 0 ? (
                                 <div className="flex flex-col items-center min-h-full pb-20">
-                                    {pages.map(page => (
-                                        <PageImage key={page.id} docId={task.id} page={page} scale={scale} />
+                                    {pageIndices.map(index => (
+                                        <PageImage key={index} docId={task.id} pageIndex={index} scale={scale} />
                                     ))}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
                                     <DocumentTextIcon className="w-16 h-16 opacity-20" />
-                                    <p>该文档暂无预览页面或正在处理中</p>
+                                    <p>该文档暂无预览页面或正在处理中 (Pages: {task.total_pages})</p>
                                     <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm">下载原文件查看</button>
                                 </div>
                             )}
