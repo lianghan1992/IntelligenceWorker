@@ -19,9 +19,15 @@ export const refreshCompetitivenessCookie = (data: { secure_1psid: string; secur
         body: JSON.stringify(data),
     });
 
+export const getCompetitivenessStats = async (type: 'overview' | 'by-brand' | 'by-dimension' | 'reliability' | 'recent'): Promise<any> =>
+    apiFetch<any>(`${COMPETITIVENESS_SERVICE_PATH}/stats/${type}`);
+
 // --- Metadata ---
-export const getDimensions = (): Promise<CompetitivenessDimension[]> =>
-    apiFetch<CompetitivenessDimension[]>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`);
+export const getDimensions = async (params: { page?: number; size?: number } = { page: 1, size: 1000 }): Promise<CompetitivenessDimension[]> => {
+    const query = createApiQuery(params);
+    const res = await apiFetch<{ items: CompetitivenessDimension[] }>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions${query}`);
+    return res.items;
+};
 
 export const addDimension = (name: string, sub_dimensions: string[]): Promise<CompetitivenessDimension> =>
     apiFetch<CompetitivenessDimension>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions`, {
@@ -30,6 +36,12 @@ export const addDimension = (name: string, sub_dimensions: string[]): Promise<Co
     });
 
 export const updateDimension = (name: string, sub_dimensions: string[]): Promise<CompetitivenessDimension> =>
+    // The ID in PUT path usually refers to the ID, but legacy code used name. 
+    // Assuming backend might accept name or ID in path based on previous context, 
+    // but typically ID is safer. If API expects Name in URL for update/delete, encodeURIComponent is correct.
+    // However, doc says `/dimensions/{dimension_id}`. We should try to use ID if available in UI, but name is used here.
+    // If backend supports name lookups on this route, good. Otherwise, UI needs refactor to pass ID.
+    // Given the previous code used name, we stick to name but ensure encoding.
     apiFetch<CompetitivenessDimension>(`${COMPETITIVENESS_SERVICE_PATH}/dimensions/${encodeURIComponent(name)}`, {
         method: 'PUT',
         body: JSON.stringify({ sub_dimensions }),
@@ -40,8 +52,11 @@ export const deleteDimension = (name: string): Promise<void> =>
         method: 'DELETE',
     });
 
-export const getBrands = (): Promise<string[]> =>
-    apiFetch<string[]>(`${COMPETITIVENESS_SERVICE_PATH}/brands`);
+export const getBrands = async (params: { page?: number; size?: number } = { page: 1, size: 1000 }): Promise<string[]> => {
+    const query = createApiQuery(params);
+    const res = await apiFetch<{ items: { name: string }[] }>(`${COMPETITIVENESS_SERVICE_PATH}/brands${query}`);
+    return res.items.map(i => i.name);
+};
 
 export const addBrand = (name: string): Promise<{ name: string }> =>
     apiFetch<{ name: string }>(`${COMPETITIVENESS_SERVICE_PATH}/brands`, {
@@ -65,13 +80,29 @@ export const analyzeArticleStage1 = (data: { article_id: string; title?: string;
 
 // --- Technical Intelligence (Stage 2) ---
 
-export const getTechItems = (params: { skip?: number; limit?: number; vehicle_brand?: string; tech_dimension?: string; only_reviewed?: boolean }): Promise<TechItem[]> => {
-    const query = createApiQuery(params);
-    return apiFetch<TechItem[]>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items${query}`);
+export const getTechItems = async (params: { skip?: number; limit?: number; page?: number; size?: number; vehicle_brand?: string; tech_dimension?: string; only_reviewed?: boolean }): Promise<{ items: TechItem[], total: number }> => {
+    // Map skip/limit to page/size if needed, or use page/size directly
+    const apiParams: any = { ...params };
+    if (apiParams.skip !== undefined && apiParams.limit) {
+        apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
+        apiParams.size = apiParams.limit;
+        delete apiParams.skip;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
+    const res = await apiFetch<{ items: TechItem[], total: number }>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items${query}`);
+    return res;
 }
 
 export const getTechItemDetail = (itemId: string): Promise<TechItem> => {
     return apiFetch<TechItem>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items/${itemId}`);
+}
+
+export const batchDeleteTechItems = (ids: string[]): Promise<void> => {
+    return apiFetch<void>(`${COMPETITIVENESS_SERVICE_PATH}/tech-items/batch-delete`, {
+        method: 'POST',
+        body: JSON.stringify({ ids })
+    });
 }
 
 // --- Generic Data Query (for Dashboards) ---
@@ -85,8 +116,15 @@ export const queryData = <T>(params: any, body: any): Promise<DataQueryResponse<
 
 // --- Review Process ---
 
-export const getPendingReviews = (params: { skip?: number; limit?: number; vehicle_brand?: string; tech_dimension?: string }): Promise<{ items: TechItem[], total: number }> => {
-    const query = createApiQuery(params);
+export const getPendingReviews = (params: { skip?: number; limit?: number; page?: number; size?: number; vehicle_brand?: string; tech_dimension?: string }): Promise<{ items: TechItem[], total: number }> => {
+    const apiParams: any = { ...params };
+    if (apiParams.skip !== undefined && apiParams.limit) {
+        apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
+        apiParams.size = apiParams.limit;
+        delete apiParams.skip;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
     return apiFetch<{ items: TechItem[], total: number }>(`${COMPETITIVENESS_SERVICE_PATH}/reviews/pending${query}`);
 }
 
@@ -97,9 +135,6 @@ export const approveReviewItem = (itemId: string): Promise<TechItem> => {
 }
 
 export const rejectReviewItems = (itemIds: string[]): Promise<void> => {
-    return apiFetch<void>(`${COMPETITIVENESS_SERVICE_PATH}/reviews/items`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_ids: itemIds })
-    });
+    // Maps to batch delete of unreviewed items
+    return batchDeleteTechItems(itemIds);
 }

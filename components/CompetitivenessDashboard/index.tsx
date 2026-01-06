@@ -258,7 +258,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                 // Here we fetch a reasonable limit for dashboard visualization
                 const data = await getTechItems({ limit: 500 });
                 // Filter locally for now or update API to accept multiple brands
-                setItems(data.filter(i => selectedBrands.includes(i.vehicle_brand) || selectedBrands.some(b => i.vehicle_brand.includes(b))));
+                setItems(data.items.filter(i => selectedBrands.includes(i.vehicle_brand) || selectedBrands.some(b => i.vehicle_brand.includes(b))));
             } catch (error) {
                 console.error("Failed to load matrix data", error);
             } finally {

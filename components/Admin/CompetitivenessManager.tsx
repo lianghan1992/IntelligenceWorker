@@ -540,8 +540,8 @@ const ReviewQueue: React.FC = () => {
             const res = await getPendingReviews({
                 vehicle_brand: filters.brand || undefined,
                 tech_dimension: filters.dimension || undefined,
-                skip: (page - 1) * 20,
-                limit: 20
+                page,
+                size: 20
             });
             setItems(res.items);
             setTotal(res.total);
@@ -714,9 +714,10 @@ const ReviewQueue: React.FC = () => {
 // --- Sub-View: Intelligence Database (Stage 2) ---
 const IntelligenceDatabase: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
+    const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [filters, setFilters] = useState({ brand: '', dimension: '' });
-    const [page, setPage] = useState(1); // API pagination support check
+    const [page, setPage] = useState(1); 
     const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
     
     // Metadata for filters
@@ -735,10 +736,11 @@ const IntelligenceDatabase: React.FC = () => {
             const res = await getTechItems({
                 vehicle_brand: filters.brand || undefined,
                 tech_dimension: filters.dimension || undefined,
-                skip: (page - 1) * 20,
-                limit: 20
+                page,
+                size: 20
             });
-            setItems(res);
+            setItems(res.items);
+            setTotal(res.total);
         } catch (e) {
             console.error(e);
         } finally {
@@ -766,6 +768,7 @@ const IntelligenceDatabase: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <DatabaseIcon className="w-6 h-6 text-indigo-600" /> 技术情报主表 (Golden Records)
+                    <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{total} 条</span>
                 </h3>
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <select 
