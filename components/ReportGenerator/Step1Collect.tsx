@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon
+    CheckCircleIcon, PlayIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData } from './types';
@@ -21,33 +21,42 @@ interface CopilotSidebarProps {
     onReset: () => void;
 }
 
-// --- Helper: Try to parse incomplete JSON for real-time updates ---
-// This is a heuristic parser to allow "streaming" feel on the canvas
+// --- Helper: Robust Partial JSON Parser ---
 const tryParsePartialJson = (jsonStr: string) => {
     try {
-        // 1. Clean markdown code blocks
         let cleanStr = jsonStr.replace(/```json|```/g, '').trim();
         
-        // 2. Simple heuristic to close open brackets/braces to make it valid JSON
-        // We count opens and closes and append the difference.
-        // Note: This assumes the JSON structure is relatively clean (which LLMs usually provide)
-        const openBraces = (cleanStr.match(/{/g) || []).length;
-        const closeBraces = (cleanStr.match(/}/g) || []).length;
-        const openBrackets = (cleanStr.match(/\[/g) || []).length;
-        const closeBrackets = (cleanStr.match(/]/g) || []).length;
-
-        // Naive closing strategy: Close arrays first, then objects
-        // (This works for the specific structure of { title: "", pages: [...] })
-        for (let i = 0; i < (openBrackets - closeBrackets); i++) cleanStr += ']';
-        for (let i = 0; i < (openBraces - closeBraces); i++) cleanStr += '}';
-
-        return JSON.parse(cleanStr);
+        // Stack-based closing for better robustness
+        const stack = [];
+        let inString = false;
+        let escaped = false;
+        
+        for (let i = 0; i < cleanStr.length; i++) {
+            const char = cleanStr[i];
+            if (escaped) { escaped = false; continue; }
+            if (char === '\\') { escaped = true; continue; }
+            if (char === '"') { inString = !inString; continue; }
+            if (!inString) {
+                if (char === '{' || char === '[') stack.push(char);
+                else if (char === '}') { if (stack[stack.length-1] === '{') stack.pop(); }
+                else if (char === ']') { if (stack[stack.length-1] === '[') stack.pop(); }
+            }
+        }
+        
+        // Auto-close open structures
+        let closer = '';
+        while (stack.length > 0) {
+            const char = stack.pop();
+            closer += (char === '{' ? '}' : ']');
+        }
+        
+        return JSON.parse(cleanStr + closer);
     } catch (e) {
         return null;
     }
 };
 
-// --- Thinking Component (Light Theme) ---
+// --- Thinking Component ---
 const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
     const [isExpanded, setIsExpanded] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -90,54 +99,36 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
 
     // Auto-scroll chat
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [history, stage, isLlmActive]);
 
-    // --- Core Logic: Generate or Refine Outline ---
+    // --- Core Logic: Generate Outline ---
     const runOutlineGeneration = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
-        
-        // 1. Construct Context
-        const contextMessages = isRefinement 
-            ? history.map(m => ({ role: m.role, content: m.content })) 
-            : []; 
-
-        const systemMsg = { 
-            role: 'system', 
-            content: `You are an expert presentation outline generator. 
-            User Input: "${userPromptText}".
-            
-            Task: Create or Refine a hierarchical outline for a presentation/report.
-            Output Format: STRICT JSON ONLY. No markdown code blocks. No conversational filler.
-            Structure: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary of key points..." }, ... ] }
-            
-            If this is a refinement request, modify the existing outline based on the user's feedback. Keep the JSON structure.`
-        };
-
+        const contextMessages = isRefinement ? history.map(m => ({ role: m.role, content: m.content })) : []; 
         const apiMessages = [
-            systemMsg,
+            { role: 'system', content: `You are an expert presentation outline generator. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }` },
             ...contextMessages,
             { role: 'user', content: userPromptText }
         ];
 
-        // 2. Prepare UI State
-        const assistantMsgId = Date.now().toString();
-        // Placeholder message
-        setHistory(prev => [
-            ...prev, 
-            { role: 'assistant', content: '', reasoning: '', id: assistantMsgId } 
-        ]);
-
+        setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '' }]);
         let accumulatedContent = '';
         let accumulatedReasoning = '';
 
         try {
-            // 3. Call Stream API
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); 
-            const modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
+            // Default ID, but code is robust if fetch fails
+            let modelToUse = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
+            try {
+                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); 
+                if (prompt.channel_code && prompt.model_id) {
+                    modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
+                }
+            } catch (e) { console.warn("Using default model for outline"); }
 
             await streamChatCompletions({
                 model: modelToUse, 
@@ -146,118 +137,277 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             }, (chunk) => {
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
-
-                // A. Update Chat History (Text updates)
+                
                 setHistory(prev => {
                     const newHistory = [...prev];
-                    const lastIdx = newHistory.length - 1;
-                    newHistory[lastIdx] = {
-                        ...newHistory[lastIdx],
-                        reasoning: accumulatedReasoning,
-                        content: accumulatedContent
-                    };
+                    newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], reasoning: accumulatedReasoning, content: accumulatedContent };
                     return newHistory;
                 });
-
-                // B. Real-time Canvas Update (Partial JSON Parsing)
-                // We try to parse the accumulation to update the right side dynamically
-                if (accumulatedContent.trim().startsWith('{') || accumulatedContent.includes('"pages":')) {
+                
+                // Real-time Parsing & Stage Switching
+                if (accumulatedContent.trim().startsWith('{')) {
                     const partialOutline = tryParsePartialJson(accumulatedContent);
-                    if (partialOutline && partialOutline.pages && Array.isArray(partialOutline.pages)) {
-                        setData(prev => ({
-                            ...prev,
-                            // Only update title if present in partial
-                            topic: partialOutline.title || prev.topic,
-                            outline: partialOutline
+                    if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
+                        setData(prev => ({ 
+                            ...prev, 
+                            topic: partialOutline.title || prev.topic, 
+                            outline: partialOutline 
                         }));
                         
-                        // Switch to outline stage immediately once we have some data to show
-                        if (stage === 'collect') {
-                            setStage('outline');
-                        }
+                        // Switch stage IMMEDIATELY to show the "growing" outline
+                        if (stage === 'collect') setStage('outline');
                     }
                 }
             });
+            
+            // Final parse pass
+            const jsonStr = accumulatedContent.replace(/```json|```/g, '').trim();
+            const parsedOutline = JSON.parse(jsonStr);
+            if (parsedOutline.pages) {
+                setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
+                if (stage === 'collect') setStage('outline');
+                setHistory(prev => {
+                    const h = [...prev];
+                    h[h.length - 1].content = `大纲已生成：**${parsedOutline.title}**。\n请确认结构，或直接输入修改意见。确认无误后请点击右侧“确认并生成”。`;
+                    return h;
+                });
+            }
+        } catch (e) {
+            console.error(e);
+            setHistory(prev => [...prev, { role: 'assistant', content: "生成出错，请重试。" }]);
+        } finally {
+            setIsLlmActive(false);
+        }
+    };
 
-            // 4. Final Post-Process (Ensure Clean JSON)
-            try {
-                const jsonStr = accumulatedContent.replace(/```json|```/g, '').trim();
-                const parsedOutline = JSON.parse(jsonStr);
-                
-                if (parsedOutline.title && Array.isArray(parsedOutline.pages)) {
-                    setData(prev => ({
-                        ...prev,
-                        topic: parsedOutline.title,
-                        outline: parsedOutline
-                    }));
-                    
-                    if (stage === 'collect') setStage('outline');
-                }
-            } catch (e) {
-                console.error("Final Parse Error", e);
-                // Don't show error in chat if we have partial data on screen
+    // --- Core Logic: Serial Generation (Text or HTML) ---
+    useEffect(() => {
+        if (stage !== 'compose' || isLlmActive || !autoGenMode) return;
+
+        const processQueue = async () => {
+            const pages = data.pages;
+            let targetIdx = -1;
+
+            if (autoGenMode === 'text') {
+                targetIdx = pages.findIndex(p => !p.content);
+            } else if (autoGenMode === 'html') {
+                targetIdx = pages.findIndex(p => !p.html);
             }
 
+            if (targetIdx === -1) {
+                setAutoGenMode(null);
+                setHistory(prev => [...prev, { 
+                    role: 'assistant', 
+                    content: autoGenMode === 'text' 
+                        ? "✅ 内容底稿生成完毕！\n请点击页面卡片进行预览或修改，确认无误后点击“生成幻灯片”。" 
+                        : "🎉 幻灯片渲染完成！" 
+                }]);
+                return;
+            }
+
+            setActivePageIndex(targetIdx);
+            setIsLlmActive(true);
+            
+            const currentPage = pages[targetIdx];
+            const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
+            
+            setHistory(prev => [...prev, { 
+                role: 'assistant', 
+                content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
+                reasoning: '' 
+            }]);
+
+            setData(prev => {
+                const newPages = [...prev.pages];
+                newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true };
+                return { ...prev, pages: newPages };
+            });
+
+            try {
+                let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+                let messages: any[] = [];
+
+                if (autoGenMode === 'text') {
+                    // Try to get prompt, fallback if fails
+                    try {
+                        const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
+                        if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                        const content = promptDetail.content
+                            .replace('{{ page_index }}', String(targetIdx + 1))
+                            .replace('{{ page_title }}', currentPage.title)
+                            .replace('{{ page_summary }}', currentPage.summary);
+                        messages = [{ role: 'user', content }];
+                    } catch(e) {
+                         messages = [{ role: 'user', content: `Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
+                    }
+                } else {
+                    try {
+                        const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
+                        if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                        messages = [
+                            { role: 'system', content: promptDetail.content }, 
+                            { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
+                        ];
+                    } catch(e) {
+                         messages = [{ role: 'user', content: `Generate HTML slide for: ${currentPage.title}. Content: ${currentPage.content}` }];
+                    }
+                }
+
+                let accContent = '';
+                let accReasoning = '';
+
+                await streamChatCompletions({
+                    model: modelStr,
+                    messages: messages,
+                    stream: true
+                }, (chunk) => {
+                    if (chunk.reasoning) accReasoning += chunk.reasoning;
+                    if (chunk.content) accContent += chunk.content;
+
+                    setHistory(prev => {
+                        const h = [...prev];
+                        h[h.length - 1].reasoning = accReasoning;
+                        return h;
+                    });
+
+                    setData(prev => {
+                        const newPages = [...prev.pages];
+                        if (autoGenMode === 'text') {
+                            newPages[targetIdx].content = accContent;
+                        } else {
+                            const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
+                            newPages[targetIdx].html = cleanHtml;
+                        }
+                        return { ...prev, pages: newPages };
+                    });
+                });
+
+                setData(prev => {
+                    const newPages = [...prev.pages];
+                    newPages[targetIdx].isGenerating = false;
+                    return { ...prev, pages: newPages };
+                });
+
+                setHistory(prev => {
+                    const h = [...prev];
+                    h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页生成完成。`;
+                    return h;
+                });
+
+            } catch (e) {
+                console.error(e);
+                setHistory(prev => [...prev, { role: 'assistant', content: `❌ 第 ${targetIdx + 1} 页生成失败，跳过。` }]);
+                 setData(prev => {
+                    const newPages = [...prev.pages];
+                    newPages[targetIdx].isGenerating = false;
+                    // Mark as done anyway to prevent infinite loop
+                    if (autoGenMode === 'text') newPages[targetIdx].content = '生成失败';
+                    else newPages[targetIdx].html = '<div>生成失败</div>';
+                    return { ...prev, pages: newPages };
+                });
+            } finally {
+                setIsLlmActive(false); 
+            }
+        };
+
+        processQueue();
+    }, [stage, isLlmActive, autoGenMode, data.pages]);
+
+    // --- Logic: Modification ---
+    const handleModification = async (instruction: string) => {
+        setIsLlmActive(true);
+        const targetIdx = activePageIndex;
+        const page = data.pages[targetIdx];
+        
+        setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在根据意见重新撰写第 ${targetIdx + 1} 页...`, reasoning: '' }]);
+        
+        setData(prev => {
+            const newPages = [...prev.pages];
+            newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true, content: '', html: undefined };
+            return { ...prev, pages: newPages };
+        });
+
+        try {
+             let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+             try {
+                const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
+                if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+             } catch(e) {}
+             
+             const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback.`;
+
+             let accContent = '';
+             let accReasoning = '';
+
+             await streamChatCompletions({
+                model: modelStr,
+                messages: [{ role: 'user', content: userMsg }],
+                stream: true
+            }, (chunk) => {
+                if (chunk.reasoning) accReasoning += chunk.reasoning;
+                if (chunk.content) accContent += chunk.content;
+                
+                setHistory(prev => {
+                    const h = [...prev];
+                    h[h.length - 1].reasoning = accReasoning;
+                    return h;
+                });
+                
+                setData(prev => {
+                    const newPages = [...prev.pages];
+                    newPages[targetIdx].content = accContent;
+                    return { ...prev, pages: newPages };
+                });
+            });
+
+            setData(prev => {
+                const newPages = [...prev.pages];
+                newPages[targetIdx].isGenerating = false;
+                return { ...prev, pages: newPages };
+            });
+            
+            setHistory(prev => {
+                const h = [...prev];
+                h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页已更新。`;
+                return h;
+            });
+
         } catch (e) {
-            console.error("Generation Error", e);
-            setHistory(prev => [...prev, { role: 'assistant', content: "网络连接不稳定，请重试。" }]);
+            setHistory(prev => [...prev, { role: 'assistant', content: "修改失败，请重试。" }]);
         } finally {
             setIsLlmActive(false);
         }
     };
 
     // --- Handlers ---
-
     const handleSend = async () => {
         if (!input.trim() || isLlmActive) return;
-        const userInput = input;
+        const val = input;
         setInput('');
+        setHistory(prev => [...prev, { role: 'user', content: val }]);
 
-        // 1. Add User Message
-        setHistory(prev => [...prev, { role: 'user', content: userInput }]);
-
-        // 2. Dispatch Logic
         if (stage === 'collect') {
-            await runOutlineGeneration(userInput, false);
+            await runOutlineGeneration(val, false);
         } else if (stage === 'outline') {
-            await runOutlineGeneration(`Update the outline based on this feedback: ${userInput}`, true);
-        } else {
-            setHistory(prev => [...prev, { role: 'assistant', content: '当前阶段主要关注内容生成，如需调整大纲结构，请点击上方“返回修改”按钮。' }]);
+            await runOutlineGeneration(`Update outline based on: ${val}`, true);
+        } else if (stage === 'compose') {
+            if (autoGenMode) {
+                setHistory(prev => [...prev, { role: 'assistant', content: "请等待当前生成队列完成。" }]);
+            } else {
+                await handleModification(val);
+            }
         }
     };
 
-    // --- Renderers ---
+    const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
+    const hasHtml = data.pages.some(p => !!p.html);
 
-    const renderMessageContent = (msg: ChatMessage) => {
-        // Heuristic: If content looks like the JSON outline, hide it and show a UI card instead
-        const trimmed = msg.content.trim();
-        // Check for JSON-like structure (starts with { or code block) AND contains "pages" key
-        const isJsonOutline = (trimmed.startsWith('{') && trimmed.includes('"pages"')) || 
-                              (trimmed.startsWith('```') && trimmed.includes('"pages"'));
-
-        if (msg.role === 'assistant' && isJsonOutline) {
-            // Check if it's the last message and still streaming (show different status)
-            const isLastAndActive = isLlmActive && history[history.length - 1] === msg;
-            
-            return (
-                <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isLastAndActive ? 'bg-indigo-100 text-indigo-600' : 'bg-green-100 text-green-600'}`}>
-                        {isLastAndActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <CheckCircleIcon className="w-4 h-4" />}
-                    </div>
-                    <div>
-                        <div className="text-xs font-bold text-slate-800">
-                            {isLastAndActive ? '正在规划大纲结构...' : '大纲构建完成'}
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                            {isLastAndActive ? 'AI 正在实时更新右侧画布' : '请在右侧查看完整大纲并确认'}
-                        </div>
-                    </div>
-                </div>
-            );
+    // Watch for stage change to trigger initial text generation
+    useEffect(() => {
+        if (stage === 'compose' && !autoGenMode && !allTextReady && !isLlmActive) {
+            setAutoGenMode('text');
         }
-        
-        return <div className="whitespace-pre-wrap">{msg.content}</div>;
-    };
+    }, [stage, allTextReady, autoGenMode, isLlmActive]);
 
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
@@ -270,16 +420,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
                         }
                     `}>
-                        {/* Thinking Block */}
                         {msg.role === 'assistant' && msg.reasoning && (
                             <ThinkingBlock 
                                 content={msg.reasoning} 
                                 isStreaming={isLlmActive && i === history.length - 1} 
                             />
                         )}
-                        
-                        {/* Content or UI Placeholder */}
-                        {renderMessageContent(msg)}
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
                     </div>
                 </div>
             ))}
@@ -292,13 +439,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     <p className="text-xs text-slate-500 leading-relaxed">
                         请输入您的研报主题，我将为您进行深度思考，并构建专业的分析框架。
                     </p>
-                    <div className="mt-8 flex flex-wrap gap-2 justify-center">
-                        {['小米汽车 SU7 竞品分析', '2024 固态电池技术趋势', '中国新能源汽车出海报告'].map(t => (
-                            <button key={t} onClick={() => { setInput(t); }} className="px-3 py-1.5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-full text-xs text-slate-600 transition-colors shadow-sm">
-                                {t}
-                            </button>
-                        ))}
-                    </div>
+                </div>
+            )}
+
+            {/* Action Buttons inside Chat */}
+            {stage === 'compose' && allTextReady && !autoGenMode && !hasHtml && (
+                <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4">
+                    <button 
+                        onClick={() => setAutoGenMode('html')}
+                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <PlayIcon className="w-3 h-3" /> 开始生成幻灯片 (HTML)
+                    </button>
                 </div>
             )}
         </div>
@@ -319,7 +471,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 </button>
             </div>
 
-            {/* Dynamic Content Area */}
+            {/* Content */}
             <div className="flex-1 flex flex-col min-h-0 relative">
                 {renderChatBubbles()}
 
@@ -330,7 +482,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            placeholder={stage === 'collect' ? "输入研报主题..." : "输入修改意见 (如: 增加市场规模章节)..."}
+                            placeholder={stage === 'collect' ? "输入研报主题..." : (autoGenMode ? "正在生成中..." : "输入修改意见，如：把本页标题改为...")}
                             className="w-full bg-slate-50 text-slate-800 placeholder:text-slate-400 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                             disabled={isLlmActive}
                         />
@@ -342,9 +494,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
                         </button>
                     </div>
-                    <p className="text-[10px] text-center text-slate-400 mt-2">
-                        AI 生成内容仅供参考，请核实重要数据。
-                    </p>
+                    {stage === 'compose' && !autoGenMode && (
+                        <p className="text-[10px] text-center text-slate-400 mt-2">
+                           当前为第 {activePageIndex + 1} 页。输入指令即可修改本页内容。
+                        </p>
+                    )}
                 </div>
             </div>
         </div>
