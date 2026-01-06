@@ -1,241 +1,271 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { PPTData, ChatMessage } from './types';
-import { streamChatCompletions, getPromptDetail } from '../../api/stratify';
-import { RefreshIcon, CheckIcon, DocumentTextIcon, BrainIcon, PencilIcon, CloseIcon } from '../icons';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { PPTData, PPTStage, PPTPageData } from './types';
+import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify';
+import { 
+    SparklesIcon, DocumentTextIcon, DownloadIcon, 
+    RefreshIcon, ViewGridIcon, 
+    ChevronLeftIcon, ChevronRightIcon,
+    PencilIcon
+} from '../icons';
 
-interface Step3ComposeProps {
-    pages: PPTData['pages'];
-    history: ChatMessage[];
-    onUpdatePages: (newPages: PPTData['pages']) => void;
-    onHistoryUpdate: (newHistory: ChatMessage[]) => void;
-    onLlmStatusChange: (isActive: boolean) => void;
-    onStreamingUpdate: (msg: ChatMessage | null) => void;
-    onFinish: () => void;
+// --- Prompt Constants ---
+const COMPOSE_PROMPT_ID = "c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2";
+const HTML_PROMPT_ID = "14920b9c-604f-4066-bb80-da7a47b65572";
+
+interface MainCanvasProps {
+    stage: PPTStage;
+    data: PPTData;
+    activePageIndex: number;
+    setActivePageIndex: (i: number) => void;
+    isLlmActive: boolean;
 }
 
-const PROMPT_ID = "c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2";
-
-const extractStreamingContent = (rawText: string): string => {
-    const match = rawText.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/);
-    if (!match) return '';
-    let content = match[1];
-    return content
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
+const extractContent = (raw: string) => {
+    // Basic extraction, improvement needed for robust JSON/Markdown parsing
+    return raw.replace(/```json|```/g, '').trim(); 
 };
 
-export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUpdatePages, onHistoryUpdate, onLlmStatusChange, onStreamingUpdate, onFinish }) => {
-    const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
-    const pagesRef = useRef(pages);
+const extractStreamingHtml = (rawText: string): string => {
+    return rawText.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
+};
 
-    useEffect(() => { pagesRef.current = pages; }, [pages]);
+export const MainCanvas: React.FC<MainCanvasProps> = ({ 
+    stage, data, activePageIndex, setActivePageIndex, isLlmActive 
+}) => {
+    // Local state for page content to allow instant optimistic updates before syncing up
+    const [pages, setPages] = useState<PPTPageData[]>(data.pages);
+    const [isExporting, setIsExporting] = useState(false);
 
-    const generatePageContent = useCallback(async (idx: number, force = false, overrideInstruction?: string) => {
-        const page = pagesRef.current[idx];
-        if (!page || (page.content && !force && !overrideInstruction) || page.isGenerating) return;
+    // Sync from props
+    useEffect(() => {
+        setPages(data.pages);
+    }, [data.pages]);
 
-        onLlmStatusChange(true);
-        const updatedStart = [...pagesRef.current];
-        updatedStart[idx] = { ...page, isGenerating: true };
-        if (!overrideInstruction) updatedStart[idx].content = ''; 
-        onUpdatePages(updatedStart);
+    const activePage = pages[activePageIndex];
+
+    // --- Generation Logic ---
+
+    const generateContent = useCallback(async (idx: number) => {
+        const page = pages[idx];
+        if (!page || page.content || page.isGenerating) return;
+
+        // Optimistic update
+        setPages(prev => {
+            const copy = [...prev];
+            copy[idx].isGenerating = true;
+            return copy;
+        });
 
         try {
-            const prompt = await getPromptDetail(PROMPT_ID);
-            const baseInstruction = prompt.content
+            const prompt = await getPromptDetail(COMPOSE_PROMPT_ID);
+            const instruction = prompt.content
                 .replace('{{ page_index }}', String(idx + 1))
                 .replace('{{ page_title }}', page.title)
                 .replace('{{ page_summary }}', page.summary);
-            
-            const userInstruction = overrideInstruction 
-                ? `【当前内容】:\n${page.content}\n\n【用户修改要求】:\n${overrideInstruction}\n\n请输出修改后的完整 Markdown 内容。`
-                : baseInstruction;
 
-            const requestMessages = [...history, { role: 'user', content: userInstruction, hidden: true }];
-            let accumulatedText = '';
-            
+            let accumulated = '';
             await streamChatCompletions({
                 model: `${prompt.channel_code}@${prompt.model_id}`,
-                messages: requestMessages,
+                messages: [{ role: 'user', content: instruction }],
                 stream: true
-            }, (data) => {
-                if (data.content) {
-                    accumulatedText += data.content;
-                    const partialContent = extractStreamingContent(accumulatedText);
-                    if (partialContent) {
-                        const nextPages = [...pagesRef.current];
-                        nextPages[idx] = { ...nextPages[idx], content: partialContent };
-                        onUpdatePages(nextPages);
-                    }
-                }
-            }, () => {
-                onLlmStatusChange(false);
-                const nextPages = [...pagesRef.current];
-                nextPages[idx] = { ...nextPages[idx], isGenerating: false };
-                onUpdatePages(nextPages);
-            }, (err) => {
-                onLlmStatusChange(false);
-                const nextPages = [...pagesRef.current];
-                nextPages[idx] = { ...nextPages[idx], isGenerating: false };
-                onUpdatePages(nextPages);
+            }, (chunk) => {
+                 if (chunk.content) {
+                     accumulated += chunk.content;
+                     // Real-time streaming update? Maybe too heavy for state.
+                     // Let's update in chunks or at end for now to avoid jitter.
+                     setPages(prev => {
+                        const copy = [...prev];
+                        copy[idx].content = accumulated; 
+                        return copy;
+                     });
+                 }
             });
-        } catch (e) { 
-            onLlmStatusChange(false);
-        }
-    }, [history, onUpdatePages, onHistoryUpdate, onLlmStatusChange]);
+            
+            // Finalize
+            setPages(prev => {
+                const copy = [...prev];
+                copy[idx].isGenerating = false;
+                copy[idx].content = accumulated;
+                return copy;
+            });
+            
+            // Trigger HTML generation immediately after content
+            generateHtml(idx, accumulated);
 
-    // Auto-start generation for all empty pages sequentially or partially in parallel
-    useEffect(() => {
-        const nextIdx = pages.findIndex(p => !p.content && !p.isGenerating);
-        if (nextIdx !== -1) {
-             // Simple throttling: Only 1 at a time for stability, or change logic for parallel
-             const generatingCount = pages.filter(p => p.isGenerating).length;
-             if (generatingCount < 1) {
-                 generatePageContent(nextIdx);
-             }
+        } catch (e) {
+            setPages(prev => {
+                const copy = [...prev];
+                copy[idx].isGenerating = false;
+                return copy;
+            });
         }
-    }, [pages, generatePageContent]);
+    }, [pages]);
 
-    const handleManualEdit = (idx: number, val: string) => {
-        const nextPages = [...pages];
-        nextPages[idx] = { ...nextPages[idx], content: val };
-        onUpdatePages(nextPages);
+    const generateHtml = async (idx: number, content: string) => {
+        if (!content) return;
+        
+        try {
+             setPages(prev => {
+                const copy = [...prev];
+                copy[idx].isGenerating = true; // Re-use generating flag for HTML phase
+                return copy;
+            });
+
+            const prompt = await getPromptDetail(HTML_PROMPT_ID);
+            const userPrompt = `主题: ${data.topic}\n内容:\n${content}`;
+            let htmlAccumulated = '';
+
+            await streamChatCompletions({
+                model: `${prompt.channel_code}@${prompt.model_id}`,
+                messages: [
+                    { role: 'system', content: prompt.content },
+                    { role: 'user', content: userPrompt }
+                ],
+                stream: true
+            }, (chunk) => {
+                if (chunk.content) htmlAccumulated += chunk.content;
+            });
+
+            const finalHtml = extractStreamingHtml(htmlAccumulated);
+            setPages(prev => {
+                const copy = [...prev];
+                copy[idx].html = finalHtml;
+                copy[idx].isGenerating = false;
+                return copy;
+            });
+
+        } catch (e) {
+            console.error("HTML gen failed", e);
+             setPages(prev => {
+                const copy = [...prev];
+                copy[idx].isGenerating = false;
+                return copy;
+            });
+        }
     };
 
-    const allDone = pages.every(p => p.content && !p.isGenerating);
+    // Auto-trigger generation when entering compose stage
+    useEffect(() => {
+        if (stage === 'compose' && activePage && !activePage.content && !activePage.isGenerating) {
+            generateContent(activePageIndex);
+        }
+    }, [stage, activePageIndex, activePage, generateContent]);
 
-    return (
-        <div className="h-full flex flex-col">
-            <div className="px-8 py-6 flex justify-between items-center bg-white border-b border-slate-100 flex-shrink-0">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">模块建造</h2>
-                    <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest">
-                        {pages.filter(p => p.content).length} / {pages.length} Modules Built
-                    </p>
-                </div>
-                <button 
-                    onClick={onFinish} 
-                    disabled={!allDone} 
-                    className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-sm shadow-xl hover:bg-indigo-600 disabled:opacity-50 transition-all flex items-center gap-3 active:scale-95"
-                >
-                    进入渲染工坊 <CheckIcon className="w-5 h-5" />
-                </button>
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+             const pdfPages = pages.map((p, idx) => ({
+                html: p.html || '',
+                filename: `page_${idx + 1}`
+            })).filter(item => item.html);
+            const blob = await generateBatchPdf(pdfPages);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.topic || 'report'}.pdf`;
+            a.click();
+        } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
+    };
+
+    // --- Renderers ---
+
+    const renderWelcome = () => (
+        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
+            <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl mb-8 border border-slate-100">
+                <SparklesIcon className="w-16 h-16 text-indigo-500" />
             </div>
+            <h1 className="text-4xl font-black text-slate-800 mb-4 tracking-tight">Auto Insight Canvas</h1>
+            <p className="text-slate-500 max-w-md text-lg">
+                请在左侧侧边栏输入研究主题。AI 将为您构建逻辑架构并实时生成可视化幻灯片。
+            </p>
+        </div>
+    );
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/50 p-8 custom-scrollbar relative">
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-[1600px] mx-auto">
-                    {pages.map((page, i) => (
-                        <div 
-                            key={i} 
-                            onClick={() => setFocusedIdx(i)}
-                            className={`
-                                group relative bg-white rounded-2xl border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col h-[320px]
-                                ${focusedIdx === i 
-                                    ? 'border-indigo-500 ring-4 ring-indigo-500/10 shadow-2xl z-10' 
-                                    : 'border-slate-200 shadow-sm hover:shadow-lg hover:border-indigo-300 hover:-translate-y-1'
-                                }
-                            `}
+    const renderOutlineView = () => (
+        <div className="flex-1 flex flex-col items-center justify-center p-10 bg-slate-50">
+             <div className="max-w-2xl w-full space-y-6">
+                <div className="text-center mb-10">
+                    <h2 className="text-2xl font-bold text-slate-800">架构蓝图规划中...</h2>
+                    <p className="text-slate-500 mt-2">请在左侧侧边栏确认或调整生成的章节结构。</p>
+                </div>
+                {/* Visual Placeholder for MindMap */}
+                <div className="relative h-64 border-2 border-dashed border-slate-300 rounded-3xl flex items-center justify-center bg-slate-100/50">
+                    <ViewGridIcon className="w-12 h-12 text-slate-300" />
+                </div>
+             </div>
+        </div>
+    );
+
+    const renderSlideEditor = () => {
+        if (!activePage) return <div>Loading...</div>;
+
+        return (
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                {/* Toolbar */}
+                <div className="h-16 px-8 flex items-center justify-between bg-white border-b border-slate-200 z-10 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Page {activePageIndex + 1} / {pages.length}</span>
+                        <div className="h-4 w-px bg-slate-200"></div>
+                        <h2 className="font-bold text-slate-800 truncate max-w-md">{activePage.title}</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => generateContent(activePageIndex)}
+                            className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-colors" 
+                            title="重新生成本页"
                         >
-                            {/* Card Header */}
-                            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-black">
-                                        {i + 1}
-                                    </div>
-                                    <h3 className="font-bold text-slate-800 text-sm truncate max-w-[180px]" title={page.title}>{page.title}</h3>
-                                </div>
-                                {page.isGenerating ? (
-                                    <RefreshIcon className="w-4 h-4 text-indigo-500 animate-spin" />
-                                ) : page.content ? (
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                                ) : (
-                                    <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                                )}
-                            </div>
-
-                            {/* Card Body (Preview) */}
-                            <div className="flex-1 p-5 overflow-hidden relative">
-                                {page.content ? (
-                                    <div className="prose prose-xs max-w-none text-slate-500 line-clamp-[10] select-none pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
-                                        <div dangerouslySetInnerHTML={{ __html: window.marked ? window.marked.parse(page.content) : page.content }} />
-                                    </div>
-                                ) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2">
-                                        {page.isGenerating ? (
-                                            <>
-                                                <BrainIcon className="w-8 h-8 animate-pulse text-indigo-200" />
-                                                <span className="text-xs font-bold animate-pulse text-indigo-300">Writing code...</span>
-                                            </>
-                                        ) : (
-                                            <span className="text-xs font-bold uppercase tracking-widest opacity-50">Waiting</span>
-                                        )}
-                                    </div>
-                                )}
-                                
-                                {/* Overlay on Hover */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6">
-                                    <span className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-full shadow-lg transform translate-y-4 group-hover:translate-y-0 transition-transform">
-                                        点击编辑详情
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                            <RefreshIcon className={`w-5 h-5 ${activePage.isGenerating ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button onClick={handleExport} disabled={isExporting} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors">
+                            {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
+                            导出 PDF
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            {/* Focus Editor Modal */}
-            {focusedIdx !== null && (
-                <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-4xl h-[85vh] rounded-[32px] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                        <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div>
-                                <h3 className="text-xl font-black text-slate-800">{pages[focusedIdx].title}</h3>
-                                <p className="text-xs text-slate-500 mt-1 font-medium">Page {focusedIdx + 1} Content Editor</p>
-                            </div>
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => generatePageContent(focusedIdx, true)}
-                                    className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-sm"
-                                >
-                                    <RefreshIcon className="w-3.5 h-3.5" /> 重写
-                                </button>
-                                <button onClick={() => setFocusedIdx(null)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                                    <CloseIcon className="w-6 h-6" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex-1 p-8 bg-slate-50/50">
-                             <textarea 
-                                value={pages[focusedIdx].content}
-                                onChange={e => handleManualEdit(focusedIdx, e.target.value)}
-                                className="w-full h-full p-6 bg-white border border-slate-200 rounded-2xl text-sm leading-relaxed text-slate-700 shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none font-mono"
-                                placeholder="# Markdown content..."
+                {/* Canvas Area */}
+                <div className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-8 md:p-12">
+                    <div className="w-full max-w-5xl aspect-video bg-white shadow-2xl rounded-sm overflow-hidden relative group">
+                        {activePage.html ? (
+                            <iframe 
+                                srcDoc={activePage.html}
+                                className="w-full h-full border-none pointer-events-none select-none scale-[1]"
+                                style={{ transformOrigin: 'top left' }} // iframe scaling might need adjustment based on container
                             />
-                        </div>
-                        <div className="p-6 border-t border-slate-100 flex justify-between items-center bg-white">
-                            <button 
-                                onClick={() => setFocusedIdx(Math.max(0, focusedIdx - 1))}
-                                disabled={focusedIdx === 0}
-                                className="px-6 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 transition-colors"
-                            >
-                                上一页
-                            </button>
-                            <button 
-                                onClick={() => setFocusedIdx(Math.min(pages.length - 1, focusedIdx + 1))}
-                                disabled={focusedIdx === pages.length - 1}
-                                className="px-6 py-3 rounded-xl font-bold text-sm bg-slate-900 text-white hover:bg-indigo-600 disabled:opacity-50 transition-colors shadow-lg"
-                            >
-                                下一页
-                            </button>
+                        ) : activePage.content ? (
+                            <div className="p-12 prose max-w-none h-full overflow-hidden">
+                                <h1>{activePage.title}</h1>
+                                <div className="whitespace-pre-wrap">{activePage.content}</div>
+                            </div>
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white">
+                                {activePage.isGenerating ? (
+                                    <>
+                                        <SparklesIcon className="w-12 h-12 text-indigo-500 animate-pulse mb-4" />
+                                        <p className="text-slate-500 font-medium animate-pulse">AI 正在绘制...</p>
+                                    </>
+                                ) : (
+                                    <p className="text-slate-300 font-bold text-lg">等待生成...</p>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Overlay Controls */}
+                        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                             <button className="p-2 bg-black/50 text-white rounded-lg hover:bg-black/70 backdrop-blur">
+                                <PencilIcon className="w-4 h-4" />
+                             </button>
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        );
+    };
+
+    // --- Main Render ---
+    if (stage === 'collect') return renderWelcome();
+    if (stage === 'outline') return renderOutlineView();
+    return renderSlideEditor();
 };
