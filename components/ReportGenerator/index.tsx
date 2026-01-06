@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { StratifyScenario } from '../../types';
-import { CopilotSidebar } from './Step1Collect'; // Reuse file as Sidebar
-import { MainCanvas } from './Step3Compose';     // Reuse file as Canvas
+import { CopilotSidebar } from './Step1Collect'; 
+import { MainCanvas } from './Step3Compose';     
 import { PPTStage, ChatMessage, PPTData } from './types';
 
-const STORAGE_KEY = 'auto_insight_ppt_session_v3'; // Version bump for new layout
+const STORAGE_KEY = 'auto_insight_ppt_session_v4'; 
 
 const DEFAULT_DATA: PPTData = {
     topic: '',
@@ -35,10 +34,10 @@ const ScenarioWorkstation: React.FC = () => {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsedData = JSON.parse(saved).data;
-                // Reset generating states on load
-                if (parsedData.pages) {
-                    parsedData.pages = parsedData.pages.map((p: any) => ({ ...p, isGenerating: false }));
-                }
+                // Ensure pages is always an array
+                if (!parsedData.pages) parsedData.pages = [];
+                // Reset generating states on load to prevent stuck spinners
+                parsedData.pages = parsedData.pages.map((p: any) => ({ ...p, isGenerating: false }));
                 return parsedData;
             }
             return DEFAULT_DATA;
@@ -61,12 +60,13 @@ const ScenarioWorkstation: React.FC = () => {
             setHistory([]);
             setData(DEFAULT_DATA);
             setActivePageIndex(0);
+            setIsLlmActive(false);
         }
     };
 
     return (
         <div className="flex h-full w-full bg-[#0f172a] overflow-hidden text-slate-100 font-sans">
-            {/* Left: Copilot Sidebar (400px Fixed) */}
+            {/* Left: Copilot Sidebar (Fixed Width) */}
             <div className="w-[400px] flex-shrink-0 flex flex-col border-r border-slate-700/50 bg-[#0f172a] relative z-20">
                 <CopilotSidebar 
                     stage={stage}

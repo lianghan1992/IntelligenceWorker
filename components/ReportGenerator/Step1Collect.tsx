@@ -1,13 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    SparklesIcon, DocumentTextIcon, ArrowRightIcon, 
-    RefreshIcon, CheckIcon, 
-    ViewListIcon, PuzzleIcon, ChevronRightIcon, PlusIcon
+    SparklesIcon, ArrowRightIcon, RefreshIcon, CheckIcon, ChevronRightIcon 
 } from '../icons';
-import { fetchJinaReader } from '../../api/intelligence';
-import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
-import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
+import { PPTStage, ChatMessage, PPTData } from './types';
 import { Step2Outline as OutlineWidget } from './Step2Outline';
 
 interface CopilotSidebarProps {
@@ -31,7 +27,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll
+    // Auto-scroll chat
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [history, stage]);
@@ -43,84 +39,26 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const userInput = input;
         setInput('');
 
-        // 1. User Message
-        const newHistory: ChatMessage[] = [...history, { role: 'user', content: userInput }];
-        setHistory(newHistory);
+        // 1. Add User Message
+        setHistory(prev => [...prev, { role: 'user', content: userInput }]);
 
-        // 2. Logic Dispatcher
+        // 2. State Transition Logic
         if (stage === 'collect') {
-            await runTopicAnalysis(userInput, newHistory);
-        } else if (stage === 'outline') {
-            // In outline stage, chat is usually for refining, but here we might just append context
-            // For now, let's assume the outline widget handles structure, chat handles "regenerate" requests
-            await runRefinement(userInput, newHistory);
-        } else if (stage === 'compose' || stage === 'finalize') {
-            await runRefinement(userInput, newHistory);
+            // Set topic and move immediately to outline stage.
+            // The OutlineWidget will handle the API call when it mounts.
+            setData(prev => ({ ...prev, topic: userInput }));
+            setStage('outline');
+        } else {
+            // For other stages, just treat as generic chat (simplified for now)
+            setHistory(prev => [...prev, { role: 'assistant', content: '收到。目前处于生成阶段，请使用界面控件进行操作，或重置以开始新话题。' }]);
         }
-    };
-
-    const runTopicAnalysis = async (topic: string, currentHistory: ChatMessage[]) => {
-        setIsLlmActive(true);
-        setData(prev => ({ ...prev, topic }));
-        
-        try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); // Outline Prompt
-            
-            // Add system prompt if not present
-            let requestMessages: ChatMessage[] = [...currentHistory];
-            if (!requestMessages.find(m => m.role === 'system')) {
-                requestMessages = [{ role: 'system' as const, content: prompt.content, hidden: true }, ...requestMessages];
-            }
-
-            let accumulatedText = '';
-            // We use a temporary message for streaming
-            setHistory([...currentHistory, { role: 'assistant' as const, content: '正在思考...' }]);
-
-            await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
-                messages: requestMessages.map(m => ({ role: m.role, content: m.content })),
-                stream: true
-            }, (chunk) => {
-                if (chunk.content) {
-                    accumulatedText += chunk.content;
-                    // Update last message
-                    setHistory(prev => {
-                        const copy = [...prev];
-                        copy[copy.length - 1] = { role: 'assistant' as const, content: accumulatedText };
-                        return copy;
-                    });
-                }
-            }, () => {
-                setIsLlmActive(false);
-                // Try parse outline
-                try {
-                    // Simple extraction logic, robust one is in Step2Outline but we duplicate minimal logic here or rely on Step2Outline to parse the history later
-                    // Ideally, we move to 'outline' stage and let Step2Outline parse the last message.
-                    setStage('outline');
-                } catch(e) {}
-            });
-
-        } catch (e) {
-            setIsLlmActive(false);
-            setHistory([...currentHistory, { role: 'assistant' as const, content: '抱歉，分析出错，请重试。' }]);
-        }
-    };
-
-    const runRefinement = async (instruction: string, currentHistory: ChatMessage[]) => {
-        // Generic refinement handler
-        setIsLlmActive(true);
-        // ... similar stream logic ...
-        // Simplified for brevity: just echo for now unless it's a specific command
-        setTimeout(() => {
-            setIsLlmActive(false);
-            setHistory([...currentHistory, { role: 'assistant' as const, content: `收到指令："${instruction}"。请在右侧直接操作或等待我实现更多控制功能。` }]);
-        }, 1000);
     };
 
     // --- Renderers ---
 
     const renderPageList = () => (
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Generation Queue</div>
             {data.pages.map((page, idx) => (
                 <div 
                     key={idx}
@@ -134,7 +72,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     `}
                 >
                     <div className={`
-                        w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold
+                        w-6 h-6 rounded-lg flex-shrink-0 flex items-center justify-center text-[10px] font-bold
                         ${activePageIndex === idx ? 'bg-white text-indigo-600' : 'bg-slate-700 text-slate-300'}
                     `}>
                         {idx + 1}
@@ -143,7 +81,15 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         <div className={`text-sm font-bold truncate ${activePageIndex === idx ? 'text-white' : 'text-slate-300'}`}>
                             {page.title}
                         </div>
-                        {page.isGenerating && <div className="text-[10px] text-indigo-300 animate-pulse mt-0.5">正在生成内容...</div>}
+                        <div className="flex items-center gap-2 mt-0.5">
+                            {page.html ? (
+                                <span className="text-[9px] text-green-400 flex items-center gap-1"><CheckIcon className="w-3 h-3"/> Ready</span>
+                            ) : page.isGenerating ? (
+                                <span className="text-[9px] text-indigo-300 animate-pulse flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> Generating...</span>
+                            ) : (
+                                <span className="text-[9px] text-slate-500">Waiting</span>
+                            )}
+                        </div>
                     </div>
                     <ChevronRightIcon className={`w-4 h-4 ${activePageIndex === idx ? 'text-white' : 'text-slate-600 group-hover:text-slate-400'}`} />
                 </div>
@@ -152,7 +98,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 onClick={() => setStage('finalize')}
                 className="w-full mt-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-lg"
             >
-                <CheckIcon className="w-4 h-4" /> 完成并预览
+                <CheckIcon className="w-4 h-4" /> 预览与导出
             </button>
         </div>
     );
@@ -160,7 +106,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     return (
         <div className="flex flex-col h-full bg-[#0f172a]">
             {/* Header */}
-            <div className="h-16 px-5 border-b border-slate-700/50 flex items-center justify-between bg-[#0f172a] shadow-sm z-10">
+            <div className="h-16 px-5 border-b border-slate-700/50 flex items-center justify-between bg-[#0f172a] shadow-sm z-10 flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <SparklesIcon className="w-5 h-5 text-indigo-400" />
                     <span className="font-bold text-slate-100 tracking-tight">AI Co-Pilot</span>
@@ -173,7 +119,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             {/* Dynamic Content Area */}
             <div className="flex-1 flex flex-col min-h-0 relative">
                 
-                {/* Mode 1: Chat Stream (Collect Stage) */}
+                {/* Mode 1: Initial Collect (Chat) */}
                 {stage === 'collect' && (
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar-dark" ref={scrollRef}>
                         {history.filter(m => !m.hidden).map((msg, i) => (
@@ -195,7 +141,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 <p className="text-sm">请输入您的研报主题，我将为您构建分析框架。</p>
                                 <div className="mt-6 flex flex-wrap gap-2 justify-center">
                                     {['小米汽车 SU7 竞品分析', '固态电池技术趋势', '2024 新能源出海报告'].map(t => (
-                                        <button key={t} onClick={() => { setInput(t); /* auto send logic could go here */ }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-xs text-slate-300 border border-slate-700 transition-colors">
+                                        <button key={t} onClick={() => { setInput(t); /* auto trigger not implemented to prompt user */ }} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-full text-xs text-slate-300 border border-slate-700 transition-colors">
                                             {t}
                                         </button>
                                     ))}
@@ -205,12 +151,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                 )}
 
-                {/* Mode 2: Outline Widget (Outline Stage) */}
+                {/* Mode 2: Outline Editor (Sidebar Widget) */}
                 {stage === 'outline' && (
                     <div className="flex-1 flex flex-col overflow-hidden">
-                        <div className="px-5 py-3 bg-slate-800/30 border-b border-slate-700/50 flex justify-between items-center">
+                        <div className="px-5 py-3 bg-slate-800/30 border-b border-slate-700/50 flex justify-between items-center flex-shrink-0">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Outline Editor</span>
-                            <button onClick={() => setStage('collect')} className="text-xs text-indigo-400 hover:underline">返回修改主题</button>
+                            <button onClick={() => setStage('collect')} className="text-xs text-indigo-400 hover:underline">修改主题</button>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scrollbar-dark">
                             <OutlineWidget 
@@ -220,10 +166,16 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 onLlmStatusChange={setIsLlmActive} 
                                 onStreamingUpdate={() => {}} 
                                 onConfirm={(outline) => {
+                                    // Transition to compose
                                     setData(prev => ({ 
                                         ...prev, 
                                         outline,
-                                        pages: outline.pages.map(p => ({ title: p.title, summary: p.content, content: '', isGenerating: false }))
+                                        pages: outline.pages.map(p => ({ 
+                                            title: p.title, 
+                                            summary: p.content, 
+                                            content: '', // Empty initially
+                                            isGenerating: false 
+                                        }))
                                     }));
                                     setStage('compose');
                                     setActivePageIndex(0);
@@ -233,10 +185,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                 )}
 
-                {/* Mode 3: Navigation Rail (Compose/Finalize Stage) */}
+                {/* Mode 3: Compose/Finalize (Nav Rail) */}
                 {(stage === 'compose' || stage === 'finalize') && (
                     <div className="flex-1 flex flex-col overflow-hidden">
-                         <div className="px-5 py-4 bg-slate-800/30 border-b border-slate-700/50">
+                         <div className="px-5 py-4 bg-slate-800/30 border-b border-slate-700/50 flex-shrink-0">
                             <h3 className="font-bold text-slate-200 text-sm truncate">{data.topic}</h3>
                             <p className="text-xs text-slate-500 mt-1">共 {data.pages.length} 页</p>
                         </div>
@@ -244,15 +196,15 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                 )}
 
-                {/* Input Area (Always visible for instructions) */}
-                {stage !== 'outline' && (
-                    <div className="p-4 bg-[#0f172a] border-t border-slate-700/50 z-20">
+                {/* Input Area (Only visible in Collect Stage) */}
+                {stage === 'collect' && (
+                    <div className="p-4 bg-[#0f172a] border-t border-slate-700/50 z-20 flex-shrink-0">
                         <div className="relative">
                             <input 
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && handleSend()}
-                                placeholder={stage === 'collect' ? "输入主题..." : "输入指令调整内容..."}
+                                placeholder="输入主题..."
                                 className="w-full bg-slate-800 text-white placeholder:text-slate-500 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all shadow-inner"
                                 disabled={isLlmActive}
                             />
