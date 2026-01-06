@@ -24,6 +24,13 @@ const Spinner: React.FC = () => (
     </svg>
 );
 
+// Helper to unescape unicode characters in content (e.g., \u25cf -> ●)
+const unescapeUnicode = (str: string) => {
+    return str.replace(/\\u([0-9a-fA-F]{4})/gi, (match, grp) => {
+        return String.fromCharCode(parseInt(grp, 16));
+    });
+}
+
 export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle }) => {
     const [htmlContent, setHtmlContent] = useState<string | null>(null);
     const [fullContent, setFullContent] = useState<string>('');
@@ -105,15 +112,18 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const fallbackArticleHtml = useMemo(() => {
         if (!fullContent) return '';
 
+        // Unescape potential unicode escape sequences first
+        const decodedContent = unescapeUnicode(fullContent);
+
         if (window.marked && typeof window.marked.parse === 'function') {
-            const markdownWithStyledImages = fullContent.replace(
+            const markdownWithStyledImages = decodedContent.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
                 '<figure class="my-6"><img src="$2" alt="$1" class="rounded-lg w-full object-cover shadow-sm"><figcaption class="text-center text-xs text-gray-500 mt-2">$1</figcaption></figure>'
             );
             return window.marked.parse(markdownWithStyledImages);
         }
 
-        const escapedContent = fullContent
+        const escapedContent = decodedContent
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");

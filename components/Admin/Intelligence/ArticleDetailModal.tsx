@@ -23,6 +23,13 @@ const formatBeijingTime = (dateStr: string | undefined) => {
     return new Date(dateStr).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 };
 
+// Helper to unescape unicode characters
+const unescapeUnicode = (str: string) => {
+    return str.replace(/\\u([0-9a-fA-F]{4})/gi, (match, grp) => {
+        return String.fromCharCode(parseInt(grp, 16));
+    });
+}
+
 export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleUuid, onClose }) => {
     const [article, setArticle] = useState<SpiderArticle | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -46,10 +53,13 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
 
     const contentHtml = useMemo(() => {
         if (!article?.content) return '';
+        
+        const decodedContent = unescapeUnicode(article.content);
+        
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(article.content);
+            return window.marked.parse(decodedContent);
         }
-        return `<pre class="whitespace-pre-wrap font-sans text-gray-700">${article.content}</pre>`;
+        return `<pre class="whitespace-pre-wrap font-sans text-gray-700">${decodedContent}</pre>`;
     }, [article]);
 
     const renderContent = () => {

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { CloseIcon, DocumentTextIcon } from '../icons';
@@ -15,6 +16,13 @@ declare global {
 interface EventReportModalProps {
     event: LivestreamTask;
     onClose: () => void;
+}
+
+// Helper to unescape unicode characters in content
+const unescapeUnicode = (str: string) => {
+    return str.replace(/\\u([0-9a-fA-F]{4})/gi, (match, grp) => {
+        return String.fromCharCode(parseInt(grp, 16));
+    });
 }
 
 export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClose }) => {
@@ -45,13 +53,15 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
         if (isLoading || error || !reportContent) {
             return '';
         }
+
+        const decodedContent = unescapeUnicode(reportContent);
     
         if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(reportContent);
+            return window.marked.parse(decodedContent);
         }
         
         console.error("marked.js is not loaded or is not a function. Falling back to pre-formatted text.");
-        const escapedContent = reportContent
+        const escapedContent = decodedContent
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")

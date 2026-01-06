@@ -127,7 +127,15 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
     const [data, setData] = useState<PPTData>(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            return saved ? JSON.parse(saved).data : DEFAULT_DATA;
+            if (saved) {
+                const parsedData = JSON.parse(saved).data;
+                // Critical Fix: Reset transient flags on load to prevent stuck "generating" state
+                if (parsedData.pages) {
+                    parsedData.pages = parsedData.pages.map((p: any) => ({ ...p, isGenerating: false }));
+                }
+                return parsedData;
+            }
+            return DEFAULT_DATA;
         } catch { return DEFAULT_DATA; }
     });
 
@@ -322,6 +330,7 @@ export const ScenarioWorkstation: React.FC<ScenarioWorkstationProps> = ({ scenar
                             topic={data.topic}
                             pages={data.pages}
                             onBackToCompose={() => setStage('compose')}
+                            onUpdatePages={newPages => setData(prev => ({ ...prev, pages: newPages }))}
                             onLlmStatusChange={setIsLlmActive}
                             onStreamingUpdate={setStreamingMessage}
                         />

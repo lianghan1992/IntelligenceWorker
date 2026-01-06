@@ -11,6 +11,7 @@ interface Step4FinalizeProps {
     topic: string;
     pages: PPTPageData[];
     onBackToCompose: () => void;
+    onUpdatePages: (newPages: PPTPageData[]) => void;
     onLlmStatusChange?: (isActive: boolean) => void;
     onStreamingUpdate?: (msg: ChatMessage | null) => void;
 }
@@ -32,6 +33,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     topic, 
     pages: initialPages, 
     onBackToCompose,
+    onUpdatePages,
     onLlmStatusChange,
     onStreamingUpdate
 }) => {
@@ -56,6 +58,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         if (!page || page.html) return;
 
         onLlmStatusChange?.(true);
+        // 设置当前页面为正在生成
+        // NOTE: We don't need to persist 'isGenerating' to parent, transient state is fine here
         setPages(prev => prev.map((p, i) => i === idx ? { ...p, isGenerating: true } : p));
 
         try {
@@ -88,26 +92,48 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
             }, () => {
                 const finalHtml = extractStreamingHtml(accumulatedText);
-                setPages(prev => prev.map((p, i) => i === idx ? { ...p, html: finalHtml, isGenerating: false } : p));
+                // Update Local State
+                const newPages = pages.map((p, i) => i === idx ? { ...p, html: finalHtml, isGenerating: false } : p);
+                setPages(newPages);
+                // Sync to Parent for Persistence
+                onUpdatePages(newPages);
+                
                 onLlmStatusChange?.(false);
                 onStreamingUpdate?.(null);
             }, (err) => {
-                setPages(prev => prev.map((p, i) => i === idx ? { ...p, isGenerating: false, html: `<div class="p-10 text-red-500">渲染失败: ${err.message}</div>` } : p));
+                // Handle Error
+                const newPages = pages.map((p, i) => i === idx ? { ...p, isGenerating: false, html: `<div class="p-10 text-red-500">渲染失败: ${err.message}</div>` } : p);
+                setPages(newPages);
+                onUpdatePages(newPages); // Save error state too so it doesn't infinite retry on reload
+                
                 onLlmStatusChange?.(false);
                 onStreamingUpdate?.(null);
             });
 
         } catch (e) {
-            setPages(prev => prev.map((p, i) => i === idx ? { ...p, isGenerating: false } : p));
+            const newPages = pages.map((p, i) => i === idx ? { ...p, isGenerating: false } : p);
+            setPages(newPages);
             onLlmStatusChange?.(false);
             onStreamingUpdate?.(null);
         }
-    }, [pages, topic, onLlmStatusChange, onStreamingUpdate]);
+    }, [pages, topic, onLlmStatusChange, onStreamingUpdate, onUpdatePages]);
 
     useEffect(() => {
-        // 按顺序触发未渲染的页面
-        const nextIdx = pages.findIndex(p => !p.html && !p.isGenerating);
+        // --- 核心修复：强制串行执行 ---
+        
+        // 1. 检查是否已有任何页面正在生成中
+        const isBusy = pages.some(p => p.isGenerating);
+        
+        // 2. 如果正忙，说明前一个任务还未完成，直接返回。
+        //    当该任务完成时，setPages 会更新 isGenerating 为 false，从而再次触发此 useEffect
+        if (isBusy) return;
+
+        // 3. 只有在完全空闲时，才寻找下一个未完成的页面
+        const nextIdx = pages.findIndex(p => !p.html);
+        
         if (nextIdx !== -1) {
+            // 将视图切换到即将生成的页面，提升体验
+            setActiveIdx(nextIdx); 
             generateHtml(nextIdx);
         }
     }, [pages, generateHtml]);
@@ -181,12 +207,12 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                                 </div>
                             ) : (
                                 <div className="w-full h-full bg-slate-900 flex items-center justify-center text-indigo-400">
-                                    <RefreshIcon className="w-6 h-6 animate-spin" />
+                                    <RefreshIcon className={`w-6 h-6 ${page.isGenerating ? 'animate-spin' : ''}`} />
                                 </div>
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-black/40 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 flex justify-between">
                                 <span>SLIDE {idx + 1}</span>
-                                {page.html ? <CheckIcon className="w-3 h-3 text-emerald-400" /> : <CodeIcon className="w-3 h-3 animate-pulse"/>}
+                                {page.html ? <CheckIcon className="w-3 h-3 text-emerald-400" /> : <CodeIcon className={`w-3 h-3 ${page.isGenerating ? 'animate-pulse' : ''}`}/>}
                             </div>
                         </div>
                     ))}
