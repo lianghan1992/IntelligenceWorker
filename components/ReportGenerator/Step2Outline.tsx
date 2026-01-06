@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StratifyOutline } from '../../types';
 import { streamChatCompletions, getPromptDetail } from '../../api/stratify';
-import { ViewGridIcon, CheckIcon, RefreshIcon, BrainIcon, ChevronRightIcon } from '../icons';
+import { ViewGridIcon, CheckIcon, RefreshIcon, BrainIcon, ChevronRightIcon, SparklesIcon } from '../icons';
 import { ChatMessage } from './types';
 
 interface Step2OutlineProps {
