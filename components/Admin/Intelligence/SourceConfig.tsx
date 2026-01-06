@@ -356,7 +356,7 @@ export const SourceConfig: React.FC = () => {
 
             {/* Create Source Modal */}
             {isCreateSourceModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in zoom-in-95">
                     <div className="bg-white rounded-xl w-full max-w-md p-6 shadow-2xl">
                         <h3 className="text-lg font-bold text-gray-800 mb-4">新建情报源</h3>
                         <div className="space-y-4">

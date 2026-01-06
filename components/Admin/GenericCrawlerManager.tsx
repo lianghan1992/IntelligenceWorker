@@ -75,10 +75,10 @@ export const GenericCrawlerManager: React.FC = () => {
                     for (const p of src.points) {
                         if (p.mode === 'generic' || p.type === 'generic') {
                              // Map IntelligencePointPublic to GenericPoint
-                             // Fix: Removed non-existent properties 'point_name', 'point_url', 'created_at', and 'updated_at' to match GenericPoint type definition.
                              allPoints.push({
                                  id: p.id,
-                                 source_uuid: p.source_uuid || src.uuid || src.id,
+                                 // Fix: source_uuid does not exist on GenericPoint, using source_id instead
+                                 source_id: p.source_id || src.id,
                                  source_name: p.source_name || src.source_name,
                                  name: p.name || p.point_name || 'Unnamed',
                                  url: p.url || p.point_url || '',

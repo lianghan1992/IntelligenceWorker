@@ -410,7 +410,7 @@ export const BatchSearchExportModal: React.FC<BatchSearchExportModalProps> = ({ 
                             <DownloadIcon className="w-6 h-6 text-indigo-600" />
                             批量高级检索导出
                         </h3>
-                        <p className="text-xs text-slate-500 mt-1">创建多个并行的检索任务，系统将自动合并结果为 CSV 报表</p>
+                        <p className="text-xs text-slate-500 mt-1">创建多个并行的检索任务，系统将自动合并结果为 CSV报表</p>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
                         <CloseIcon className="w-6 h-6" />
