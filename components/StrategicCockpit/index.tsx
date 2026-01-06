@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { SystemSource, InfoItem, ApiPoi, User } from '../../types';
+import { SystemSource, InfoItem, User } from '../../types';
 import { lookCategories } from './data';
 import { StrategicCompass } from './StrategicCompass';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { AIChatPanel } from './AIChatPanel';
-import { searchArticlesFiltered, searchSemanticSegments, getArticlesByTags } from '../../api';
+import { searchArticlesFiltered, getArticlesByTags } from '../../api';
 
 interface StrategicCockpitProps {
     subscriptions: SystemSource[];
@@ -17,12 +17,12 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     // --- State Management ---
     
     // Navigation & Query
-    const [selectedLook, setSelectedLook] = useState('new_tech'); // Default to first new category
+    const [selectedLook, setSelectedLook] = useState('new_tech'); 
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
-    const [activeQuery, setActiveQuery] = useState<{ type: 'sublook' | 'poi' | 'search', value: string, label: string }>({ 
-        type: 'sublook', 
-        value: '*', 
-        label: '最新情报' 
+    const [activeQuery, setActiveQuery] = useState<{ type: 'tag' | 'search', value: string, label: string }>({ 
+        type: 'tag', 
+        value: '新技术', // Default tag
+        label: '新技术' 
     });
 
     // Content Data
@@ -45,23 +45,15 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         const defaultCat = lookCategories[0];
         if (defaultCat) {
             setSelectedLook(defaultCat.key);
-            if (defaultCat.children.length > 0) {
-                const sub = defaultCat.children[0];
-                setSelectedSubLook(sub.key);
-                setActiveQuery({ type: 'sublook', value: sub.keywords, label: sub.label });
-            } else {
-                 // Fallback for no children - use category keywords
-                 setActiveQuery({ type: 'sublook', value: defaultCat.keywords || defaultCat.label, label: defaultCat.label });
-            }
+            // Default to first category tag
+            setActiveQuery({ type: 'tag', value: defaultCat.label, label: defaultCat.label });
         }
     }, []);
 
     // Fetch Articles Logic
     const fetchArticles = useCallback(async (
         queryValue: string, 
-        lookType: string, 
-        queryType: string, 
-        queryLabel: string, 
+        queryType: 'tag' | 'search', 
         page: number = 1
     ) => {
         setIsLoading(true);
@@ -71,34 +63,35 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         try {
             const limit = 20;
             let response;
-            let currentPage = page;
 
-            if (queryValue === '*') {
-                const params: any = { page, limit };
-                const articleResponse = await searchArticlesFiltered(params);
-                response = { items: articleResponse.items, total: articleResponse.total };
-                currentPage = articleResponse.page;
-            } else {
-                // Use tag search/semantic search
-                const searchResponse = await searchSemanticSegments({
-                    query_text: queryValue,
-                    page,
-                    page_size: limit,
-                    similarity_threshold: 0.35
+            if (queryType === 'search') {
+                // General search
+                response = await searchArticlesFiltered({ 
+                    keyword: queryValue, // Assuming keyword param support in searchArticlesFiltered or mapped inside
+                    page, 
+                    limit 
                 });
-                response = searchResponse;
+            } else {
+                // Tag based search (New API Requirement)
+                // queryValue here is the tag name e.g. "新技术"
+                response = await getArticlesByTags({
+                    tags: [queryValue],
+                    page,
+                    size: limit
+                });
             }
             
             const calculatedTotalPages = Math.ceil(response.total / limit) || 1;
             setArticles(response.items || []);
-            setPagination({ page: currentPage, totalPages: calculatedTotalPages, total: response.total });
+            setPagination({ page: response.page, totalPages: calculatedTotalPages, total: response.total });
 
             // Auto-select first article on desktop if none selected
-            if (window.innerWidth >= 1024 && page === 1 && response.items?.length > 0 && !selectedArticleRef.current) {
+            if (window.innerWidth >= 1024 && page === 1 && response.items?.length > 0) {
                 setSelectedArticle(response.items[0]);
             }
 
         } catch (err: any) {
+            console.error(err);
             setError(err.message || '获取情报失败');
         } finally {
             setIsLoading(false);
@@ -108,13 +101,14 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     // Effect to trigger search when query changes
     useEffect(() => {
         if (activeQuery.value) {
-            fetchArticles(activeQuery.value, selectedLook, activeQuery.type, activeQuery.label, 1);
+            fetchArticles(activeQuery.value, activeQuery.type, 1);
         }
-    }, [activeQuery, selectedLook, fetchArticles]);
+    }, [activeQuery, fetchArticles]);
 
     // Handlers
-    const handleNavChange = (type: 'sublook' | 'poi', value: string, label: string) => {
-        setActiveQuery({ type, value, label });
+    const handleNavChange = (value: string, label: string) => {
+        // When clicking nav items, we treat the label as the tag
+        setActiveQuery({ type: 'tag', value: label, label: label });
         setSelectedArticle(null);
         setMobileTab('list');
     };
@@ -133,7 +127,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
-            fetchArticles(activeQuery.value, selectedLook, activeQuery.type, activeQuery.label, newPage);
+            fetchArticles(activeQuery.value, activeQuery.type, newPage);
         }
     };
 
@@ -145,8 +139,8 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     return (
         <div className="h-full flex flex-col bg-[#f8fafc] font-sans overflow-hidden">
             
-            {/* --- Top Navigation Bar (Simplified & Centered) --- */}
-            <header className="flex-shrink-0 bg-white border-b border-slate-200 z-20 px-6 h-18 flex items-center justify-between">
+            {/* --- Top Navigation Bar --- */}
+            <header className="flex-shrink-0 bg-white border-b border-slate-200 z-20 px-6 h-16 flex items-center justify-between shadow-sm">
                  <div className="flex-1 overflow-hidden">
                     <StrategicCompass
                         categories={lookCategories}
@@ -154,14 +148,14 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         setSelectedLook={setSelectedLook}
                         selectedSubLook={selectedSubLook}
                         setSelectedSubLook={setSelectedSubLook}
-                        onSubCategoryClick={(value, label) => handleNavChange('sublook', value, label)}
+                        onSubCategoryClick={(value, label) => handleNavChange(value, label)}
                         activeQuery={activeQuery}
                     />
                 </div>
             </header>
 
-            {/* --- Main 3-Column Layout (Beautified) --- */}
-            <div className="flex-1 flex overflow-hidden relative bg-slate-50">
+            {/* --- Main 3-Column Layout --- */}
+            <div className="flex-1 flex overflow-hidden relative bg-slate-50/50">
                 
                 {/* 1. Left Column: Intelligence List */}
                 <div className={`
