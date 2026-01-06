@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SpiderSource, SpiderPoint } from '../../../types';
 import { getSpiderPoints, exportBatchSearchArticles } from '../../../api/intelligence';
@@ -16,8 +18,8 @@ interface SearchTask {
     keywords: string;
     start_date: string;
     end_date: string;
-    source_uuid: string;
-    point_uuid: string;
+    source_id: string; // updated
+    point_id: string; // updated
     use_vector_search: boolean;
     similarity_threshold: number;
     limit: number;
@@ -168,16 +170,16 @@ const TaskFormRow: React.FC<{
     const [isLoadingPoints, setIsLoadingPoints] = useState(false);
 
     useEffect(() => {
-        if (task.source_uuid) {
+        if (task.source_id) {
             setIsLoadingPoints(true);
-            getSpiderPoints(task.source_uuid)
+            getSpiderPoints(task.source_id)
                 .then(setPoints)
                 .catch(() => setPoints([]))
                 .finally(() => setIsLoadingPoints(false));
         } else {
             setPoints([]);
         }
-    }, [task.source_uuid]);
+    }, [task.source_id]);
 
     return (
         <div className="p-4 border border-slate-200 rounded-xl bg-slate-50/50 relative group">
@@ -220,28 +222,28 @@ const TaskFormRow: React.FC<{
                             <div className="relative">
                                 <ServerIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                 <select 
-                                    value={task.source_uuid} 
+                                    value={task.source_id} 
                                     onChange={e => {
-                                        onChange(task.id, 'source_uuid', e.target.value);
-                                        onChange(task.id, 'point_uuid', ''); // reset point
+                                        onChange(task.id, 'source_id', e.target.value);
+                                        onChange(task.id, 'point_id', ''); // reset point
                                     }}
                                     className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-2 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
                                 >
                                     <option value="">全部来源</option>
-                                    {sources.map(s => <option key={s.uuid} value={s.uuid}>{s.name}</option>)}
+                                    {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                 </select>
                             </div>
                         </div>
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase">采集点</label>
                             <select 
-                                value={task.point_uuid} 
-                                onChange={e => onChange(task.id, 'point_uuid', e.target.value)}
+                                value={task.point_id} 
+                                onChange={e => onChange(task.id, 'point_id', e.target.value)}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-50 disabled:text-gray-400"
-                                disabled={!task.source_uuid}
+                                disabled={!task.source_id}
                             >
                                 <option value="">{isLoadingPoints ? '加载中...' : '全部采集点'}</option>
-                                {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name}</option>)}
+                                {points.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                         </div>
                     </div>
@@ -323,8 +325,8 @@ export const BatchSearchExportModal: React.FC<BatchSearchExportModalProps> = ({ 
         keywords: '',
         start_date: '',
         end_date: '',
-        source_uuid: '',
-        point_uuid: '',
+        source_id: '',
+        point_id: '',
         use_vector_search: true,
         similarity_threshold: 0.4, // Updated default
         limit: 200 // Updated default
@@ -338,8 +340,8 @@ export const BatchSearchExportModal: React.FC<BatchSearchExportModalProps> = ({ 
             keywords: '',
             start_date: '',
             end_date: '',
-            source_uuid: '',
-            point_uuid: '',
+            source_id: '',
+            point_id: '',
             use_vector_search: true,
             similarity_threshold: 0.4, // Updated default
             limit: 200 // Updated default
@@ -371,8 +373,8 @@ export const BatchSearchExportModal: React.FC<BatchSearchExportModalProps> = ({ 
                 keywords: t.keywords,
                 start_date: t.start_date || undefined,
                 end_date: t.end_date || undefined,
-                source_uuid: t.source_uuid || undefined,
-                point_uuid: t.point_uuid || undefined,
+                source_id: t.source_id || undefined,
+                point_id: t.point_id || undefined,
                 use_vector_search: t.use_vector_search,
                 similarity_threshold: t.similarity_threshold,
                 limit: t.limit

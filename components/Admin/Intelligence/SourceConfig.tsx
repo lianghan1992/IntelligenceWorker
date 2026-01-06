@@ -69,21 +69,16 @@ export const SourceConfig: React.FC = () => {
     const fetchSources = useCallback(async () => {
         setIsLoadingSources(true);
         try {
-            const res = await getSpiderSources();
-            setSources(res);
+            // Fetch with large size to get all sources for configuration
+            const res = await getSpiderSources({ page: 1, size: 100 });
+            const items = res.items;
+            setSources(items);
             
             setSelectedSource(prev => {
-                // If list is empty, clear selection
-                if (!res || res.length === 0) return null;
-                
-                // If no previous selection, select first
-                if (!prev) return res[0];
-                
-                // Try to find the previously selected item in the new list to update counts
-                const found = res.find(s => s.uuid === prev.uuid);
-                
-                // If found, return the new object (with updated counts), otherwise fallback to first
-                return found || res[0];
+                if (!items || items.length === 0) return null;
+                if (!prev) return items[0];
+                const found = items.find(s => s.id === prev.id);
+                return found || items[0];
             });
         } catch (e) { console.error(e); }
         finally { setIsLoadingSources(false); }
@@ -96,7 +91,7 @@ export const SourceConfig: React.FC = () => {
         }
         setIsLoadingPoints(true);
         try {
-            const res = await getSpiderPoints(selectedSource.uuid);
+            const res = await getSpiderPoints(selectedSource.id);
             setPoints(res);
         } catch (e) { console.error(e); }
         finally { setIsLoadingPoints(false); }
@@ -124,7 +119,7 @@ export const SourceConfig: React.FC = () => {
     const handleTriggerTask = async (pointId: string, type: 'initial' | 'incremental') => {
         setRunningPointId(pointId);
         try {
-            await triggerSpiderTask({ point_uuid: pointId, task_type: type });
+            await triggerSpiderTask({ point_id: pointId, task_type: type });
             // Refresh list to update status if applicable, though crawl takes time.
             setTimeout(fetchPoints, 1000); 
         } catch (e) { alert('触发任务失败'); }
@@ -134,9 +129,8 @@ export const SourceConfig: React.FC = () => {
     const handleDeleteSourceConfirm = async () => {
         if (!deletingSource) return;
         try {
-            await deleteSource(deletingSource.uuid);
-            // Clear selection if deleted
-            if (selectedSource?.uuid === deletingSource.uuid) {
+            await deleteSource(deletingSource.id);
+            if (selectedSource?.id === deletingSource.id) {
                 setSelectedSource(null);
                 setPoints([]);
             }
@@ -148,21 +142,21 @@ export const SourceConfig: React.FC = () => {
     const handleDeletePointConfirm = async () => {
         if (!deletingPoint) return;
         try {
-            await deleteSpiderPoint(deletingPoint.uuid);
+            await deleteSpiderPoint(deletingPoint.id);
             await fetchPoints();
             setDeletingPoint(null);
         } catch (e) { alert('删除失败'); }
     };
 
     const handleTogglePointStatus = async (point: SpiderPoint) => {
-        setTogglingPointId(point.uuid);
+        setTogglingPointId(point.id);
         try {
             if (point.is_active) {
-                await disableSpiderPoint(point.uuid);
+                await disableSpiderPoint(point.id);
             } else {
-                await enableSpiderPoint(point.uuid);
+                await enableSpiderPoint(point.id);
             }
-            await fetchPoints(); // Refresh from server to ensure sync
+            await fetchPoints();
         } catch (e) {
             alert('操作失败');
         } finally {
@@ -170,22 +164,20 @@ export const SourceConfig: React.FC = () => {
         }
     };
 
-    /**
-     * Fix: Helper to map SpiderPoint to IntelligencePointPublic.
-     */
     const getMappedPointToEdit = (p: SpiderPoint | null): IntelligencePointPublic | null => {
         if (!p) return null;
         return {
             ...p,
-            id: p.uuid,
+            id: p.id,
             point_name: p.name,
             point_url: p.url,
             url_filters: [],
             extra_hint: '',
             status: p.is_active ? 'active' : 'inactive',
             created_at: '',
-            updated_at: ''
-        };
+            updated_at: '',
+            source_uuid: p.source_id // Mapping back for compatibility if needed
+        } as any;
     };
 
     return (
@@ -201,13 +193,13 @@ export const SourceConfig: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                     {sources.map(src => (
                         <div 
-                            key={src.uuid} 
-                            className={`group flex items-center justify-between w-full px-3 py-2 md:px-4 md:py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.uuid === src.uuid ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
+                            key={src.id} 
+                            className={`group flex items-center justify-between w-full px-3 py-2 md:px-4 md:py-3 rounded-lg text-sm font-medium transition-all border border-transparent ${selectedSource?.id === src.id ? 'bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm' : 'hover:bg-gray-50 text-gray-600'}`}
                         >
                             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedSource(src)}>
                                 <div className="flex justify-between items-center">
                                     <span className="truncate pr-2">{src.name}</span>
-                                    {selectedSource?.uuid === src.uuid && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
+                                    {selectedSource?.id === src.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></div>}
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
                                     {src.total_articles !== undefined && (
@@ -252,7 +244,7 @@ export const SourceConfig: React.FC = () => {
                             <div className="min-w-0 flex-1 mr-4">
                                 <h3 className="text-base md:text-lg font-bold text-gray-800 flex items-center gap-2 truncate">
                                     {selectedSource.name}
-                                    <span className="hidden md:inline-block text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">ID: {selectedSource.uuid.slice(0,8)}</span>
+                                    <span className="hidden md:inline-block text-xs font-normal text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">ID: {selectedSource.id.slice(0,8)}</span>
                                 </h3>
                                 <p className="text-xs text-gray-500 mt-0.5 truncate">{selectedSource.main_url || '无主站链接'}</p>
                             </div>
@@ -270,7 +262,7 @@ export const SourceConfig: React.FC = () => {
                         <div className="flex-1 overflow-auto bg-slate-50/50 p-3 md:p-6 custom-scrollbar">
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 md:gap-4">
                                 {points.map(point => (
-                                    <div key={point.uuid} className="bg-white rounded-xl border border-gray-200 p-4 md:p-5 shadow-sm hover:shadow-md transition-all group">
+                                    <div key={point.id} className="bg-white rounded-xl border border-gray-200 p-4 md:p-5 shadow-sm hover:shadow-md transition-all group">
                                         <div className="flex justify-between items-start mb-3">
                                             <div className="min-w-0 pr-2">
                                                 <h4 className="font-bold text-gray-800 truncate">{point.name}</h4>
@@ -322,31 +314,31 @@ export const SourceConfig: React.FC = () => {
                                                 </button>
                                                 <button 
                                                     onClick={() => handleTogglePointStatus(point)}
-                                                    disabled={togglingPointId === point.uuid}
+                                                    disabled={togglingPointId === point.id}
                                                     className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs ${point.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-green-600 hover:bg-green-50'}`}
                                                     title={point.is_active ? "禁用" : "启用"}
                                                 >
-                                                    {togglingPointId === point.uuid ? <Spinner /> : (point.is_active ? <StopIcon className="w-4 h-4"/> : <CheckCircleIcon className="w-4 h-4"/>)}
+                                                    {togglingPointId === point.id ? <Spinner /> : (point.is_active ? <StopIcon className="w-4 h-4"/> : <CheckCircleIcon className="w-4 h-4"/>)}
                                                     <span className="hidden sm:inline">{point.is_active ? '禁用' : '启用'}</span>
                                                 </button>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => handleTriggerTask(point.uuid, 'initial')}
-                                                    disabled={runningPointId === point.uuid}
+                                                    onClick={() => handleTriggerTask(point.id, 'initial')}
+                                                    disabled={runningPointId === point.id}
                                                     className="px-2 py-1 md:px-3 md:py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                                                     title="首次爬取 (Initial)"
                                                 >
-                                                    {runningPointId === point.uuid ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
+                                                    {runningPointId === point.id ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
                                                     首次
                                                 </button>
                                                 <button 
-                                                    onClick={() => handleTriggerTask(point.uuid, 'incremental')}
-                                                    disabled={runningPointId === point.uuid}
+                                                    onClick={() => handleTriggerTask(point.id, 'incremental')}
+                                                    disabled={runningPointId === point.id}
                                                     className="px-2 py-1 md:px-3 md:py-1.5 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5 shadow-sm disabled:bg-indigo-400"
                                                     title="增量爬取 (Incremental)"
                                                 >
-                                                    {runningPointId === point.uuid ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
+                                                    {runningPointId === point.id ? <Spinner /> : <PlayIcon className="w-3.5 h-3.5" />} 
                                                     增量
                                                 </button>
                                             </div>
@@ -392,7 +384,7 @@ export const SourceConfig: React.FC = () => {
                 isOpen={isCreatePointModalOpen}
                 onClose={() => { setIsCreatePointModalOpen(false); setEditingPoint(null); }}
                 onSave={() => { fetchPoints(); setEditingPoint(null); }}
-                sourceId={selectedSource?.uuid}
+                sourceId={selectedSource?.id}
                 pointToEdit={getMappedPointToEdit(editingPoint)}
             />
 

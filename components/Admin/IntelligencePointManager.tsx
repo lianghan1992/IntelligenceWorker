@@ -66,7 +66,7 @@ export const IntelligencePointManager: React.FC = () => {
                 // Map IntelligencePointPublic to Subscription
                 pointsMap[source.source_name] = points.map(p => ({
                     id: p.id,
-                    source_id: p.source_uuid, 
+                    source_id: p.source_id, 
                     source_name: p.source_name || source.source_name || '',
                     point_name: p.name || p.point_name || '',
                     point_url: p.url || p.point_url || '',
@@ -201,8 +201,7 @@ export const IntelligencePointManager: React.FC = () => {
         if (!subscription) return null;
         return {
             id: subscription.id,
-            uuid: subscription.id,
-            source_uuid: subscription.source_id || '',
+            source_id: subscription.source_id || '',
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,

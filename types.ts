@@ -58,14 +58,13 @@ export interface PaginatedResponse<T> {
     items: T[];
     total: number;
     page: number;
-    limit: number;
+    limit: number; // Frontend uses 'limit', mapped from 'size'
     totalPages: number;
 }
 
 export interface IntelligencePointPublic {
-    id: string;
-    uuid: string;
-    source_uuid: string;
+    id: string; // Standardized
+    source_id: string; // Standardized
     source_name: string;
     name: string;
     url: string;
@@ -84,8 +83,7 @@ export interface IntelligencePointPublic {
 }
 
 export interface IntelligenceSourcePublic {
-    id: string;
-    uuid: string;
+    id: string; // Standardized
     name: string;
     source_name: string;
     main_url: string;
@@ -157,7 +155,7 @@ export interface ApiPoi {
 }
 
 export interface SpiderSource {
-    uuid: string;
+    id: string; // Standardized from uuid
     name: string;
     main_url: string;
     total_points: number;
@@ -166,21 +164,25 @@ export interface SpiderSource {
 }
 
 export interface SpiderPoint {
-    uuid: string;
+    id: string; // Standardized from uuid
     name: string;
     url: string;
     cron_schedule: string;
     is_active: boolean;
     last_crawled_at?: string;
     initial_pages?: number;
-    source_uuid: string;
+    source_id: string; // Standardized from source_uuid
     source_name: string;
     total_articles?: number;
+    // For generic mode
+    list_hint?: string;
+    list_filters?: string[];
+    mode?: string;
+    type?: string;
 }
 
 export interface SpiderArticle {
-    id: string; // Used for UI key
-    uuid: string; // From API
+    id: string; // Standardized from uuid
     title: string;
     content: string;
     url: string;
@@ -195,7 +197,7 @@ export interface SpiderArticle {
 
 export interface SpiderTaskTriggerResponse {
     message: string;
-    task_id?: string;
+    id?: string;
 }
 
 export interface PendingArticle {
@@ -213,8 +215,7 @@ export interface PendingArticle {
 export interface PendingArticlePublic extends PendingArticle {}
 
 export interface SpiderTask {
-    id: string;
-    uuid: string;
+    id: string; // Standardized from uuid
     url: string;
     task_type: string;
     status: string;
@@ -250,8 +251,8 @@ export interface SemanticSearchRequest {
     page_size?: number;
     similarity_threshold?: number;
     max_segments?: number;
-    source_uuid?: string;
-    point_uuid?: string;
+    source_id?: string;
+    point_id?: string;
     start_date?: string;
     end_date?: string;
 }

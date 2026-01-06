@@ -67,14 +67,14 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
     const fetchTasks = useCallback(async () => {
         setIsLoading(true);
         try {
-            const res = await getSpiderPointTasks(point.uuid, { page, limit });
+            const res = await getSpiderPointTasks(point.id, { page, limit });
             setTasks(res.items);
             setCounts(res.counts);
             setTypeCounts(res.type_counts || null);
             setTotal(res.total);
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
-    }, [point.uuid, page]);
+    }, [point.id, page]);
 
     useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -89,7 +89,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ point, onClose }) => {
                     <div className="min-w-0 pr-4">
                         <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-extrabold text-lg md:text-xl text-gray-800 truncate">{point.name}</h3>
-                            <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded font-mono hidden sm:inline-block">{point.uuid.slice(0,8)}</span>
+                            <span className="flex-shrink-0 px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded font-mono hidden sm:inline-block">{point.id.slice(0,8)}</span>
                         </div>
                         <p className="text-xs text-gray-500 font-medium truncate">{point.source_name} • {point.url}</p>
                     </div>

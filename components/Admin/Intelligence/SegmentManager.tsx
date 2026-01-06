@@ -1,5 +1,6 @@
 
 
+
 import React, { useState } from 'react';
 import { searchSemanticSegments } from '../../../api/intelligence';
 import { InfoItem } from '../../../types';
@@ -18,8 +19,8 @@ const Spinner: React.FC = () => (
 export const SegmentManager: React.FC = () => {
     // Search Params
     const [queryText, setQueryText] = useState('');
-    const [sourceUuid, setSourceUuid] = useState('');
-    const [pointUuid, setPointUuid] = useState('');
+    const [sourceId, setSourceId] = useState('');
+    const [pointId, setPointId] = useState('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [maxSegments, setMaxSegments] = useState<number>(50);
@@ -58,8 +59,8 @@ export const SegmentManager: React.FC = () => {
                 similarity_threshold: similarityThreshold
             };
 
-            if (sourceUuid.trim()) requestData.source_uuid = sourceUuid.trim();
-            if (pointUuid.trim()) requestData.point_uuid = pointUuid.trim();
+            if (sourceId.trim()) requestData.source_id = sourceId.trim();
+            if (pointId.trim()) requestData.point_id = pointId.trim();
             if (startDate) requestData.start_date = new Date(startDate).toISOString();
             if (endDate) requestData.end_date = new Date(endDate).toISOString();
 
@@ -146,21 +147,21 @@ export const SegmentManager: React.FC = () => {
                     {/* IDs */}
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex flex-col gap-2">
                         <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
-                            <FilterIcon className="w-3 h-3" /> 精确过滤 (UUID)
+                            <FilterIcon className="w-3 h-3" /> 精确过滤 (ID)
                         </label>
                         <div className="flex gap-2">
                             <input 
                                 type="text" 
-                                placeholder="Source UUID" 
-                                value={sourceUuid} 
-                                onChange={e => setSourceUuid(e.target.value)} 
+                                placeholder="Source ID" 
+                                value={sourceId} 
+                                onChange={e => setSourceId(e.target.value)} 
                                 className="w-full bg-white border border-gray-300 rounded px-2 py-1 text-xs outline-none font-mono"
                             />
                             <input 
                                 type="text" 
-                                placeholder="Point UUID" 
-                                value={pointUuid} 
-                                onChange={e => setPointUuid(e.target.value)} 
+                                placeholder="Point ID" 
+                                value={pointId} 
+                                onChange={e => setPointId(e.target.value)} 
                                 className="w-full bg-white border border-gray-300 rounded px-2 py-1 text-xs outline-none font-mono"
                             />
                         </div>

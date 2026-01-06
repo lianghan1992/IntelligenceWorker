@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
 import { 
@@ -14,7 +15,8 @@ import {
     triggerAnalysis,
     getSpiderSources, 
     getSpiderPoints,
-    exportArticles
+    exportArticles,
+    batchDeleteArticles
 } from '../../../api/intelligence';
 import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
@@ -184,7 +186,9 @@ export const ArticleList: React.FC = () => {
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isBatchGenerating, setIsBatchGenerating] = useState(false);
+    const [isBatchDeleting, setIsBatchDeleting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [isBatchDeleteConfirmOpen, setIsBatchDeleteConfirmOpen] = useState(false);
     
     // Batch Search Export Modal
     const [isBatchExportModalOpen, setIsBatchExportModalOpen] = useState(false);
@@ -210,7 +214,7 @@ export const ArticleList: React.FC = () => {
 
     // Load Metadata
     useEffect(() => {
-        getSpiderSources().then(setSources).catch(console.error);
+        getSpiderSources().then(res => setSources(res.items)).catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -294,9 +298,9 @@ export const ArticleList: React.FC = () => {
         try {
             const res = await getSpiderArticles({ 
                 page, 
-                limit: 20,
-                source_uuid: filterSource || undefined,
-                point_uuid: filterPoint || undefined,
+                size: 20, // Updated parameter name mapping logic handled in api
+                source_id: filterSource || undefined,
+                point_id: filterPoint || undefined,
                 is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
                 start_date: filterDateStart ? new Date(filterDateStart).toISOString() : undefined,
                 end_date: filterDateEnd ? new Date(filterDateEnd).toISOString() : undefined
@@ -318,7 +322,7 @@ export const ArticleList: React.FC = () => {
     };
 
     const toggleAll = () => {
-        const validIds = articles.map(a => a.uuid).filter(Boolean);
+        const validIds = articles.map(a => a.id).filter(Boolean);
         if (selectedIds.size === articles.length && articles.length > 0) setSelectedIds(new Set());
         else setSelectedIds(new Set(validIds));
     };
@@ -328,7 +332,7 @@ export const ArticleList: React.FC = () => {
         setIsDeleting(true);
         try {
             await deleteSpiderArticle(deleteId);
-            setArticles(prev => prev.filter(a => a.uuid !== deleteId));
+            setArticles(prev => prev.filter(a => a.id !== deleteId));
             setDeleteId(null);
         } catch (e: any) {
             alert('删除失败');
@@ -337,12 +341,28 @@ export const ArticleList: React.FC = () => {
         }
     };
 
-    const handleGenerateHtml = async (article: SpiderArticle) => {
-        if (generatingId || !article.uuid) return;
-        setGeneratingId(article.uuid);
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0) return;
+        setIsBatchDeleting(true);
         try {
-            await generateArticleHtml(article.uuid);
-            setArticles(prev => prev.map(a => a.uuid === article.uuid ? { ...a, is_atomized: true } : a));
+            await batchDeleteArticles(Array.from(selectedIds));
+            setArticles(prev => prev.filter(a => !selectedIds.has(a.id)));
+            setSelectedIds(new Set());
+            setIsBatchDeleteConfirmOpen(false);
+            alert('批量删除成功');
+        } catch (e: any) {
+            alert(`批量删除失败: ${e.message}`);
+        } finally {
+            setIsBatchDeleting(false);
+        }
+    };
+
+    const handleGenerateHtml = async (article: SpiderArticle) => {
+        if (generatingId || !article.id) return;
+        setGeneratingId(article.id);
+        try {
+            await generateArticleHtml(article.id);
+            setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
             alert('HTML 生成任务已触发');
         } catch (e: any) {
             const msg = e.message || String(e);
@@ -359,7 +379,7 @@ export const ArticleList: React.FC = () => {
             const ids = Array.from(selectedIds) as string[];
             const promises = ids.map(id => generateArticleHtml(id));
             await Promise.all(promises);
-            setArticles(prev => prev.map(a => selectedIds.has(a.uuid) ? { ...a, is_atomized: true } : a));
+            setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
             alert(`已触发 ${ids.length} 篇文章的原子化任务`);
             setSelectedIds(new Set());
         } catch (e: any) {
@@ -373,11 +393,11 @@ export const ArticleList: React.FC = () => {
         setIsExporting(true);
         try {
             const blob = await exportArticles({
-                source_uuid: filterSource || undefined,
-                point_uuid: filterPoint || undefined,
+                source_id: filterSource || undefined,
+                point_id: filterPoint || undefined,
                 is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
-                start_date: filterDateStart || undefined, // Send YYYY-MM-DD string directly
-                end_date: filterDateEnd || undefined,     // Send YYYY-MM-DD string directly
+                start_date: filterDateStart || undefined, 
+                end_date: filterDateEnd || undefined,     
                 compress_to_tokens: compressToken > 0 ? compressToken : undefined
             });
 
@@ -399,10 +419,10 @@ export const ArticleList: React.FC = () => {
     };
 
     const handleDownloadPdf = async (article: SpiderArticle) => {
-        if (!article.uuid || pdfDownloadingId === article.uuid) return;
-        setPdfDownloadingId(article.uuid);
+        if (!article.id || pdfDownloadingId === article.id) return;
+        setPdfDownloadingId(article.id);
         try {
-            const blob = await downloadArticlePdf(article.uuid);
+            const blob = await downloadArticlePdf(article.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -420,10 +440,10 @@ export const ArticleList: React.FC = () => {
     };
 
     const handleTriggerAnalysis = async (article: SpiderArticle) => {
-        if (!article.uuid || analyzingId) return;
-        setAnalyzingId(article.uuid);
+        if (!article.id || analyzingId) return;
+        setAnalyzingId(article.id);
         try {
-            await triggerAnalysis(article.uuid);
+            await triggerAnalysis(article.id);
             alert('通用分析任务已触发');
         } catch (e: any) {
             const msg = e.message || String(e);
@@ -451,7 +471,7 @@ export const ArticleList: React.FC = () => {
                             className="bg-white border border-gray-200 text-gray-700 text-xs rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 min-w-[120px] outline-none"
                         >
                             <option value="">所有情报源</option>
-                            {sources.map(s => <option key={s.uuid} value={s.uuid}>{s.name}</option>)}
+                            {sources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
 
                         <select 
@@ -461,7 +481,7 @@ export const ArticleList: React.FC = () => {
                             disabled={!filterSource}
                         >
                             <option value="">所有情报点</option>
-                            {points.map(p => <option key={p.uuid} value={p.uuid}>{p.name}</option>)}
+                            {points.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
 
                         <select 
@@ -534,6 +554,13 @@ export const ArticleList: React.FC = () => {
                                 {isBatchGenerating ? <WhiteSpinner /> : <SparklesIcon className="w-3.5 h-3.5" />}
                                 批量原子化
                             </button>
+                            <button 
+                                onClick={() => setIsBatchDeleteConfirmOpen(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
+                            >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                                批量删除
+                            </button>
                         </div>
                     )}
                 </div>
@@ -562,13 +589,13 @@ export const ArticleList: React.FC = () => {
                                 <tr><td colSpan={7} className="text-center py-20 text-gray-400">暂无文章数据</td></tr>
                             ) : (
                                 articles.map(article => (
-                                    <tr key={article.uuid} className={`hover:bg-gray-50 group transition-colors ${selectedIds.has(article.uuid) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(article.uuid)}>
+                                    <tr key={article.id} className={`hover:bg-gray-50 group transition-colors ${selectedIds.has(article.id) ? 'bg-indigo-50/30' : ''}`} onClick={() => toggleSelect(article.id)}>
                                         <td className="p-4 text-center">
-                                            <input type="checkbox" checked={selectedIds.has(article.uuid)} onChange={() => toggleSelect(article.uuid)} onClick={e => e.stopPropagation()} className="w-4 h-4 text-indigo-600 rounded cursor-pointer" />
+                                            <input type="checkbox" checked={selectedIds.has(article.id)} onChange={() => toggleSelect(article.id)} onClick={e => e.stopPropagation()} className="w-4 h-4 text-indigo-600 rounded cursor-pointer" />
                                         </td>
                                         <td className="px-6 py-4 font-medium text-gray-900">
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); if(article.uuid) setSelectedArticleUuid(article.uuid); }}
+                                                onClick={(e) => { e.stopPropagation(); if(article.id) setSelectedArticleUuid(article.id); }}
                                                 className="text-left hover:text-indigo-600 hover:underline line-clamp-1 max-w-md font-bold text-sm"
                                                 title={article.title}
                                             >
@@ -589,11 +616,11 @@ export const ArticleList: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
-                                            {generatingId === article.uuid ? (
+                                            {generatingId === article.id ? (
                                                 <div className="flex justify-center"><Spinner /></div>
                                             ) : article.is_atomized ? (
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); if(article.uuid) setViewingHtmlId(article.uuid); }}
+                                                    onClick={(e) => { e.stopPropagation(); if(article.id) setViewingHtmlId(article.id); }}
                                                     className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
                                                     title="查看 HTML"
                                                 >
@@ -618,20 +645,20 @@ export const ArticleList: React.FC = () => {
                                                     className="text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded p-1.5 transition-colors"
                                                     title="触发通用分析"
                                                 >
-                                                    {analyzingId === article.uuid ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                                    {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
                                                 </button>
                                                 {article.is_atomized && (
                                                     <button 
                                                         onClick={(e) => { e.stopPropagation(); handleDownloadPdf(article); }}
-                                                        disabled={pdfDownloadingId === article.uuid}
+                                                        disabled={pdfDownloadingId === article.id}
                                                         className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1.5 transition-colors disabled:opacity-50"
                                                         title="下载 PDF"
                                                     >
-                                                        {pdfDownloadingId === article.uuid ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                        {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
                                                     </button>
                                                 )}
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); if(article.uuid) setDeleteId(article.uuid); }}
+                                                    onClick={(e) => { e.stopPropagation(); if(article.id) setDeleteId(article.id); }}
                                                     className="text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded p-1.5 transition-colors"
                                                     title="删除文章"
                                                 >
@@ -652,12 +679,12 @@ export const ArticleList: React.FC = () => {
                         <div className="text-center py-12 text-gray-400">暂无文章数据</div>
                     ) : (
                         articles.map(article => (
-                            <div key={article.uuid} className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative overflow-hidden ${selectedIds.has(article.uuid) ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}`} onClick={() => toggleSelect(article.uuid)}>
+                            <div key={article.id} className={`bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3 relative overflow-hidden ${selectedIds.has(article.id) ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}`} onClick={() => toggleSelect(article.id)}>
                                 <div className="absolute top-3 right-3 flex items-center gap-2">
-                                    <input type="checkbox" checked={selectedIds.has(article.uuid)} onChange={() => toggleSelect(article.uuid)} className="w-5 h-5 text-indigo-600 rounded" />
+                                    <input type="checkbox" checked={selectedIds.has(article.id)} onChange={() => toggleSelect(article.id)} className="w-5 h-5 text-indigo-600 rounded" />
                                 </div>
                                 
-                                <div onClick={(e) => { e.stopPropagation(); if(article.uuid) setSelectedArticleUuid(article.uuid); }} className="cursor-pointer pr-8">
+                                <div onClick={(e) => { e.stopPropagation(); if(article.id) setSelectedArticleUuid(article.id); }} className="cursor-pointer pr-8">
                                     <h4 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
                                         {article.title}
                                     </h4>
@@ -682,11 +709,11 @@ export const ArticleList: React.FC = () => {
                                             className="p-1.5 rounded-lg text-slate-400 hover:text-orange-600 hover:bg-orange-50 transition-colors"
                                             title="触发通用分析"
                                         >
-                                            {analyzingId === article.uuid ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
+                                            {analyzingId === article.id ? <Spinner /> : <LightningBoltIcon className="w-4 h-4" />}
                                         </button>
                                         {article.is_atomized ? (
                                             <button 
-                                                onClick={() => setViewingHtmlId(article.uuid)}
+                                                onClick={() => setViewingHtmlId(article.id)}
                                                 className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 border border-indigo-100"
                                                 title="查看 HTML"
                                             >
@@ -695,27 +722,27 @@ export const ArticleList: React.FC = () => {
                                         ) : (
                                             <button 
                                                 onClick={() => handleGenerateHtml(article)}
-                                                disabled={generatingId === article.uuid}
+                                                disabled={generatingId === article.id}
                                                 className="p-1.5 rounded-lg text-slate-400 bg-slate-50 hover:text-purple-600 hover:bg-purple-50"
                                                 title="生成 HTML"
                                             >
-                                                {generatingId === article.uuid ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
+                                                {generatingId === article.id ? <Spinner /> : <SparklesIcon className="w-4 h-4" />}
                                             </button>
                                         )}
                                         
                                         {article.is_atomized && (
                                             <button 
                                                 onClick={() => handleDownloadPdf(article)}
-                                                disabled={pdfDownloadingId === article.uuid}
+                                                disabled={pdfDownloadingId === article.id}
                                                 className="p-1.5 text-red-500 hover:text-red-700 bg-red-50 rounded-lg disabled:opacity-50"
                                                 title="下载 PDF"
                                             >
-                                                {pdfDownloadingId === article.uuid ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
+                                                {pdfDownloadingId === article.id ? <Spinner /> : <DocumentTextIcon className="w-4 h-4" />}
                                             </button>
                                         )}
 
                                         <button 
-                                            onClick={() => setDeleteId(article.uuid)}
+                                            onClick={() => setDeleteId(article.id)}
                                             className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg"
                                             title="删除"
                                         >
@@ -790,12 +817,23 @@ export const ArticleList: React.FC = () => {
                     onCancel={() => setDeleteId(null)}
                 />
             )}
+
+            {isBatchDeleteConfirmOpen && (
+                <ConfirmationModal
+                    title="批量删除"
+                    message={`确定要删除选中的 ${selectedIds.size} 篇文章吗？此操作不可撤销。`}
+                    confirmText="确认批量删除"
+                    variant="destructive"
+                    isLoading={isBatchDeleting}
+                    onConfirm={handleBatchDelete}
+                    onCancel={() => setIsBatchDeleteConfirmOpen(false)}
+                />
+            )}
             
             {/* ... Modal rendering ... */}
             {isCookieModalOpen && (/* ... */ null)}
             {isHtmlSettingsOpen && (/* ... */ null)}
             {isRetroSettingsOpen && (/* ... */ null)}
-            {/* Note: In full code, these modals are rendered as in previous version, just omitted for brevity here */}
         </div>
     );
 };

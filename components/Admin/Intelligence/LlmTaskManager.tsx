@@ -57,7 +57,7 @@ export const LlmTaskManager: React.FC = () => {
 
                 // Get Sources
                 const srcRes = await getSpiderSources();
-                setSources(srcRes);
+                setSources(srcRes.items);
 
                 // Get Tasks
                 fetchTasks();
@@ -212,10 +212,10 @@ export const LlmTaskManager: React.FC = () => {
                         <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto custom-scrollbar p-1">
                             {sources.map(src => (
                                 <button
-                                    key={src.uuid}
-                                    onClick={() => toggleSource(src.uuid)}
+                                    key={src.id}
+                                    onClick={() => toggleSource(src.id)}
                                     className={`px-3 py-1 text-xs rounded-full border transition-all ${
-                                        selectedSources.includes(src.uuid) 
+                                        selectedSources.includes(src.id) 
                                             ? 'bg-purple-100 text-purple-700 border-purple-200 font-bold' 
                                             : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                                     }`}

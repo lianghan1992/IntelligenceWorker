@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { createSpiderPoint, updateSpiderPoint } from '../../../api/intelligence';
 import { CloseIcon, RssIcon, ClockIcon } from '../../icons';
@@ -129,7 +130,8 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
         setIsLoading(true);
         try {
             if (pointToEdit) {
-                await updateSpiderPoint(pointToEdit.uuid, {
+                // Use pointToEdit.id which is mapped from uuid
+                await updateSpiderPoint(pointToEdit.id, {
                     name,
                     url,
                     cron_schedule: cron,
@@ -138,7 +140,7 @@ export const PointModal: React.FC<PointModalProps> = ({ isOpen, onClose, onSave,
             } else {
                 if (!sourceId) return;
                 await createSpiderPoint({
-                    source_uuid: sourceId,
+                    source_id: sourceId, // source_uuid -> source_id
                     name,
                     url,
                     cron_schedule: cron,
