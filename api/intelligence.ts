@@ -155,7 +155,7 @@ export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePubli
             original_url: a.url,
             publish_date: a.publish_date,
             created_at: a.created_at,
-            is_atomized: a.is_atomized,
+            is_atomized: !!a.is_atomized,
             tags: a.tags
         }))
     }));
@@ -174,7 +174,7 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
 
     const query = createApiQuery(apiParams);
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/${query}`).then(res => ({
-        items: res.items,
+        items: res.items.map((a: any) => ({ ...a, is_atomized: !!a.is_atomized })),
         total: res.total,
         page: res.page,
         limit: res.size,
@@ -191,12 +191,15 @@ export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticl
     original_url: a.url,
     publish_date: a.publish_date,
     created_at: a.created_at,
-    is_atomized: a.is_atomized,
+    is_atomized: !!a.is_atomized,
     tags: a.tags
 }));
 
 export const getSpiderArticleDetail = (id: string): Promise<SpiderArticle> => 
-    apiFetch<SpiderArticle>(`${INTELSPIDER_SERVICE_PATH}/articles/${id}`);
+    apiFetch<SpiderArticle>(`${INTELSPIDER_SERVICE_PATH}/articles/${id}`).then(a => ({
+        ...a,
+        is_atomized: !!a.is_atomized
+    }));
 
 export const deleteArticles = (ids: string[]): Promise<void> => batchDeleteArticles(ids);
 
@@ -273,6 +276,7 @@ export const searchSemanticSegments = async (data: any): Promise<{ items: InfoIt
     const items = (res.items || []).map((item: any) => ({
         ...item,
         id: String(item.article_id || item.id || ''), 
+        is_atomized: !!item.is_atomized
     }));
     return {
         items,
@@ -284,7 +288,7 @@ export const getArticlesByTags = (data: any): Promise<PaginatedResponse<ArticleP
     const query = createApiQuery(data); 
     // New endpoint: GET /api/intelspider/articles/by_tags
     return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/articles/by_tags${query}`).then(res => ({
-        items: res.items,
+        items: res.items.map((a: any) => ({ ...a, is_atomized: !!a.is_atomized })),
         total: res.total,
         page: res.page,
         limit: res.size,
@@ -330,8 +334,27 @@ export const fetchJinaReader = async (url: string, customHeaders?: Record<string
 
 
 // HTML & PDF
-export const getArticleHtml = (id: string): Promise<{ html_content: string }> => 
-    apiFetch<{ html_content: string }>(`${INTELSPIDER_SERVICE_PATH}/articles/${id}/html`);
+export const getArticleHtml = async (id: string): Promise<{ html_content: string }> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/articles/${id}/html`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    const response = await fetch(url, { headers });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to fetch HTML');
+    }
+    
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
+        return { html_content: data.html_content || data.html || '' };
+    } else {
+        const html = await response.text();
+        return { html_content: html };
+    }
+};
 
 export const generateArticleHtml = (id: string): Promise<void> => 
     apiFetch<void>(`${INTELSPIDER_SERVICE_PATH}/articles/${id}/generate_html`, { method: 'POST' });

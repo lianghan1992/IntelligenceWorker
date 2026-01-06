@@ -42,16 +42,18 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         setArticleUrl(selectedArticle.original_url || ''); // Init from prop
         
         const loadData = async () => {
-            // Always fetch detail if URL is missing or content is too short (likely summary from list)
+            // Always fetch detail if content is missing or too short
             const needsDetail = !selectedArticle.original_url || !selectedArticle.content || selectedArticle.content.length < 100;
 
             if (needsDetail) {
-                if (!selectedArticle.is_atomized) setIsContentLoading(true);
+                setIsContentLoading(true);
                 try {
                     const detail = await getSpiderArticleDetail(selectedArticle.id);
                     if (active) {
                         if (detail.original_url) setArticleUrl(detail.original_url);
                         if (detail.content) setFullContent(detail.content);
+                        // If detail also reports it's atomized, we should respect that
+                        if (detail.is_atomized) selectedArticle.is_atomized = true;
                     }
                 } catch(e) {
                     console.error("Failed to fetch article detail", e);
