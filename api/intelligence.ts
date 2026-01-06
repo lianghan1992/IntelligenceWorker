@@ -511,6 +511,20 @@ export const regenerateDocumentSummary = (id: string): Promise<{ message: string
 export const regenerateDocumentCover = (id: string): Promise<{ message: string }> =>
     apiFetch<{ message: string }>(`${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/regenerate-cover`, { method: 'POST' });
 
+export const getUploadedDocCover = async (id: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/uploaded-docs/${id}/cover`;
+    const token = localStorage.getItem('accessToken');
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    
+    // Explicitly accept images
+    headers.set('Accept', 'image/*');
+
+    const response = await fetch(url, { headers });
+    if (!response.ok) throw new Error('Fetch cover failed');
+    return response.blob();
+}
+
 export const downloadUploadedDoc = async (id: string): Promise<Blob> => {
     // Assuming a standard download path or using preview if download not explicit in list
     // If not explicit, user might need to use preview or we assume /download endpoint exists in backend as standard

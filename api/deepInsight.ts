@@ -2,7 +2,7 @@
 // src/api/deepInsight.ts
 
 import { DeepInsightCategory, DeepInsightTask, DeepInsightPagesResponse } from '../types';
-import { getUploadedDocs, getUploadedDocDetail, getDocPreview, getDocTags, uploadDocs } from './intelligence';
+import { getUploadedDocs, getUploadedDocDetail, getDocPreview, getDocTags, uploadDocs, getUploadedDocCover } from './intelligence';
 
 // --- Categories ---
 export const getDeepInsightCategories = async (): Promise<DeepInsightCategory[]> => {
@@ -90,21 +90,14 @@ export const getDeepInsightTaskPages = async (taskId: string, page = 1, limit = 
 };
 
 export const fetchDeepInsightCover = async (taskId: string): Promise<string | null> => {
-    // The new API returns cover_image URL directly in document details.
-    // If we need to fetch it via a specific endpoint, use getUploadedDocDetail.
-    // But since this function signature returns string | null (url), we can reuse logic.
-    // If the URL requires auth headers to fetch, we might need downloadBlobWithAuth.
-    // Assuming cover_image from detail is sufficient or this helper acts as a fetcher if URL is protected.
-    
-    // Check if we can get the cover URL from detail first
     try {
-        const doc = await getUploadedDocDetail(taskId);
-        if (doc.cover_image) return doc.cover_image;
-    } catch (e) {}
-
-    // Fallback or specific cover endpoint? The new API list had regenerate-cover but not get-cover explicitly separate from detail.
-    // Assuming detail provides valid URL.
-    return null;
+        const blob = await getUploadedDocCover(taskId);
+        if (blob.size === 0) return null;
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        // console.warn(`Failed to fetch cover for task ${taskId}`, e);
+        return null;
+    }
 };
 
 export const fetchDeepInsightPageImage = async (taskId: string, pageIndex: number): Promise<string | null> => {

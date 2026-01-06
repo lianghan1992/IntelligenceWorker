@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { UploadedDocument, DocTag } from '../../../types';
-import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc, regenerateDocumentSummary, regenerateDocumentCover } from '../../../api/intelligence';
+import { getUploadedDocs, getDocTags, downloadUploadedDoc, deleteUploadedDoc, regenerateDocumentSummary, regenerateDocumentCover, getUploadedDocCover } from '../../../api/intelligence';
 import { 
     CloudIcon, RefreshIcon, SearchIcon, CalendarIcon, 
     DownloadIcon, ArrowRightIcon, EyeIcon, PlusIcon, TagIcon, GearIcon, ViewGridIcon, TrashIcon, ClockIcon,
@@ -57,6 +57,44 @@ const getStatusBadge = (doc: UploadedDocument) => {
         );
     }
     return <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">排队中</span>;
+};
+
+// Internal component for displaying cover image
+const DocCoverImage: React.FC<{ doc: UploadedDocument }> = ({ doc }) => {
+    const [src, setSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        // If doc.cover_image is a full URL (http/data), use it directly (optimization)
+        if (doc.cover_image && (doc.cover_image.startsWith('http') || doc.cover_image.startsWith('data:'))) {
+            setSrc(doc.cover_image);
+            return;
+        }
+
+        // Otherwise fetch from API
+        getUploadedDocCover(doc.uuid).then(blob => {
+            if (active && blob.size > 0) {
+                const url = URL.createObjectURL(blob);
+                setSrc(url);
+            }
+        }).catch(() => {});
+
+        return () => { 
+            active = false; 
+        };
+    }, [doc.uuid, doc.cover_image]);
+
+    // Handle revocation when src changes
+    useEffect(() => {
+       return () => {
+           if (src && src.startsWith('blob:')) {
+               URL.revokeObjectURL(src);
+           }
+       }
+    }, [src]);
+
+    if (!src) return <DocumentTextIcon className="w-4 h-4 text-slate-300" />;
+    return <img src={src} alt="cover" className="w-full h-full object-cover" />;
 };
 
 export const DocumentManager: React.FC = () => {
@@ -442,11 +480,7 @@ export const DocumentManager: React.FC = () => {
                                             <td className="px-6 py-4 font-medium text-gray-900">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-10 flex-shrink-0 bg-slate-100 border border-slate-200 rounded overflow-hidden flex items-center justify-center">
-                                                        {doc.cover_image ? (
-                                                            <img src={doc.cover_image} alt="cover" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <DocumentTextIcon className="w-4 h-4 text-slate-300" />
-                                                        )}
+                                                        <DocCoverImage doc={doc} />
                                                     </div>
                                                     <div className="truncate max-w-xs font-bold" title={doc.original_filename}>
                                                         {doc.original_filename}

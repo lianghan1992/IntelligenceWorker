@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UploadedDocument } from '../../../types';
-import { regenerateDocumentSummary, regenerateDocumentCover } from '../../../api/intelligence';
+import { regenerateDocumentSummary, regenerateDocumentCover, getUploadedDocCover } from '../../../api/intelligence';
 import { CloseIcon, RefreshIcon, DocumentTextIcon, PhotoIcon, CheckIcon } from '../../icons';
 
 interface DocDetailInfoModalProps {
@@ -17,6 +17,51 @@ const Spinner: React.FC = () => (
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
+
+// Internal component for displaying cover image
+const DocCoverImage: React.FC<{ doc: UploadedDocument }> = ({ doc }) => {
+    const [src, setSrc] = useState<string | null>(null);
+
+    useEffect(() => {
+        let active = true;
+        // If doc.cover_image is a full URL, use it directly
+        if (doc.cover_image && (doc.cover_image.startsWith('http') || doc.cover_image.startsWith('data:'))) {
+            setSrc(doc.cover_image);
+            return;
+        }
+
+        // Otherwise fetch from API
+        getUploadedDocCover(doc.uuid).then(blob => {
+            if (active && blob.size > 0) {
+                const url = URL.createObjectURL(blob);
+                setSrc(url);
+            }
+        }).catch(() => {});
+
+        return () => { 
+            active = false; 
+        };
+    }, [doc.uuid, doc.cover_image]);
+
+    // Handle revocation
+    useEffect(() => {
+       return () => {
+           if (src && src.startsWith('blob:')) {
+               URL.revokeObjectURL(src);
+           }
+       }
+    }, [src]);
+
+    if (!src) {
+        return (
+            <div className="text-slate-300 flex flex-col items-center">
+                <PhotoIcon className="w-12 h-12 opacity-50 mb-2" />
+                <span className="text-xs">暂无封面</span>
+            </div>
+        );
+    }
+    return <img src={src} alt="Cover" className="w-full h-full object-cover" />;
+};
 
 export const DocDetailInfoModal: React.FC<DocDetailInfoModalProps> = ({ isOpen, doc, onClose, onRefresh }) => {
     const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
@@ -79,14 +124,7 @@ export const DocDetailInfoModal: React.FC<DocDetailInfoModalProps> = ({ isOpen, 
                                 <PhotoIcon className="w-4 h-4" /> 封面预览
                             </h4>
                             <div className="aspect-[3/4] bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden shadow-inner relative group">
-                                {doc.cover_image ? (
-                                    <img src={doc.cover_image} alt="Cover" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="text-slate-300 flex flex-col items-center">
-                                        <PhotoIcon className="w-12 h-12 opacity-50 mb-2" />
-                                        <span className="text-xs">暂无封面</span>
-                                    </div>
-                                )}
+                                <DocCoverImage doc={doc} />
                                 
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                                     <button 
