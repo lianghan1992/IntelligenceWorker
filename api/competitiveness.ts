@@ -75,14 +75,15 @@ export const analyzeArticleStage1 = (data: { article_id: string; title?: string;
 // --- Technical Intelligence (Stage 2) ---
 
 export const getTechItems = async (params: { skip?: number; limit?: number; page?: number; size?: number; vehicle_brand?: string; tech_dimension?: string; only_reviewed?: boolean }): Promise<{ items: TechItem[], total: number }> => {
-    // UPDATED: Do NOT remove 'limit' if it exists, as backend uses it to override default page size
     const apiParams: any = { ...params };
     
-    // Legacy support: Calculate page if skip is provided
+    // Logic: If 'skip' is used, calculate 'page'. 
+    // BUT we must preserve 'limit' if it exists so the backend overrides the default size=20.
     if (apiParams.skip !== undefined && apiParams.limit) {
         apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
-        // We keep 'limit' in apiParams so it is sent to backend
         delete apiParams.skip;
+        // Do NOT delete apiParams.limit here. 
+        // The backend explicitly checks for 'limit' for backward compatibility.
     }
     
     const query = createApiQuery(apiParams);
@@ -117,6 +118,7 @@ export const getPendingReviews = (params: { skip?: number; limit?: number; page?
     if (apiParams.skip !== undefined && apiParams.limit) {
         apiParams.page = Math.floor(apiParams.skip / apiParams.limit) + 1;
         delete apiParams.skip;
+        // Keep limit if present
     }
     const query = createApiQuery(apiParams);
     return apiFetch<{ items: TechItem[], total: number }>(`${COMPETITIVENESS_SERVICE_PATH}/reviews/pending${query}`);

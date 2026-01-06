@@ -6,7 +6,7 @@ import {
     getBrands, addBrand,
     batchUpdateSecondaryDimension, analyzeArticleStage1,
     refreshCompetitivenessCookie,
-    getTechItems, getTechItemDetail,
+    getTechItems, getTechItemDetail, batchDeleteTechItems,
     getPendingReviews, approveReviewItem, rejectReviewItems
 } from '../../api/competitiveness';
 import { CompetitivenessStatus, TechAnalysisTask, CompetitivenessDimension, TechItem } from '../../types';
@@ -27,7 +27,7 @@ const Spinner: React.FC = () => (
 );
 
 const WhiteSpinner: React.FC = () => (
-    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
@@ -516,6 +516,171 @@ const DimensionEditorModal: React.FC<{
     );
 };
 
+// --- Sub-View: Intelligence Database (Tech Item Management) ---
+const IntelligenceDatabase: React.FC = () => {
+    const [items, setItems] = useState<TechItem[]>([]);
+    const [total, setTotal] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [filters, setFilters] = useState({ brand: '', dimension: '' });
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    
+    const [brands, setBrands] = useState<string[]>([]);
+    const [dimensions, setDimensions] = useState<string[]>([]);
+
+    useEffect(() => {
+        getBrands().then(setBrands);
+        getDimensions().then(ds => setDimensions(ds.map(d => d.name)));
+    }, []);
+
+    const fetchItems = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const res = await getTechItems({
+                vehicle_brand: filters.brand || undefined,
+                tech_dimension: filters.dimension || undefined,
+                page,
+                size: 20
+            });
+            setItems(res.items);
+            setTotal(res.total);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [filters, page]);
+
+    useEffect(() => {
+        fetchItems();
+    }, [fetchItems]);
+
+    const handleDelete = async () => {
+        if (!deletingId) return;
+        try {
+            await batchDeleteTechItems([deletingId]);
+            setItems(prev => prev.filter(i => i.id !== deletingId));
+            setTotal(prev => prev - 1);
+            setDeletingId(null);
+        } catch (e) {
+            alert('删除失败');
+        }
+    }
+
+    return (
+        <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
+            {/* Header & Filters */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <DatabaseIcon className="w-6 h-6 text-indigo-600" /> 技术情报库
+                    <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{total} 条</span>
+                </h3>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                    <select 
+                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
+                        value={filters.brand}
+                        onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
+                    >
+                        <option value="">所有品牌</option>
+                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <select 
+                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
+                        value={filters.dimension}
+                        onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
+                    >
+                        <option value="">所有维度</option>
+                        {dimensions.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    <button onClick={fetchItems} className="p-2 text-gray-500 hover:text-indigo-600 bg-white border rounded-lg shadow-sm hover:shadow transition-all">
+                        <RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/>
+                    </button>
+                </div>
+            </div>
+
+            {/* Content List */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50 rounded-2xl border border-gray-200 p-4">
+                {isLoading ? (
+                    <div className="text-center py-20"><Spinner /></div>
+                ) : items.length === 0 ? (
+                    <div className="text-center py-20 flex flex-col items-center gap-4 text-gray-400">
+                        <DatabaseIcon className="w-16 h-16 text-slate-200" />
+                        <p>暂无情报数据</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                        {items.map(item => {
+                            const rel = getReliabilityBadge(item.reliability);
+                            return (
+                                <div key={item.id} className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 group">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 mb-2 text-xs font-bold uppercase tracking-wide">
+                                            <span className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded border border-indigo-100">{item.vehicle_brand}</span>
+                                            <ChevronRightIcon className="w-3 h-3 text-gray-300" />
+                                            <span className="text-gray-500">{item.tech_dimension}</span>
+                                            <span className="text-gray-300">/</span>
+                                            <span className="text-gray-500">{item.secondary_tech_dimension}</span>
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 mb-2 truncate" title={item.name}>{item.name}</h4>
+                                        <p className="text-sm text-gray-600 leading-relaxed mb-4 line-clamp-2">{item.description}</p>
+                                        <div className="flex items-center gap-4 text-xs">
+                                            <span className={`px-2 py-0.5 rounded font-bold ${rel.className}`}>
+                                                {rel.text} ({item.reliability})
+                                            </span>
+                                            <span className="text-gray-400 flex items-center gap-1">
+                                                <ClockIcon className="w-3 h-3" /> {new Date(item.created_at).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <button 
+                                            onClick={() => setDeletingId(item.id)}
+                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                                            title="删除"
+                                        >
+                                            <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+            
+            {/* Simple Pagination */}
+            <div className="flex justify-between items-center px-2">
+                <button 
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => p - 1)}
+                    className="px-4 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    上一页
+                </button>
+                <span className="text-sm text-gray-500">第 {page} 页</span>
+                <button 
+                    disabled={items.length < 20}
+                    onClick={() => setPage(p => p + 1)}
+                    className="px-4 py-2 bg-white border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                >
+                    下一页
+                </button>
+            </div>
+
+            {deletingId && (
+                <ConfirmationModal
+                    title="删除情报"
+                    message="确定要删除这条技术情报吗？此操作不可撤销。"
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeletingId(null)}
+                    confirmText="删除"
+                    variant="destructive"
+                />
+            )}
+        </div>
+    );
+};
+
 // --- Sub-View: Review Queue (New) ---
 const ReviewQueue: React.FC = () => {
     const [items, setItems] = useState<TechItem[]>([]);
@@ -707,238 +872,6 @@ const ReviewQueue: React.FC = () => {
                     下一页
                 </button>
             </div>
-        </div>
-    );
-};
-
-// --- Sub-View: Intelligence Database (Stage 2) ---
-const IntelligenceDatabase: React.FC = () => {
-    const [items, setItems] = useState<TechItem[]>([]);
-    const [total, setTotal] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
-    const [filters, setFilters] = useState({ brand: '', dimension: '' });
-    const [page, setPage] = useState(1); 
-    const [selectedItem, setSelectedItem] = useState<TechItem | null>(null);
-    
-    // Metadata for filters
-    const [brands, setBrands] = useState<string[]>([]);
-    const [dimensions, setDimensions] = useState<string[]>([]);
-
-    useEffect(() => {
-        // Load metadata for filters
-        getBrands().then(setBrands);
-        getDimensions().then(ds => setDimensions(ds.map(d => d.name)));
-    }, []);
-
-    const fetchItems = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await getTechItems({
-                vehicle_brand: filters.brand || undefined,
-                tech_dimension: filters.dimension || undefined,
-                page,
-                size: 20
-            });
-            setItems(res.items);
-            setTotal(res.total);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [filters, page]);
-
-    useEffect(() => {
-        fetchItems();
-    }, [fetchItems]);
-
-    const handleDetailClick = async (itemId: string) => {
-        // Fetch full detail with history
-        try {
-            const detail = await getTechItemDetail(itemId);
-            setSelectedItem(detail);
-        } catch (e) {
-            alert('获取详情失败');
-        }
-    };
-
-    return (
-        <div className="p-6 h-full flex flex-col gap-6 overflow-hidden">
-            {/* Header & Filters */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <DatabaseIcon className="w-6 h-6 text-indigo-600" /> 技术情报主表 (Golden Records)
-                    <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{total} 条</span>
-                </h3>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <select 
-                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
-                        value={filters.brand}
-                        onChange={e => { setFilters({...filters, brand: e.target.value}); setPage(1); }}
-                    >
-                        <option value="">所有品牌</option>
-                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                    <select 
-                        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm min-w-[140px]"
-                        value={filters.dimension}
-                        onChange={e => { setFilters({...filters, dimension: e.target.value}); setPage(1); }}
-                    >
-                        <option value="">所有维度</option>
-                        {dimensions.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
-                    <button onClick={fetchItems} className="p-2 text-gray-500 hover:text-indigo-600 bg-white border rounded-lg shadow-sm hover:shadow transition-all">
-                        <RefreshIcon className={`w-5 h-5 ${isLoading?'animate-spin':''}`}/>
-                    </button>
-                </div>
-            </div>
-
-            {/* Table */}
-            <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-auto custom-scrollbar">
-                    <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-gray-500 uppercase bg-gray-50/80 sticky top-0 backdrop-blur-sm z-10">
-                            <tr>
-                                <th className="px-6 py-4">品牌 / 车型</th>
-                                <th className="px-6 py-4">技术维度</th>
-                                <th className="px-6 py-4">技术名称</th>
-                                <th className="px-6 py-4 w-1/3">最新描述</th>
-                                <th className="px-6 py-4">可信度</th>
-                                <th className="px-6 py-4">更新时间</th>
-                                <th className="px-6 py-4 text-center">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {isLoading ? (
-                                <tr><td colSpan={7} className="py-20 text-center"><Spinner /></td></tr>
-                            ) : items.length === 0 ? (
-                                <tr><td colSpan={7} className="py-20 text-center text-gray-400 italic">暂无数据</td></tr>
-                            ) : (
-                                items.map(item => {
-                                    const rel = getReliabilityBadge(item.reliability);
-                                    return (
-                                        <tr key={item.id} className="hover:bg-indigo-50/30 transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-gray-800">{item.vehicle_brand}</div>
-                                                <div className="text-xs text-gray-500">{item.vehicle_model}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-gray-700">{item.tech_dimension}</div>
-                                                <div className="text-xs text-gray-400 flex items-center gap-1">
-                                                    <ChevronRightIcon className="w-3 h-3"/> {item.secondary_tech_dimension}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-medium text-indigo-900">{item.name}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-gray-600 line-clamp-2 text-xs leading-relaxed" title={item.description}>
-                                                    {item.description}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${rel.className}`}>
-                                                    {rel.text} ({item.reliability})
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-xs text-gray-500 font-mono">
-                                                {new Date(item.updated_at).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <button 
-                                                    onClick={() => handleDetailClick(item.id)}
-                                                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                                    title="查看详情与历史"
-                                                >
-                                                    <EyeIcon className="w-5 h-5" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                {/* Simple Pagination */}
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <span className="text-xs text-gray-500">每页 20 条</span>
-                    <div className="flex gap-2">
-                        <button disabled={page<=1} onClick={() => setPage(p=>p-1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronLeftIcon className="w-4 h-4"/></button>
-                        <span className="px-3 py-1.5 bg-white border rounded-lg text-sm font-medium shadow-sm">{page}</span>
-                        <button disabled={items.length < 20} onClick={() => setPage(p=>p+1)} className="p-1.5 bg-white border rounded-lg hover:bg-gray-50 disabled:opacity-50 shadow-sm"><ChevronRightIcon className="w-4 h-4"/></button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Detail Modal */}
-            {selectedItem && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in-0">
-                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                            <div>
-                                <h3 className="text-xl font-extrabold text-gray-900">{selectedItem.name}</h3>
-                                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                                    <span className="px-2 py-0.5 bg-white border rounded text-xs font-bold">{selectedItem.vehicle_brand} {selectedItem.vehicle_model}</span>
-                                    <span>•</span>
-                                    <span>{selectedItem.tech_dimension} / {selectedItem.secondary_tech_dimension}</span>
-                                </div>
-                            </div>
-                            <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors"><CloseIcon className="w-6 h-6"/></button>
-                        </div>
-                        
-                        <div className="flex-1 overflow-y-auto p-8 bg-gray-50/30">
-                            {/* Current State */}
-                            <div className="mb-8 bg-white p-6 rounded-2xl border border-indigo-100 shadow-sm">
-                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <SparklesIcon className="w-4 h-4 text-indigo-500" /> 最新情报状态
-                                </h4>
-                                <div className="flex items-start gap-4">
-                                    <div className="flex-1">
-                                        <p className="text-gray-800 leading-relaxed text-lg">{selectedItem.description}</p>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-2 min-w-[100px]">
-                                        <span className={`px-3 py-1 rounded-lg text-sm font-bold border ${getReliabilityBadge(selectedItem.reliability).className.replace('bg-', 'border-').replace('text-', 'text-')}`}>
-                                            {getReliabilityBadge(selectedItem.reliability).text}
-                                        </span>
-                                        <span className="text-xs text-gray-400 font-mono">{new Date(selectedItem.updated_at).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* History Timeline */}
-                            <div className="relative">
-                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
-                                    <ClockIcon className="w-4 h-4 text-gray-400" /> 演进历史
-                                </h4>
-                                <div className="absolute top-10 bottom-0 left-[19px] w-0.5 bg-gray-200"></div>
-                                <div className="space-y-8 relative">
-                                    {selectedItem.history?.sort((a, b) => new Date(b.event_time).getTime() - new Date(a.event_time).getTime()).map((hist) => (
-                                        <div key={hist.id} className="flex gap-6 group">
-                                            <div className="relative z-10 w-10 h-10 flex-shrink-0 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center group-hover:border-indigo-400 group-hover:scale-110 transition-all shadow-sm">
-                                                {hist.change_type === 'Create' ? <PlusIcon className="w-5 h-5 text-green-500"/> :
-                                                 hist.change_type === 'Update' ? <PencilIcon className="w-4 h-4 text-blue-500"/> :
-                                                 <AnnotationIcon className="w-4 h-4 text-gray-500"/>}
-                                            </div>
-                                            <div className="flex-1 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm group-hover:shadow-md transition-all">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className="text-xs font-bold uppercase tracking-wide text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{hist.change_type}</span>
-                                                    <span className="text-xs text-gray-400 font-mono">{new Date(hist.event_time).toLocaleString()}</span>
-                                                </div>
-                                                <p className="text-sm text-gray-700 mb-3">{hist.description_snapshot}</p>
-                                                <div className="flex items-center gap-2 text-xs border-t border-gray-50 pt-2">
-                                                    <span className="text-gray-400">当时可信度:</span>
-                                                    <span className={`font-bold ${getReliabilityBadge(hist.reliability_snapshot).className.split(' ')[1]}`}>
-                                                        {getReliabilityBadge(hist.reliability_snapshot).text}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

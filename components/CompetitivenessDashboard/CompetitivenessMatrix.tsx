@@ -73,7 +73,6 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             if (!item.vehicle_brand) return;
 
             // Fuzzy match brand name from metadata brands list
-            // e.g., Metadata "小米汽车" matches Data "小米" or vice versa
             let matchedBrand = brands.find(b => 
                 b === item.vehicle_brand || 
                 item.vehicle_brand.includes(b) || 
@@ -95,10 +94,10 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
             if (!map.has(matchedBrand)) map.set(matchedBrand, new Map());
             const brandMap = map.get(matchedBrand)!;
             
-            // KEY FIX: Match Dimension by NAME, not ID.
-            // item.tech_dimension is the name string from backend data.
-            // dimensions metadata also has name.
-            // We use the normalized metadata name if found, otherwise raw data name.
+            // CRITICAL FIX: Match Dimension by NAME
+            // The item.tech_dimension from DB is the Name string (e.g. "智能驾驶").
+            // We use this Name directly as the key to group data.
+            // We might try to normalize it against metadata if needed, but direct use is safer if DB is consistent.
             const dimMetadata = dimensions.find(d => d.name === item.tech_dimension || d.name.includes(item.tech_dimension) || item.tech_dimension.includes(d.name));
             const dimKey = dimMetadata ? dimMetadata.name : item.tech_dimension;
 
@@ -233,10 +232,11 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                 {/* Tech Specs Body */}
                                 <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6">
                                     {dimensions.map((dim, dimIndex) => {
-                                        // Retrieve by Name, consistent with the mapping logic above
+                                        // Retrieve by Name (dim.name), aligning with the map building logic
                                         const brandDimMap = brandData?.get(dim.name); 
                                         
                                         // Dynamic Sub-dimensions: Merge metadata definitions with actual data found
+                                        // This ensures items with sub-dimensions not in metadata still show up
                                         const definedSubDims = dim.sub_dimensions || [];
                                         const dataSubDims = brandDimMap ? Array.from(brandDimMap.keys()) : [];
                                         const allRelevantSubDims = Array.from(new Set([...definedSubDims, ...dataSubDims]));
