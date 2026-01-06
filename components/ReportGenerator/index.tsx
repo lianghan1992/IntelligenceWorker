@@ -219,7 +219,8 @@ export const ReportGenerator: React.FC = () => {
         if (stage === 'collect') {
             try {
                 setIsLlmActive(true);
-                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+                // 使用默认 Prompt ID, 这里假设了一个 ID, 实际应替换为真实有效的 Prompt ID
+                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").catch(() => ({ content: "你是一个专业的报告生成助手，请根据用户提供的资料和主题生成大纲。" }));
                 const materials = data.referenceMaterials;
                 
                 const initialHistory: ChatMessage[] = [

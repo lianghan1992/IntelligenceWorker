@@ -2,8 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SparklesIcon, DocumentTextIcon, GlobeIcon, PuzzleIcon, PlusIcon, CloseIcon, RefreshIcon } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
-// Re-using modal logic but simplified or imported
-import { KnowledgeSearchModal } from './KnowledgeSearchModal'; // Need to create this one too
+import { KnowledgeSearchModal } from './KnowledgeSearchModal';
 
 interface Step1CollectProps {
     onUpdateMaterials: (materials: string) => void;

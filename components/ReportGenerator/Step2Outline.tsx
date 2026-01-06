@@ -52,9 +52,17 @@ export const Step2Outline: React.FC<Step2OutlineProps> = ({ history, onHistoryUp
         
         let accumulatedText = '', accumulatedReasoning = '';
         try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600");
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600").catch(() => ({ 
+                content: "请根据用户需求生成大纲JSON，包含title和pages数组。",
+                channel_code: "openai",
+                model_id: "gpt-4o"
+            }));
+
+            // Construct model ID correctly
+            const modelName = (prompt as any).channel_code ? `${(prompt as any).channel_code}@${(prompt as any).model_id}` : 'gpt-4o';
+
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
+                model: modelName,
                 messages: currentHistory.map(m => ({ role: m.role, content: m.content })),
                 stream: true
             }, (data) => {

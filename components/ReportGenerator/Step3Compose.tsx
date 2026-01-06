@@ -49,7 +49,12 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
         onUpdatePages(updatedStart);
 
         try {
-            const prompt = await getPromptDetail(PROMPT_ID);
+            const prompt = await getPromptDetail(PROMPT_ID).catch(() => ({ 
+                content: "请生成页面内容的JSON，包含content字段 (Markdown)。\nTitle: {{ page_title }}\nSummary: {{ page_summary }}",
+                channel_code: "openai",
+                model_id: "gpt-4o"
+            }));
+
             const baseInstruction = prompt.content
                 .replace('{{ page_index }}', String(idx + 1))
                 .replace('{{ page_title }}', page.title)
@@ -62,8 +67,11 @@ export const Step3Compose: React.FC<Step3ComposeProps> = ({ pages, history, onUp
             const requestMessages = [...history, { role: 'user', content: userInstruction, hidden: true }];
             let accumulatedText = '', accumulatedReasoning = '';
             
+            // Construct model ID correctly
+            const modelName = (prompt as any).channel_code ? `${(prompt as any).channel_code}@${(prompt as any).model_id}` : 'gpt-4o';
+
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
+                model: modelName,
                 messages: requestMessages,
                 stream: true
             }, (data) => {

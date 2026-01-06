@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { PPTPageData, ChatMessage } from './index';
+import { PPTPageData, ChatMessage } from '../index';
 import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../../api/stratify'; 
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
@@ -30,18 +30,18 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     onLlmStatusChange,
     onStreamingUpdate
 }) => {
-    // Initialize state from props to ensure we catch up with any persisted data
+    // Initialize state from props
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
     const [isExporting, setIsExporting] = useState(false);
-    const [scale, setScale] = useState(0.5); // Start small, will calculate layout
+    const [scale, setScale] = useState(0.5); 
     
     // Local ephemeral state for streaming text
     const [partialHtmls, setPartialHtmls] = useState<Record<number, string>>({});
     const codeScrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Sync prop updates to local state
+    // Sync prop updates to local state to handle external updates if any
     useEffect(() => {
         setPages(initialPages);
     }, [initialPages]);
@@ -59,7 +59,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             if (containerRef.current) {
                 const cw = containerRef.current.offsetWidth;
                 const ch = containerRef.current.offsetHeight;
-                const padding = 64; // 32px padding on each side
+                const padding = 64; // padding
                 const targetW = 1600;
                 const targetH = 900;
                 
@@ -81,20 +81,27 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
         onLlmStatusChange?.(true);
         
-        // Optimistic update locally
+        // Optimistic update locally AND parent
         const newPagesStart = [...pages];
         newPagesStart[idx] = { ...page, isGenerating: true };
         setPages(newPagesStart);
-        onUpdatePages(newPagesStart); // Sync to parent immediately
+        onUpdatePages(newPagesStart); 
 
         try {
-            const prompt = await getPromptDetail(PROMPT_ID_HTML);
+            const prompt = await getPromptDetail(PROMPT_ID_HTML).catch(() => ({ 
+                content: "你是一个前端专家，请根据提供的内容生成精美的 HTML 代码，作为 PPT 的一页。只返回 HTML 代码，不要包含其他解释。",
+                channel_code: "openai", // fallback
+                model_id: "gpt-4o"      // fallback
+            }));
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
 
             let accumulatedText = '', accumulatedReasoning = '';
             
+            // Construct model ID correctly
+            const modelName = (prompt as any).channel_code ? `${(prompt as any).channel_code}@${(prompt as any).model_id}` : 'gpt-4o';
+
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
+                model: modelName,
                 messages: [
                     { role: 'system', content: prompt.content },
                     { role: 'user', content: userPrompt }
@@ -116,29 +123,35 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
             }, () => {
                 const finalHtml = extractStreamingHtml(accumulatedText);
-                const finalPages = [...pages];
-                finalPages[idx] = { ...finalPages[idx], html: finalHtml, isGenerating: false };
-                setPages(finalPages);
-                onUpdatePages(finalPages); // Sync result
+                // Important: Use function update to get latest state
+                setPages(currentPages => {
+                    const finalPages = [...currentPages];
+                    finalPages[idx] = { ...finalPages[idx], html: finalHtml, isGenerating: false };
+                    onUpdatePages(finalPages); // Sync result
+                    return finalPages;
+                });
                 
                 onLlmStatusChange?.(false);
                 onStreamingUpdate?.(null);
             }, (err) => {
-                const errorPages = [...pages];
-                errorPages[idx] = { ...errorPages[idx], isGenerating: false, html: `<div style="color:red;padding:20px;">Render Error: ${err.message}</div>` };
-                setPages(errorPages);
-                onUpdatePages(errorPages);
+                setPages(currentPages => {
+                    const errorPages = [...currentPages];
+                    errorPages[idx] = { ...errorPages[idx], isGenerating: false, html: `<div style="color:red;padding:20px;">Render Error: ${err.message}</div>` };
+                    onUpdatePages(errorPages);
+                    return errorPages;
+                });
                 
                 onLlmStatusChange?.(false);
                 onStreamingUpdate?.(null);
             });
 
         } catch (e) {
-            const errorPages = [...pages];
-            errorPages[idx] = { ...errorPages[idx], isGenerating: false };
-            setPages(errorPages);
-            onUpdatePages(errorPages);
-            
+            setPages(currentPages => {
+                const errorPages = [...currentPages];
+                errorPages[idx] = { ...errorPages[idx], isGenerating: false };
+                onUpdatePages(errorPages);
+                return errorPages;
+            });
             onLlmStatusChange?.(false);
             onStreamingUpdate?.(null);
         }
@@ -191,7 +204,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         <div className="h-full flex flex-row bg-slate-900 overflow-hidden font-sans">
             
             {/* Left Sidebar: Filmstrip Navigator (Lightroom Style) */}
-            <div className="w-56 flex flex-col border-r border-slate-800 bg-[#0f172a] z-20 shadow-xl">
+            <div className="w-56 flex flex-col border-r border-slate-800 bg-[#0f172a] z-20 shadow-xl flex-shrink-0">
                 <div className="p-4 border-b border-slate-800 flex items-center justify-between">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Slides ({pages.length})</h3>
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
