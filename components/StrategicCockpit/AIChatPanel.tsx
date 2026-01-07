@@ -190,14 +190,18 @@ export const AIChatPanel: React.FC<{
     onReferenceClick?: (article: InfoItem) => void;
 }> = ({ className, onReferenceClick }) => {
     const [input, setInput] = useState('');
-    const [messages, setMessages] = useState<Message[]>([
-        { 
+    
+    // Initialize with current date to inform user
+    const [messages, setMessages] = useState<Message[]>(() => {
+        const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+        return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: '我是您的 **AI 情报副驾驶**。我可以为您深入分析汽车行业动态，支持实时检索、数据校验与长文本总结。', 
+            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我可以为您深入分析汽车行业动态，支持实时检索、数据校验与长文本总结。`, 
             timestamp: Date.now() 
-        }
-    ]);
+        }];
+    });
+
     const [isStreaming, setIsStreaming] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -249,10 +253,9 @@ export const AIChatPanel: React.FC<{
         setIsStreaming(true);
 
         const currentHistory = [...messages, userMsg];
-        const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+        const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         
-        // Updated System Prompt to include new tool instructions
-        // CRITICAL: Strictly enforcing JSON only output for tools to avoid conversational noise.
+        // Updated System Prompt with Date Context
         const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
 Current Date: ${currentDate}.
 Your Knowledge Cutoff is old.
@@ -299,7 +302,6 @@ INSTRUCTIONS:
                 const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
                 
                 // 宽泛检测: 只要包含这些关键词就认为在尝试调用工具
-                // Fix: Added explicit checks for the specific keys seen in the user issue
                 if (!isToolCallDetected && (
                     contentTrimmed.includes('"tool":') || 
                     contentTrimmed.includes('"tool_name"') || 
@@ -340,7 +342,6 @@ INSTRUCTIONS:
                     finalToolName = jsonObj.action || jsonObj.tool || jsonObj.tool_name || jsonObj.function || finalToolName;
                     
                     // Tool Query strategies
-                    // Fix: Added 'search_query' which was used by the model in the user report
                     finalToolQuery = jsonObj.query || jsonObj.keywords || jsonObj.parameters?.query || jsonObj.arguments?.query || jsonObj.search_query || finalToolQuery;
                     
                     // Support 'queries' array
@@ -367,7 +368,6 @@ INSTRUCTIONS:
             }
 
             // 4. 智能回退与兜底
-            // Check if intention was clearly to search google even if JSON parsing failed slightly
             const intentDetected = isToolCallDetected || 
                                    !!finalToolName || 
                                    accumulatedContent.includes('search_google') || 
@@ -409,23 +409,20 @@ INSTRUCTIONS:
                         // 1. Fetch Search Results Page
                         const searchResultMarkdown = await fetchJinaReader(googleUrl, {
                             'X-Return-Format': 'markdown',
-                            'X-Target-Selector': '#center_col', // User requested specific selector for Google
+                            'X-Target-Selector': '#center_col', 
                             'X-Remove-Selector': 'header, .class, #id'
                         });
 
-                        // 2. Extract Links (Look for [Read more](url))
+                        // 2. Extract Links
                         const urls = new Set<string>();
-                        // Pattern to match [Read more](https://...) from the user provided example
                         const readMoreRegex = /\[Read more\]\((https?:\/\/[^)]+)\)/g;
                         let match;
                         while ((match = readMoreRegex.exec(searchResultMarkdown)) !== null) {
-                            // Filter out google internal links just in case
                             if (!match[1].includes('google.com/search') && !match[1].includes('google.com/url')) {
                                 urls.add(match[1]);
                             }
                         }
 
-                        // Fallback: standard markdown links if Read more not found
                         if (urls.size === 0) {
                             const standardLinkRegex = /\[.*?\]\((https?:\/\/[^)]+)\)/g;
                             while ((match = standardLinkRegex.exec(searchResultMarkdown)) !== null) {
@@ -438,20 +435,17 @@ INSTRUCTIONS:
                         const topUrls = Array.from(urls).slice(0, 5);
                         
                         if (topUrls.length > 0) {
-                            // Update status
                             updateLastAssistantMessage("", accumulatedReasoning, `正在阅读 ${topUrls.length} 篇网页...`);
 
-                            // 3. Concurrent Fetch of Article Content
                             const contentPromises = topUrls.map(async (url) => {
                                 try {
                                     const content = await fetchJinaReader(url);
-                                    // Simple extraction of title from markdown (first line usually)
                                     const titleMatch = content.match(/^#+\s+(.*)$/m);
                                     const title = titleMatch ? titleMatch[1] : url;
                                     return {
                                         id: url,
                                         title: title.substring(0, 100),
-                                        content: content.substring(0, 3000), // Limit content per article to avoid context overflow
+                                        content: content.substring(0, 3000),
                                         source_name: 'Google Search',
                                         original_url: url,
                                         created_at: new Date().toISOString(),
@@ -466,7 +460,6 @@ INSTRUCTIONS:
                             citations = fetchedArticles.filter((item): item is InfoItem => item !== null && item.content.length > 50);
                         }
                         
-                        // If fetching failed or no links, use the search result summary
                         if (citations.length === 0) {
                              citations = [{
                                 id: 'google-summary',
@@ -528,7 +521,6 @@ INSTRUCTIONS:
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
                 });
             } else {
-                // 没有检测到工具调用，或者解析完全失败，正常结束
                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }
 
@@ -571,10 +563,8 @@ INSTRUCTIONS:
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
-        // Remove any lingering JSON artifacts if the model output them despite instructions
         let displayContent = content;
         if (!isUser) {
-             // Basic heuristic to hide raw tool calls if they leaked into final output
              if (displayContent.trim().startsWith('{') && displayContent.includes('tool')) {
                  return <div className="text-xs text-slate-400 italic">正在处理工具调用...</div>;
              }
@@ -639,12 +629,10 @@ INSTRUCTIONS:
                                     {msg.reasoning && <ThinkingBlock content={msg.reasoning} isStreaming={isStreaming && isLastAssistant} />}
                                     
                                     {/* Retrieval Process Block (Only Assistant) */}
-                                    {/* 只要有 searchQuery，就显示检索模块，状态由 isSearching 和 retrievedItems 共同决定 */}
                                     {!isUser && msg.searchQuery && (
                                         <RetrievedIntelligence 
                                             query={msg.searchQuery} 
                                             items={msg.retrievedItems || []} 
-                                            // 如果是最后一条消息，且正在检索（全局状态）或者还没有结果，则显示检索加载态
                                             isSearching={isLastAssistant && (isSearching || (!msg.retrievedItems && !msg.content))} 
                                             onClick={(item) => onReferenceClick && onReferenceClick(item)}
                                         />
@@ -654,7 +642,7 @@ INSTRUCTIONS:
                                     <div className="relative break-words overflow-hidden">
                                         {renderMessageContent(msg.content, isUser)}
                                         
-                                        {/* Loading Dots for streaming assistant when content is empty and not searching */}
+                                        {/* Loading Dots */}
                                         {!isUser && isStreaming && isLastAssistant && !msg.content && !isSearching && !msg.reasoning && (
                                             <div className="flex gap-1 items-center py-2 px-1">
                                                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce"></div>

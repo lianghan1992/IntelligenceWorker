@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
@@ -7,41 +6,21 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 
-interface CopilotSidebarProps {
-    stage: PPTStage;
-    setStage: (s: PPTStage) => void;
-    history: ChatMessage[];
-    setHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
-    data: PPTData;
-    setData: React.Dispatch<React.SetStateAction<PPTData>>;
-    isLlmActive: boolean;
-    setIsLlmActive: (b: boolean) => void;
-    activePageIndex: number;
-    setActivePageIndex: (n: number) => void;
-    onReset: () => void;
-}
-
-// --- Helper: Robust Partial JSON Parser (Local Implementation) ---
+// --- Helper: Robust Partial JSON Parser ---
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     try {
         let cleanStr = jsonStr.trim();
-        // Handle <think> tags removal before parsing JSON if they exist in the raw string
         cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        
-        // 1. Try extracting from Markdown code blocks
         const codeBlockMatch = cleanStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
         if (codeBlockMatch) {
             cleanStr = codeBlockMatch[1].trim();
         } else {
-             // 2. Fallback: Find the first '{'
              const firstBrace = cleanStr.indexOf('{');
              if (firstBrace !== -1) {
                  cleanStr = cleanStr.substring(firstBrace);
              }
         }
-        
-        // 3. Try standard parse
         return JSON.parse(cleanStr);
     } catch (e) {
         return null;
@@ -50,10 +29,7 @@ export const tryParsePartialJson = (jsonStr: string) => {
 
 // --- Helper: Strict HTML Extractor ---
 const extractCleanHtml = (text: string) => {
-    // Remove <think> tags first
     let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
-    
-    // 1. Look for standard markdown code block
     const codeBlockMatch = cleanText.match(/```html\s*/i);
     if (codeBlockMatch && codeBlockMatch.index !== undefined) {
         let clean = cleanText.substring(codeBlockMatch.index + codeBlockMatch[0].length);
@@ -63,8 +39,6 @@ const extractCleanHtml = (text: string) => {
         }
         return clean;
     }
-
-    // 2. Fallback: Look for raw HTML tags
     const rawStart = cleanText.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
     if (rawStart !== -1) {
         let clean = cleanText.substring(rawStart);
@@ -78,7 +52,6 @@ const extractCleanHtml = (text: string) => {
 };
 
 // --- Helper: Parse <think> tags from content ---
-// Returns { reasoning, content }
 const parseThinkTag = (text: string) => {
     const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
     if (thinkMatch) {
@@ -87,12 +60,11 @@ const parseThinkTag = (text: string) => {
             content: text.replace(thinkMatch[0], '').trim()
         };
     }
-    // Handle unclosed <think> tag (streaming)
     const unclosedMatch = text.match(/<think>([\s\S]*)/i);
     if (unclosedMatch) {
         return {
             reasoning: unclosedMatch[1].trim(),
-            content: '' // Hide content while thinking
+            content: ''
         };
     }
     return { reasoning: '', content: text };
@@ -136,6 +108,20 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     );
 };
 
+interface CopilotSidebarProps {
+    stage: PPTStage;
+    setStage: (s: PPTStage) => void;
+    history: ChatMessage[];
+    setHistory: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
+    data: PPTData;
+    setData: React.Dispatch<React.SetStateAction<PPTData>>;
+    isLlmActive: boolean;
+    setIsLlmActive: (b: boolean) => void;
+    activePageIndex: number;
+    setActivePageIndex: (n: number) => void;
+    onReset: () => void;
+}
+
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset
@@ -143,6 +129,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
+
+    // Initial Greeting with Date
+    useEffect(() => {
+        if (history.length === 0) {
+            const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+            setHistory([{ 
+                role: 'assistant', 
+                content: `你好！我是您的研报助手。\n📅 今天是 **${today}**。\n\n请告诉我您想要研究的主题，我将为您构建分析框架。` 
+            }]);
+        }
+    }, []);
 
     // Auto-scroll chat
     useEffect(() => {
@@ -154,6 +151,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         setIsLlmActive(true);
         const contextMessages = isRefinement ? history.map(m => ({ role: m.role, content: m.content })) : []; 
         
+        const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+
         // --- KEY CHANGE: Inject Reference Materials ---
         let finalPrompt = userPromptText;
         if (data.referenceMaterials && data.referenceMaterials.length > 0) {
@@ -161,7 +160,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }
         
         const apiMessages = [
-            { role: 'system', content: `You are an expert presentation outline generator. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }` },
+            { role: 'system', content: `You are an expert presentation outline generator. Current Date: ${currentDate}. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }` },
             ...contextMessages,
             { role: 'user', content: finalPrompt }
         ];
@@ -197,7 +196,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     return newHistory;
                 });
                 
-                // Real-time parsing using robust parser
                 const partialOutline = tryParsePartialJson(accumulatedContent);
                 if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
                     setData(prev => ({ 
@@ -209,7 +207,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 }
             });
             
-            // Final parse attempt with robust logic
             try {
                 const parsedOutline = tryParsePartialJson(accumulatedContent);
                 if (parsedOutline && parsedOutline.pages) {
@@ -258,7 +255,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
-            // Determine Model first to show in history
             let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
             if (autoGenMode === 'text') {
                  try {
@@ -290,6 +286,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let systemPromptContent = '';
 
                 if (autoGenMode === 'text') {
+                    // Inject Date for text generation context
+                    const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+                    
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
                         const content = promptDetail.content
@@ -297,15 +296,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             .replace('{{ page_title }}', currentPage.title)
                             .replace('{{ page_summary }}', currentPage.summary);
                         
-                        // Inject reference materials here too if available
-                        let finalContent = content;
+                        let finalContent = `Current Date: ${currentDate}\n\n${content}`;
                         if (data.referenceMaterials) {
-                            finalContent = `Reference Materials:\n${data.referenceMaterials}\n\n${content}`;
+                            finalContent = `Current Date: ${currentDate}\nReference Materials:\n${data.referenceMaterials}\n\n${content}`;
                         }
                         
                         messages = [{ role: 'user', content: finalContent }];
                     } catch(e) {
-                         messages = [{ role: 'user', content: `Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
+                         messages = [{ role: 'user', content: `Current Date: ${currentDate}. Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
                     }
                 } else {
                     try {
@@ -347,12 +345,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         const newPages = [...prev.pages];
                         if (autoGenMode === 'text') {
                             let displayContent = accContent;
-                            // Real-time parsing attempt
                             const partial = tryParsePartialJson(accContent);
                             if (partial && partial.content) {
                                 displayContent = partial.content;
                             } else if (accContent.includes('"content":')) {
-                                // Simple regex fallback if JSON is incomplete
                                 const match = accContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
                                 if (match) displayContent = match[1];
                             }
@@ -445,8 +441,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
 
              } else {
+                 const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
                  const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
-                 messages = [{ role: 'user', content: userMsg }];
+                 
+                 // Inject date for content modification context
+                 messages = [
+                     { role: 'system', content: `You are an expert editor. Current Date: ${currentDate}.` },
+                     { role: 'user', content: userMsg }
+                 ];
                  
                  setData(prev => {
                     const newPages = [...prev.pages];
@@ -565,10 +567,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
                 
-                // Parse potential <think> tags in content if reasoning field is empty
                 let parsedContent = { reasoning: msg.reasoning || '', content: msg.content };
                 
-                // Only try to extract <think> if API didn't provide reasoning field or we are still streaming
                 if (!parsedContent.reasoning && parsedContent.content) {
                      const split = parseThinkTag(parsedContent.content);
                      if (split.reasoning) {
@@ -576,7 +576,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                      }
                 }
                 
-                // Merge separate reasoning accumulated from stream if available
                 if (msg.reasoning) {
                     parsedContent.reasoning = msg.reasoning + (parsedContent.reasoning ? '\n' + parsedContent.reasoning : '');
                 }
