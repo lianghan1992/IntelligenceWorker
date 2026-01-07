@@ -4,7 +4,8 @@ import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf } from '../../api/stratify';
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
-    PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon
+    PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
+    PlayIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
@@ -30,64 +31,43 @@ interface MainCanvasProps {
 
 // --- Helper: Simple HTML Syntax Highlighter ---
 const highlightHtmlStream = (code: string) => {
+    if (!code) return '';
     let output = '';
     let cursor = 0;
 
     const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     while (cursor < code.length) {
-        // Find start of next tag
         const tagStart = code.indexOf('<', cursor);
         
         if (tagStart === -1) {
-            // No more tags, rest is text
             output += escape(code.slice(cursor));
             break;
         }
 
-        // Append text before tag
         if (tagStart > cursor) {
             output += escape(code.slice(cursor, tagStart));
         }
 
-        // Find end of tag
         const tagEnd = code.indexOf('>', tagStart);
         
         if (tagEnd === -1) {
-            // Incomplete tag at end of stream (e.g. "<div cla")
-            // Just treat as text for now until more comes in
             output += escape(code.slice(tagStart));
             break;
         }
 
-        // Process tag content: <div class="foo">
-        const tagContent = code.slice(tagStart, tagEnd + 1); // includes < and >
+        const tagContent = code.slice(tagStart, tagEnd + 1);
         
-        // Check if comment
         if (tagContent.startsWith('<!--')) {
             output += `<span class="text-slate-500">${escape(tagContent)}</span>`;
         } else {
-            // Regular tag
-            // We need to handle the inside of the tag.
-            // First, escape it so we work with safe strings
-            let safeTag = escape(tagContent); // &lt;div class="foo"&gt;
-            
-            // Highlight Tag Name: &lt;div or &lt;/div
-            // Replace first occurrence
+            let safeTag = escape(tagContent);
+            // Tags
             safeTag = safeTag.replace(/^(&lt;\/?[a-zA-Z0-9-]+)/, '<span class="text-pink-400 font-bold">$1</span>');
-            
-            // Highlight Attributes: word followed by =
-            // Use regex that matches attribute pattern but ignores already wrapped spans
-            // We do this by matching the raw escaped text pattern
+            // Attributes
             safeTag = safeTag.replace(/(\s)([a-zA-Z0-9-]+)(=)/g, '$1<span class="text-sky-300">$2</span><span class="text-white">$3</span>');
-            
-            // Highlight Strings: "..."
+            // Strings
             safeTag = safeTag.replace(/(".*?")/g, '<span class="text-emerald-300">$1</span>');
-            
-            // Highlight brackets &gt; at the end
-            safeTag = safeTag.replace(/(&gt;)$/, '<span class="text-slate-400 font-bold">$1</span>');
-            // Highlight brackets &lt; at the start (if not already handled by tag name replace, but tag name replace included it)
-            // If the tag name regex didn't match (e.g. just <>), we handle it separately or rely on pink for tag name
             
             output += safeTag;
         }
@@ -99,17 +79,14 @@ const highlightHtmlStream = (code: string) => {
 };
 
 // --- Helper: Scaled Slide Renderer ---
-// Renders the slide at a fixed base resolution (1600x900) and scales it to fit the container.
 const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = ({ html, width, height }) => {
     const BASE_WIDTH = 1600;
     const BASE_HEIGHT = 900;
     
-    // Safety check to prevent 0 scale or division by zero
-    const safeWidth = width || 800; // Default fallback width
-    const safeHeight = height || 600; // Default fallback height
+    const safeWidth = width || 800;
+    const safeHeight = height || 600;
     
     // Calculate scale to fit the container while maintaining aspect ratio
-    // Add a small padding factor (0.95) to ensure borders aren't cut off
     const scale = Math.min(safeWidth / BASE_WIDTH, safeHeight / BASE_HEIGHT) * 0.95;
 
     return (
@@ -121,7 +98,9 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: '#f1f5f9' // slate-100
+                background: '#f1f5f9',
+                backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
+                backgroundSize: '20px 20px'
             }}
         >
             <div 
@@ -131,8 +110,8 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
                     transform: `scale(${scale})`, 
                     transformOrigin: 'center center',
                     background: 'white',
-                    boxShadow: '0 20px 50px -12px rgba(0,0,0,0.15)',
-                    flexShrink: 0 // Prevent flex compression
+                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                    flexShrink: 0 
                 }}
             >
                 <iframe 
@@ -160,19 +139,17 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     useEffect(() => {
         if (!containerRef.current) return;
         
-        // Initial set
-        setContainerSize({ 
-            width: containerRef.current.clientWidth, 
-            height: containerRef.current.clientHeight 
-        });
-
-        const ro = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
-                     setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-                }
+        const updateSize = () => {
+            if(containerRef.current) {
+                setContainerSize({ 
+                    width: containerRef.current.clientWidth, 
+                    height: containerRef.current.clientHeight 
+                });
             }
-        });
+        };
+
+        updateSize();
+        const ro = new ResizeObserver(updateSize);
         ro.observe(containerRef.current);
         return () => ro.disconnect();
     }, []);
@@ -207,7 +184,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     // Robust display content for streaming text
     const displayContent = useMemo(() => {
         if (!activePage) return '';
-        const raw = activePage.content;
+        const raw = activePage.content || '';
         
         if (raw.trim().startsWith('{') || raw.trim().startsWith('```json')) {
             const partial = tryParsePartialJson(raw);
@@ -216,6 +193,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             if (match) {
                 try { return JSON.parse(`"${match[1]}"`); } catch(e) { return match[1]; }
             }
+            // Fallback: don't show raw JSON if parsing fails during stream
             return ''; 
         }
         return raw;
@@ -230,11 +208,8 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
     // Auto-scroll effect for code view
     useEffect(() => {
-        if (activePage?.isGenerating && activePage.html && codeScrollRef.current) {
-             // Scroll the pre element's parent container
-             if (codeScrollRef.current.parentElement) {
-                 codeScrollRef.current.parentElement.scrollTop = codeScrollRef.current.parentElement.scrollHeight;
-             }
+        if (activePage?.isGenerating && activePage.html && codeScrollRef.current && codeScrollRef.current.parentElement) {
+             codeScrollRef.current.parentElement.scrollTop = codeScrollRef.current.parentElement.scrollHeight;
         }
     }, [activePage?.html, activePage?.isGenerating]);
 
@@ -426,19 +401,53 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                 </div>
                             </div>
                         ) : hasContent ? (
-                            /* 3. Text/Markdown View */
-                            <div className="w-full max-w-[900px] mx-auto h-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
-                                <div ref={editorScrollRef} className="flex-1 overflow-y-auto p-8 md:p-12 relative scroll-smooth">
-                                    <article 
-                                        className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-h1:text-3xl prose-h2:text-2xl prose-strong:text-indigo-700"
-                                        dangerouslySetInnerHTML={renderMarkdown(displayContent)}
-                                    />
-                                    {isGenerating && (
-                                        <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-lg border border-indigo-100 animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                                            <span className="text-xs font-bold text-indigo-600">AI Writing...</span>
+                            /* 3. Text/Markdown View (Beautified) */
+                            <div className="w-full h-full flex justify-center items-start overflow-hidden">
+                                <div className="w-full max-w-4xl bg-white h-full rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-500">
+                                    {/* Document Header */}
+                                    <div className="flex-shrink-0 px-8 py-6 border-b border-slate-100 bg-white">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+                                                    Draft Mode
+                                                </div>
+                                                <h1 className="text-2xl font-black text-slate-900 leading-tight">{activePage.title}</h1>
+                                            </div>
+                                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+                                                <PencilIcon className="w-5 h-5" />
+                                            </div>
                                         </div>
-                                    )}
+                                    </div>
+                                    
+                                    {/* Document Body */}
+                                    <div 
+                                        ref={editorScrollRef} 
+                                        className="flex-1 overflow-y-auto px-8 py-8 md:px-12 md:py-10 custom-scrollbar scroll-smooth"
+                                    >
+                                        <article 
+                                            className="
+                                                prose prose-slate prose-lg max-w-none 
+                                                prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-800
+                                                prose-p:text-slate-600 prose-p:leading-8
+                                                prose-strong:text-indigo-700 prose-strong:font-bold
+                                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:text-indigo-900 prose-blockquote:not-italic prose-blockquote:rounded-r-lg
+                                                prose-li:marker:text-indigo-400
+                                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                                                prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-sm
+                                            "
+                                            dangerouslySetInnerHTML={renderMarkdown(displayContent)}
+                                        />
+                                        
+                                        {/* Bottom Padding for visual breathing room */}
+                                        <div className="h-20"></div>
+
+                                        {isGenerating && (
+                                            <div className="flex items-center gap-2 text-indigo-500 animate-pulse mt-4">
+                                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                                <span className="text-sm font-bold">AI 正在撰写...</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ) : (
