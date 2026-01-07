@@ -144,8 +144,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     const isGenerating = !!activePage?.isGenerating;
 
     // Monitor container size for scaling
-    // CRITICAL FIX: Added dependencies [activePageIndex, isGenerating, hasHtml] to ensure 
-    // size is re-calculated when switching from "Code View" to "Slide View".
     useEffect(() => {
         if (!containerRef.current) return;
         
