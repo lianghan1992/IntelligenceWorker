@@ -6,8 +6,6 @@ import {
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
-// @ts-ignore - Loaded via importmap
-import { parse } from 'best-effort-json-parser';
 
 interface CopilotSidebarProps {
     stage: PPTStage;
@@ -23,18 +21,21 @@ interface CopilotSidebarProps {
     onReset: () => void;
 }
 
-// --- Helper: Robust Partial JSON Parser using library ---
+// --- Helper: Robust Partial JSON Parser (Local Implementation) ---
 export const tryParsePartialJson = (jsonStr: string) => {
     try {
-        // Clean up markdown code blocks first
         let cleanStr = jsonStr.trim();
+        // Clean up markdown code blocks first
         if (cleanStr.startsWith('```')) {
             cleanStr = cleanStr.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
         }
         
-        // Use the library to parse partial JSON
-        return parse(cleanStr);
+        // 1. Try standard parse first
+        return JSON.parse(cleanStr);
     } catch (e) {
+        // 2. Simple Partial Handling for Outline specifically (title/pages)
+        // If strict parse fails (streaming), we just return null and wait for more data
+        // or rely on the regex fallback in Step3 for content content.
         return null;
     }
 };

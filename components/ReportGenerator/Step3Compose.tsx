@@ -218,9 +218,13 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             // Fallback: Use Regex to extract content if JSON parser fails completely (e.g. malformed escape chars in stream)
             const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
             if (match) {
-                // Return what we matched so far, unescaping if possible but safe to return raw matched
-                // Note: unescaping might fail if incomplete unicode escape \u2... so we return raw match as best effort
-                return match[1];
+                // Try to clean up the extracted string for display
+                // Replace escaped newlines with actual newlines, escaped quotes with quotes
+                let clean = match[1];
+                try {
+                    clean = clean.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                } catch(e) {}
+                return clean;
             }
             
             // Critical Fix: If parser returns null and regex fails, return raw string instead of empty string
