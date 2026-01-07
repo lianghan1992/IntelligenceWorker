@@ -4,10 +4,10 @@ import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf } from '../../api/stratify';
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
-    PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon
+    PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
-import { tryParsePartialJson } from './Step1Collect'; // Import shared helper
+import { tryParsePartialJson } from './Step1Collect'; 
 
 // Add marked for markdown rendering
 declare global {
@@ -28,12 +28,67 @@ interface MainCanvasProps {
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
 }
 
+// --- Helper: Scaled Slide Renderer ---
+// Renders the slide at a fixed base resolution (1280x720) and scales it to fit the container.
+const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = ({ html, width, height }) => {
+    const BASE_WIDTH = 1280;
+    const BASE_HEIGHT = 720;
+    
+    // Calculate scale to fit the container while maintaining aspect ratio
+    const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT) || 1;
+
+    return (
+        <div 
+            style={{ 
+                width: width, 
+                height: height, 
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#333' // Dark background for letterboxing
+            }}
+        >
+            <div 
+                style={{ 
+                    width: BASE_WIDTH, 
+                    height: BASE_HEIGHT, 
+                    transform: `scale(${scale})`, 
+                    transformOrigin: 'center center',
+                    background: 'white',
+                    boxShadow: '0 0 20px rgba(0,0,0,0.1)'
+                }}
+            >
+                <iframe 
+                    srcDoc={html}
+                    className="w-full h-full border-none pointer-events-none select-none"
+                    title="Slide Preview"
+                />
+            </div>
+        </div>
+    );
+};
+
 export const MainCanvas: React.FC<MainCanvasProps> = ({ 
     stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];
     const editorScrollRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+    // Monitor container size for scaling
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const ro = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+            }
+        });
+        ro.observe(containerRef.current);
+        return () => ro.disconnect();
+    }, []);
 
     const handleExport = async () => {
         setIsExporting(true);
@@ -62,44 +117,30 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     };
 
-    // Robust display content for streaming
+    // Robust display content for streaming text
     const displayContent = useMemo(() => {
         if (!activePage) return '';
         const raw = activePage.content;
         
-        // If it looks like JSON (starts with {), we MUST parse it or return empty to avoid flickering raw JSON.
         if (raw.trim().startsWith('{') || raw.trim().startsWith('```json')) {
             const partial = tryParsePartialJson(raw);
-            if (partial && partial.content) {
-                return partial.content;
-            }
-            // If strict parse fails, try regex for the content field specifically
+            if (partial && partial.content) return partial.content;
             const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
             if (match) {
-                try {
-                     // Create a valid string literal from the captured part + closing quote attempt
-                     // This handles escaped quotes correctly
-                     return JSON.parse(`"${match[1]}"`); 
-                } catch(e) {
-                     // If JSON parse fails (e.g. unclosed escape), just return raw capture
-                     return match[1];
-                }
+                try { return JSON.parse(`"${match[1]}"`); } catch(e) { return match[1]; }
             }
-            // If strictly looks like JSON but we can't extract content yet, 
-            // return EMPTY string instead of raw JSON to prevent flicker.
             return ''; 
         }
         return raw;
     }, [activePage?.content]);
 
-    // Auto-scroll effect for streaming content
+    // Auto-scroll effect
     useEffect(() => {
-        if (activePage?.isGenerating && editorScrollRef.current) {
+        if (activePage?.isGenerating && !activePage.html && editorScrollRef.current) {
             editorScrollRef.current.scrollTop = editorScrollRef.current.scrollHeight;
         }
-    }, [displayContent, activePage?.isGenerating]);
+    }, [displayContent, activePage?.isGenerating, activePage?.html]);
 
-    // Render Markdown Helper with Fix
     const renderMarkdown = (content: string): { __html: string } | undefined => {
         if (!content) return undefined;
         if (window.marked) {
@@ -150,7 +191,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         );
     }
 
-    // Stage: Compose
     if (!activePage) return <div className="p-10 text-center">Loading...</div>;
 
     const hasHtml = !!activePage.html;
@@ -177,18 +217,38 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                          >
                              {/* Thumbnail Preview */}
                              <div className="aspect-[16/9] bg-white rounded border border-slate-200 mb-2 overflow-hidden relative flex items-center justify-center">
-                                 {p.html ? (
-                                     <iframe srcDoc={p.html} className="w-[400%] h-[400%] pointer-events-none scale-[0.25] origin-top-left border-none" tabIndex={-1} />
+                                 {/* 
+                                     Three States for Thumbnail:
+                                     1. HTML Ready (Not Generating): Show Scaled Iframe
+                                     2. Generating HTML: Show "Rendering" animation or Code snippet
+                                     3. Text Only: Show Text
+                                 */}
+                                 {p.html && !p.isGenerating ? (
+                                    // Fixed wrapper for scaling logic
+                                     <div className="w-full h-full relative overflow-hidden bg-white">
+                                         <div className="absolute inset-0 origin-top-left transform scale-[0.16] w-[625%] h-[625%]">
+                                             <iframe srcDoc={p.html} className="w-full h-full border-none pointer-events-none" tabIndex={-1} />
+                                         </div>
+                                     </div>
+                                 ) : p.isGenerating && p.html ? (
+                                     // Generating HTML state - Show Code/Terminal look
+                                     <div className="w-full h-full bg-slate-900 p-2 text-[6px] font-mono text-green-400 overflow-hidden leading-tight opacity-80">
+                                         {p.html.slice(0, 300)}...
+                                         <div className="absolute bottom-1 right-1">
+                                             <RefreshIcon className="w-3 h-3 animate-spin text-white"/>
+                                         </div>
+                                     </div>
                                  ) : p.content ? (
-                                     <div className="p-1 text-[4px] text-slate-300 leading-tight overflow-hidden text-left h-full w-full select-none">
-                                        {/* Use raw content for thumb if available, stripped of JSON if needed, but thumbnails update less frequently so it's okay */}
-                                        {p.content.startsWith('{') ? '...' : p.content.slice(0, 200)}
+                                     // Text Content State
+                                     <div className="p-2 text-[6px] text-slate-400 leading-tight overflow-hidden text-left h-full w-full select-none bg-slate-50">
+                                        {p.content.startsWith('{') ? '...' : p.content.slice(0, 150)}
                                      </div>
                                  ) : (
                                      <span className="text-[10px] text-slate-300">{idx+1}</span>
                                  )}
                                  
-                                 {p.isGenerating && (
+                                 {/* Loading Overlay (only if not showing the code view above) */}
+                                 {p.isGenerating && !p.html && (
                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
                                          <RefreshIcon className="w-4 h-4 text-indigo-500 animate-spin"/>
                                      </div>
@@ -198,13 +258,12 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                              <div className="flex items-center gap-2">
                                  <span className={`text-xs font-bold w-4 ${activePageIndex === idx ? 'text-indigo-600' : 'text-slate-400'}`}>{idx + 1}</span>
                                  <span className="text-xs text-slate-600 truncate flex-1">{p.title}</span>
-                                 {p.html && <CheckIcon className="w-3 h-3 text-green-500" />}
+                                 {p.html && !p.isGenerating && <CheckIcon className="w-3 h-3 text-green-500" />}
                              </div>
                          </div>
                      ))}
                  </div>
                  
-                 {/* Export Button - Only show if HTML exists */}
                  {hasReadyHtml && (
                      <div className="p-4 border-t border-slate-200">
                          <button 
@@ -224,26 +283,39 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                 {/* Toolbar */}
                 <div className="h-14 px-6 flex items-center justify-between bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
                     <div className="flex items-center gap-4">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                            Page {activePageIndex + 1} • {hasHtml ? 'HTML Preview' : 'Content Editor'}
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                            Page {activePageIndex + 1} • 
+                            {hasHtml && !isGenerating ? <span className="text-green-600">HTML Preview</span> : 
+                             isGenerating && hasHtml ? <span className="text-blue-600 flex items-center gap-1"><CodeIcon className="w-3 h-3"/> Streaming Code...</span> :
+                             'Content Editor'}
                         </span>
                     </div>
                 </div>
 
                 {/* Content Canvas */}
-                <div className="flex-1 overflow-auto bg-slate-100 flex items-center justify-center p-8 relative">
-                    <div className={`w-full max-w-[1000px] aspect-[16/9] bg-white shadow-2xl rounded-sm overflow-hidden relative group transition-all duration-500 ring-1 ring-slate-900/5 ${isGenerating ? 'ring-indigo-200 ring-4' : ''}`}>
+                <div className="flex-1 overflow-hidden bg-slate-100 flex items-center justify-center p-8 relative">
+                    <div 
+                        ref={containerRef}
+                        className={`w-full max-w-[1200px] aspect-[16/9] bg-white shadow-2xl rounded-sm overflow-hidden relative group transition-all duration-500 ring-1 ring-slate-900/5 ${isGenerating ? 'ring-indigo-200 ring-4' : ''}`}
+                    >
                         
-                        {/* 1. HTML View (Highest Priority if exists) */}
-                        {hasHtml ? (
-                            <iframe 
-                                srcDoc={activePage.html}
-                                className="w-full h-full border-none pointer-events-none select-none scale-[1]"
-                                style={{ transformOrigin: 'top left' }} 
-                                title="Preview"
-                            />
+                        {/* 1. HTML View (Highest Priority if exists and NOT generating) */}
+                        {hasHtml && !isGenerating ? (
+                            <ScaledSlide html={activePage.html!} width={containerSize.width} height={containerSize.height} />
+                        ) : hasHtml && isGenerating ? (
+                            /* 2. Streaming Code View (Prevents Flicker) */
+                            <div className="absolute inset-0 bg-[#1e1e1e] p-6 overflow-hidden flex flex-col">
+                                <div className="flex items-center gap-2 text-green-400 border-b border-white/10 pb-2 mb-2 font-mono text-xs">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                    <span>Compiling HTML Slide...</span>
+                                </div>
+                                <pre className="flex-1 font-mono text-[10px] md:text-xs text-slate-300 whitespace-pre-wrap overflow-y-auto custom-scrollbar-dark leading-relaxed">
+                                    {activePage.html}
+                                    <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>
+                                </pre>
+                            </div>
                         ) : hasContent ? (
-                            /* 2. Text/Markdown View */
+                            /* 3. Text/Markdown View */
                             <div ref={editorScrollRef} className="w-full h-full overflow-y-auto p-12 bg-white relative scroll-smooth">
                                 <article 
                                     className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-h1:text-3xl prose-h2:text-2xl prose-strong:text-indigo-700"
@@ -257,7 +329,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                 )}
                             </div>
                         ) : (
-                            /* 3. Empty/Loading State */
+                            /* 4. Empty/Loading State */
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-white p-20 text-center">
                                 {isGenerating ? (
                                     <>
