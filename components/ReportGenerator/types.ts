@@ -16,6 +16,7 @@ export interface PPTPageData {
     content: string;
     html?: string;
     isGenerating?: boolean;
+    chatHistory?: ChatMessage[]; // Store context for redesigning this specific page
 }
 
 export interface PPTData {

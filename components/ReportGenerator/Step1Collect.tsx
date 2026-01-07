@@ -5,7 +5,7 @@ import {
     CheckCircleIcon, PlayIcon, DocumentTextIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
-import { PPTStage, ChatMessage, PPTData } from './types';
+import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 
 interface CopilotSidebarProps {
     stage: PPTStage;
@@ -176,7 +176,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             if (parsedOutline.pages) {
                 setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
                 if (stage === 'collect') setStage('outline');
-                // Don't change content here, rely on UI masking
             }
         } catch (e) {
             console.error(e);
@@ -223,6 +222,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 reasoning: '' 
             }]);
 
+            // Set generation state
             setData(prev => {
                 const newPages = [...prev.pages];
                 newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true };
@@ -232,8 +232,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             try {
                 let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
                 let messages: any[] = [];
+                let systemPromptContent = '';
 
                 if (autoGenMode === 'text') {
+                    // ... Text generation setup (same as before) ...
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
                         if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
@@ -246,16 +248,26 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          messages = [{ role: 'user', content: `Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
                     }
                 } else {
+                    // === HTML Generation with Session ===
                     try {
                         const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
                         if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-                        messages = [
-                            { role: 'system', content: promptDetail.content }, 
-                            { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
-                        ];
+                        systemPromptContent = promptDetail.content;
                     } catch(e) {
-                         messages = [{ role: 'user', content: `Generate HTML slide for: ${currentPage.title}. Content: ${currentPage.content}` }];
+                         systemPromptContent = "You are an expert web designer. Create a single 1600x900 HTML slide using TailwindCSS.";
                     }
+                    
+                    messages = [
+                        { role: 'system', content: systemPromptContent }, 
+                        { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
+                    ];
+
+                    // **Store Initial Session Context**
+                    setData(prev => {
+                        const newPages = [...prev.pages];
+                        newPages[targetIdx].chatHistory = messages as ChatMessage[];
+                        return { ...prev, pages: newPages };
+                    });
                 }
 
                 let accContent = '';
@@ -269,7 +281,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accReasoning += chunk.reasoning;
                     if (chunk.content) accContent += chunk.content;
 
-                    // Update history but UI will mask it if it's content generation
                     setHistory(prev => {
                         const h = [...prev];
                         h[h.length - 1] = { ...h[h.length - 1], reasoning: accReasoning, content: accContent };
@@ -279,17 +290,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     setData(prev => {
                         const newPages = [...prev.pages];
                         if (autoGenMode === 'text') {
-                            // INTELLIGENT PARSING: Check if content is wrapped in JSON
                             let displayContent = accContent;
-                            // Check for JSON structure starting
                             if (accContent.trim().startsWith('{') || accContent.includes('"content":')) {
                                 const partial = tryParsePartialJson(accContent);
-                                if (partial && partial.content) {
-                                    displayContent = partial.content;
-                                }
+                                if (partial && partial.content) displayContent = partial.content;
                             }
                             newPages[targetIdx].content = displayContent;
                         } else {
+                            // HTML Mode - Streaming into .html
                             const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
                             newPages[targetIdx].html = cleanHtml;
                         }
@@ -297,13 +305,21 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     });
                 });
 
+                // Post-processing
                 setData(prev => {
                     const newPages = [...prev.pages];
                     newPages[targetIdx].isGenerating = false;
+                    
+                    // **Append Response to Session Context (HTML Mode)**
+                    if (autoGenMode === 'html') {
+                         const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
+                         const currentHistory = newPages[targetIdx].chatHistory || [];
+                         newPages[targetIdx].chatHistory = [...currentHistory, { role: 'assistant', content: cleanHtml }];
+                    }
+                    
                     return { ...prev, pages: newPages };
                 });
 
-                // Success message replacement
                 setHistory(prev => {
                    const h = [...prev];
                    h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页生成完成。`;
@@ -316,7 +332,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                  setData(prev => {
                     const newPages = [...prev.pages];
                     newPages[targetIdx].isGenerating = false;
-                    // Mark as done anyway to prevent infinite loop
                     if (autoGenMode === 'text') newPages[targetIdx].content = '生成失败';
                     else newPages[targetIdx].html = '<div>生成失败</div>';
                     return { ...prev, pages: newPages };
@@ -329,73 +344,136 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         processQueue();
     }, [stage, isLlmActive, autoGenMode, data.pages]);
 
-    // --- Logic: Modification ---
+    // --- Logic: Modification (Context-Aware) ---
     const handleModification = async (instruction: string) => {
         setIsLlmActive(true);
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
         
-        setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在根据意见重新撰写第 ${targetIdx + 1} 页...`, reasoning: '' }]);
+        setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '' }]);
         
-        setData(prev => {
-            const newPages = [...prev.pages];
-            newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true, content: '', html: undefined };
-            return { ...prev, pages: newPages };
-        });
+        let messages: ChatMessage[] = [];
+        let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+        
+        // Decide Text vs HTML modification
+        const isHtmlMode = !!page.html;
 
         try {
-             let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+             // Model Setup
              try {
+                // Use different prompts or same default model
                 const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
                 if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
              } catch(e) {}
-             
-             const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
+
+             if (isHtmlMode) {
+                 // === HTML Redesign Mode ===
+                 // Recover context
+                 let contextHistory = page.chatHistory || [];
+                 
+                 // Fallback if no history exists (e.g. loaded from old save)
+                 if (contextHistory.length === 0) {
+                     contextHistory = [
+                         { role: 'system', content: "You are an expert web designer. User will ask to modify the slide." },
+                         { role: 'assistant', content: page.html || '' }
+                     ];
+                 }
+
+                 // Append new user instruction
+                 const newMsg: ChatMessage = { role: 'user', content: instruction };
+                 messages = [...contextHistory, newMsg];
+
+                 // Prepare UI for streaming (Keep old HTML visible or show placeholder? 
+                 // We'll show placeholder to indicate regeneration, or better, keep old until new one starts coming?
+                 // Current UI handles `isGenerating && html` by showing code terminal. 
+                 // So we set isGenerating=true.
+                 
+                 setData(prev => {
+                    const newPages = [...prev.pages];
+                    newPages[targetIdx] = { 
+                        ...newPages[targetIdx], 
+                        isGenerating: true,
+                        chatHistory: messages // Update context optimistically
+                    };
+                    return { ...prev, pages: newPages };
+                });
+
+             } else {
+                 // === Text Redesign Mode ===
+                 const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
+                 messages = [{ role: 'user', content: userMsg }];
+                 
+                 setData(prev => {
+                    const newPages = [...prev.pages];
+                    newPages[targetIdx] = { ...newPages[targetIdx], isGenerating: true, content: '' };
+                    return { ...prev, pages: newPages };
+                 });
+             }
 
              let accContent = '';
              let accReasoning = '';
 
              await streamChatCompletions({
                 model: modelStr,
-                messages: [{ role: 'user', content: userMsg }],
+                messages: messages as any[],
                 stream: true
             }, (chunk) => {
                 if (chunk.reasoning) accReasoning += chunk.reasoning;
                 if (chunk.content) accContent += chunk.content;
                 
+                // Update Copilot History (Visual only)
                 setHistory(prev => {
                     const h = [...prev];
                     h[h.length - 1].reasoning = accReasoning;
                     return h;
                 });
                 
+                // Update Page Data
                 setData(prev => {
                     const newPages = [...prev.pages];
-                    // Handle JSON wrap if present
-                    let displayContent = accContent;
-                    if (accContent.trim().startsWith('{')) {
-                        const partial = tryParsePartialJson(accContent);
-                        if (partial && partial.content) displayContent = partial.content;
+                    if (isHtmlMode) {
+                        const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
+                        newPages[targetIdx].html = cleanHtml; 
+                    } else {
+                        let displayContent = accContent;
+                        if (accContent.trim().startsWith('{')) {
+                            const partial = tryParsePartialJson(accContent);
+                            if (partial && partial.content) displayContent = partial.content;
+                        }
+                        newPages[targetIdx].content = displayContent;
                     }
-                    newPages[targetIdx].content = displayContent;
                     return { ...prev, pages: newPages };
                 });
             });
 
+            // Finalize
             setData(prev => {
                 const newPages = [...prev.pages];
                 newPages[targetIdx].isGenerating = false;
+                
+                // Save context if HTML mode
+                if (isHtmlMode) {
+                     const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
+                     const updatedHistory = [...messages, { role: 'assistant', content: cleanHtml } as ChatMessage];
+                     newPages[targetIdx].chatHistory = updatedHistory;
+                }
+                
                 return { ...prev, pages: newPages };
             });
             
             setHistory(prev => {
                 const h = [...prev];
-                h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页已更新。`;
+                h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页已${isHtmlMode ? '重绘' : '更新'}。`;
                 return h;
             });
 
         } catch (e) {
             setHistory(prev => [...prev, { role: 'assistant', content: "修改失败，请重试。" }]);
+             setData(prev => {
+                const newPages = [...prev.pages];
+                newPages[targetIdx].isGenerating = false;
+                return { ...prev, pages: newPages };
+            });
         } finally {
             setIsLlmActive(false);
         }
@@ -568,12 +646,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0">
+                    {stage === 'compose' && !autoGenMode && data.pages[activePageIndex]?.html && (
+                         <div className="mb-2 px-1 flex items-center gap-2">
+                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target: Page {activePageIndex + 1} Redesign</span>
+                         </div>
+                    )}
                     <div className="relative shadow-sm rounded-xl">
                         <input 
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            placeholder={stage === 'collect' ? "输入研报主题..." : (autoGenMode ? "正在生成中..." : "输入修改意见，如：把本页标题改为...")}
+                            placeholder={stage === 'collect' ? "输入研报主题..." : (autoGenMode ? "正在生成中..." : "输入修改意见，如：把背景改成深蓝色...")}
                             className="w-full bg-slate-50 text-slate-800 placeholder:text-slate-400 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                             disabled={isLlmActive}
                         />
@@ -587,7 +671,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                     {stage === 'compose' && !autoGenMode && (
                         <p className="text-[10px] text-center text-slate-400 mt-2">
-                           当前为第 {activePageIndex + 1} 页。输入指令即可修改本页内容。
+                           当前为第 {activePageIndex + 1} 页。输入指令即可修改本页内容或样式。
                         </p>
                     )}
                 </div>
