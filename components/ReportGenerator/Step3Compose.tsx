@@ -28,6 +28,76 @@ interface MainCanvasProps {
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
 }
 
+// --- Helper: Simple HTML Syntax Highlighter ---
+const highlightHtmlStream = (code: string) => {
+    let output = '';
+    let cursor = 0;
+
+    const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    while (cursor < code.length) {
+        // Find start of next tag
+        const tagStart = code.indexOf('<', cursor);
+        
+        if (tagStart === -1) {
+            // No more tags, rest is text
+            output += escape(code.slice(cursor));
+            break;
+        }
+
+        // Append text before tag
+        if (tagStart > cursor) {
+            output += escape(code.slice(cursor, tagStart));
+        }
+
+        // Find end of tag
+        const tagEnd = code.indexOf('>', tagStart);
+        
+        if (tagEnd === -1) {
+            // Incomplete tag at end of stream (e.g. "<div cla")
+            // Just treat as text for now until more comes in
+            output += escape(code.slice(tagStart));
+            break;
+        }
+
+        // Process tag content: <div class="foo">
+        const tagContent = code.slice(tagStart, tagEnd + 1); // includes < and >
+        
+        // Check if comment
+        if (tagContent.startsWith('<!--')) {
+            output += `<span class="text-slate-500">${escape(tagContent)}</span>`;
+        } else {
+            // Regular tag
+            // We need to handle the inside of the tag.
+            // First, escape it so we work with safe strings
+            let safeTag = escape(tagContent); // &lt;div class="foo"&gt;
+            
+            // Highlight Tag Name: &lt;div or &lt;/div
+            // Replace first occurrence
+            safeTag = safeTag.replace(/^(&lt;\/?[a-zA-Z0-9-]+)/, '<span class="text-pink-400 font-bold">$1</span>');
+            
+            // Highlight Attributes: word followed by =
+            // Use regex that matches attribute pattern but ignores already wrapped spans
+            // We do this by matching the raw escaped text pattern
+            safeTag = safeTag.replace(/(\s)([a-zA-Z0-9-]+)(=)/g, '$1<span class="text-sky-300">$2</span><span class="text-white">$3</span>');
+            
+            // Highlight Strings: "..."
+            safeTag = safeTag.replace(/(".*?")/g, '<span class="text-emerald-300">$1</span>');
+            
+            // Highlight brackets &gt; at the end
+            safeTag = safeTag.replace(/(&gt;)$/, '<span class="text-slate-400 font-bold">$1</span>');
+            // Highlight brackets &lt; at the start (if not already handled by tag name replace, but tag name replace included it)
+            // If the tag name regex didn't match (e.g. just <>), we handle it separately or rely on pink for tag name
+            
+            output += safeTag;
+        }
+
+        cursor = tagEnd + 1;
+    }
+    
+    return output;
+};
+
 // --- Helper: Scaled Slide Renderer ---
 // Renders the slide at a fixed base resolution (1600x900) and scales it to fit the container.
 const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = ({ html, width, height }) => {
@@ -260,8 +330,9 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                      </div>
                                  ) : p.isGenerating && p.html ? (
                                      // Generating HTML state - Show Code/Terminal look
-                                     <div className="w-full h-full bg-slate-900 p-2 text-[5px] font-mono text-green-400 overflow-hidden leading-tight opacity-90 break-all whitespace-pre-wrap">
-                                         {p.html.slice(-500)}
+                                     <div className="w-full h-full bg-[#1e1e1e] p-2 text-[5px] font-mono text-slate-300 overflow-hidden leading-tight opacity-90 break-all whitespace-pre-wrap">
+                                         {/* Use dangerouslySetInnerHTML to show colorized mini preview */}
+                                         <span dangerouslySetInnerHTML={{ __html: highlightHtmlStream(p.html.slice(-500)) }}></span>
                                          <div className="absolute bottom-1 right-1">
                                              <RefreshIcon className="w-3 h-3 animate-spin text-white"/>
                                          </div>
@@ -348,10 +419,10 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                     <pre 
                                         ref={codeScrollRef}
                                         className="font-mono text-[11px] md:text-xs text-slate-300 whitespace-pre-wrap leading-relaxed"
-                                    >
-                                        {activePage.html}
-                                        <span className="inline-block w-2 h-4 bg-green-500 ml-0.5 animate-pulse align-middle"></span>
-                                    </pre>
+                                        dangerouslySetInnerHTML={{ 
+                                            __html: highlightHtmlStream(activePage.html || '') + '<span class="inline-block w-2 h-4 bg-green-500 ml-0.5 animate-pulse align-middle"></span>' 
+                                        }}
+                                    />
                                 </div>
                             </div>
                         ) : hasContent ? (
