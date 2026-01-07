@@ -6,6 +6,8 @@ import {
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
+// @ts-ignore - Loaded via importmap
+import { parse } from 'best-effort-json-parser';
 
 interface CopilotSidebarProps {
     stage: PPTStage;
@@ -21,37 +23,17 @@ interface CopilotSidebarProps {
     onReset: () => void;
 }
 
-// --- Helper: Robust Partial JSON Parser ---
+// --- Helper: Robust Partial JSON Parser using library ---
 export const tryParsePartialJson = (jsonStr: string) => {
     try {
-        let cleanStr = jsonStr.replace(/```json|```/g, '').trim();
-        if (cleanStr.startsWith('```')) cleanStr = cleanStr.substring(3).trim();
-        
-        const stack = [];
-        let inString = false;
-        let escaped = false;
-        
-        for (let i = 0; i < cleanStr.length; i++) {
-            const char = cleanStr[i];
-            if (escaped) { escaped = false; continue; }
-            if (char === '\\') { escaped = true; continue; }
-            if (char === '"') { inString = !inString; continue; }
-            if (!inString) {
-                if (char === '{' || char === '[') stack.push(char);
-                else if (char === '}') { if (stack[stack.length-1] === '{') stack.pop(); }
-                else if (char === ']') { if (stack[stack.length-1] === '[') stack.pop(); }
-            }
+        // Clean up markdown code blocks first
+        let cleanStr = jsonStr.trim();
+        if (cleanStr.startsWith('```')) {
+            cleanStr = cleanStr.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
         }
         
-        if (inString) cleanStr += '"';
-
-        let closer = '';
-        while (stack.length > 0) {
-            const char = stack.pop();
-            closer += (char === '{' ? '}' : ']');
-        }
-        
-        return JSON.parse(cleanStr + closer);
+        // Use the library to parse partial JSON
+        return parse(cleanStr);
     } catch (e) {
         return null;
     }
@@ -183,6 +165,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     return newHistory;
                 });
                 
+                // Real-time parsing using robust parser
                 if (accumulatedContent.trim().startsWith('{')) {
                     const partialOutline = tryParsePartialJson(accumulatedContent);
                     if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
@@ -197,10 +180,20 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             });
             
             const jsonStr = accumulatedContent.replace(/```json|```/g, '').trim();
-            const parsedOutline = JSON.parse(jsonStr);
-            if (parsedOutline.pages) {
-                setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
-                if (stage === 'collect') setStage('outline');
+            // Final parse attempt
+            try {
+                const parsedOutline = JSON.parse(jsonStr);
+                if (parsedOutline.pages) {
+                    setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
+                    if (stage === 'collect') setStage('outline');
+                }
+            } catch (e) {
+                 // Fallback to partial result if final JSON is still technically broken but readable
+                 const partial = tryParsePartialJson(accumulatedContent);
+                 if (partial && partial.pages) {
+                      setData(prev => ({ ...prev, topic: partial.title, outline: partial }));
+                      if (stage === 'collect') setStage('outline');
+                 }
             }
         } catch (e) {
             console.error(e);
@@ -323,6 +316,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         const newPages = [...prev.pages];
                         if (autoGenMode === 'text') {
                             let displayContent = accContent;
+                            // Real-time parsing attempt
                             if (accContent.trim().startsWith('{') || accContent.includes('"content":')) {
                                 const partial = tryParsePartialJson(accContent);
                                 if (partial && partial.content) displayContent = partial.content;

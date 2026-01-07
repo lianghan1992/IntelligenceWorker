@@ -83,11 +83,15 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
     const BASE_WIDTH = 1600;
     const BASE_HEIGHT = 900;
     
+    // Fallback to reasonable defaults if width/height are 0 (e.g. initial render)
     const safeWidth = width || 800;
     const safeHeight = height || 600;
     
     // Calculate scale to fit the container while maintaining aspect ratio
-    const scale = Math.min(safeWidth / BASE_WIDTH, safeHeight / BASE_HEIGHT) * 0.95;
+    // If width/height are effectively 0, default to 1 to avoid invisible transform
+    const scale = (safeWidth > 0 && safeHeight > 0) 
+        ? Math.min(safeWidth / BASE_WIDTH, safeHeight / BASE_HEIGHT) * 0.95
+        : 0.5;
 
     return (
         <div 
@@ -136,7 +140,12 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [genModel, setGenModel] = useState<string>('');
 
+    const hasHtml = !!activePage?.html;
+    const isGenerating = !!activePage?.isGenerating;
+
     // Monitor container size for scaling
+    // CRITICAL FIX: Added dependencies [activePageIndex, isGenerating, hasHtml] to ensure 
+    // size is re-calculated when switching from "Code View" to "Slide View".
     useEffect(() => {
         if (!containerRef.current) return;
         
@@ -149,11 +158,20 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             }
         };
 
+        // Immediate update
         updateSize();
+
+        // Delayed update to allow layout to settle (fixes "small card" issue)
+        const timer = setTimeout(updateSize, 100);
+
         const ro = new ResizeObserver(updateSize);
         ro.observe(containerRef.current);
-        return () => ro.disconnect();
-    }, []);
+        
+        return () => {
+            ro.disconnect();
+            clearTimeout(timer);
+        };
+    }, [activePageIndex, isGenerating, hasHtml]);
 
     const handleExport = async () => {
         setIsExporting(true);
@@ -187,15 +205,24 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         if (!activePage) return '';
         const raw = activePage.content || '';
         
+        // If it starts with JSON structure, try to parse partial
         if (raw.trim().startsWith('{') || raw.trim().startsWith('```json')) {
             const partial = tryParsePartialJson(raw);
-            if (partial && partial.content) return partial.content;
+            if (partial && partial.content) {
+                return partial.content;
+            }
+            
+            // Fallback: Use Regex to extract content if JSON parser fails completely (e.g. malformed escape chars in stream)
             const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
             if (match) {
-                try { return JSON.parse(`"${match[1]}"`); } catch(e) { return match[1]; }
+                // Return what we matched so far, unescaping if possible but safe to return raw matched
+                // Note: unescaping might fail if incomplete unicode escape \u2... so we return raw match as best effort
+                return match[1];
             }
-            // Fallback: don't show raw JSON if parsing fails during stream
-            return ''; 
+            
+            // Critical Fix: If parser returns null and regex fails, return raw string instead of empty string
+            // This ensures user sees *something* happening (even if it's raw JSON) rather than a blank screen
+            return raw; 
         }
         return raw;
     }, [activePage?.content]);
@@ -267,9 +294,9 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
     if (!activePage) return <div className="p-10 text-center">Loading...</div>;
 
-    const hasHtml = !!activePage.html;
-    const isGenerating = activePage.isGenerating;
-    const hasContent = !!displayContent;
+    // Fix: hasContent should be true if there is ANY content to show, not just if displayContent is non-empty
+    // We fall back to showing something to avoid empty state during loading
+    const hasContent = !!displayContent || isGenerating;
 
     return (
         <div className="flex h-full overflow-hidden bg-slate-100">
@@ -397,118 +424,46 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                         <div className="w-2.5 h-2.5 rounded-full bg-green-500/20"></div>
                                     </div>
                                 </div>
-                                <div className="flex-1 overflow-auto p-4 custom-scrollbar-dark relative">
-                                    <pre 
-                                        ref={codeScrollRef}
-                                        className="font-mono text-[11px] md:text-xs text-slate-300 whitespace-pre-wrap leading-relaxed"
-                                        dangerouslySetInnerHTML={{ 
-                                            __html: highlightHtmlStream(activePage.html || '') + '<span class="inline-block w-2 h-4 bg-green-500 ml-0.5 animate-pulse align-middle"></span>' 
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ) : hasContent ? (
-                            /* 3. Text/Markdown View (Beautified) */
-                            <div className="w-full h-full flex justify-center items-start overflow-hidden">
-                                <div className="w-full max-w-4xl bg-white h-full rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-                                    {/* Document Header */}
-                                    <div className="flex-shrink-0 px-8 py-6 border-b border-slate-100 bg-white">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold uppercase tracking-wider mb-2">
-                                                    Draft Mode
-                                                </div>
-                                                <h1 className="text-2xl font-black text-slate-900 leading-tight">{activePage.title}</h1>
-                                            </div>
-                                            <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-                                                <PencilIcon className="w-5 h-5" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Document Body */}
-                                    <div 
-                                        ref={editorScrollRef} 
-                                        className="flex-1 overflow-y-auto px-8 py-8 md:px-12 md:py-10 custom-scrollbar scroll-smooth"
-                                    >
-                                        <article 
-                                            className="
-                                                prose prose-slate prose-lg max-w-none 
-                                                prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-800
-                                                prose-p:text-slate-600 prose-p:leading-8
-                                                prose-strong:text-indigo-700 prose-strong:font-bold
-                                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50/50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:text-indigo-900 prose-blockquote:not-italic prose-blockquote:rounded-r-lg
-                                                prose-li:marker:text-indigo-400
-                                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
-                                                prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-sm
-                                            "
-                                            dangerouslySetInnerHTML={renderMarkdown(displayContent)}
-                                        />
-                                        
-                                        {/* Bottom Padding for visual breathing room */}
-                                        <div className="h-20"></div>
-
-                                        {isGenerating && (
-                                            <div className="flex items-center gap-2 text-indigo-500 animate-pulse mt-4">
-                                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                                                <span className="text-sm font-bold">AI 正在撰写...</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                <div className="flex-1 overflow-auto p-6 font-mono text-xs custom-scrollbar-dark relative">
+                                    <pre ref={codeScrollRef} className="whitespace-pre-wrap break-all leading-relaxed text-slate-400">
+                                         <span dangerouslySetInnerHTML={{ __html: highlightHtmlStream(activePage.html!) }}></span>
+                                         <span className="inline-block w-2 h-4 bg-slate-400 ml-1 animate-pulse align-middle"></span>
+                                    </pre>
                                 </div>
                             </div>
                         ) : (
-                            /* 4. Empty/Loading State */
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-20 text-center">
-                                {isGenerating ? (
-                                    <>
-                                        <div className="w-16 h-16 relative mb-6">
-                                             <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
-                                             <div className="relative z-10 w-full h-full bg-white rounded-full border-2 border-indigo-100 flex items-center justify-center">
-                                                 <SparklesIcon className="w-8 h-8 text-indigo-500 animate-pulse" />
-                                             </div>
+                            /* 3. Markdown Editor View (Default) */
+                            <div className="w-full max-w-[900px] h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                                        {activePage.title}
+                                    </h1>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-8 md:px-12 custom-scrollbar" ref={editorScrollRef}>
+                                    {hasContent ? (
+                                        <article 
+                                            className="prose prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-blue-600 prose-img:rounded-xl"
+                                            dangerouslySetInnerHTML={renderMarkdown(displayContent)} 
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                                            <PencilIcon className="w-12 h-12 mb-4 opacity-50" />
+                                            <p className="text-sm font-medium">Waiting for content generation...</p>
                                         </div>
-                                        <h3 className="text-xl font-bold text-slate-800 mb-2">AI 正在构思内容...</h3>
-                                        <div className="mt-8 w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-indigo-500 rounded-full animate-progress-indeterminate"></div>
+                                    )}
+                                    {isGenerating && (
+                                        <div className="mt-4 flex items-center gap-2 text-indigo-500 animate-pulse text-sm font-bold">
+                                            <SparklesIcon className="w-4 h-4" />
+                                            <span>AI Writing...</span>
                                         </div>
-                                    </>
-                                ) : (
-                                    <div className="text-slate-300">
-                                        <ViewGridIcon className="w-16 h-16 mx-auto mb-4 opacity-20" />
-                                        <p className="font-bold text-lg">等待生成</p>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         )}
-                        
+
                     </div>
                 </div>
             </div>
-            
-            <style>{`
-                @keyframes progress-indeterminate {
-                    0% { transform: translateX(-100%); }
-                    50% { transform: translateX(100%); }
-                    100% { transform: translateX(100%); }
-                }
-                .animate-progress-indeterminate {
-                    animation: progress-indeterminate 1.5s infinite linear;
-                }
-                .custom-scrollbar-dark::-webkit-scrollbar {
-                    width: 8px;
-                }
-                .custom-scrollbar-dark::-webkit-scrollbar-track {
-                    background: #1e1e1e; 
-                }
-                .custom-scrollbar-dark::-webkit-scrollbar-thumb {
-                    background: #4b5563; 
-                    border-radius: 4px;
-                }
-                .custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
-                    background: #6b7280; 
-                }
-            `}</style>
         </div>
     );
 };
