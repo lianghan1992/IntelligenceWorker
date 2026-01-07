@@ -20,6 +20,9 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    exclude: ['best-effort-json-parser']
+  },
   build: {
     rollupOptions: {
       // 关键修改：告诉 Rollup 这个库是外部依赖，不要打包，运行时从 importmap 加载
