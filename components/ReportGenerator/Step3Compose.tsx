@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf } from '../../api/stratify';
 import { 
@@ -32,6 +32,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];
+    const editorScrollRef = useRef<HTMLDivElement>(null);
 
     const handleExport = async () => {
         setIsExporting(true);
@@ -59,6 +60,13 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             setIsExporting(false); 
         }
     };
+
+    // Auto-scroll effect for streaming content
+    useEffect(() => {
+        if (activePage?.isGenerating && editorScrollRef.current) {
+            editorScrollRef.current.scrollTop = editorScrollRef.current.scrollHeight;
+        }
+    }, [activePage?.content, activePage?.isGenerating]);
 
     // Render Markdown Helper with Fix
     const renderMarkdown = (content: string): { __html: string } | undefined => {
@@ -198,7 +206,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                             />
                         ) : hasContent ? (
                             /* 2. Text/Markdown View */
-                            <div className="w-full h-full overflow-y-auto p-12 bg-white relative">
+                            <div ref={editorScrollRef} className="w-full h-full overflow-y-auto p-12 bg-white relative scroll-smooth">
                                 <article 
                                     className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-h1:text-3xl prose-h2:text-2xl prose-strong:text-indigo-700"
                                     dangerouslySetInnerHTML={renderMarkdown(activePage.content)}

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData } from './types';
@@ -25,6 +25,8 @@ interface CopilotSidebarProps {
 const tryParsePartialJson = (jsonStr: string) => {
     try {
         let cleanStr = jsonStr.replace(/```json|```/g, '').trim();
+        // Remove markdown code block start if present without end
+        if (cleanStr.startsWith('```')) cleanStr = cleanStr.substring(3).trim();
         
         // Stack-based closing for better robustness
         const stack = [];
@@ -138,9 +140,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
                 
+                // Update history with raw content (will be masked in UI)
                 setHistory(prev => {
                     const newHistory = [...prev];
-                    newHistory[newHistory.length - 1] = { ...newHistory[newHistory.length - 1], reasoning: accumulatedReasoning, content: accumulatedContent };
+                    newHistory[newHistory.length - 1] = { 
+                        ...newHistory[newHistory.length - 1], 
+                        reasoning: accumulatedReasoning, 
+                        content: accumulatedContent 
+                    };
                     return newHistory;
                 });
                 
@@ -166,11 +173,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             if (parsedOutline.pages) {
                 setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
                 if (stage === 'collect') setStage('outline');
-                setHistory(prev => {
-                    const h = [...prev];
-                    h[h.length - 1].content = `大纲已生成：**${parsedOutline.title}**。\n请确认结构，或直接输入修改意见。确认无误后请点击右侧“确认并生成”。`;
-                    return h;
-                });
+                // Don't change content here, rely on UI masking
             }
         } catch (e) {
             console.error(e);
@@ -228,7 +231,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let messages: any[] = [];
 
                 if (autoGenMode === 'text') {
-                    // Try to get prompt, fallback if fails
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
                         if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
@@ -264,16 +266,26 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     if (chunk.reasoning) accReasoning += chunk.reasoning;
                     if (chunk.content) accContent += chunk.content;
 
+                    // Update history but UI will mask it if it's content generation
                     setHistory(prev => {
                         const h = [...prev];
-                        h[h.length - 1].reasoning = accReasoning;
+                        h[h.length - 1] = { ...h[h.length - 1], reasoning: accReasoning, content: accContent };
                         return h;
                     });
 
                     setData(prev => {
                         const newPages = [...prev.pages];
                         if (autoGenMode === 'text') {
-                            newPages[targetIdx].content = accContent;
+                            // INTELLIGENT PARSING: Check if content is wrapped in JSON
+                            let displayContent = accContent;
+                            // Check for JSON structure starting
+                            if (accContent.trim().startsWith('{') || accContent.includes('"content":')) {
+                                const partial = tryParsePartialJson(accContent);
+                                if (partial && partial.content) {
+                                    displayContent = partial.content;
+                                }
+                            }
+                            newPages[targetIdx].content = displayContent;
                         } else {
                             const cleanHtml = accContent.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
                             newPages[targetIdx].html = cleanHtml;
@@ -288,10 +300,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     return { ...prev, pages: newPages };
                 });
 
+                // Success message replacement
                 setHistory(prev => {
-                    const h = [...prev];
-                    h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页生成完成。`;
-                    return h;
+                   const h = [...prev];
+                   h[h.length - 1].content = `✅ 第 ${targetIdx + 1} 页生成完成。`;
+                   return h;
                 });
 
             } catch (e) {
@@ -334,7 +347,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
              } catch(e) {}
              
-             const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback.`;
+             const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
 
              let accContent = '';
              let accReasoning = '';
@@ -355,7 +368,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 
                 setData(prev => {
                     const newPages = [...prev.pages];
-                    newPages[targetIdx].content = accContent;
+                    // Handle JSON wrap if present
+                    let displayContent = accContent;
+                    if (accContent.trim().startsWith('{')) {
+                        const partial = tryParsePartialJson(accContent);
+                        if (partial && partial.content) displayContent = partial.content;
+                    }
+                    newPages[targetIdx].content = displayContent;
                     return { ...prev, pages: newPages };
                 });
             });
@@ -411,25 +430,81 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
-            {history.filter(m => !m.hidden).map((msg, i) => (
-                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                    <div className={`
-                        max-w-[90%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm border
-                        ${msg.role === 'user' 
-                            ? 'bg-indigo-600 text-white rounded-tr-sm border-indigo-600' 
-                            : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
-                        }
-                    `}>
-                        {msg.role === 'assistant' && msg.reasoning && (
-                            <ThinkingBlock 
-                                content={msg.reasoning} 
-                                isStreaming={isLlmActive && i === history.length - 1} 
-                            />
-                        )}
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+            {history.filter(m => !m.hidden).map((msg, i) => {
+                const isAssistant = msg.role === 'assistant';
+                const isLast = i === history.length - 1;
+                
+                // --- Data Hiding Logic ---
+                const trimmed = msg.content.trim();
+                
+                // 1. Outline JSON Detection
+                // Check if it looks like JSON structure for outline
+                const isJsonOutline = isAssistant && (
+                    (trimmed.startsWith('{') || trimmed.startsWith('```json')) && 
+                    (trimmed.includes('"pages"') || trimmed.includes('title'))
+                );
+                
+                // 2. Content JSON Detection (Compose Phase)
+                const isJsonContent = isAssistant && stage === 'compose' && (
+                    (trimmed.startsWith('{') || trimmed.startsWith('```json')) &&
+                    trimmed.includes('"content"')
+                );
+
+                // 3. HTML Detection
+                const isHtml = isAssistant && (
+                     trimmed.startsWith('```html') || 
+                     trimmed.startsWith('<!DOCTYPE') || 
+                     trimmed.startsWith('<html')
+                );
+
+                // Determine if we should hide the text
+                const shouldHideText = isJsonOutline || isJsonContent || isHtml;
+
+                return (
+                    <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        <div className={`
+                            max-w-[90%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm border transition-all
+                            ${msg.role === 'user' 
+                                ? 'bg-indigo-600 text-white rounded-tr-sm border-indigo-600' 
+                                : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
+                            }
+                        `}>
+                            {/* Reasoning Block */}
+                            {msg.reasoning && (
+                                <ThinkingBlock 
+                                    content={msg.reasoning} 
+                                    isStreaming={isLlmActive && isLast} 
+                                />
+                            )}
+                            
+                            {/* Content or Status Card */}
+                            {shouldHideText ? (
+                                <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-50 shadow-none">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isLlmActive && isLast ? 'bg-indigo-100 text-indigo-600' : 'bg-green-100 text-green-600'}`}>
+                                        {isLlmActive && isLast ? (
+                                            isHtml ? <PlayIcon className="w-4 h-4 animate-spin"/> : <DocumentTextIcon className="w-4 h-4 animate-pulse"/>
+                                        ) : (
+                                            <CheckCircleIcon className="w-4 h-4"/>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <div className="text-xs font-bold text-slate-800">
+                                            {isHtml ? (isLlmActive && isLast ? "正在绘制幻灯片..." : "幻灯片渲染完成") : 
+                                             isJsonOutline ? (isLlmActive && isLast ? "正在构建大纲..." : "大纲构建完成") :
+                                             (isLlmActive && isLast ? "正在撰写内容..." : "内容撰写完成")}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                                             {isLlmActive && isLast ? "AI 正在实时输出至右侧画布..." : "已同步至右侧画布"}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
              {history.length === 0 && (
                 <div className="mt-20 text-center text-slate-400 px-6">
                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-slate-100">
