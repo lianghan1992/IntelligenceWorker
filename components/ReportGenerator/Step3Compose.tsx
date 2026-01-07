@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
-import { generateBatchPdf } from '../../api/stratify';
+import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
-    PlayIcon
+    PlayIcon, ServerIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
@@ -134,6 +134,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     const codeScrollRef = useRef<HTMLPreElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+    const [genModel, setGenModel] = useState<string>('');
 
     // Monitor container size for scaling
     useEffect(() => {
@@ -364,6 +365,12 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                              'Content Editor'}
                         </span>
                     </div>
+                    {genModel && (
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-100" title={`Generative Model: ${genModel}`}>
+                            <ServerIcon className="w-3 h-3 text-slate-300" />
+                            <span className="text-[9px] font-mono text-slate-400 truncate max-w-[150px]">{genModel}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content Canvas */}
