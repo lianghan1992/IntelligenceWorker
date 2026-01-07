@@ -151,25 +151,30 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         
         const updateSize = () => {
             if(containerRef.current) {
-                setContainerSize({ 
-                    width: containerRef.current.clientWidth, 
-                    height: containerRef.current.clientHeight 
-                });
+                // Ensure valid dimensions before setting
+                if (containerRef.current.clientWidth > 0 && containerRef.current.clientHeight > 0) {
+                    setContainerSize({ 
+                        width: containerRef.current.clientWidth, 
+                        height: containerRef.current.clientHeight 
+                    });
+                }
             }
         };
 
         // Immediate update
         updateSize();
 
-        // Delayed update to allow layout to settle (fixes "small card" issue)
-        const timer = setTimeout(updateSize, 100);
+        // Delayed updates to allow layout to settle (fixes "small card" issue)
+        const t1 = setTimeout(updateSize, 50);
+        const t2 = setTimeout(updateSize, 200);
 
         const ro = new ResizeObserver(updateSize);
         ro.observe(containerRef.current);
         
         return () => {
             ro.disconnect();
-            clearTimeout(timer);
+            clearTimeout(t1);
+            clearTimeout(t2);
         };
     }, [activePageIndex, isGenerating, hasHtml]);
 
