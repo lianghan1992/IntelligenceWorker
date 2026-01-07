@@ -99,23 +99,16 @@ const isValidContent = (content: string): boolean => {
 
 // --- Component: Tech Loader ---
 const TechLoader: React.FC<{ logs: string[] }> = ({ logs }) => (
-    <div className="w-full bg-slate-900 rounded-xl p-4 font-mono text-xs overflow-hidden relative min-h-[160px] flex flex-col shadow-inner">
-        {/* Scanning Line */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent animate-scan-fast opacity-50"></div>
-        
-        {/* Matrix Background */}
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#22d3ee 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
-
-        <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1.5">
-            {logs.slice(-6).map((log, i) => (
-                <div key={i} className={`flex items-center gap-2 ${i === logs.slice(-6).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
-                    <span className="text-[10px] opacity-50">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
-                    <span className="truncate">{'>'} {log}</span>
+    <div className="w-full bg-slate-950 rounded-lg p-3 font-mono text-[10px] overflow-hidden relative min-h-[120px] flex flex-col shadow-inner border border-slate-800">
+        <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1 text-left">
+            {logs.slice(-5).map((log, i) => (
+                <div key={i} className={`flex items-start gap-2 ${i === logs.slice(-5).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
+                    <span className="opacity-50 flex-shrink-0">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
+                    <span className="break-all">{'>'} {log}</span>
                 </div>
             ))}
-            <div className="flex items-center gap-1 text-cyan-500 animate-pulse mt-2">
-                <span className="w-2 h-4 bg-cyan-500"></span>
-                <span className="opacity-0">_</span>
+            <div className="flex items-center gap-1 text-cyan-500 animate-pulse mt-1">
+                <span className="w-1.5 h-3 bg-cyan-500"></span>
             </div>
         </div>
     </div>
@@ -352,6 +345,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             // Close modal after delay to let user see "Done"
             setTimeout(() => {
                 setProcessingItemId(null);
+                setExpandedItemId(id); // Expand the item to show results
             }, 1200);
         }
     };
@@ -414,6 +408,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             appendLog(id, `错误: ${e.message}`);
         } finally {
             setTimeout(() => setProcessingItemId(null), 1200);
+            setExpandedItemId(id);
         }
     };
 
@@ -551,37 +546,47 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                             {/* Expanded Area: Logs & Details */}
                             {expandedItemId === item.id && (
                                 <div className="border-t border-slate-100 bg-white">
-                                    {/* Tech Loader Logs (only if processing from expand, though mostly modal handles it) */}
+                                    {/* Tech Loader Logs (only if processing from expand) */}
                                     {item.status === 'processing' && item.logs && (
                                         <div className="p-4 bg-[#0f172a]">
                                             <TechLoader logs={item.logs} />
                                         </div>
                                     )}
 
-                                    {/* Result List */}
+                                    {/* Result List - Refined Grid Layout */}
                                     {item.details && item.details.length > 0 && (
-                                        <div className="p-2 space-y-1 bg-slate-50/50">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase px-2 py-1">有效引用来源</div>
-                                            {item.details.map((detail, idx) => (
-                                                <div key={idx} className="flex items-start gap-3 p-3 hover:bg-white hover:shadow-sm rounded-lg transition-all group border border-transparent hover:border-slate-100">
-                                                    <div className="mt-0.5 bg-slate-100 p-1 rounded text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-colors">
-                                                        <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                        <div className="p-4 bg-slate-50/50">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {item.details.map((detail, idx) => (
+                                                    <div 
+                                                        key={idx} 
+                                                        className="group bg-white p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col h-full text-left"
+                                                    >
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <a 
+                                                                href={detail.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="text-xs font-bold text-slate-800 hover:text-indigo-600 line-clamp-1 block flex-1"
+                                                                title={detail.title}
+                                                            >
+                                                                {detail.title || detail.url}
+                                                            </a>
+                                                            <div className="ml-2 bg-slate-100 p-1 rounded text-slate-400 opacity-60 group-hover:opacity-100 group-hover:text-indigo-600 transition-all flex-shrink-0">
+                                                                <ExternalLinkIcon className="w-3 h-3" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-400 font-mono truncate mb-2">
+                                                            {detail.source || new URL(detail.url).hostname}
+                                                        </div>
+                                                        {detail.snippet && (
+                                                            <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 mt-auto">
+                                                                {detail.snippet}
+                                                            </p>
+                                                        )}
                                                     </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <a 
-                                                            href={detail.url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
-                                                            className="text-xs font-bold text-slate-700 hover:text-indigo-600 block truncate"
-                                                            title={detail.title}
-                                                        >
-                                                            {detail.title || detail.url}
-                                                        </a>
-                                                        <div className="text-[10px] text-slate-400 truncate font-mono mt-0.5">{detail.source || new URL(detail.url).hostname}</div>
-                                                        {detail.snippet && <div className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{detail.snippet}</div>}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -613,7 +618,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                             </div>
                         </div>
                         
-                        <div className="p-6">
+                        <div className="p-6 text-left">
                              {/* Progress Bar */}
                             <div className="mb-6">
                                 <div className="flex justify-between text-xs text-slate-400 mb-2">
