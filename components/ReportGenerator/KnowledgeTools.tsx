@@ -1,10 +1,18 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
     CloudIcon, SearchIcon, LinkIcon, CloseIcon, CheckIcon, 
-    TrashIcon, RefreshIcon, DocumentTextIcon, GlobeIcon, ExternalLinkIcon, ChevronDownIcon
+    TrashIcon, RefreshIcon, GlobeIcon, ExternalLinkIcon, ChevronDownIcon,
+    LightningBoltIcon, ServerIcon, DatabaseIcon, ClockIcon
 } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
+
+// --- Constants ---
+const GOOGLE_API_KEY = 'AIzaSyBHC1sLIvdoVZIT0JrfPbP7d8KhcIb3738';
+// 使用一个通用的“全网搜索” CX ID，或者提示用户在代码中配置
+const SEARCH_ENGINE_ID = 'b32997198754746f1'; 
+const DAILY_LIMIT = 5;
+const STORAGE_KEY_LIMIT = 'auto_insight_search_usage';
 
 interface KnowledgeToolsProps {
     onUpdateReference: (content: string, sourceName: string) => void;
@@ -14,6 +22,8 @@ interface KnowledgeToolsProps {
 interface ReferenceDetail {
     title: string;
     url: string;
+    source?: string;
+    snippet?: string;
 }
 
 interface ReferenceItem {
@@ -23,38 +33,111 @@ interface ReferenceItem {
     status: 'processing' | 'done' | 'error';
     content?: string;
     details?: ReferenceDetail[];
+    progress?: number; // 0-100
+    logs?: string[]; // Process logs
 }
+
+// --- Helper: Daily Limit Check ---
+const checkDailyQuota = (): { allowed: boolean; remaining: number } => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const recordStr = localStorage.getItem(STORAGE_KEY_LIMIT);
+        let record = recordStr ? JSON.parse(recordStr) : { date: today, count: 0 };
+
+        if (record.date !== today) {
+            record = { date: today, count: 0 };
+        }
+
+        const remaining = Math.max(0, DAILY_LIMIT - record.count);
+        return { allowed: record.count < DAILY_LIMIT, remaining };
+    } catch (e) {
+        return { allowed: true, remaining: DAILY_LIMIT }; // Fail open if storage error
+    }
+};
+
+const incrementDailyQuota = () => {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const recordStr = localStorage.getItem(STORAGE_KEY_LIMIT);
+        let record = recordStr ? JSON.parse(recordStr) : { date: today, count: 0 };
+        
+        if (record.date !== today) {
+            record = { date: today, count: 0 };
+        }
+        
+        record.count += 1;
+        localStorage.setItem(STORAGE_KEY_LIMIT, JSON.stringify(record));
+    } catch (e) {
+        console.error("Failed to update quota", e);
+    }
+};
+
+// --- Component: Tech Loader ---
+const TechLoader: React.FC<{ logs: string[] }> = ({ logs }) => (
+    <div className="w-full bg-slate-900 rounded-xl p-4 font-mono text-xs overflow-hidden relative min-h-[120px] flex flex-col">
+        {/* Scanning Line */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent animate-scan-fast opacity-50"></div>
+        
+        {/* Matrix Background */}
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#22d3ee 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+
+        <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1">
+            {logs.slice(-5).map((log, i) => (
+                <div key={i} className={`flex items-center gap-2 ${i === logs.slice(-5).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
+                    <span className="text-[10px] opacity-50">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
+                    <span>{'>'} {log}</span>
+                </div>
+            ))}
+            <div className="flex items-center gap-1 text-cyan-500 animate-pulse">
+                <span className="w-1.5 h-3 bg-cyan-500"></span>
+                <span className="opacity-0">_</span>
+            </div>
+        </div>
+    </div>
+);
 
 export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReference, currentReferences }) => {
     const [items, setItems] = useState<ReferenceItem[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [isUrlOpen, setIsUrlOpen] = useState(false);
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+    const [quota, setQuota] = useState(checkDailyQuota());
     
     // Inputs
     const [searchKeyword, setSearchKeyword] = useState('');
     const [urlInput, setUrlInput] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Refresh quota display on mount/update
+    useEffect(() => {
+        setQuota(checkDailyQuota());
+    }, [isSearchOpen]);
+
     const addReferenceItem = (type: 'file' | 'search' | 'url', name: string): string => {
         const id = crypto.randomUUID();
-        setItems(prev => [...prev, { id, type, name, status: 'processing', details: [] }]);
+        setItems(prev => [{ 
+            id, 
+            type, 
+            name, 
+            status: 'processing', 
+            details: [], 
+            progress: 0, 
+            logs: ['初始化任务...'] 
+        }, ...prev]);
+        setExpandedItemId(id);
         return id;
     };
 
-    const updateItemStatus = (id: string, status: 'done' | 'error', content?: string, details?: ReferenceDetail[]) => {
-        setItems(prev => prev.map(item => item.id === id ? { ...item, status, content, details: details || item.details } : item));
-        if (status === 'done' && content) {
-            onUpdateReference(content, ""); // Append happens in parent logic
-        }
+    const updateItemState = (id: string, updates: Partial<ReferenceItem>) => {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+    };
+
+    const appendLog = (id: string, log: string) => {
+        setItems(prev => prev.map(item => item.id === id ? { ...item, logs: [...(item.logs || []), log] } : item));
     };
 
     const removeItem = (id: string) => {
         setItems(prev => prev.filter(item => item.id !== id));
-    };
-
-    const toggleExpand = (id: string) => {
-        setExpandedItemId(prev => prev === id ? null : id);
     };
 
     // --- 1. File Upload Logic ---
@@ -66,71 +149,110 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         const id = addReferenceItem('file', file.name);
 
         try {
+            appendLog(id, `读取文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
             const text = await file.text();
             const formattedContent = `\n\n--- 引用文档: ${file.name} ---\n${text}\n--- 文档结束 ---\n`;
-            updateItemStatus(id, 'done', formattedContent, [{ title: file.name, url: '#' }]);
+            updateItemState(id, { 
+                status: 'done', 
+                content: formattedContent, 
+                progress: 100, 
+                details: [{ title: file.name, url: '#' }] 
+            });
+            onUpdateReference(formattedContent, file.name);
         } catch (err) {
             console.error(err);
-            updateItemStatus(id, 'error');
+            updateItemState(id, { status: 'error' });
+            appendLog(id, '文件读取失败');
         }
         
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    // --- 2. Jina Pseudo-Search Logic ---
+    // --- 2. Google Search Logic ---
     const handleSearch = async () => {
         if (!searchKeyword.trim()) return;
+
+        // Check Quota
+        const { allowed } = checkDailyQuota();
+        if (!allowed) {
+            alert('已超出每日限额，请升级为专业用户。');
+            return;
+        }
+
         const keyword = searchKeyword.trim();
         setIsSearchOpen(false);
         setSearchKeyword('');
         
-        const id = addReferenceItem('search', `搜索: ${keyword}`);
+        const id = addReferenceItem('search', `${keyword}`);
         
         try {
-            // 1. Fetch Google Results via Jina
-            const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(keyword)}`;
-            const listMarkdown = await fetchJinaReader(googleUrl);
+            // Step 1: Call Google API
+            appendLog(id, `连接 Google Search API...`);
+            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(keyword)}&num=10`; // Max 10 results
             
-            // 2. Extract Links
-            const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
-            const links: { title: string, url: string }[] = [];
-            let match;
-            while ((match = linkRegex.exec(listMarkdown)) !== null) {
-                const title = match[1];
-                const url = match[2];
-                // Filter garbage
-                if (!url.includes('google.com') && !url.includes('jina.ai') && links.length < 5) {
-                     links.push({ title, url });
+            const response = await fetch(searchUrl);
+            
+            if (!response.ok) {
+                if (response.status === 403 || response.status === 429) {
+                     throw new Error("已超出每日限额，请升级为专业用户。");
                 }
+                throw new Error(`Search API Error: ${response.statusText}`);
             }
 
-            if (links.length === 0) {
-                throw new Error("未找到有效链接");
+            const data = await response.json();
+            const items = data.items || [];
+
+            if (items.length === 0) {
+                throw new Error("未找到相关结果");
             }
 
-            // 3. Concurrent Fetch Details
-            const details = await Promise.all(links.map(async (item) => {
+            appendLog(id, `获取到 ${items.length} 条结果，开始智能解析...`);
+            incrementDailyQuota(); // Success, consume quota
+            setQuota(checkDailyQuota());
+
+            // Prepare details structure
+            const searchDetails: ReferenceDetail[] = items.map((item: any) => ({
+                title: item.title,
+                url: item.link,
+                source: item.displayLink,
+                snippet: item.snippet
+            }));
+            
+            updateItemState(id, { details: searchDetails, progress: 20 });
+
+            // Step 2: Parallel Fetch Content via Jina
+            // Limit to top 5 for speed and relevance
+            const topItems = items.slice(0, 5);
+            let processedCount = 0;
+            const fullContents: string[] = [];
+
+            // We fetch content sequentially or with limited concurrency to be polite and reliable
+            const fetchPromises = topItems.map(async (item: any, idx: number) => {
                 try {
-                    const content = await fetchJinaReader(item.url);
-                    return {
-                        ...item,
-                        content: `### 来源: [${item.title}](${item.url})\n${content.slice(0, 2000)}...`
-                    };
+                    appendLog(id, `正在阅读: ${item.title.slice(0, 20)}...`);
+                    const content = await fetchJinaReader(item.link);
+                    processedCount++;
+                    updateItemState(id, { progress: 20 + Math.floor((processedCount / topItems.length) * 80) });
+                    return `### [${idx + 1}] ${item.title}\n**Source**: ${item.link}\n\n${content.slice(0, 3000)}...`; // Limit per article
                 } catch (e) {
+                    appendLog(id, `解析失败: ${item.title.slice(0, 15)}...`);
                     return null;
                 }
-            }));
+            });
 
-            const validDetails = details.filter(Boolean) as { title: string, url: string, content: string }[];
-            const combinedContent = `\n\n--- 联网搜索报告: ${keyword} ---\n${validDetails.map(d => d.content).join('\n\n')}\n--- 搜索结束 ---\n`;
+            const results = await Promise.all(fetchPromises);
+            const validContent = results.filter(Boolean).join('\n\n---\n\n');
+
+            const finalContent = `\n\n--- 联网搜索报告: ${keyword} ---\n${validContent}\n--- 搜索结束 ---\n`;
             
-            const metaDetails = validDetails.map(d => ({ title: d.title, url: d.url }));
-            
-            updateItemStatus(id, 'done', combinedContent, metaDetails);
-            setExpandedItemId(id); // Auto expand to show results
-        } catch (e) {
+            appendLog(id, `任务完成。已聚合 ${results.filter(Boolean).length} 篇深度内容。`);
+            updateItemState(id, { status: 'done', content: finalContent, progress: 100 });
+            onUpdateReference(finalContent, `Search: ${keyword}`);
+
+        } catch (e: any) {
             console.error(e);
-            updateItemStatus(id, 'error');
+            updateItemState(id, { status: 'error' });
+            appendLog(id, `错误: ${e.message}`);
         }
     };
 
@@ -144,18 +266,27 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         const id = addReferenceItem('url', `解析 ${urls.length} 个链接`);
 
         try {
+            let processed = 0;
+            appendLog(id, `开始解析 ${urls.length} 个目标 URL...`);
+
             const results = await Promise.all(urls.map(async (url) => {
                 try {
                     const content = await fetchJinaReader(url.trim());
-                    // Extract title roughly from content or use URL
+                    // Extract title
                     const titleMatch = content.match(/^#\s+(.+)$/m);
                     const title = titleMatch ? titleMatch[1] : url;
+                    
+                    processed++;
+                    updateItemState(id, { progress: Math.floor((processed / urls.length) * 100) });
+                    appendLog(id, `解析成功: ${title.slice(0, 20)}...`);
+
                     return {
                         url,
                         title,
-                        content: `### 外部链接: ${url}\n${content.slice(0, 3000)}`
+                        content: `### 外部链接: [${title}](${url})\n${content.slice(0, 5000)}`
                     };
                 } catch (e) {
+                    appendLog(id, `解析失败: ${url}`);
                     return null;
                 }
             }));
@@ -167,10 +298,12 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             const combined = `\n\n--- URL 引用集合 ---\n${validResults.map(r => r.content).join('\n\n')}\n--- 引用结束 ---\n`;
             const metaDetails = validResults.map(r => ({ title: r.title, url: r.url }));
             
-            updateItemStatus(id, 'done', combined, metaDetails);
-            setExpandedItemId(id);
-        } catch (e) {
-            updateItemStatus(id, 'error');
+            appendLog(id, `全部完成。`);
+            updateItemState(id, { status: 'done', content: combined, details: metaDetails, progress: 100 });
+            onUpdateReference(combined, "URL Import");
+        } catch (e: any) {
+            updateItemState(id, { status: 'error' });
+            appendLog(id, `错误: ${e.message}`);
         }
     };
 
@@ -178,16 +311,59 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         <div className="w-full max-w-4xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Tools Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Search Card */}
+                <button 
+                    onClick={() => setIsSearchOpen(true)}
+                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md transition-all text-left flex flex-col gap-2 relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <GlobeIcon className="w-16 h-16 text-purple-600 transform rotate-12"/>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform z-10">
+                        <SearchIcon className="w-6 h-6" />
+                    </div>
+                    <div className="z-10">
+                        <h4 className="font-bold text-slate-700 text-sm">智能联网搜索</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-mono font-bold">Google API</span>
+                            <span className={`text-[10px] ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                剩余: {quota.remaining}/{DAILY_LIMIT}
+                            </span>
+                        </div>
+                    </div>
+                </button>
+
+                {/* URL Card */}
+                <button 
+                    onClick={() => setIsUrlOpen(true)}
+                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all text-left flex flex-col gap-2 relative overflow-hidden"
+                >
+                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <LinkIcon className="w-16 h-16 text-indigo-600 transform -rotate-12"/>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform z-10">
+                        <LinkIcon className="w-6 h-6" />
+                    </div>
+                    <div className="z-10">
+                        <h4 className="font-bold text-slate-700 text-sm">引用外部链接</h4>
+                        <p className="text-xs text-slate-400 mt-1">Jina Reader 深度解析</p>
+                    </div>
+                </button>
+
+                {/* File Upload Card */}
                 <button 
                     onClick={() => fileInputRef.current?.click()}
-                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-2"
+                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all text-left flex flex-col gap-2 relative overflow-hidden"
                 >
-                    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                     <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                         <CloudIcon className="w-16 h-16 text-blue-600"/>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform z-10">
                         <CloudIcon className="w-6 h-6" />
                     </div>
-                    <div>
+                    <div className="z-10">
                         <h4 className="font-bold text-slate-700 text-sm">上传参考文档</h4>
-                        <p className="text-xs text-slate-400 mt-1">支持 .md, .txt, .csv (PDF 仅限文本)</p>
+                        <p className="text-xs text-slate-400 mt-1">支持 .md, .txt, .csv, .pdf</p>
                     </div>
                     <input 
                         type="file" 
@@ -197,98 +373,105 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                         accept=".md,.txt,.csv,.json,.pdf"
                     />
                 </button>
-
-                <button 
-                    onClick={() => setIsSearchOpen(true)}
-                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md transition-all text-left flex flex-col gap-2"
-                >
-                    <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <SearchIcon className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-slate-700 text-sm">智能联网搜索</h4>
-                        <p className="text-xs text-slate-400 mt-1">Jina 驱动 · 自动聚合 TOP10 结果</p>
-                    </div>
-                </button>
-
-                <button 
-                    onClick={() => setIsUrlOpen(true)}
-                    className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all text-left flex flex-col gap-2"
-                >
-                    <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <LinkIcon className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-slate-700 text-sm">引用外部链接</h4>
-                        <p className="text-xs text-slate-400 mt-1">解析公众号、新闻等 URL 内容</p>
-                    </div>
-                </button>
             </div>
 
             {/* Status List (Enhanced) */}
             {items.length > 0 && (
-                <div className="space-y-3 mb-6">
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">已添加的知识上下文</h5>
+                <div className="space-y-4 mb-6">
+                    <div className="flex items-center gap-2 px-2">
+                        <LightningBoltIcon className="w-4 h-4 text-amber-500" />
+                        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">活跃任务与上下文</h5>
+                    </div>
+                    
                     {items.map(item => (
-                        <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                            <div className="flex items-center justify-between px-4 py-3 bg-slate-50/50">
-                                <div className="flex items-center gap-3">
-                                    {item.status === 'processing' ? (
-                                        <RefreshIcon className="w-4 h-4 text-indigo-500 animate-spin" />
-                                    ) : item.status === 'done' ? (
-                                        <CheckIcon className="w-4 h-4 text-green-500" />
-                                    ) : (
-                                        <CloseIcon className="w-4 h-4 text-red-500" />
-                                    )}
-                                    <span className={`font-medium text-sm ${item.status === 'error' ? 'text-red-500 line-through' : 'text-slate-700'}`}>
-                                        {item.name}
-                                    </span>
-                                    {item.details && item.details.length > 0 && (
-                                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-mono">
-                                            {item.details.length} 源
-                                        </span>
-                                    )}
+                        <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm transition-all hover:shadow-md">
+                            {/* Item Header */}
+                            <div 
+                                className="flex items-center justify-between px-4 py-3 bg-slate-50/50 cursor-pointer"
+                                onClick={() => setExpandedItemId(expandedItemId === item.id ? null : item.id)}
+                            >
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className="flex-shrink-0">
+                                        {item.status === 'processing' ? (
+                                            <div className="relative">
+                                                <RefreshIcon className="w-5 h-5 text-indigo-500 animate-spin" />
+                                                <div className="absolute inset-0 bg-indigo-500 rounded-full opacity-20 animate-ping"></div>
+                                            </div>
+                                        ) : item.status === 'done' ? (
+                                            <CheckIcon className="w-5 h-5 text-green-500" />
+                                        ) : (
+                                            <CloseIcon className="w-5 h-5 text-red-500" />
+                                        )}
+                                    </div>
+                                    
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`font-bold text-sm truncate ${item.status === 'error' ? 'text-red-500 line-through' : 'text-slate-800'}`}>
+                                                {item.type === 'search' ? `搜索: ${item.name}` : item.name}
+                                            </span>
+                                            {item.details && item.details.length > 0 && (
+                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                                                    {item.details.length} refs
+                                                </span>
+                                            )}
+                                        </div>
+                                        {item.status === 'processing' && (
+                                             <div className="w-32 h-1 bg-slate-200 rounded-full mt-1.5 overflow-hidden">
+                                                 <div 
+                                                    className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                                                    style={{ width: `${item.progress}%` }}
+                                                 ></div>
+                                             </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    {item.details && item.details.length > 0 && (
-                                        <button 
-                                            onClick={() => toggleExpand(item.id)}
-                                            className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                                        >
-                                            <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedItemId === item.id ? 'rotate-180' : ''}`} />
-                                        </button>
-                                    )}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform ${expandedItemId === item.id ? 'rotate-180' : ''}`} />
                                     <button 
-                                        onClick={() => removeItem(item.id)}
-                                        className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors"
+                                        onClick={(e) => { e.stopPropagation(); removeItem(item.id); }}
+                                        className="p-1.5 hover:bg-red-50 rounded text-slate-300 hover:text-red-500 transition-colors"
                                     >
                                         <TrashIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
                             
-                            {/* Expanded Details View */}
-                            {expandedItemId === item.id && item.details && item.details.length > 0 && (
-                                <div className="border-t border-slate-100 bg-white p-2">
-                                    <ul className="space-y-1">
-                                        {item.details.map((detail, idx) => (
-                                            <li key={idx} className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded-lg group">
-                                                <ExternalLinkIcon className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                                                <div className="min-w-0 flex-1">
-                                                    <a 
-                                                        href={detail.url} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="text-xs text-indigo-600 hover:underline font-medium block truncate"
-                                                        title={detail.title}
-                                                    >
-                                                        {detail.title || detail.url}
-                                                    </a>
-                                                    <div className="text-[10px] text-slate-400 truncate font-mono">{detail.url}</div>
+                            {/* Expanded Area: Logs & Details */}
+                            {expandedItemId === item.id && (
+                                <div className="border-t border-slate-100 bg-white">
+                                    {/* Tech Loader Logs */}
+                                    {item.status === 'processing' && item.logs && (
+                                        <div className="p-4 bg-[#0f172a]">
+                                            <TechLoader logs={item.logs} />
+                                        </div>
+                                    )}
+
+                                    {/* Result List */}
+                                    {item.details && item.details.length > 0 && (
+                                        <div className="p-2 space-y-1 bg-slate-50/50">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase px-2 py-1">引用来源列表</div>
+                                            {item.details.map((detail, idx) => (
+                                                <div key={idx} className="flex items-start gap-3 p-3 hover:bg-white hover:shadow-sm rounded-lg transition-all group border border-transparent hover:border-slate-100">
+                                                    <div className="mt-0.5 bg-slate-100 p-1 rounded text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-colors">
+                                                        <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <a 
+                                                            href={detail.url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="text-xs font-bold text-slate-700 hover:text-indigo-600 block truncate"
+                                                            title={detail.title}
+                                                        >
+                                                            {detail.title || detail.url}
+                                                        </a>
+                                                        <div className="text-[10px] text-slate-400 truncate font-mono mt-0.5">{detail.source || new URL(detail.url).hostname}</div>
+                                                        {detail.snippet && <div className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{detail.snippet}</div>}
+                                                    </div>
                                                 </div>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -296,45 +479,79 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 </div>
             )}
 
-            {/* Modals - Absolute Positioned within Container */}
+            {/* Modals */}
             {isSearchOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/80 backdrop-blur-sm rounded-2xl">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 border border-slate-200 ring-1 ring-slate-100">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <GlobeIcon className="w-5 h-5 text-purple-600"/> 智能联网搜索
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/60 backdrop-blur-sm rounded-2xl">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 border border-slate-200 ring-1 ring-black/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5">
+                            <GlobeIcon className="w-32 h-32" />
+                        </div>
+                        
+                        <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2 relative z-10">
+                            <GlobeIcon className="w-6 h-6 text-purple-600"/> 智能联网搜索
                         </h3>
-                        <input 
-                            value={searchKeyword}
-                            onChange={e => setSearchKeyword(e.target.value)}
-                            placeholder="输入关键词 (e.g. 比亚迪出海战略)"
-                            className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none mb-4 shadow-inner"
-                            autoFocus
-                            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setIsSearchOpen(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-bold">取消</button>
-                            <button onClick={handleSearch} className="px-6 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700 shadow-md">开始搜索</button>
+                        
+                        <div className="relative z-10">
+                            <input 
+                                value={searchKeyword}
+                                onChange={e => setSearchKeyword(e.target.value)}
+                                placeholder="输入关键词 (e.g. 特斯拉 Robotaxi 最新进展)"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base focus:ring-2 focus:ring-purple-500 outline-none mb-4 shadow-inner font-medium text-slate-800 placeholder:text-slate-400"
+                                autoFocus
+                                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                            />
+                            
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                    <ServerIcon className="w-3 h-3" />
+                                    <span>Google Engine Ready</span>
+                                    <span className={`font-bold ml-1 ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                        (今日剩余: {quota.remaining})
+                                    </span>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setIsSearchOpen(false)} className="px-5 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-bold transition-colors">取消</button>
+                                    <button 
+                                        onClick={handleSearch} 
+                                        className="px-8 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-purple-600 shadow-lg shadow-purple-500/20 transition-all transform active:scale-95 flex items-center gap-2"
+                                    >
+                                        <SearchIcon className="w-4 h-4" /> 开始搜索
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
             {isUrlOpen && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/80 backdrop-blur-sm rounded-2xl">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 border border-slate-200 ring-1 ring-slate-100">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <LinkIcon className="w-5 h-5 text-indigo-600"/> 批量引用链接
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/60 backdrop-blur-sm rounded-2xl">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 border border-slate-200 ring-1 ring-black/5 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-5">
+                            <LinkIcon className="w-32 h-32" />
+                        </div>
+
+                        <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2 relative z-10">
+                            <LinkIcon className="w-6 h-6 text-indigo-600"/> 批量引用链接
                         </h3>
-                        <textarea 
-                            value={urlInput}
-                            onChange={e => setUrlInput(e.target.value)}
-                            placeholder="请输入 URL，每行一个..."
-                            className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-4 h-32 resize-none shadow-inner"
-                            autoFocus
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setIsUrlOpen(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-bold">取消</button>
-                            <button onClick={handleUrlImport} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md">开始解析</button>
+                        
+                        <div className="relative z-10">
+                            <textarea 
+                                value={urlInput}
+                                onChange={e => setUrlInput(e.target.value)}
+                                placeholder="请输入 URL，每行一个..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-4 h-32 resize-none shadow-inner font-mono text-slate-600"
+                                autoFocus
+                            />
+                            <div className="flex justify-end gap-3">
+                                <button onClick={() => setIsUrlOpen(false)} className="px-5 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-bold transition-colors">取消</button>
+                                <button 
+                                    onClick={handleUrlImport} 
+                                    className="px-8 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/20 transition-all transform active:scale-95 flex items-center gap-2"
+                                >
+                                    <LightningBoltIcon className="w-4 h-4" /> 深度解析
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
