@@ -57,20 +57,39 @@ export const tryParsePartialJson = (jsonStr: string) => {
     }
 };
 
-// --- Helper: Strict HTML Cleaner ---
-// Fixes the issue where LLM adds explanations after the code block
+// --- Helper: Strict HTML Extractor ---
+// Ensures ONLY HTML is returned, stripping any conversational preamble.
 const extractCleanHtml = (text: string) => {
-    // 1. Remove opening markdown tags (case insensitive)
-    let clean = text.replace(/^```html\s*/i, '').replace(/^```\s*/, '');
-    
-    // 2. Find the *first* closing markdown tag and cut everything after it
-    // This removes "Optimization Notes", "Explanation", etc.
-    const endFenceIndex = clean.indexOf('```');
-    if (endFenceIndex !== -1) {
-        clean = clean.substring(0, endFenceIndex);
+    // 1. Look for standard markdown code block
+    const codeBlockMatch = text.match(/```html\s*/i);
+    if (codeBlockMatch && codeBlockMatch.index !== undefined) {
+        // Start exactly after ```html
+        let clean = text.substring(codeBlockMatch.index + codeBlockMatch[0].length);
+        
+        // If there is a closing fence, cut off everything after it
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
     }
-    
-    return clean.trim();
+
+    // 2. Fallback: Look for raw HTML tags if LLM forgot code block
+    // We scan for common start tags.
+    const rawStart = text.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
+    if (rawStart !== -1) {
+        let clean = text.substring(rawStart);
+        // Check if there is a closing fence that might have been used without an opening one (rare but possible in streams)
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
+    }
+
+    // 3. If no code detected yet, return empty string.
+    // This prevents showing "Sure, here is the code..." in the black terminal.
+    return '';
 };
 
 // --- Thinking Component ---
@@ -298,8 +317,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             }
                             newPages[targetIdx].content = displayContent;
                         } else {
-                            // HTML Mode: Use extractCleanHtml to remove trailing non-html text
-                            newPages[targetIdx].html = extractCleanHtml(accContent);
+                            // HTML Mode: Use extractCleanHtml to remove preamble and only start when code starts
+                            const cleanHtml = extractCleanHtml(accContent);
+                            if (cleanHtml) { // Only update if we actually have code to show
+                                newPages[targetIdx].html = cleanHtml;
+                            }
                         }
                         return { ...prev, pages: newPages };
                     });
@@ -313,7 +335,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          const cleanHtml = extractCleanHtml(accContent);
                          const currentHistory = newPages[targetIdx].chatHistory || [];
                          newPages[targetIdx].chatHistory = [...currentHistory, { role: 'assistant', content: cleanHtml }];
-                         // Final save to ensure cleanliness
+                         // Final clean ensure
                          newPages[targetIdx].html = cleanHtml;
                     }
                     
@@ -414,8 +436,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 setData(prev => {
                     const newPages = [...prev.pages];
                     if (isHtmlMode) {
-                        // Use extractCleanHtml to keep view clean during stream
-                        newPages[targetIdx].html = extractCleanHtml(accContent); 
+                        const cleanHtml = extractCleanHtml(accContent);
+                        if (cleanHtml) {
+                             newPages[targetIdx].html = cleanHtml;
+                        }
                     } else {
                         let displayContent = accContent;
                         if (accContent.trim().startsWith('{')) {
@@ -436,7 +460,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                      const cleanHtml = extractCleanHtml(accContent);
                      const updatedHistory = [...messages, { role: 'assistant', content: cleanHtml } as ChatMessage];
                      newPages[targetIdx].chatHistory = updatedHistory;
-                     // Final clean write
                      newPages[targetIdx].html = cleanHtml;
                 }
                 
@@ -484,7 +507,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
     const hasHtml = data.pages.some(p => !!p.html);
-    // Redesign Mode Indicator Logic
     const isRedesignMode = stage === 'compose' && !autoGenMode && data.pages[activePageIndex]?.html && !data.pages[activePageIndex]?.isGenerating;
 
     // Watch for stage change to trigger initial text generation
@@ -575,6 +597,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 </div>
             )}
 
+            {/* Action Buttons inside Chat */}
             {stage === 'compose' && allTextReady && !autoGenMode && !hasHtml && (
                 <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4">
                     <button 
