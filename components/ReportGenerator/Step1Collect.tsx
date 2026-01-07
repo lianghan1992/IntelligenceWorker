@@ -7,6 +7,15 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 
+// Add type declaration for marked
+declare global {
+  interface Window {
+    marked?: {
+      parse(markdownString: string): string;
+    };
+  }
+}
+
 interface CopilotSidebarProps {
     stage: PPTStage;
     setStage: (s: PPTStage) => void;
@@ -646,7 +655,16 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="whitespace-pre-wrap">{parsedContent.content}</div>
+                                <div className="text-sm leading-relaxed">
+                                    {window.marked ? (
+                                        <div 
+                                            className="prose prose-sm max-w-none text-slate-700 prose-headings:font-bold prose-p:my-1 prose-pre:bg-slate-100 prose-pre:text-slate-700"
+                                            dangerouslySetInnerHTML={{ __html: window.marked.parse(parsedContent.content) }} 
+                                        />
+                                    ) : (
+                                        <div className="whitespace-pre-wrap">{parsedContent.content}</div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
