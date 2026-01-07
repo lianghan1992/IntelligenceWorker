@@ -23,19 +23,25 @@ interface CopilotSidebarProps {
 
 // --- Helper: Robust Partial JSON Parser (Local Implementation) ---
 export const tryParsePartialJson = (jsonStr: string) => {
+    if (!jsonStr) return null;
     try {
         let cleanStr = jsonStr.trim();
-        // Clean up markdown code blocks first
-        if (cleanStr.startsWith('```')) {
-            cleanStr = cleanStr.replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+        
+        // 1. Try extracting from Markdown code blocks
+        const codeBlockMatch = cleanStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (codeBlockMatch) {
+            cleanStr = codeBlockMatch[1].trim();
+        } else {
+             // 2. Fallback: Find the first '{'
+             const firstBrace = cleanStr.indexOf('{');
+             if (firstBrace !== -1) {
+                 cleanStr = cleanStr.substring(firstBrace);
+             }
         }
         
-        // 1. Try standard parse first
+        // 3. Try standard parse
         return JSON.parse(cleanStr);
     } catch (e) {
-        // 2. Simple Partial Handling for Outline specifically (title/pages)
-        // If strict parse fails (streaming), we just return null and wait for more data
-        // or rely on the regex fallback in Step3 for content content.
         return null;
     }
 };
@@ -167,34 +173,26 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
                 
                 // Real-time parsing using robust parser
-                if (accumulatedContent.trim().startsWith('{')) {
-                    const partialOutline = tryParsePartialJson(accumulatedContent);
-                    if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
-                        setData(prev => ({ 
-                            ...prev, 
-                            topic: partialOutline.title || prev.topic, 
-                            outline: partialOutline 
-                        }));
-                        if (stage === 'collect') setStage('outline');
-                    }
+                const partialOutline = tryParsePartialJson(accumulatedContent);
+                if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
+                    setData(prev => ({ 
+                        ...prev, 
+                        topic: partialOutline.title || prev.topic, 
+                        outline: partialOutline 
+                    }));
+                    if (stage === 'collect') setStage('outline');
                 }
             });
             
-            const jsonStr = accumulatedContent.replace(/```json|```/g, '').trim();
-            // Final parse attempt
+            // Final parse attempt with robust logic
             try {
-                const parsedOutline = JSON.parse(jsonStr);
-                if (parsedOutline.pages) {
+                const parsedOutline = tryParsePartialJson(accumulatedContent);
+                if (parsedOutline && parsedOutline.pages) {
                     setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
                     if (stage === 'collect') setStage('outline');
                 }
             } catch (e) {
-                 // Fallback to partial result if final JSON is still technically broken but readable
-                 const partial = tryParsePartialJson(accumulatedContent);
-                 if (partial && partial.pages) {
-                      setData(prev => ({ ...prev, topic: partial.title, outline: partial }));
-                      if (stage === 'collect') setStage('outline');
-                 }
+                 console.error("Final JSON parse failed:", e);
             }
         } catch (e) {
             console.error(e);
@@ -318,9 +316,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         if (autoGenMode === 'text') {
                             let displayContent = accContent;
                             // Real-time parsing attempt
-                            if (accContent.trim().startsWith('{') || accContent.includes('"content":')) {
-                                const partial = tryParsePartialJson(accContent);
-                                if (partial && partial.content) displayContent = partial.content;
+                            const partial = tryParsePartialJson(accContent);
+                            if (partial && partial.content) {
+                                displayContent = partial.content;
+                            } else if (accContent.includes('"content":')) {
+                                // Simple regex fallback if JSON is incomplete
+                                const match = accContent.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
+                                if (match) displayContent = match[1];
                             }
                             newPages[targetIdx].content = displayContent;
                         } else {
@@ -447,9 +449,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                     } else {
                         let displayContent = accContent;
-                        if (accContent.trim().startsWith('{')) {
-                            const partial = tryParsePartialJson(accContent);
-                            if (partial && partial.content) displayContent = partial.content;
+                        const partial = tryParsePartialJson(accContent);
+                        if (partial && partial.content) {
+                            displayContent = partial.content;
                         }
                         newPages[targetIdx].content = displayContent;
                     }
