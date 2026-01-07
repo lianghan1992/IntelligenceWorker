@@ -26,6 +26,8 @@ export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     try {
         let cleanStr = jsonStr.trim();
+        // Handle <think> tags removal before parsing JSON if they exist in the raw string
+        cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
         
         // 1. Try extracting from Markdown code blocks
         const codeBlockMatch = cleanStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -47,15 +49,14 @@ export const tryParsePartialJson = (jsonStr: string) => {
 };
 
 // --- Helper: Strict HTML Extractor ---
-// Ensures ONLY HTML is returned, stripping any conversational preamble.
 const extractCleanHtml = (text: string) => {
+    // Remove <think> tags first
+    let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    
     // 1. Look for standard markdown code block
-    const codeBlockMatch = text.match(/```html\s*/i);
+    const codeBlockMatch = cleanText.match(/```html\s*/i);
     if (codeBlockMatch && codeBlockMatch.index !== undefined) {
-        // Start exactly after ```html
-        let clean = text.substring(codeBlockMatch.index + codeBlockMatch[0].length);
-        
-        // If there is a closing fence, cut off everything after it
+        let clean = cleanText.substring(codeBlockMatch.index + codeBlockMatch[0].length);
         const endFenceIndex = clean.indexOf('```');
         if (endFenceIndex !== -1) {
             clean = clean.substring(0, endFenceIndex);
@@ -63,22 +64,38 @@ const extractCleanHtml = (text: string) => {
         return clean;
     }
 
-    // 2. Fallback: Look for raw HTML tags if LLM forgot code block
-    // We scan for common start tags.
-    const rawStart = text.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
+    // 2. Fallback: Look for raw HTML tags
+    const rawStart = cleanText.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
     if (rawStart !== -1) {
-        let clean = text.substring(rawStart);
-        // Check if there is a closing fence that might have been used without an opening one (rare but possible in streams)
+        let clean = cleanText.substring(rawStart);
         const endFenceIndex = clean.indexOf('```');
         if (endFenceIndex !== -1) {
             clean = clean.substring(0, endFenceIndex);
         }
         return clean;
     }
-
-    // 3. If no code detected yet, return empty string.
-    // This prevents showing "Sure, here is the code..." in the black terminal.
     return '';
+};
+
+// --- Helper: Parse <think> tags from content ---
+// Returns { reasoning, content }
+const parseThinkTag = (text: string) => {
+    const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
+    if (thinkMatch) {
+        return {
+            reasoning: thinkMatch[1].trim(),
+            content: text.replace(thinkMatch[0], '').trim()
+        };
+    }
+    // Handle unclosed <think> tag (streaming)
+    const unclosedMatch = text.match(/<think>([\s\S]*)/i);
+    if (unclosedMatch) {
+        return {
+            reasoning: unclosedMatch[1].trim(),
+            content: '' // Hide content while thinking
+        };
+    }
+    return { reasoning: '', content: text };
 };
 
 // --- Thinking Component ---
@@ -95,7 +112,7 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
     if (!content) return null;
 
     return (
-        <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm">
+        <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/50 overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-2">
             <button 
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-indigo-600 hover:bg-indigo-100/50 transition-colors"
@@ -108,9 +125,10 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
                 <div className="px-3 pb-3">
                     <div 
                         ref={scrollRef}
-                        className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto custom-scrollbar border-l-2 border-indigo-200 pl-3 italic"
+                        className="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto custom-scrollbar border-l-2 border-indigo-200 pl-3 italic break-words"
                     >
                         {content}
+                        {isStreaming && <span className="inline-block w-1.5 h-3 ml-1 bg-indigo-400 animate-pulse align-middle"></span>}
                     </div>
                 </div>
             )}
@@ -533,12 +551,30 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
                 
-                const trimmed = msg.content.trim();
+                // Parse potential <think> tags in content if reasoning field is empty
+                let parsedContent = { reasoning: msg.reasoning || '', content: msg.content };
+                
+                // Only try to extract <think> if API didn't provide reasoning field or we are still streaming
+                if (!parsedContent.reasoning && parsedContent.content) {
+                     const split = parseThinkTag(parsedContent.content);
+                     if (split.reasoning) {
+                         parsedContent = split;
+                     }
+                }
+                
+                // Merge separate reasoning accumulated from stream if available
+                if (msg.reasoning) {
+                    parsedContent.reasoning = msg.reasoning + (parsedContent.reasoning ? '\n' + parsedContent.reasoning : '');
+                }
+
+                const trimmed = parsedContent.content.trim();
                 const isJsonOutline = isAssistant && ((trimmed.startsWith('{') || trimmed.startsWith('```json')) && trimmed.includes('"pages"'));
                 const isJsonContent = isAssistant && ((trimmed.startsWith('{') || trimmed.startsWith('```json')) && trimmed.includes('"content"') && !trimmed.includes('"pages"'));
                 const isHtml = isAssistant && (trimmed.startsWith('```html') || trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html'));
 
                 const shouldHideText = isJsonOutline || isJsonContent || isHtml;
+                const showThinking = !!parsedContent.reasoning;
+                const isEmpty = !parsedContent.content && !parsedContent.reasoning;
 
                 let statusTitle = "处理完成";
                 let statusDesc = "已同步至右侧画布";
@@ -576,13 +612,21 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
                             }
                         `}>
-                            {msg.reasoning && (
+                            {showThinking && (
                                 <ThinkingBlock 
-                                    content={msg.reasoning} 
+                                    content={parsedContent.reasoning} 
                                     isStreaming={isLlmActive && isLast} 
                                 />
                             )}
                             
+                            {/* Empty state while thinking */}
+                            {isAssistant && isEmpty && isLlmActive && isLast && (
+                                <div className="flex items-center gap-2 text-slate-400 text-xs italic py-1">
+                                    <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                                    <span>正在启动深度推理...</span>
+                                </div>
+                            )}
+
                             {shouldHideText ? (
                                 <div className="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-50 shadow-none">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isLlmActive && isLast ? 'bg-indigo-100 text-indigo-600' : 'bg-green-100 text-green-600'}`}>
@@ -602,7 +646,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                <div className="whitespace-pre-wrap">{parsedContent.content}</div>
                             )}
                         </div>
                     </div>
