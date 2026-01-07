@@ -153,10 +153,17 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const runOutlineGeneration = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
         const contextMessages = isRefinement ? history.map(m => ({ role: m.role, content: m.content })) : []; 
+        
+        // --- KEY CHANGE: Inject Reference Materials ---
+        let finalPrompt = userPromptText;
+        if (data.referenceMaterials && data.referenceMaterials.length > 0) {
+            finalPrompt = `【参考背景资料】\n${data.referenceMaterials}\n\n【用户指令】\n${userPromptText}`;
+        }
+        
         const apiMessages = [
             { role: 'system', content: `You are an expert presentation outline generator. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }` },
             ...contextMessages,
-            { role: 'user', content: userPromptText }
+            { role: 'user', content: finalPrompt }
         ];
 
         let modelToUse = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
@@ -289,7 +296,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             .replace('{{ page_index }}', String(targetIdx + 1))
                             .replace('{{ page_title }}', currentPage.title)
                             .replace('{{ page_summary }}', currentPage.summary);
-                        messages = [{ role: 'user', content }];
+                        
+                        // Inject reference materials here too if available
+                        let finalContent = content;
+                        if (data.referenceMaterials) {
+                            finalContent = `Reference Materials:\n${data.referenceMaterials}\n\n${content}`;
+                        }
+                        
+                        messages = [{ role: 'user', content: finalContent }];
                     } catch(e) {
                          messages = [{ role: 'user', content: `Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
                     }

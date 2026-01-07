@@ -9,6 +9,7 @@ import {
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
+import { KnowledgeTools } from './KnowledgeTools';
 
 // Add marked for markdown rendering
 declare global {
@@ -262,15 +263,33 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     // --- Views ---
 
     if (stage === 'collect') {
+        const handleUpdateReference = (newContent: string) => {
+            if (setData) {
+                setData(prev => ({
+                    ...prev,
+                    referenceMaterials: (prev.referenceMaterials || '') + newContent
+                }));
+            }
+        };
+
         return (
-            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-700 bg-slate-50 h-full">
+            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-700 bg-slate-50 h-full overflow-y-auto custom-scrollbar">
                 <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl mb-8 border border-slate-200">
                     <SparklesIcon className="w-16 h-16 text-indigo-500" />
                 </div>
                 <h1 className="text-4xl font-black text-slate-800 mb-4 tracking-tight">Auto Insight Canvas</h1>
-                <p className="text-slate-500 max-w-md text-lg">
+                <p className="text-slate-500 max-w-md text-lg mb-10">
                     请在左侧输入研究主题，AI 将为您自动构建逻辑架构。
                 </p>
+                
+                {/* Knowledge Augmentation Tools */}
+                <div className="w-full max-w-4xl border-t border-slate-200 pt-10">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">知识增强 (Knowledge Augmentation)</h3>
+                    <KnowledgeTools 
+                        onUpdateReference={handleUpdateReference}
+                        currentReferences={data.referenceMaterials}
+                    />
+                </div>
             </div>
         );
     }
