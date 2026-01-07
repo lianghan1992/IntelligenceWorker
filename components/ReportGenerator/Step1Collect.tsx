@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
@@ -517,7 +517,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
     const hasHtml = data.pages.some(p => !!p.html);
-    const isRedesignMode = stage === 'compose' && !autoGenMode && data.pages[activePageIndex]?.html && !data.pages[activePageIndex]?.isGenerating;
+    
+    // Determine if we are in "Edit Context" mode (meaning we are composing/editing, but not auto-generating)
+    const isEditMode = stage === 'compose' && !autoGenMode;
+    const activePage = data.pages[activePageIndex];
+    const isHtmlEdit = !!activePage?.html;
 
     // Watch for stage change to trigger initial text generation
     useEffect(() => {
@@ -655,19 +659,34 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0">
                     {/* Explicit Modification Indicator & Chips */}
-                    {isRedesignMode && (
+                    {isEditMode && (
                         <div className="space-y-3 mb-3 animate-in fade-in slide-in-from-bottom-1">
-                             <div className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
+                             <div className={`px-3 py-2 border rounded-lg flex items-center justify-between ${isHtmlEdit ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
                                  <div className="flex items-center gap-2">
-                                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                                     <span className="text-xs font-bold text-indigo-700">🎯 正在调整：第 {activePageIndex + 1} 页</span>
+                                     {isHtmlEdit ? (
+                                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
+                                            <SparklesIcon className="w-3 h-3 text-green-600" />
+                                        </div>
+                                     ) : (
+                                        <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <PencilIcon className="w-3 h-3 text-blue-600" />
+                                        </div>
+                                     )}
+                                     <span className="text-xs font-bold text-indigo-700">
+                                        {isHtmlEdit ? '🎨 正在调整设计' : '📝 正在撰写内容'}：第 {activePageIndex + 1} 页
+                                     </span>
                                  </div>
-                                 <span className="text-[9px] text-indigo-400 font-mono font-bold tracking-wider">REDESIGN</span>
+                                 <span className="text-[9px] text-indigo-400 font-mono font-bold tracking-wider opacity-60">
+                                     {isHtmlEdit ? 'VISUAL EDITOR' : 'TEXT EDITOR'}
+                                 </span>
                              </div>
                              
-                             {/* Quick Action Chips */}
+                             {/* Quick Action Chips based on Context */}
                              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                                {['换个深色主题', '精简文字内容', '增加图表', '改为左右布局', '字体加大'].map(action => (
+                                {(isHtmlEdit 
+                                    ? ['换个深色主题', '增加图表', '改为左右布局', '字体加大', '重绘'] 
+                                    : ['扩写一段', '精简内容', '增加数据', '润色语气', '翻译成英文']
+                                ).map(action => (
                                     <button
                                         key={action}
                                         onClick={() => handleSend(action)}
@@ -681,7 +700,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          </div>
                     )}
                     
-                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 ${isRedesignMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200'}`}>
+                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 ${isEditMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200'}`}>
                         <input 
                             value={input}
                             onChange={e => setInput(e.target.value)}
@@ -689,7 +708,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             placeholder={
                                 stage === 'collect' ? "输入研报主题..." : 
                                 (autoGenMode ? "正在生成中..." : 
-                                (isRedesignMode ? "输入修改指令 (如: 把背景改成深蓝色...)" : "输入内容..."))
+                                (isEditMode ? "输入修改指令..." : "输入内容..."))
                             }
                             className="w-full bg-slate-50 text-slate-800 placeholder:text-slate-400 border border-transparent rounded-xl pl-4 pr-12 py-3.5 text-sm focus:bg-white focus:border-indigo-500 outline-none transition-all"
                             disabled={isLlmActive}
@@ -698,7 +717,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             onClick={() => handleSend()}
                             disabled={!input.trim() || isLlmActive}
                             className={`absolute right-2 top-2 p-1.5 text-white rounded-lg transition-all shadow-sm ${
-                                isRedesignMode && input.trim() ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300'
+                                isEditMode && input.trim() ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300'
                             }`}
                         >
                             {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
@@ -708,8 +727,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     {/* Context Hint */}
                     {stage === 'compose' && !autoGenMode && (
                         <p className="text-[10px] text-center text-slate-400 mt-2 flex items-center justify-center gap-1">
-                           <span className={`w-1.5 h-1.5 rounded-full ${isRedesignMode ? 'bg-green-400' : 'bg-slate-300'}`}></span>
-                           {isRedesignMode ? '输入指令即可实时重绘当前幻灯片' : '点击 "开始设计幻灯片" 启动渲染'}
+                           <span className={`w-1.5 h-1.5 rounded-full ${isEditMode ? 'bg-green-400' : 'bg-slate-300'}`}></span>
+                           {isEditMode ? '输入指令即可实时更新当前幻灯片' : '点击 "开始设计幻灯片" 启动渲染'}
                         </p>
                     )}
                 </div>
