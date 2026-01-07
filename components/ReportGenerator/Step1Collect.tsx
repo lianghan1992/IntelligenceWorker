@@ -22,7 +22,7 @@ interface CopilotSidebarProps {
 }
 
 // --- Helper: Robust Partial JSON Parser ---
-const tryParsePartialJson = (jsonStr: string) => {
+export const tryParsePartialJson = (jsonStr: string) => {
     try {
         let cleanStr = jsonStr.replace(/```json|```/g, '').trim();
         // Remove markdown code block start if present without end
@@ -45,6 +45,9 @@ const tryParsePartialJson = (jsonStr: string) => {
             }
         }
         
+        // Auto-close string if open
+        if (inString) cleanStr += '"';
+
         // Auto-close open structures
         let closer = '';
         while (stack.length > 0) {
@@ -438,7 +441,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const trimmed = msg.content.trim();
                 
                 // 1. Outline JSON Detection
-                // Check if it looks like JSON structure for outline
                 const isJsonOutline = isAssistant && (
                     (trimmed.startsWith('{') || trimmed.startsWith('```json')) && 
                     (trimmed.includes('"pages"') || trimmed.includes('title'))

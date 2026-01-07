@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf } from '../../api/stratify';
 import { 
@@ -7,6 +7,7 @@ import {
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
+import { tryParsePartialJson } from './Step1Collect'; // Import shared helper
 
 // Add marked for markdown rendering
 declare global {
@@ -61,12 +62,37 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     };
 
+    // Robust display content for streaming
+    const displayContent = useMemo(() => {
+        if (!activePage) return '';
+        const raw = activePage.content;
+        
+        // If it looks like JSON during stream, try to parse it locally to avoid flicker
+        if (raw.trim().startsWith('{')) {
+            const partial = tryParsePartialJson(raw);
+            if (partial && partial.content) {
+                return partial.content;
+            }
+            // If tryParsePartialJson failed but it's clearly a JSON stream for 'content', use regex fallback
+            const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
+            if (match) {
+                try {
+                     // Create a valid string literal from the captured part + closing quote
+                     return JSON.parse(`"${match[1]}"`); 
+                } catch(e) {
+                     return match[1];
+                }
+            }
+        }
+        return raw;
+    }, [activePage?.content]);
+
     // Auto-scroll effect for streaming content
     useEffect(() => {
         if (activePage?.isGenerating && editorScrollRef.current) {
             editorScrollRef.current.scrollTop = editorScrollRef.current.scrollHeight;
         }
-    }, [activePage?.content, activePage?.isGenerating]);
+    }, [displayContent, activePage?.isGenerating]);
 
     // Render Markdown Helper with Fix
     const renderMarkdown = (content: string): { __html: string } | undefined => {
@@ -122,7 +148,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
 
     const hasHtml = !!activePage.html;
     const isGenerating = activePage.isGenerating;
-    const hasContent = !!activePage.content;
+    const hasContent = !!displayContent;
 
     return (
         <div className="flex h-full overflow-hidden bg-slate-100">
@@ -148,7 +174,8 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                      <iframe srcDoc={p.html} className="w-[400%] h-[400%] pointer-events-none scale-[0.25] origin-top-left border-none" tabIndex={-1} />
                                  ) : p.content ? (
                                      <div className="p-1 text-[4px] text-slate-300 leading-tight overflow-hidden text-left h-full w-full select-none">
-                                        {p.content.slice(0, 200)}
+                                        {/* Use raw content for thumb if available, stripped of JSON if needed, but thumbnails update less frequently so it's okay */}
+                                        {p.content.startsWith('{') ? '...' : p.content.slice(0, 200)}
                                      </div>
                                  ) : (
                                      <span className="text-[10px] text-slate-300">{idx+1}</span>
@@ -209,7 +236,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                             <div ref={editorScrollRef} className="w-full h-full overflow-y-auto p-12 bg-white relative scroll-smooth">
                                 <article 
                                     className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-h1:text-3xl prose-h2:text-2xl prose-strong:text-indigo-700"
-                                    dangerouslySetInnerHTML={renderMarkdown(activePage.content)}
+                                    dangerouslySetInnerHTML={renderMarkdown(displayContent)}
                                 />
                                 {isGenerating && (
                                     <div className="absolute bottom-6 right-6 flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-lg border border-indigo-100 animate-in fade-in slide-in-from-bottom-2">
