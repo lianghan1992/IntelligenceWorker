@@ -34,15 +34,19 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
     const BASE_WIDTH = 1600;
     const BASE_HEIGHT = 900;
     
+    // Safety check to prevent 0 scale or division by zero
+    const safeWidth = width || 800; // Default fallback width
+    const safeHeight = height || 600; // Default fallback height
+    
     // Calculate scale to fit the container while maintaining aspect ratio
-    // Add a small padding factor (0.96) to ensure borders aren't cut off
-    const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT) * 0.96 || 1;
+    // Add a small padding factor (0.95) to ensure borders aren't cut off
+    const scale = Math.min(safeWidth / BASE_WIDTH, safeHeight / BASE_HEIGHT) * 0.95;
 
     return (
         <div 
             style={{ 
-                width: width, 
-                height: height, 
+                width: '100%', 
+                height: '100%', 
                 overflow: 'hidden',
                 display: 'flex',
                 alignItems: 'center',
@@ -57,13 +61,15 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
                     transform: `scale(${scale})`, 
                     transformOrigin: 'center center',
                     background: 'white',
-                    boxShadow: '0 20px 50px -12px rgba(0,0,0,0.1)'
+                    boxShadow: '0 20px 50px -12px rgba(0,0,0,0.15)',
+                    flexShrink: 0 // Prevent flex compression
                 }}
             >
                 <iframe 
                     srcDoc={html}
                     className="w-full h-full border-none pointer-events-none select-none"
                     title="Slide Preview"
+                    sandbox="allow-scripts allow-same-origin" 
                 />
             </div>
         </div>
@@ -83,9 +89,18 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     // Monitor container size for scaling
     useEffect(() => {
         if (!containerRef.current) return;
+        
+        // Initial set
+        setContainerSize({ 
+            width: containerRef.current.clientWidth, 
+            height: containerRef.current.clientHeight 
+        });
+
         const ro = new ResizeObserver(entries => {
             for (let entry of entries) {
-                setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                     setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+                }
             }
         });
         ro.observe(containerRef.current);

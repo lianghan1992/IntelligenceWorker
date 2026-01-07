@@ -501,6 +501,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
     const hasHtml = data.pages.some(p => !!p.html);
+    const isRedesignMode = stage === 'compose' && !autoGenMode && data.pages[activePageIndex]?.html;
 
     // Watch for stage change to trigger initial text generation
     useEffect(() => {
@@ -646,32 +647,44 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0">
-                    {stage === 'compose' && !autoGenMode && data.pages[activePageIndex]?.html && (
-                         <div className="mb-2 px-1 flex items-center gap-2">
-                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Target: Page {activePageIndex + 1} Redesign</span>
+                    {/* Explicit Modification Indicator */}
+                    {isRedesignMode && (
+                         <div className="mb-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-1">
+                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                             <span className="text-xs font-bold text-indigo-700">🎯 正在调整：第 {activePageIndex + 1} 页</span>
+                             <span className="text-[10px] text-indigo-400 ml-auto font-mono">MODIFICATION MODE</span>
                          </div>
                     )}
-                    <div className="relative shadow-sm rounded-xl">
+                    
+                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 ${isRedesignMode ? 'ring-2 ring-indigo-100' : ''}`}>
                         <input 
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}
-                            placeholder={stage === 'collect' ? "输入研报主题..." : (autoGenMode ? "正在生成中..." : "输入修改意见，如：把背景改成深蓝色...")}
+                            placeholder={
+                                stage === 'collect' ? "输入研报主题..." : 
+                                (autoGenMode ? "正在生成中..." : 
+                                (isRedesignMode ? "输入修改指令 (如: 把背景改成深蓝色...)" : "输入内容..."))
+                            }
                             className="w-full bg-slate-50 text-slate-800 placeholder:text-slate-400 border border-slate-200 rounded-xl pl-4 pr-12 py-3.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                             disabled={isLlmActive}
                         />
                         <button 
                             onClick={handleSend}
                             disabled={!input.trim() || isLlmActive}
-                            className="absolute right-2 top-2 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all disabled:opacity-50 disabled:bg-slate-300 shadow-sm"
+                            className={`absolute right-2 top-2 p-1.5 text-white rounded-lg transition-all shadow-sm ${
+                                isRedesignMode && input.trim() ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300'
+                            }`}
                         >
                             {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
                         </button>
                     </div>
+                    
+                    {/* Context Hint */}
                     {stage === 'compose' && !autoGenMode && (
-                        <p className="text-[10px] text-center text-slate-400 mt-2">
-                           当前为第 {activePageIndex + 1} 页。输入指令即可修改本页内容或样式。
+                        <p className="text-[10px] text-center text-slate-400 mt-2 flex items-center justify-center gap-1">
+                           <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                           {isRedesignMode ? '输入指令即可实时重绘当前幻灯片' : '点击 "开始设计幻灯片" 启动渲染'}
                         </p>
                     )}
                 </div>
