@@ -66,8 +66,8 @@ const ScenarioWorkstation: React.FC = () => {
 
     return (
         <div className="flex h-full w-full bg-[#f8fafc] overflow-hidden text-slate-900 font-sans">
-            {/* Left: Copilot Sidebar (Fixed Width - Adjusted to be clean) */}
-            <div className="w-[360px] flex-shrink-0 flex flex-col border-r border-slate-200 bg-[#0f172a] relative z-20">
+            {/* Left: Copilot Sidebar (Wider) */}
+            <div className="w-[450px] flex-shrink-0 flex flex-col border-r border-slate-200 bg-[#0f172a] relative z-20 transition-all duration-300">
                 <CopilotSidebar 
                     stage={stage}
                     setStage={setStage}

@@ -8,6 +8,7 @@ export interface ChatMessage {
     content: string;
     hidden?: boolean;
     reasoning?: string;
+    model?: string; // Model used for generation
 }
 
 export interface PPTPageData {

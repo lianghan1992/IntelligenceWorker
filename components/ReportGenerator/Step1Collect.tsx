@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
@@ -152,19 +152,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             { role: 'user', content: userPromptText }
         ];
 
-        setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '' }]);
+        let modelToUse = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
+        try {
+            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); 
+            if (prompt.channel_code && prompt.model_id) {
+                modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
+            }
+        } catch (e) { console.warn("Using default model for outline"); }
+
+        setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '', model: modelToUse }]);
         let accumulatedContent = '';
         let accumulatedReasoning = '';
 
         try {
-            let modelToUse = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
-            try {
-                const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); 
-                if (prompt.channel_code && prompt.model_id) {
-                    modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
-                }
-            } catch (e) { console.warn("Using default model for outline"); }
-
             await streamChatCompletions({
                 model: modelToUse, 
                 messages: apiMessages,
@@ -241,10 +241,25 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
+            // Determine Model first to show in history
+            let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+            if (autoGenMode === 'text') {
+                 try {
+                    const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
+                    if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                } catch(e) {}
+            } else {
+                 try {
+                    const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
+                    if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+                } catch(e) {}
+            }
+
             setHistory(prev => [...prev, { 
                 role: 'assistant', 
                 content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
-                reasoning: '' 
+                reasoning: '',
+                model: modelStr
             }]);
 
             setData(prev => {
@@ -254,14 +269,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             });
 
             try {
-                let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
                 let messages: any[] = [];
                 let systemPromptContent = '';
 
                 if (autoGenMode === 'text') {
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-                        if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
                         const content = promptDetail.content
                             .replace('{{ page_index }}', String(targetIdx + 1))
                             .replace('{{ page_title }}', currentPage.title)
@@ -273,7 +286,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 } else {
                     try {
                         const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
-                        if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
                         systemPromptContent = promptDetail.content;
                     } catch(e) {
                          systemPromptContent = "You are an expert web designer. Create a single 1600x900 HTML slide using TailwindCSS.";
@@ -317,9 +329,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             }
                             newPages[targetIdx].content = displayContent;
                         } else {
-                            // HTML Mode: Use extractCleanHtml to remove preamble and only start when code starts
                             const cleanHtml = extractCleanHtml(accContent);
-                            if (cleanHtml) { // Only update if we actually have code to show
+                            if (cleanHtml) {
                                 newPages[targetIdx].html = cleanHtml;
                             }
                         }
@@ -335,7 +346,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          const cleanHtml = extractCleanHtml(accContent);
                          const currentHistory = newPages[targetIdx].chatHistory || [];
                          newPages[targetIdx].chatHistory = [...currentHistory, { role: 'assistant', content: cleanHtml }];
-                         // Final clean ensure
                          newPages[targetIdx].html = cleanHtml;
                     }
                     
@@ -372,18 +382,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
         
-        setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '' }]);
+        let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
+        try {
+           const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
+           if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
+        } catch(e) {}
+
+        setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
         
         let messages: ChatMessage[] = [];
-        let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
         const isHtmlMode = !!page.html;
 
         try {
-             try {
-                const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-                if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-             } catch(e) {}
-
              if (isHtmlMode) {
                  let contextHistory = page.chatHistory || [];
                  if (contextHistory.length === 0) {
@@ -546,10 +556,22 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 return (
                     <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                        {/* Model Badge */}
+                        {isAssistant && msg.model && (
+                            <div className="mb-2 flex items-center gap-1.5 ml-1">
+                                <div className="flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-indigo-600 shadow-sm">
+                                    <ServerIcon className="w-2.5 h-2.5" />
+                                </div>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-50/50 px-1.5 py-0.5 rounded border border-slate-100 truncate max-w-[220px]" title={msg.model}>
+                                    {msg.model.replace('openrouter@', '').replace(':free', '')}
+                                </span>
+                            </div>
+                        )}
+
                         <div className={`
-                            max-w-[90%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm border transition-all
+                            max-w-[95%] rounded-2xl p-4 text-sm leading-relaxed shadow-sm border transition-all
                             ${msg.role === 'user' 
-                                ? 'bg-indigo-600 text-white rounded-tr-sm border-indigo-600' 
+                                ? 'bg-indigo-600 text-white rounded-tr-sm border-indigo-600 shadow-indigo-100' 
                                 : 'bg-white text-slate-700 border-slate-200 rounded-tl-sm'
                             }
                         `}>
