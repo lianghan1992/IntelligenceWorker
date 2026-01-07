@@ -3,16 +3,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
     CloudIcon, SearchIcon, LinkIcon, CloseIcon, CheckIcon, 
     TrashIcon, RefreshIcon, GlobeIcon, ExternalLinkIcon, ChevronDownIcon,
-    LightningBoltIcon, ServerIcon, DatabaseIcon, ClockIcon
+    LightningBoltIcon, ServerIcon, DatabaseIcon, ClockIcon, GearIcon,
+    ShieldExclamationIcon
 } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
 
 // --- Constants ---
-const GOOGLE_API_KEY = 'AIzaSyBHC1sLIvdoVZIT0JrfPbP7d8KhcIb3738';
-// 使用一个通用的“全网搜索” CX ID，或者提示用户在代码中配置
-const SEARCH_ENGINE_ID = 'b32997198754746f1'; 
-const DAILY_LIMIT = 5;
+const DEFAULT_GOOGLE_KEY = 'AIzaSyBHC1sLIvdoVZIT0JrfPbP7d8KhcIb3738';
+const DEFAULT_GOOGLE_CX = '33dd9593bf20144a8'; // Provided default
 const STORAGE_KEY_LIMIT = 'auto_insight_search_usage';
+const STORAGE_KEY_CONFIG = 'auto_insight_search_config';
+const DAILY_LIMIT = 5;
 
 interface KnowledgeToolsProps {
     onUpdateReference: (content: string, sourceName: string) => void;
@@ -103,6 +104,13 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [quota, setQuota] = useState(checkDailyQuota());
     
+    // Config State
+    const [config, setConfig] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
+        return saved ? JSON.parse(saved) : { apiKey: DEFAULT_GOOGLE_KEY, cx: DEFAULT_GOOGLE_CX };
+    });
+    const [isConfigMode, setIsConfigMode] = useState(false);
+
     // Inputs
     const [searchKeyword, setSearchKeyword] = useState('');
     const [urlInput, setUrlInput] = useState('');
@@ -112,6 +120,12 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     useEffect(() => {
         setQuota(checkDailyQuota());
     }, [isSearchOpen]);
+
+    const saveConfig = (newConfig: { apiKey: string, cx: string }) => {
+        setConfig(newConfig);
+        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
+        setIsConfigMode(false);
+    };
 
     const addReferenceItem = (type: 'file' | 'search' | 'url', name: string): string => {
         const id = crypto.randomUUID();
@@ -171,6 +185,12 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     // --- 2. Google Search Logic ---
     const handleSearch = async () => {
         if (!searchKeyword.trim()) return;
+        
+        // Ensure config is present, though defaults handle this. 
+        if (!config.cx) {
+            setIsConfigMode(true);
+            return;
+        }
 
         // Check Quota
         const { allowed } = checkDailyQuota();
@@ -188,7 +208,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         try {
             // Step 1: Call Google API
             appendLog(id, `连接 Google Search API...`);
-            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(keyword)}&num=10`; // Max 10 results
+            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${config.apiKey}&cx=${config.cx}&q=${encodeURIComponent(keyword)}&num=10`; // Max 10 results
             
             const response = await fetch(searchUrl);
             
@@ -196,7 +216,10 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 if (response.status === 403 || response.status === 429) {
                      throw new Error("已超出每日限额，请升级为专业用户。");
                 }
-                throw new Error(`Search API Error: ${response.statusText}`);
+                if (response.status === 400) {
+                     throw new Error("配置无效: 请检查 API Key 和 CX ID 是否正确。");
+                }
+                throw new Error(`Search API Error: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
@@ -253,6 +276,11 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             console.error(e);
             updateItemState(id, { status: 'error' });
             appendLog(id, `错误: ${e.message}`);
+            // If error is config related, suggest opening config
+            if (e.message.includes("配置无效") || e.message.includes("400")) {
+                setIsSearchOpen(true);
+                setIsConfigMode(true);
+            }
         }
     };
 
@@ -487,39 +515,90 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                             <GlobeIcon className="w-32 h-32" />
                         </div>
                         
-                        <h3 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2 relative z-10">
-                            <GlobeIcon className="w-6 h-6 text-purple-600"/> 智能联网搜索
-                        </h3>
-                        
-                        <div className="relative z-10">
-                            <input 
-                                value={searchKeyword}
-                                onChange={e => setSearchKeyword(e.target.value)}
-                                placeholder="输入关键词 (e.g. 特斯拉 Robotaxi 最新进展)"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base focus:ring-2 focus:ring-purple-500 outline-none mb-4 shadow-inner font-medium text-slate-800 placeholder:text-slate-400"
-                                autoFocus
-                                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                            />
-                            
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                                    <ServerIcon className="w-3 h-3" />
-                                    <span>Google Engine Ready</span>
-                                    <span className={`font-bold ml-1 ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                        (今日剩余: {quota.remaining})
-                                    </span>
-                                </div>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setIsSearchOpen(false)} className="px-5 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-bold transition-colors">取消</button>
-                                    <button 
-                                        onClick={handleSearch} 
-                                        className="px-8 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-purple-600 shadow-lg shadow-purple-500/20 transition-all transform active:scale-95 flex items-center gap-2"
-                                    >
-                                        <SearchIcon className="w-4 h-4" /> 开始搜索
-                                    </button>
+                        {isConfigMode ? (
+                             <div className="relative z-10 animate-in fade-in slide-in-from-right-4">
+                                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <GearIcon className="w-5 h-5 text-slate-600"/> 搜索引擎配置
+                                </h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">API Key</label>
+                                        <input 
+                                            type="password"
+                                            value={config.apiKey}
+                                            onChange={e => setConfig({...config, apiKey: e.target.value})}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                            placeholder="AIza..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Search Engine ID (CX)</label>
+                                        <input 
+                                            value={config.cx}
+                                            onChange={e => setConfig({...config, cx: e.target.value})}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                                            placeholder="0123456789..."
+                                        />
+                                        <div className="mt-1 text-[10px] text-slate-400">
+                                            <a href="https://programmablesearchengine.google.com/controlpanel/create" target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:underline">
+                                                点击此处创建搜索引擎 (CX)
+                                            </a>
+                                            ，需启用"搜索整个网络"。
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 justify-end mt-4">
+                                        <button onClick={() => setIsConfigMode(false)} className="px-4 py-2 text-slate-500 text-sm hover:bg-slate-100 rounded-lg">取消</button>
+                                        <button onClick={() => saveConfig(config)} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700">保存配置</button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                                        <GlobeIcon className="w-6 h-6 text-purple-600"/> 智能联网搜索
+                                    </h3>
+                                    <button onClick={() => setIsConfigMode(true)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="配置 API">
+                                        <GearIcon className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                
+                                <input 
+                                    value={searchKeyword}
+                                    onChange={e => setSearchKeyword(e.target.value)}
+                                    placeholder="输入关键词 (e.g. 特斯拉 Robotaxi 最新进展)"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 text-base focus:ring-2 focus:ring-purple-500 outline-none mb-4 shadow-inner font-medium text-slate-800 placeholder:text-slate-400"
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                                />
+                                
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                        <ServerIcon className="w-3 h-3" />
+                                        <span>Google Engine Ready</span>
+                                        <span className={`font-bold ml-1 ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            (今日剩余: {quota.remaining})
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setIsSearchOpen(false)} className="px-5 py-2 text-slate-500 hover:bg-slate-100 rounded-xl text-sm font-bold transition-colors">取消</button>
+                                        <button 
+                                            onClick={handleSearch} 
+                                            className="px-8 py-2 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-purple-600 shadow-lg shadow-purple-500/20 transition-all transform active:scale-95 flex items-center gap-2"
+                                        >
+                                            <SearchIcon className="w-4 h-4" /> 开始搜索
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                {!config.cx && (
+                                    <div className="mt-4 p-2 bg-yellow-50 text-yellow-700 text-xs rounded border border-yellow-200 flex items-center gap-2">
+                                        <ShieldExclamationIcon className="w-4 h-4" />
+                                        提示：建议点击右上角齿轮配置自己的 Search Engine ID (CX)，以免超出默认配额。
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
