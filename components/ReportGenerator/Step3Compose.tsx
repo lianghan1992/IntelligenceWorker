@@ -29,25 +29,23 @@ interface MainCanvasProps {
 }
 
 // --- Helper: Scaled Slide Renderer ---
-// Renders the slide at a fixed base resolution (1600x900) and scales it to fit the container.
 const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = ({ html, width, height }) => {
     const BASE_WIDTH = 1600;
     const BASE_HEIGHT = 900;
     
-    // Calculate scale to fit the container while maintaining aspect ratio
-    // Add a small padding factor (0.95) to ensure borders aren't cut off
-    const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT) * 0.95 || 1;
+    // Calculate scale to fit the container
+    // Use 0.96 to leave a small margin, avoiding edge-to-edge collision
+    const scale = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT) * 0.96 || 0.5;
 
     return (
         <div 
             style={{ 
                 width: width, 
                 height: height, 
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
+                display: 'flex', 
+                alignItems: 'center', 
                 justifyContent: 'center',
-                background: '#f1f5f9' // slate-100
+                overflow: 'hidden'
             }}
         >
             <div 
@@ -56,8 +54,9 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
                     height: BASE_HEIGHT, 
                     transform: `scale(${scale})`, 
                     transformOrigin: 'center center',
-                    background: 'white',
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.1)'
+                    boxShadow: '0 20px 50px -12px rgba(0, 0, 0, 0.25)',
+                    backgroundColor: 'white',
+                    borderRadius: '4px' // Subtle rounding
                 }}
             >
                 <iframe 
@@ -83,12 +82,25 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     // Monitor container size for scaling
     useEffect(() => {
         if (!containerRef.current) return;
-        const ro = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-            }
+        
+        const updateSize = () => {
+             if (containerRef.current) {
+                 setContainerSize({ 
+                     width: containerRef.current.clientWidth, 
+                     height: containerRef.current.clientHeight 
+                 });
+             }
+        };
+
+        // Initial size
+        updateSize();
+
+        const ro = new ResizeObserver(() => {
+            // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" error
+            window.requestAnimationFrame(updateSize);
         });
         ro.observe(containerRef.current);
+        
         return () => ro.disconnect();
     }, []);
 
@@ -119,7 +131,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     };
 
-    // Robust display content for streaming text
     const displayContent = useMemo(() => {
         if (!activePage) return '';
         const raw = activePage.content;
@@ -136,23 +147,19 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         return raw;
     }, [activePage?.content]);
 
-    // Auto-scroll effect for text editor
     useEffect(() => {
         if (activePage?.isGenerating && !activePage.html && editorScrollRef.current) {
             editorScrollRef.current.scrollTop = editorScrollRef.current.scrollHeight;
         }
     }, [displayContent, activePage?.isGenerating, activePage?.html]);
 
-    // Auto-scroll effect for code view
     useEffect(() => {
         if (activePage?.isGenerating && activePage.html && codeScrollRef.current) {
-             // Scroll the pre element's parent container
              if (codeScrollRef.current.parentElement) {
                  codeScrollRef.current.parentElement.scrollTop = codeScrollRef.current.parentElement.scrollHeight;
              }
         }
     }, [activePage?.html, activePage?.isGenerating]);
-
 
     const renderMarkdown = (content: string): { __html: string } | undefined => {
         if (!content) return undefined;
@@ -213,7 +220,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     return (
         <div className="flex h-full overflow-hidden bg-slate-100">
             {/* Left Rail: Thumbnails */}
-            <div className="w-64 flex-shrink-0 flex flex-col border-r border-slate-200 bg-white">
+            <div className="w-64 flex-shrink-0 flex flex-col border-r border-slate-200 bg-white z-10">
                  <div className="p-4 border-b border-slate-100">
                      <h3 className="font-bold text-slate-800 text-sm truncate" title={data.topic}>{data.topic}</h3>
                      <p className="text-xs text-slate-400 mt-1">{data.pages.length} Pages</p>
@@ -230,21 +237,18 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                          >
                              {/* Thumbnail Preview */}
                              <div className="aspect-[16/9] bg-slate-100 rounded border border-slate-200 mb-2 overflow-hidden relative flex items-center justify-center">
-                                 {/* 
-                                     Three States for Thumbnail:
-                                     1. HTML Ready (Not Generating): Show Scaled Iframe (1600x900)
-                                     2. Generating HTML: Show "Rendering" code view
-                                     3. Text Only: Show Text
-                                 */}
                                  {p.html && !p.isGenerating ? (
-                                    // Fixed wrapper for scaling 1600x900 to approx 220px width (scale ~0.14)
+                                    // Adjusted scale for w-64 sidebar (content width ~220px)
+                                    // 1600 * 0.14 = 224px
                                      <div className="w-full h-full relative overflow-hidden bg-white">
-                                         <div className="absolute top-0 left-0 w-[1600px] h-[900px] origin-top-left transform scale-[0.135]">
+                                         <div 
+                                             className="absolute top-0 left-0 w-[1600px] h-[900px] origin-top-left"
+                                             style={{ transform: 'scale(0.14)' }}
+                                         >
                                              <iframe srcDoc={p.html} className="w-full h-full border-none pointer-events-none" tabIndex={-1} />
                                          </div>
                                      </div>
                                  ) : p.isGenerating && p.html ? (
-                                     // Generating HTML state - Show Code/Terminal look
                                      <div className="w-full h-full bg-slate-900 p-2 text-[5px] font-mono text-green-400 overflow-hidden leading-tight opacity-90 break-all whitespace-pre-wrap">
                                          {p.html.slice(-500)}
                                          <div className="absolute bottom-1 right-1">
@@ -252,7 +256,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                          </div>
                                      </div>
                                  ) : p.content ? (
-                                     // Text Content State
                                      <div className="p-2 text-[5px] text-slate-400 leading-tight overflow-hidden text-left h-full w-full select-none bg-white">
                                         {p.content.startsWith('{') ? 'Content Generating...' : p.content.slice(0, 300)}
                                      </div>
@@ -260,7 +263,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                      <span className="text-[10px] text-slate-300">{idx+1}</span>
                                  )}
                                  
-                                 {/* Loading Overlay (only if not showing the code view above) */}
                                  {p.isGenerating && !p.html && (
                                      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
                                          <RefreshIcon className="w-4 h-4 text-indigo-500 animate-spin"/>
@@ -294,7 +296,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             {/* Main Stage */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Toolbar */}
-                <div className="h-14 px-6 flex items-center justify-between bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+                <div className="h-14 px-6 flex items-center justify-between bg-white border-b border-slate-200 shadow-sm flex-shrink-0 z-20">
                     <div className="flex items-center gap-4">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
                             Page {activePageIndex + 1} • 
@@ -306,18 +308,17 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                 </div>
 
                 {/* Content Canvas */}
-                <div className="flex-1 overflow-hidden bg-slate-100 flex items-center justify-center p-4 md:p-8 relative">
+                <div className="flex-1 overflow-hidden bg-slate-100 flex items-center justify-center relative">
                     <div 
                         ref={containerRef}
-                        className={`w-full max-w-[1400px] h-full flex flex-col justify-center transition-all duration-500`}
+                        className="w-full h-full p-4 md:p-8 flex items-center justify-center"
                     >
-                        
                         {/* 1. HTML View (Highest Priority if exists and NOT generating) */}
                         {hasHtml && !isGenerating ? (
-                            <ScaledSlide html={activePage.html!} width={containerSize.width} height={containerSize.height} />
+                            <ScaledSlide html={activePage.html!} width={containerSize.width - 64} height={containerSize.height - 64} />
                         ) : hasHtml && isGenerating ? (
                             /* 2. Streaming Code View (Prevents Flicker) */
-                            <div className="w-full h-full bg-[#1e1e1e] rounded-xl shadow-2xl border border-slate-700 p-0 overflow-hidden flex flex-col relative">
+                            <div className="w-full max-w-[1200px] h-full max-h-[800px] bg-[#1e1e1e] rounded-xl shadow-2xl border border-slate-700 p-0 overflow-hidden flex flex-col relative animate-in fade-in zoom-in-95 duration-300">
                                 <div className="bg-[#2d2d2d] px-4 py-2 flex items-center justify-between border-b border-black/20">
                                     <div className="flex items-center gap-2 text-green-400 font-mono text-xs">
                                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -341,7 +342,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                             </div>
                         ) : hasContent ? (
                             /* 3. Text/Markdown View */
-                            <div className="w-full max-w-[900px] mx-auto h-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
+                            <div className="w-full max-w-[900px] h-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col">
                                 <div ref={editorScrollRef} className="flex-1 overflow-y-auto p-8 md:p-12 relative scroll-smooth">
                                     <article 
                                         className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:text-slate-900 prose-p:text-slate-600 prose-li:text-slate-600 prose-h1:text-3xl prose-h2:text-2xl prose-strong:text-indigo-700"
@@ -357,7 +358,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                             </div>
                         ) : (
                             /* 4. Empty/Loading State */
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white p-20 text-center rounded-xl shadow-sm border border-slate-200 m-8">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-20 text-center">
                                 {isGenerating ? (
                                     <>
                                         <div className="w-16 h-16 relative mb-6">
