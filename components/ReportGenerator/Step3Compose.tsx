@@ -273,7 +273,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         };
 
         return (
-            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-700 bg-slate-50 h-full overflow-y-auto custom-scrollbar">
+            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center animate-in fade-in duration-700 bg-slate-50 h-full overflow-y-auto custom-scrollbar relative">
                 <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center shadow-xl mb-8 border border-slate-200">
                     <SparklesIcon className="w-16 h-16 text-indigo-500" />
                 </div>
