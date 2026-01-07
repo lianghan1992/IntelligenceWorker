@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StratifyOutline } from '../../types';
-import { CheckIcon, DocumentTextIcon } from '../icons';
+import { CheckIcon, DocumentTextIcon, ArrowRightIcon } from '../icons';
 
 interface OutlineWidgetProps {
     topic: string;
@@ -35,16 +35,10 @@ export const Step2Outline: React.FC<OutlineWidgetProps> = ({
                     <h2 className="text-2xl font-black text-slate-800 tracking-tight">{outlineData.title || topic}</h2>
                     <p className="text-sm text-slate-500 mt-1">共 {outlineData.pages.length} 页 • 结构预览</p>
                  </div>
-                 <button 
-                     onClick={onConfirm}
-                     className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 active:scale-95"
-                 >
-                     <CheckIcon className="w-5 h-5" /> 确认大纲并生成内容
-                 </button>
              </div>
 
              {/* Tree Grid */}
-             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar pb-32">
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
                     {outlineData.pages.map((page, idx) => (
                          <div key={idx} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all relative overflow-hidden">
@@ -74,6 +68,17 @@ export const Step2Outline: React.FC<OutlineWidgetProps> = ({
                         <span className="text-xs mt-1">请在左侧对话框直接告知 AI</span>
                     </div>
                  </div>
+             </div>
+
+             {/* Floating Action Button - Positioned similarly to chat inputs */}
+             <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none">
+                 <button 
+                     onClick={onConfirm}
+                     className="pointer-events-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-xl shadow-indigo-200 hover:shadow-indigo-300 transition-all flex items-center gap-2 hover:-translate-y-1 active:translate-y-0 active:scale-95"
+                 >
+                     <span>确认大纲并生成内容</span>
+                     <ArrowRightIcon className="w-5 h-5" />
+                 </button>
              </div>
         </div>
     );

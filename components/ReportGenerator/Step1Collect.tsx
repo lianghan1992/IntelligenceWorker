@@ -437,19 +437,19 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
                 
-                // --- Data Hiding Logic ---
+                // --- Data Hiding Logic (FIXED) ---
                 const trimmed = msg.content.trim();
                 
-                // 1. Outline JSON Detection
+                // 1. Outline JSON Detection (Stricter: requires 'pages' array)
                 const isJsonOutline = isAssistant && (
                     (trimmed.startsWith('{') || trimmed.startsWith('```json')) && 
-                    (trimmed.includes('"pages"') || trimmed.includes('title'))
+                    trimmed.includes('"pages"')
                 );
                 
-                // 2. Content JSON Detection (Compose Phase)
-                const isJsonContent = isAssistant && stage === 'compose' && (
+                // 2. Content JSON Detection (Stricter: requires 'content' field AND not pages)
+                const isJsonContent = isAssistant && (
                     (trimmed.startsWith('{') || trimmed.startsWith('```json')) &&
-                    trimmed.includes('"content"')
+                    trimmed.includes('"content"') && !trimmed.includes('"pages"')
                 );
 
                 // 3. HTML Detection
@@ -461,6 +461,22 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 // Determine if we should hide the text
                 const shouldHideText = isJsonOutline || isJsonContent || isHtml;
+
+                // Determine Card Title
+                let statusTitle = "处理完成";
+                let statusDesc = "已同步至右侧画布";
+
+                if (isHtml) {
+                    statusTitle = isLlmActive && isLast ? "正在绘制幻灯片..." : "幻灯片渲染完成";
+                } else if (isJsonOutline) {
+                    statusTitle = isLlmActive && isLast ? "正在构建大纲..." : "大纲构建完成";
+                } else if (isJsonContent) {
+                    statusTitle = isLlmActive && isLast ? "正在撰写内容..." : "内容撰写完成";
+                }
+
+                if (isLlmActive && isLast) {
+                    statusDesc = "AI 正在实时输出至右侧画布...";
+                }
 
                 return (
                     <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -491,12 +507,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     </div>
                                     <div>
                                         <div className="text-xs font-bold text-slate-800">
-                                            {isHtml ? (isLlmActive && isLast ? "正在绘制幻灯片..." : "幻灯片渲染完成") : 
-                                             isJsonOutline ? (isLlmActive && isLast ? "正在构建大纲..." : "大纲构建完成") :
-                                             (isLlmActive && isLast ? "正在撰写内容..." : "内容撰写完成")}
+                                            {statusTitle}
                                         </div>
                                         <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                                             {isLlmActive && isLast ? "AI 正在实时输出至右侧画布..." : "已同步至右侧画布"}
+                                             {statusDesc}
                                         </div>
                                     </div>
                                 </div>
@@ -526,7 +540,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         onClick={() => setAutoGenMode('html')}
                         className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
                     >
-                        <PlayIcon className="w-3 h-3" /> 开始生成幻灯片 (HTML)
+                        <PlayIcon className="w-3 h-3" /> 开始设计幻灯片
                     </button>
                 </div>
             )}

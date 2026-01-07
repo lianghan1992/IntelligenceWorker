@@ -67,22 +67,27 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         if (!activePage) return '';
         const raw = activePage.content;
         
-        // If it looks like JSON during stream, try to parse it locally to avoid flicker
-        if (raw.trim().startsWith('{')) {
+        // If it looks like JSON (starts with {), we MUST parse it or return empty to avoid flickering raw JSON.
+        if (raw.trim().startsWith('{') || raw.trim().startsWith('```json')) {
             const partial = tryParsePartialJson(raw);
             if (partial && partial.content) {
                 return partial.content;
             }
-            // If tryParsePartialJson failed but it's clearly a JSON stream for 'content', use regex fallback
+            // If strict parse fails, try regex for the content field specifically
             const match = raw.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)/s);
             if (match) {
                 try {
-                     // Create a valid string literal from the captured part + closing quote
+                     // Create a valid string literal from the captured part + closing quote attempt
+                     // This handles escaped quotes correctly
                      return JSON.parse(`"${match[1]}"`); 
                 } catch(e) {
+                     // If JSON parse fails (e.g. unclosed escape), just return raw capture
                      return match[1];
                 }
             }
+            // If strictly looks like JSON but we can't extract content yet, 
+            // return EMPTY string instead of raw JSON to prevent flicker.
+            return ''; 
         }
         return raw;
     }, [activePage?.content]);
@@ -102,6 +107,8 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
         return { __html: `<pre>${content}</pre>` };
     };
+
+    const hasReadyHtml = data.pages.some(p => !!p.html);
 
     // --- Views ---
 
@@ -196,16 +203,20 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                          </div>
                      ))}
                  </div>
-                 <div className="p-4 border-t border-slate-200">
-                     <button 
-                        onClick={handleExport} 
-                        disabled={isExporting} 
-                        className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2"
-                     >
-                        {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
-                        导出 PDF
-                     </button>
-                 </div>
+                 
+                 {/* Export Button - Only show if HTML exists */}
+                 {hasReadyHtml && (
+                     <div className="p-4 border-t border-slate-200">
+                         <button 
+                            onClick={handleExport} 
+                            disabled={isExporting} 
+                            className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2"
+                         >
+                            {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
+                            导出 PDF
+                         </button>
+                     </div>
+                 )}
             </div>
 
             {/* Main Stage */}
