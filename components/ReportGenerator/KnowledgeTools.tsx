@@ -4,7 +4,7 @@ import {
     CloudIcon, SearchIcon, LinkIcon, CloseIcon, CheckIcon, 
     TrashIcon, RefreshIcon, GlobeIcon, ExternalLinkIcon, ChevronDownIcon,
     LightningBoltIcon, ServerIcon, DatabaseIcon, ClockIcon, GearIcon,
-    ShieldExclamationIcon
+    ShieldExclamationIcon, ShieldCheckIcon
 } from '../icons';
 import { fetchJinaReader } from '../../api/intelligence';
 
@@ -73,24 +73,48 @@ const incrementDailyQuota = () => {
     }
 };
 
+// --- Helper: Content Validation ---
+const isValidContent = (content: string): boolean => {
+    if (!content || content.length < 200) return false; // Too short
+    
+    const errorKeywords = [
+        "403 Forbidden", 
+        "404 Not Found", 
+        "Access Denied", 
+        "Cloudflare", 
+        "Verify you are human", 
+        "Just a moment...", 
+        "Enable JavaScript",
+        "Attention Required!",
+        "Security check",
+        "bilibili-error-img" // Specific site errors
+    ];
+    
+    // Check if content contains typical error page text
+    if (errorKeywords.some(kw => content.includes(kw))) return false;
+    
+    return true;
+};
+
+
 // --- Component: Tech Loader ---
 const TechLoader: React.FC<{ logs: string[] }> = ({ logs }) => (
-    <div className="w-full bg-slate-900 rounded-xl p-4 font-mono text-xs overflow-hidden relative min-h-[120px] flex flex-col">
+    <div className="w-full bg-slate-900 rounded-xl p-4 font-mono text-xs overflow-hidden relative min-h-[160px] flex flex-col shadow-inner">
         {/* Scanning Line */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent animate-scan-fast opacity-50"></div>
         
         {/* Matrix Background */}
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#22d3ee 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
 
-        <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1">
-            {logs.slice(-5).map((log, i) => (
-                <div key={i} className={`flex items-center gap-2 ${i === logs.slice(-5).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
+        <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1.5">
+            {logs.slice(-6).map((log, i) => (
+                <div key={i} className={`flex items-center gap-2 ${i === logs.slice(-6).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
                     <span className="text-[10px] opacity-50">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
-                    <span>{'>'} {log}</span>
+                    <span className="truncate">{'>'} {log}</span>
                 </div>
             ))}
-            <div className="flex items-center gap-1 text-cyan-500 animate-pulse">
-                <span className="w-1.5 h-3 bg-cyan-500"></span>
+            <div className="flex items-center gap-1 text-cyan-500 animate-pulse mt-2">
+                <span className="w-2 h-4 bg-cyan-500"></span>
                 <span className="opacity-0">_</span>
             </div>
         </div>
@@ -104,12 +128,18 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
     const [quota, setQuota] = useState(checkDailyQuota());
     
+    // Processing State for Modal
+    const [processingItemId, setProcessingItemId] = useState<string | null>(null);
+
     // Config State
     const [config, setConfig] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY_CONFIG);
         return saved ? JSON.parse(saved) : { apiKey: DEFAULT_GOOGLE_KEY, cx: DEFAULT_GOOGLE_CX };
     });
     const [isConfigMode, setIsConfigMode] = useState(false);
+
+    // Check if user is using a custom key
+    const isCustomKey = config.apiKey !== DEFAULT_GOOGLE_KEY && config.apiKey.trim() !== '';
 
     // Inputs
     const [searchKeyword, setSearchKeyword] = useState('');
@@ -122,8 +152,13 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     }, [isSearchOpen]);
 
     const saveConfig = (newConfig: { apiKey: string, cx: string }) => {
-        setConfig(newConfig);
-        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(newConfig));
+        // If empty, revert to default for logic consistency
+        const finalConfig = {
+            apiKey: newConfig.apiKey.trim() || DEFAULT_GOOGLE_KEY,
+            cx: newConfig.cx.trim() || DEFAULT_GOOGLE_CX
+        };
+        setConfig(finalConfig);
+        localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(finalConfig));
         setIsConfigMode(false);
     };
 
@@ -138,7 +173,8 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             progress: 0, 
             logs: ['初始化任务...'] 
         }, ...prev]);
-        setExpandedItemId(id);
+        // Do NOT expand automatically, we show modal instead
+        // setExpandedItemId(id); 
         return id;
     };
 
@@ -152,6 +188,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
 
     const removeItem = (id: string) => {
         setItems(prev => prev.filter(item => item.id !== id));
+        if (expandedItemId === id) setExpandedItemId(null);
     };
 
     // --- 1. File Upload Logic ---
@@ -161,11 +198,16 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
 
         const file = files[0];
         const id = addReferenceItem('file', file.name);
+        setProcessingItemId(id); // Show modal
 
         try {
             appendLog(id, `读取文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
             const text = await file.text();
             const formattedContent = `\n\n--- 引用文档: ${file.name} ---\n${text}\n--- 文档结束 ---\n`;
+            
+            // Wait a bit to show progress
+            await new Promise(r => setTimeout(r, 500));
+            
             updateItemState(id, { 
                 status: 'done', 
                 content: formattedContent, 
@@ -177,6 +219,8 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             console.error(err);
             updateItemState(id, { status: 'error' });
             appendLog(id, '文件读取失败');
+        } finally {
+             setTimeout(() => setProcessingItemId(null), 800);
         }
         
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -186,17 +230,18 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
     const handleSearch = async () => {
         if (!searchKeyword.trim()) return;
         
-        // Ensure config is present, though defaults handle this. 
         if (!config.cx) {
             setIsConfigMode(true);
             return;
         }
 
-        // Check Quota
-        const { allowed } = checkDailyQuota();
-        if (!allowed) {
-            alert('已超出每日限额，请升级为专业用户。');
-            return;
+        // Check Quota ONLY if NOT using custom key
+        if (!isCustomKey) {
+            const { allowed } = checkDailyQuota();
+            if (!allowed) {
+                alert('已超出默认 API 的每日限额，请配置您自己的 Google API Key 以继续使用，或等待明日刷新。');
+                return;
+            }
         }
 
         const keyword = searchKeyword.trim();
@@ -204,17 +249,18 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         setSearchKeyword('');
         
         const id = addReferenceItem('search', `${keyword}`);
+        setProcessingItemId(id); // Show progress modal
         
         try {
             // Step 1: Call Google API
             appendLog(id, `连接 Google Search API...`);
-            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${config.apiKey}&cx=${config.cx}&q=${encodeURIComponent(keyword)}&num=10`; // Max 10 results
+            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${config.apiKey}&cx=${config.cx}&q=${encodeURIComponent(keyword)}&num=10`; 
             
             const response = await fetch(searchUrl);
             
             if (!response.ok) {
                 if (response.status === 403 || response.status === 429) {
-                     throw new Error("已超出每日限额，请升级为专业用户。");
+                     throw new Error("API 配额已耗尽，请更换 Key 或等待恢复。");
                 }
                 if (response.status === 400) {
                      throw new Error("配置无效: 请检查 API Key 和 CX ID 是否正确。");
@@ -229,34 +275,41 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 throw new Error("未找到相关结果");
             }
 
-            appendLog(id, `获取到 ${items.length} 条结果，开始智能解析...`);
-            incrementDailyQuota(); // Success, consume quota
-            setQuota(checkDailyQuota());
-
-            // Prepare details structure
-            const searchDetails: ReferenceDetail[] = items.map((item: any) => ({
-                title: item.title,
-                url: item.link,
-                source: item.displayLink,
-                snippet: item.snippet
-            }));
+            appendLog(id, `获取到 ${items.length} 条结果，开始抓取与过滤...`);
             
-            updateItemState(id, { details: searchDetails, progress: 20 });
+            // Only consume quota if using default key
+            if (!isCustomKey) {
+                incrementDailyQuota(); 
+                setQuota(checkDailyQuota());
+            }
 
-            // Step 2: Parallel Fetch Content via Jina
-            // Limit to top 5 for speed and relevance
-            const topItems = items.slice(0, 5);
+            // Step 2: Parallel Fetch Content via Jina & Filter
+            const topItems = items.slice(0, 6); // Try top 6
             let processedCount = 0;
-            const fullContents: string[] = [];
-
-            // We fetch content sequentially or with limited concurrency to be polite and reliable
+            
             const fetchPromises = topItems.map(async (item: any, idx: number) => {
                 try {
-                    appendLog(id, `正在阅读: ${item.title.slice(0, 20)}...`);
+                    appendLog(id, `正在读取 [${idx+1}]: ${item.title.slice(0, 15)}...`);
                     const content = await fetchJinaReader(item.link);
+                    
+                    if (!isValidContent(content)) {
+                         appendLog(id, `⚠️ 过滤无效/403页面: ${item.title.slice(0, 10)}...`);
+                         processedCount++;
+                         updateItemState(id, { progress: 20 + Math.floor((processedCount / topItems.length) * 80) });
+                         return null;
+                    }
+                    
                     processedCount++;
                     updateItemState(id, { progress: 20 + Math.floor((processedCount / topItems.length) * 80) });
-                    return `### [${idx + 1}] ${item.title}\n**Source**: ${item.link}\n\n${content.slice(0, 3000)}...`; // Limit per article
+                    
+                    // Create Detail Object
+                    return {
+                        title: item.title,
+                        url: item.link,
+                        source: item.displayLink,
+                        snippet: item.snippet,
+                        markdown: `### [${idx + 1}] ${item.title}\n**Source**: ${item.link}\n\n${content.slice(0, 3000)}...`
+                    };
                 } catch (e) {
                     appendLog(id, `解析失败: ${item.title.slice(0, 15)}...`);
                     return null;
@@ -264,12 +317,26 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             });
 
             const results = await Promise.all(fetchPromises);
-            const validContent = results.filter(Boolean).join('\n\n---\n\n');
+            const validResults = results.filter(Boolean);
 
-            const finalContent = `\n\n--- 联网搜索报告: ${keyword} ---\n${validContent}\n--- 搜索结束 ---\n`;
+            if (validResults.length === 0) {
+                 throw new Error("所有搜索结果均无法读取有效内容（可能存在反爬虫限制）。");
+            }
+
+            // Construct Final Content
+            const validContentStr = validResults.map(r => r?.markdown).join('\n\n---\n\n');
+            const finalContent = `\n\n--- 联网搜索报告: ${keyword} ---\n${validContentStr}\n--- 搜索结束 ---\n`;
             
-            appendLog(id, `任务完成。已聚合 ${results.filter(Boolean).length} 篇深度内容。`);
-            updateItemState(id, { status: 'done', content: finalContent, progress: 100 });
+            // Construct Details for UI
+            const validDetails: ReferenceDetail[] = validResults.map(r => ({
+                title: r!.title,
+                url: r!.url,
+                source: r!.source,
+                snippet: r!.snippet
+            }));
+
+            appendLog(id, `任务完成。已聚合 ${validResults.length} 篇有效内容。`);
+            updateItemState(id, { status: 'done', content: finalContent, progress: 100, details: validDetails });
             onUpdateReference(finalContent, `Search: ${keyword}`);
 
         } catch (e: any) {
@@ -281,6 +348,11 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 setIsSearchOpen(true);
                 setIsConfigMode(true);
             }
+        } finally {
+            // Close modal after delay to let user see "Done"
+            setTimeout(() => {
+                setProcessingItemId(null);
+            }, 1200);
         }
     };
 
@@ -292,6 +364,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         setUrlInput('');
 
         const id = addReferenceItem('url', `解析 ${urls.length} 个链接`);
+        setProcessingItemId(id);
 
         try {
             let processed = 0;
@@ -300,13 +373,20 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
             const results = await Promise.all(urls.map(async (url) => {
                 try {
                     const content = await fetchJinaReader(url.trim());
+                    
+                    if (!isValidContent(content)) {
+                        appendLog(id, `⚠️ 内容无效/无法访问: ${url}`);
+                        processed++;
+                        return null;
+                    }
+
                     // Extract title
                     const titleMatch = content.match(/^#\s+(.+)$/m);
                     const title = titleMatch ? titleMatch[1] : url;
                     
                     processed++;
                     updateItemState(id, { progress: Math.floor((processed / urls.length) * 100) });
-                    appendLog(id, `解析成功: ${title.slice(0, 20)}...`);
+                    appendLog(id, `解析成功: ${title.slice(0, 15)}...`);
 
                     return {
                         url,
@@ -332,8 +412,12 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
         } catch (e: any) {
             updateItemState(id, { status: 'error' });
             appendLog(id, `错误: ${e.message}`);
+        } finally {
+            setTimeout(() => setProcessingItemId(null), 1200);
         }
     };
+
+    const activeProcessingItem = items.find(i => i.id === processingItemId);
 
     return (
         <div className="w-full max-w-4xl mx-auto mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -354,8 +438,8 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                         <h4 className="font-bold text-slate-700 text-sm">智能联网搜索</h4>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-mono font-bold">Google API</span>
-                            <span className={`text-[10px] ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                剩余: {quota.remaining}/{DAILY_LIMIT}
+                            <span className={`text-[10px] ${isCustomKey ? 'text-indigo-600 font-bold' : (quota.remaining > 0 ? 'text-green-600' : 'text-red-500')}`}>
+                                {isCustomKey ? '无限制 (自定义 Key)' : `剩余: ${quota.remaining}/${DAILY_LIMIT}`}
                             </span>
                         </div>
                     </div>
@@ -438,7 +522,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                                 {item.type === 'search' ? `搜索: ${item.name}` : item.name}
                                             </span>
                                             {item.details && item.details.length > 0 && (
-                                                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                                                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded border border-green-200 font-mono font-bold">
                                                     {item.details.length} refs
                                                 </span>
                                             )}
@@ -467,7 +551,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                             {/* Expanded Area: Logs & Details */}
                             {expandedItemId === item.id && (
                                 <div className="border-t border-slate-100 bg-white">
-                                    {/* Tech Loader Logs */}
+                                    {/* Tech Loader Logs (only if processing from expand, though mostly modal handles it) */}
                                     {item.status === 'processing' && item.logs && (
                                         <div className="p-4 bg-[#0f172a]">
                                             <TechLoader logs={item.logs} />
@@ -477,7 +561,7 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                     {/* Result List */}
                                     {item.details && item.details.length > 0 && (
                                         <div className="p-2 space-y-1 bg-slate-50/50">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase px-2 py-1">引用来源列表</div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase px-2 py-1">有效引用来源</div>
                                             {item.details.map((detail, idx) => (
                                                 <div key={idx} className="flex items-start gap-3 p-3 hover:bg-white hover:shadow-sm rounded-lg transition-all group border border-transparent hover:border-slate-100">
                                                     <div className="mt-0.5 bg-slate-100 p-1 rounded text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-colors">
@@ -507,7 +591,57 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                 </div>
             )}
 
-            {/* Modals */}
+            {/* Process Modal (Immersive) */}
+            {activeProcessingItem && (
+                <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+                    <div className="w-full max-w-lg bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col animate-in zoom-in-95">
+                        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                {activeProcessingItem.status === 'processing' ? (
+                                    <div className="p-2 bg-indigo-500/10 rounded-lg">
+                                        <RefreshIcon className="w-5 h-5 text-indigo-400 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <div className="p-2 bg-green-500/10 rounded-lg">
+                                        <CheckIcon className="w-5 h-5 text-green-400" />
+                                    </div>
+                                )}
+                                <div>
+                                    <h3 className="text-slate-100 font-bold text-base">智能抓取中...</h3>
+                                    <p className="text-slate-500 text-xs">AI 正在深度阅读并过滤无效信息</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6">
+                             {/* Progress Bar */}
+                            <div className="mb-6">
+                                <div className="flex justify-between text-xs text-slate-400 mb-2">
+                                    <span>处理进度</span>
+                                    <span className="font-mono text-cyan-400">{activeProcessingItem.progress}%</span>
+                                </div>
+                                <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-300"
+                                        style={{ width: `${activeProcessingItem.progress}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+
+                            {/* Logs */}
+                            <TechLoader logs={activeProcessingItem.logs || []} />
+                        </div>
+
+                        {activeProcessingItem.status === 'error' && (
+                             <div className="p-4 bg-red-900/20 text-red-400 text-xs text-center border-t border-red-900/50">
+                                任务异常，请检查网络或重试。
+                             </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Search Input Modal */}
             {isSearchOpen && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-white/60 backdrop-blur-sm rounded-2xl">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 border border-slate-200 ring-1 ring-black/5 relative overflow-hidden">
@@ -546,6 +680,19 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                             ，需启用"搜索整个网络"。
                                         </div>
                                     </div>
+
+                                    {/* Privacy Disclaimer */}
+                                    <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs rounded-lg flex items-start gap-2 border border-blue-100">
+                                        <ShieldCheckIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <p className="font-bold mb-1">隐私安全提示</p>
+                                            <p className="opacity-90 leading-relaxed">
+                                                您的 API Key 和 CX ID 仅保存在您浏览器的本地存储 (Local Storage) 中，直接用于前端请求 Google 服务，不会上传至我们的服务器。
+                                                使用自定义 Key 将解除每日搜索次数限制。
+                                            </p>
+                                        </div>
+                                    </div>
+
                                     <div className="flex gap-2 justify-end mt-4">
                                         <button onClick={() => setIsConfigMode(false)} className="px-4 py-2 text-slate-500 text-sm hover:bg-slate-100 rounded-lg">取消</button>
                                         <button onClick={() => saveConfig(config)} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-bold hover:bg-purple-700">保存配置</button>
@@ -576,8 +723,8 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                     <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
                                         <ServerIcon className="w-3 h-3" />
                                         <span>Google Engine Ready</span>
-                                        <span className={`font-bold ml-1 ${quota.remaining > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                            (今日剩余: {quota.remaining})
+                                        <span className={`font-bold ml-1 ${isCustomKey ? 'text-indigo-600' : (quota.remaining > 0 ? 'text-green-600' : 'text-red-500')}`}>
+                                            {isCustomKey ? '(自定义 Key - 无限制)' : `(今日剩余: ${quota.remaining})`}
                                         </span>
                                     </div>
                                     <div className="flex gap-3">
