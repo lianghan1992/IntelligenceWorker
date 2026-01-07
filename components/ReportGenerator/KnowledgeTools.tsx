@@ -99,12 +99,12 @@ const isValidContent = (content: string): boolean => {
 
 // --- Component: Tech Loader ---
 const TechLoader: React.FC<{ logs: string[] }> = ({ logs }) => (
-    <div className="w-full bg-slate-950 rounded-lg p-3 font-mono text-[10px] overflow-hidden relative min-h-[120px] flex flex-col shadow-inner border border-slate-800">
+    <div className="w-full bg-slate-950 rounded-lg p-3 font-mono text-[10px] overflow-hidden relative min-h-[120px] flex flex-col shadow-inner border border-slate-800 text-left">
         <div className="relative z-10 flex-1 flex flex-col justify-end space-y-1 text-left">
             {logs.slice(-5).map((log, i) => (
                 <div key={i} className={`flex items-start gap-2 ${i === logs.slice(-5).length - 1 ? 'text-cyan-400 font-bold' : 'text-slate-500'}`}>
                     <span className="opacity-50 flex-shrink-0">[{new Date().toLocaleTimeString().split(' ')[0]}]</span>
-                    <span className="break-all">{'>'} {log}</span>
+                    <span className="break-all text-left">{'>'} {log}</span>
                 </div>
             ))}
             <div className="flex items-center gap-1 text-cyan-500 animate-pulse mt-1">
@@ -553,37 +553,48 @@ export const KnowledgeTools: React.FC<KnowledgeToolsProps> = ({ onUpdateReferenc
                                         </div>
                                     )}
 
-                                    {/* Result List - Refined Grid Layout */}
+                                    {/* Result List - COMPACT LIST LAYOUT */}
                                     {item.details && item.details.length > 0 && (
-                                        <div className="p-4 bg-slate-50/50">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="bg-slate-50/30">
+                                            <div className="flex flex-col divide-y divide-slate-100 border-t border-slate-100">
                                                 {item.details.map((detail, idx) => (
-                                                    <div 
-                                                        key={idx} 
-                                                        className="group bg-white p-3.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col h-full text-left"
-                                                    >
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <a 
-                                                                href={detail.url} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
-                                                                className="text-xs font-bold text-slate-800 hover:text-indigo-600 line-clamp-1 block flex-1"
-                                                                title={detail.title}
-                                                            >
-                                                                {detail.title || detail.url}
-                                                            </a>
-                                                            <div className="ml-2 bg-slate-100 p-1 rounded text-slate-400 opacity-60 group-hover:opacity-100 group-hover:text-indigo-600 transition-all flex-shrink-0">
-                                                                <ExternalLinkIcon className="w-3 h-3" />
+                                                    <div key={idx} className="group flex items-start gap-3 p-4 hover:bg-white hover:shadow-sm transition-all">
+                                                        <div className="flex-shrink-0 mt-0.5">
+                                                            <span className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 font-mono">
+                                                                {idx + 1}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0 text-left">
+                                                            <div className="flex justify-between items-start">
+                                                                <a 
+                                                                    href={detail.url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-sm font-bold text-slate-800 hover:text-indigo-600 truncate block pr-2"
+                                                                    title={detail.title}
+                                                                >
+                                                                    {detail.title || detail.url}
+                                                                </a>
+                                                                <a 
+                                                                    href={detail.url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-indigo-600"
+                                                                >
+                                                                    <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                                                </a>
                                                             </div>
+                                                            <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2 font-mono">
+                                                                <span className="max-w-[150px] truncate">{detail.source || new URL(detail.url).hostname}</span>
+                                                                <span className="text-slate-300">|</span>
+                                                                <span className="truncate opacity-70">{detail.url}</span>
+                                                            </div>
+                                                            {detail.snippet && (
+                                                                <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed opacity-90 font-medium">
+                                                                    {detail.snippet}
+                                                                </p>
+                                                            )}
                                                         </div>
-                                                        <div className="text-[10px] text-slate-400 font-mono truncate mb-2">
-                                                            {detail.source || new URL(detail.url).hostname}
-                                                        </div>
-                                                        {detail.snippet && (
-                                                            <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 mt-auto">
-                                                                {detail.snippet}
-                                                            </p>
-                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
