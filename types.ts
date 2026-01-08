@@ -126,7 +126,9 @@ export interface InfoItem {
 }
 
 export interface ArticlePublic extends InfoItem {}
-export interface SpiderArticle extends InfoItem {}
+export interface SpiderArticle extends InfoItem {
+    url?: string; // Add url property which might come from backend raw data
+}
 
 export interface Subscription {
     id: string;
@@ -214,6 +216,8 @@ export interface IntelligenceTaskPublic {
     start_time: string;
     end_time?: string;
     articles_collected?: number;
+    created_at?: string; // Added
+    page_number?: number; // Added
 }
 
 export interface SpiderTask extends IntelligenceTaskPublic {}

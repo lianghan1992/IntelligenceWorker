@@ -142,13 +142,14 @@ export const getSpiderPointTasks = (pointId: string, params?: any): Promise<any>
 export const getArticles = (params: any): Promise<PaginatedResponse<ArticlePublic>> => {
     return getSpiderArticles(params).then(res => ({
         ...res,
-        items: res.items.map(a => ({
+        items: res.items.map((a: any) => ({
             id: a.id,
             title: a.title,
             content: a.content || '',
             source_name: a.source_name,
             point_name: a.point_name,
-            original_url: a.url,
+            // Safe access using cast or optional chaining as we added url to type
+            original_url: a.url || a.original_url, 
             publish_date: a.publish_date,
             created_at: a.created_at,
             is_atomized: !!a.is_atomized,
@@ -178,13 +179,13 @@ export const getSpiderArticles = (params: any): Promise<PaginatedResponse<Spider
     }));
 }
 
-export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then(a => ({
+export const getArticleById = (id: string): Promise<InfoItem> => getSpiderArticleDetail(id).then((a: any) => ({
     id: a.id,
     title: a.title,
     content: a.content || '',
     source_name: a.source_name,
     point_name: a.point_name,
-    original_url: a.url,
+    original_url: a.url || a.original_url,
     publish_date: a.publish_date,
     created_at: a.created_at,
     is_atomized: !!a.is_atomized,

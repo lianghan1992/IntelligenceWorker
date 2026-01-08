@@ -201,7 +201,9 @@ export const IntelligencePointManager: React.FC = () => {
         if (!subscription) return null;
         return {
             id: subscription.id,
+            uuid: subscription.id, // Add uuid mapping
             source_id: subscription.source_id || '',
+            source_uuid: subscription.source_id || '', // Add source_uuid mapping
             source_name: subscription.source_name,
             name: subscription.point_name,
             url: subscription.point_url,
@@ -213,7 +215,6 @@ export const IntelligencePointManager: React.FC = () => {
             url_filters: subscription.url_filters,
             extra_hint: subscription.extra_hint,
             created_at: '',
-            max_depth: 3, 
             status: subscription.is_active ? 'active' : 'inactive', 
             updated_at: '',
             initial_pages: 1
