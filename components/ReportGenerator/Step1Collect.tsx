@@ -5,6 +5,7 @@ import {
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
+import { ContextAnchor, GuidanceBubble } from './Guidance';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -160,6 +161,25 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
+
+    // --- Guidance State ---
+    const [activeGuide, setActiveGuide] = useState<'outline' | 'compose' | null>(null);
+
+    // Determine if guidance is needed based on stage and localStorage
+    useEffect(() => {
+        if (stage === 'outline' && !localStorage.getItem('ai_guide_outline')) {
+            setActiveGuide('outline');
+        } else if (stage === 'compose' && !autoGenMode && !localStorage.getItem('ai_guide_compose')) {
+            setActiveGuide('compose');
+        } else {
+            setActiveGuide(null);
+        }
+    }, [stage, autoGenMode]);
+
+    const dismissGuide = (key: 'outline' | 'compose') => {
+        localStorage.setItem(`ai_guide_${key}`, 'true');
+        setActiveGuide(null);
+    };
 
     // Initial Greeting with Date
     useEffect(() => {
@@ -538,6 +558,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     // --- Handlers ---
     const handleSend = async (val?: string) => {
+        if (activeGuide) dismissGuide(activeGuide);
+
         const text = val || input;
         if (!text.trim() || isLlmActive) return;
         
@@ -717,7 +739,30 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 {renderChatBubbles()}
 
                 {/* Input Area */}
-                <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0">
+                <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0 relative">
+                    
+                    {/* --- 新增：上下文锚点 --- */}
+                    <ContextAnchor 
+                        stage={stage}
+                        pageIndex={activePageIndex}
+                        pageTitle={data.pages[activePageIndex]?.title}
+                        isVisualMode={isHtmlEdit}
+                    />
+
+                    {/* --- 新增：引导气泡逻辑 --- */}
+                    {activeGuide === 'outline' && (
+                        <GuidanceBubble 
+                            message="对大纲结构不满意？直接输入“修改第二章为...”或“增加关于xxx的章节”，AI 将为您即时调整。" 
+                            onDismiss={() => dismissGuide('outline')} 
+                        />
+                    )}
+                    {activeGuide === 'compose' && (
+                        <GuidanceBubble 
+                            message="💡 操作提示：先点击右侧幻灯片选中要修改的页面，然后在对话框输入指令（如“精简这段话”或“换个深色背景”）即可。" 
+                            onDismiss={() => dismissGuide('compose')} 
+                        />
+                    )}
+
                     {isEditMode && (
                         <div className="space-y-3 mb-3 animate-in fade-in slide-in-from-bottom-1">
                              <div className={`px-3 py-2 border rounded-lg flex items-center justify-between ${isHtmlEdit ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
