@@ -413,7 +413,7 @@ export default function NewTechIdentifier() {
                             <div className="text-center text-slate-400">
                                 <RefreshIcon className="w-12 h-12 mx-auto mb-4 animate-spin text-indigo-300" />
                                 <p className="font-bold">正在生成内容...</p>
-                                <p className="text-sm mt-2 opacity-70">Step 1: Deep Analysis -> Step 2: HTML Coding</p>
+                                <p className="text-sm mt-2 opacity-70">Step 1: Deep Analysis &rarr; Step 2: HTML Coding</p>
                             </div>
                         )}
                     </div>
