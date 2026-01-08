@@ -6,8 +6,8 @@
  * 注意：在生产环境中，这些敏感信息应该通过环境变量等更安全的方式进行管理。
  */
 
-// 通用API前缀。使用相对路径以利用开发服务器的 Proxy 解决 CORS 问题。
-export const API_BASE_URL = '';
+// 通用API前缀。现在指向独立的后端服务器地址。
+export const API_BASE_URL = 'https://autoinsight_api.jingyu.today:8081';
 
 // Full path for the user authentication & subscription service
 export const USER_SERVICE_PATH = `${API_BASE_URL}/api/user`;

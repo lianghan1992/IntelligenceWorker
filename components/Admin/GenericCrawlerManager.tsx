@@ -77,23 +77,17 @@ export const GenericCrawlerManager: React.FC = () => {
                              // Map IntelligencePointPublic to GenericPoint
                              allPoints.push({
                                  id: p.id,
-                                 uuid: p.id, // Add uuid mapping
+                                 // Fix: source_uuid does not exist on GenericPoint, using source_id instead
                                  source_id: p.source_id || src.id,
-                                 source_uuid: p.source_id || src.id, // Add source_uuid mapping
                                  source_name: p.source_name || src.source_name,
                                  name: p.name || p.point_name || 'Unnamed',
                                  url: p.url || p.point_url || '',
-                                 point_name: p.name || p.point_name, // Add alias
-                                 point_url: p.url || p.point_url, // Add alias
                                  cron_schedule: p.cron_schedule,
                                  is_active: p.is_active,
                                  last_crawled_at: p.last_crawled_at,
                                  initial_pages: p.initial_pages,
                                  list_hint: p.list_hint || p.extra_hint,
-                                 list_filters: p.list_filters || p.url_filters,
-                                 created_at: p.created_at || '',
-                                 updated_at: p.updated_at || '',
-                                 status: p.status || (p.is_active ? 'active' : 'inactive')
+                                 list_filters: p.list_filters || p.url_filters
                              });
                         }
                     }
