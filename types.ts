@@ -1,6 +1,6 @@
 
 
-export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'admin';
+export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
 
 export interface User {
     id: string;

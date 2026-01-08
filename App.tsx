@@ -14,6 +14,8 @@ const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(m
 const IndustryEvents = React.lazy(() => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents })));
 const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator })));
 const AdminPage = React.lazy(() => import('./components/Admin/index').then(module => ({ default: module.AdminPage })));
+// New Marketplace
+const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/index'));
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -139,6 +141,8 @@ const App: React.FC = () => {
         return <IndustryEvents />;
       case 'ai':
         return <ReportGenerator />;
+      case 'marketplace':
+        return <AgentMarketplace />;
       case 'admin':
         return <AdminPage />;
       default:

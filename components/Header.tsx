@@ -1,4 +1,6 @@
 
+
+
 import React, { useState } from 'react';
 import { User, View } from '../types';
 import {
@@ -13,6 +15,7 @@ import {
     MenuIcon,
     CloseIcon,
     ChartIcon,
+    CubeIcon,
 } from './icons';
 
 interface HeaderProps {
@@ -29,6 +32,7 @@ const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSV
     { view: 'dives', label: '深度洞察', icon: DiveIcon },
     { view: 'events', label: '发布会', icon: VideoCameraIcon },
     { view: 'ai', label: 'AI报告生成', icon: SparklesIcon },
+    { view: 'marketplace', label: '效率集市', icon: CubeIcon },
 ];
 
 const NavItem: React.FC<{
