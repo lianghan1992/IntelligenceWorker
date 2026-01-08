@@ -1,18 +1,19 @@
 
+import React from 'react';
 import { AgentConfig } from './types';
+import { ChartIcon } from '../icons'; // Using ChartIcon as placeholder
 
-// Future agents will be imported and added here.
-// Example:
-// const MeetingAssistant = React.lazy(() => import('./agents/MeetingAssistant'));
+const NewTechIdentifier = React.lazy(() => import('./agents/NewTechIdentifier'));
 
 export const AGENT_REGISTRY: AgentConfig[] = [
-    // {
-    //     id: 'meeting-assistant',
-    //     name: '智能会议纪要',
-    //     description: '上传录音或粘贴文本，自动提取会议决策点与待办事项。',
-    //     category: '办公提效',
-    //     icon: MicrophoneIcon, // Import needed
-    //     component: MeetingAssistant,
-    //     tags: ['语音', '总结']
-    // },
+    {
+        id: 'new-tech-identifier',
+        name: '新技术识别',
+        description: '上传 CSV/Markdown，自动识别新技术并生成四象限分析 PPT。支持批量处理与 PDF 导出。',
+        category: '数据分析',
+        icon: ChartIcon,
+        component: NewTechIdentifier,
+        tags: ['CSV分析', 'PPT生成', '技术评估']
+    },
+    // Future agents...
 ];
