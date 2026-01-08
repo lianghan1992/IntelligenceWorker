@@ -1,5 +1,6 @@
 
 // components/AgentMarketplace/utils/llm.ts
+import { STRATIFY_SERVICE_PATH } from '../../../config';
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
@@ -7,7 +8,8 @@ export interface ChatMessage {
 }
 
 /**
- * OpenRouter Streaming Chat Completion via Nginx Proxy
+ * Streaming Chat Completion via StratifyAI Gateway
+ * Supports OpenRouter, Gemini, etc. via the backend gateway.
  */
 export async function streamOpenRouterChat(
     messages: ChatMessage[],
@@ -17,25 +19,31 @@ export async function streamOpenRouterChat(
     model: string = "google/gemini-2.0-flash-lite-preview-02-05:free" // Default cost-effective model
 ) {
     try {
-        const response = await fetch('/openrouter/chat/completions', {
+        const token = localStorage.getItem('accessToken');
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+        };
+        
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                // Authorization header is injected by Nginx
-            },
+            headers,
             body: JSON.stringify({
                 model: model,
                 messages: messages,
                 stream: true,
                 temperature: 0.7,
-                // Optional: headers for OpenRouter specific handling
-                // "HTTP-Referer": window.location.href, 
             })
         });
 
         if (!response.ok) {
-            let errorMsg = `API Error: ${response.status}`;
-            if (response.status === 403) errorMsg = "403 Forbidden: 请检查域名是否合法或服务器配置。";
+            const errorText = await response.text();
+            let errorMsg = `API Error (${response.status}): ${errorText}`;
+            if (response.status === 401) errorMsg = "认证失败: 请重新登录。";
+            if (response.status === 403) errorMsg = "权限不足: 请检查账户余额或权限。";
             throw new Error(errorMsg);
         }
 
