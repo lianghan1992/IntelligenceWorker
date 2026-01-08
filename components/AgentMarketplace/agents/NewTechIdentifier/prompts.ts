@@ -22,7 +22,7 @@ export const PROMPT_IDENTIFICATION = `#### **角色：**
 *   **field**: 专业领域（从以下列表中选择最合适的一个：材料及轻量化、车身、大安全、底盘、电气、动力、工艺、生态、饰件、EEA、NVH、功能安全）
 *   **description**: 创新技术描述（详细描述该技术的应用场景、价值效果如性能提升或成本降低、以及为用户带来的体验改善。300个汉字以内）
 *   **status**: 行业应用情况（如：预研阶段、供应商研发中、主机厂测试中、已概念发布等）
-*   **original_url**: (请保持为空字符串 "")
+*   **original_url**: 原始文章URL（如果提供的CSV文本中包含URL链接，请提取并填入此处；否则留空字符串 ""）
 
 **示例格式：**
 [
@@ -31,7 +31,7 @@ export const PROMPT_IDENTIFICATION = `#### **角色：**
     "field": "动力",
     "description": "采用新型硫化物电解质...",
     "status": "预研阶段",
-    "original_url": ""
+    "original_url": "https://example.com/news/123"
   }
 ]
 
