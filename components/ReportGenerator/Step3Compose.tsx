@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
@@ -234,8 +233,22 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
         return raw;
     }, [activePage?.content]);
+    
+    // --- MANUAL EDIT HANDLER ---
+    const handleContentEdit = (newContent: string) => {
+        if (!setData) return;
+        setData(prev => {
+            const newPages = [...prev.pages];
+            // We directly update the content. If JSON parsing was involved, 
+            // this assumes the user is editing the *extracted* text, 
+            // so we save it back as the raw content to be consistent.
+            newPages[activePageIndex] = { ...newPages[activePageIndex], content: newContent };
+            return { ...prev, pages: newPages };
+        });
+    };
 
-    // Auto-scroll effect for text editor
+    // Auto-scroll effect for text editor (only when generating and NOT user editing actively)
+    // We disable auto-scroll if user is typing to prevent jumping
     useEffect(() => {
         if (activePage?.isGenerating && !activePage.html && editorScrollRef.current) {
             editorScrollRef.current.scrollTop = editorScrollRef.current.scrollHeight;
@@ -249,14 +262,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     }, [activePage?.html, activePage?.isGenerating]);
 
-
-    const renderMarkdown = (content: string): { __html: string } | undefined => {
-        if (!content) return undefined;
-        if (window.marked) {
-            return { __html: window.marked.parse(content) };
-        }
-        return { __html: `<pre>${content}</pre>` };
-    };
 
     const hasReadyHtml = data.pages.some(p => !!p.html);
 
@@ -299,6 +304,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
             <Step2Outline 
                 topic={data.topic} 
                 outlineData={data.outline} 
+                setData={setData} // Pass setData for editing capability
                 onConfirm={() => {
                     if (data.outline && setData && setStage) {
                         setData(prev => ({ 
@@ -458,28 +464,28 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            /* 3. Markdown Editor View (Default) */
+                            /* 3. Editable Text Editor View (Default) */
                             <div className="w-full max-w-[900px] h-full bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col mx-auto overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-                                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                                    <h1 className="text-xl font-bold text-slate-900 leading-tight">
+                                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight truncate">
                                         {activePage.title}
                                     </h1>
+                                    <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">
+                                        可直接编辑
+                                    </span>
                                 </div>
-                                <div className="flex-1 overflow-y-auto p-8 md:px-12 custom-scrollbar" ref={editorScrollRef}>
-                                    {hasContent ? (
-                                        <article 
-                                            className="prose prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-blue-600 prose-img:rounded-xl"
-                                            dangerouslySetInnerHTML={renderMarkdown(displayContent)} 
-                                        />
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-full text-slate-300">
-                                            <PencilIcon className="w-12 h-12 mb-4 opacity-50" />
-                                            <p className="text-sm font-medium">Waiting for content generation...</p>
-                                        </div>
-                                    )}
+                                <div className="flex-1 relative">
+                                    {/* Editable Text Area */}
+                                    <textarea
+                                        value={displayContent}
+                                        onChange={(e) => handleContentEdit(e.target.value)}
+                                        className="w-full h-full p-8 md:px-12 resize-none outline-none text-slate-700 leading-relaxed font-mono text-sm custom-scrollbar bg-transparent"
+                                        placeholder="AI 正在撰写内容..."
+                                        spellCheck={false}
+                                    />
                                     {isGenerating && (
-                                        <div className="mt-4 flex items-center gap-2 text-indigo-500 animate-pulse text-sm font-bold">
-                                            <SparklesIcon className="w-4 h-4" />
+                                        <div className="absolute bottom-4 right-4 flex items-center gap-2 text-indigo-500 animate-pulse text-xs font-bold bg-white/80 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-indigo-100">
+                                            <SparklesIcon className="w-3.5 h-3.5" />
                                             <span>AI Writing...</span>
                                         </div>
                                     )}

@@ -741,7 +741,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0 relative">
                     
-                    {/* --- 新增：上下文锚点 --- */}
+                    {/* --- 上下文锚点 --- */}
                     <ContextAnchor 
                         stage={stage}
                         pageIndex={activePageIndex}
@@ -749,7 +749,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         isVisualMode={isHtmlEdit}
                     />
 
-                    {/* --- 新增：引导气泡逻辑 --- */}
+                    {/* --- 引导气泡逻辑 --- */}
                     {activeGuide === 'outline' && (
                         <GuidanceBubble 
                             message="对大纲结构不满意？直接输入“修改第二章为...”或“增加关于xxx的章节”，AI 将为您即时调整。" 
@@ -764,27 +764,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     )}
 
                     {isEditMode && (
-                        <div className="space-y-3 mb-3 animate-in fade-in slide-in-from-bottom-1">
-                             <div className={`px-3 py-2 border rounded-lg flex items-center justify-between ${isHtmlEdit ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
-                                 <div className="flex items-center gap-2">
-                                     {isHtmlEdit ? (
-                                        <div className="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center">
-                                            <SparklesIcon className="w-3 h-3 text-green-600" />
-                                        </div>
-                                     ) : (
-                                        <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <PencilIcon className="w-3 h-3 text-blue-600" />
-                                        </div>
-                                     )}
-                                     <span className="text-xs font-bold text-indigo-700">
-                                        {isHtmlEdit ? '🎨 正在调整设计' : '📝 正在撰写内容'}：第 {activePageIndex + 1} 页
-                                     </span>
-                                 </div>
-                                 <span className="text-[9px] text-indigo-400 font-mono font-bold tracking-wider opacity-60">
-                                     {isHtmlEdit ? 'VISUAL EDITOR' : 'TEXT EDITOR'}
-                                 </span>
-                             </div>
-                             
+                        <div className="mb-3 animate-in fade-in slide-in-from-bottom-1">
                              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                                 {(isHtmlEdit 
                                     ? ['换个深色主题', '增加图表', '改为左右布局', '字体加大', '重绘'] 

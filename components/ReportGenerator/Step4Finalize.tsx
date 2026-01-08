@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData } from './types';
 import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify'; 
@@ -6,6 +7,7 @@ import {
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
     PlayIcon
 } from '../icons';
+import { VisualEditor } from './VisualEditor';
 
 interface Step4FinalizeProps {
     topic: string;
@@ -34,6 +36,28 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
     const [isExporting, setIsExporting] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(0.6); // Default scale
+
+    // Auto-calculate scale based on container size
+    useEffect(() => {
+        const updateScale = () => {
+            if (containerRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current;
+                const baseWidth = 1600;
+                const baseHeight = 900;
+                // Leave some padding
+                const wRatio = (clientWidth - 80) / baseWidth;
+                const hRatio = (clientHeight - 80) / baseHeight;
+                setScale(Math.min(wRatio, hRatio));
+            }
+        };
+        
+        // Initial calc
+        updateScale();
+        window.addEventListener('resize', updateScale);
+        return () => window.removeEventListener('resize', updateScale);
+    }, []);
     
     // HTML Generation
     const generateHtml = useCallback(async (idx: number) => {
@@ -104,19 +128,30 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
     };
 
+    const handlePageUpdate = (newHtml: string) => {
+        const newPages = [...pages];
+        newPages[activeIdx] = { ...newPages[activeIdx], html: newHtml };
+        setPages(newPages);
+        onUpdatePages(newPages);
+    };
+
     return (
         <div className="h-full flex flex-col bg-[#0f172a] text-white overflow-hidden relative font-sans">
              {/* Background Glow */}
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-96 bg-indigo-600/20 blur-[120px] pointer-events-none"></div>
 
              {/* Header */}
-             <div className="px-8 py-6 flex justify-between items-center z-10">
+             <div className="px-8 py-4 flex justify-between items-center z-10 bg-[#0f172a]/80 backdrop-blur-sm border-b border-white/5">
                  <div>
                      <h2 className="text-xl font-black tracking-tight">{topic}</h2>
-                     <p className="text-xs font-mono text-indigo-300 mt-1 uppercase tracking-widest">Final Render Output</p>
+                     <p className="text-xs font-mono text-indigo-300 mt-1 uppercase tracking-widest flex items-center gap-2">
+                        FINAL RENDER OUTPUT 
+                        <span className="w-1 h-1 bg-white rounded-full"></span>
+                        VISUAL EDITOR ACTIVE
+                     </p>
                  </div>
                  <div className="flex gap-4">
-                     <button onClick={onBackToCompose} className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/10 text-xs font-bold transition-all">返回修改</button>
+                     <button onClick={onBackToCompose} className="px-5 py-2.5 rounded-xl border border-white/10 hover:bg-white/10 text-xs font-bold transition-all">返回大纲</button>
                      <button 
                         onClick={handleExport}
                         disabled={!allRendered || isExporting}
@@ -128,26 +163,28 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
              </div>
 
              {/* Main Stage */}
-             <div className="flex-1 flex items-center justify-center relative z-0">
+             <div className="flex-1 flex items-center justify-center relative z-0 overflow-hidden" ref={containerRef}>
                  {/* Prev Button */}
                  <button 
                     onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))}
                     disabled={activeIdx === 0}
-                    className="absolute left-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0"
+                    className="absolute left-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-20"
                  >
                      <ChevronLeftIcon className="w-6 h-6" />
                  </button>
 
-                 {/* Slide Container */}
-                 <div className="w-[1000px] aspect-video bg-white shadow-2xl rounded-sm overflow-hidden relative ring-8 ring-white/5">
+                 {/* Slide Container / Visual Editor */}
+                 <div className="w-full h-full flex items-center justify-center p-4">
                      {activePage && activePage.html ? (
-                         <iframe 
-                            srcDoc={activePage.html} 
-                            className="w-full h-full border-none pointer-events-none select-none"
-                            style={{ transform: 'scale(0.625)', transformOrigin: 'top left', width: '1600px', height: '900px' }} // 1000/1600 = 0.625
-                         />
+                         <div className="relative shadow-2xl rounded-sm overflow-hidden ring-1 ring-white/10" style={{ width: '100%', height: '100%' }}>
+                            <VisualEditor 
+                                initialHtml={activePage.html} 
+                                onSave={handlePageUpdate}
+                                scale={scale} 
+                            />
+                         </div>
                      ) : (
-                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-900">
+                         <div className="w-[800px] aspect-video flex flex-col items-center justify-center text-slate-300 bg-slate-900 rounded-xl border border-white/10">
                              <div className="relative">
                                  <div className="absolute inset-0 bg-indigo-50 blur-xl opacity-20 animate-pulse"></div>
                                  <BrainIcon className="w-16 h-16 relative z-10" />
@@ -161,7 +198,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                  <button 
                     onClick={() => setActiveIdx(Math.min(pages.length - 1, activeIdx + 1))}
                     disabled={activeIdx === pages.length - 1}
-                    className="absolute right-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0"
+                    className="absolute right-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-20"
                  >
                      <ChevronRightIcon className="w-6 h-6" />
                  </button>
