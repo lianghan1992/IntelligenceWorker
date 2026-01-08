@@ -106,6 +106,7 @@ export interface IntelligencePointPublic {
     last_crawled_at?: string;
     list_hint?: string;
     list_filters?: string[];
+    max_depth?: number; // Added to fix type error
 }
 
 export interface SpiderSource extends IntelligenceSourcePublic {}
@@ -127,7 +128,7 @@ export interface InfoItem {
 
 export interface ArticlePublic extends InfoItem {}
 export interface SpiderArticle extends InfoItem {
-    url?: string; // Add url property which might come from backend raw data
+    url?: string; // Added to fix type error in api/intelligence.ts
 }
 
 export interface Subscription {
@@ -216,8 +217,8 @@ export interface IntelligenceTaskPublic {
     start_time: string;
     end_time?: string;
     articles_collected?: number;
-    created_at?: string; // Added
-    page_number?: number; // Added
+    created_at?: string; // Added to fix type error
+    page_number?: number; // Added to fix type error
 }
 
 export interface SpiderTask extends IntelligenceTaskPublic {}

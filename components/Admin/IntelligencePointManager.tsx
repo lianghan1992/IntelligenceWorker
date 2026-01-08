@@ -195,7 +195,7 @@ export const IntelligencePointManager: React.FC = () => {
 
     // Mapping helper for modal
     /**
-     * Fix: Added missing updated_at and created_at to follow IntelligencePointPublic.
+     * Fix: Added missing uuid/source_uuid and max_depth (now part of type)
      */
     const getPointForModal = (subscription: Subscription | null): IntelligencePointPublic | null => {
         if (!subscription) return null;
@@ -217,7 +217,8 @@ export const IntelligencePointManager: React.FC = () => {
             created_at: '',
             status: subscription.is_active ? 'active' : 'inactive', 
             updated_at: '',
-            initial_pages: 1
+            initial_pages: 1,
+            max_depth: 0 // Default value
         };
     };
 
