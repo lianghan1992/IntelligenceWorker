@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { CopilotSidebar } from './Step1Collect'; 
 import { MainCanvas } from './Step3Compose';     
+import { Step4Finalize } from './Step4Finalize'; // Import Step4
 import { PPTStage, ChatMessage, PPTData } from './types';
 
 const STORAGE_KEY = 'auto_insight_ppt_session_v4'; 
@@ -63,6 +64,19 @@ const ScenarioWorkstation: React.FC = () => {
             setIsLlmActive(false);
         }
     };
+
+    // 如果处于 Finalize 阶段，全屏渲染精修器，不显示侧边栏
+    if (stage === 'finalize') {
+        return (
+            <Step4Finalize 
+                topic={data.topic}
+                pages={data.pages}
+                onBackToCompose={() => setStage('compose')}
+                onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
+                onLlmStatusChange={setIsLlmActive}
+            />
+        );
+    }
 
     return (
         <div className="flex h-full w-full bg-[#f8fafc] overflow-hidden text-slate-900 font-sans">

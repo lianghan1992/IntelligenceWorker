@@ -31,6 +31,7 @@ const EDITOR_SCRIPT = `
     }
     .ai-editor-hover:not(.ai-editor-selected) {
       outline: 1px dashed #93c5fd !important;
+      cursor: pointer !important;
     }
     *[contenteditable="true"] {
       cursor: text !important;
@@ -62,6 +63,17 @@ const EDITOR_SCRIPT = `
     selectElement(target);
   }, true); // Use capture to ensure we get it first
 
+  // 增加 Hover 效果，提升可发现性
+  document.body.addEventListener('mouseover', (e) => {
+      if (e.target === document.body || e.target === document.documentElement) return;
+      if (e.target === selectedEl) return;
+      e.target.classList.add('ai-editor-hover');
+  });
+
+  document.body.addEventListener('mouseout', (e) => {
+      e.target.classList.remove('ai-editor-hover');
+  });
+
   // 3. 交互逻辑: 双击编辑文字
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault();
@@ -80,7 +92,10 @@ const EDITOR_SCRIPT = `
 
   // 辅助函数: 选中元素
   function selectElement(el) {
+      if (selectedEl) deselect();
+      
       selectedEl = el;
+      selectedEl.classList.remove('ai-editor-hover'); // remove hover when selected
       selectedEl.classList.add('ai-editor-selected');
       
       // 获取当前样式发送给父组件

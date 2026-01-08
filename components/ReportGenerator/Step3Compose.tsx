@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
-    PlayIcon, ServerIcon
+    PlayIcon, ServerIcon, ArrowRightIcon
 } from '../icons';
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
@@ -176,30 +177,9 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         };
     }, [activePageIndex, isGenerating, hasHtml]);
 
-    const handleExport = async () => {
-        setIsExporting(true);
-        try {
-             const pdfPages = data.pages.map((p, idx) => ({
-                html: p.html || '',
-                filename: `page_${idx + 1}`
-            })).filter(item => item.html);
-            
-            if (pdfPages.length === 0) {
-                alert("没有可导出的页面 (HTML 未生成)。");
-                setIsExporting(false);
-                return;
-            }
-
-            const blob = await generateBatchPdf(pdfPages);
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${data.topic || 'report'}.pdf`;
-            a.click();
-        } catch(e) { 
-            alert('导出失败'); 
-        } finally { 
-            setIsExporting(false); 
+    const handleEnterFinalize = () => {
+        if (setStage) {
+            setStage('finalize');
         }
     };
 
@@ -401,12 +381,11 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                  {hasReadyHtml && (
                      <div className="p-4 border-t border-slate-200">
                          <button 
-                            onClick={handleExport} 
-                            disabled={isExporting} 
-                            className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center justify-center gap-2"
+                            onClick={handleEnterFinalize} 
+                            className="w-full py-3 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
                          >
-                            {isExporting ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
-                            导出 PDF
+                            <span>进入可视化精修</span>
+                            <ArrowRightIcon className="w-4 h-4"/>
                          </button>
                      </div>
                  )}
