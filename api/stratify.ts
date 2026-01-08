@@ -1,4 +1,3 @@
-
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
@@ -32,31 +31,32 @@ export interface ChatCompletionRequest {
     max_tokens?: number;
 }
 
+/**
+ * 核心修改：切换至 Nginx 反向代理接口
+ * 1. URL 改为 '/openrouter/chat/completions'
+ * 2. 移除 Authorization Header (由 Nginx 注入)
+ */
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
     onData: (data: { content?: string; reasoning?: string; tool_calls?: any[] }) => void,
     onDone?: () => void,
     onError?: (err: any) => void
 ) => {
-    const token = localStorage.getItem('accessToken');
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream', // Important for SSE
+        'Accept': 'text/event-stream',
     };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
 
     try {
-        const response = await fetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
+        const response = await fetch(`/openrouter/chat/completions`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ ...params, stream: true }), // Force stream true
+            body: JSON.stringify({ ...params, stream: true }),
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Chat Error (${response.status}): ${errorText}`);
+            throw new Error(`OpenRouter Error (${response.status}): ${errorText}`);
         }
 
         if (!response.body) throw new Error("No response body");
@@ -71,7 +71,7 @@ export const streamChatCompletions = async (
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // Keep partial line in buffer
+            buffer = lines.pop() || '';
 
             for (const line of lines) {
                 const trimmed = line.trim();
@@ -85,7 +85,6 @@ export const streamChatCompletions = async (
                     const delta = json.choices?.[0]?.delta;
                     
                     if (delta) {
-                        // Support both standard content and reasoning_content (DeepSeek/SiliconFlow)
                         const content = delta.content;
                         const reasoning = delta.reasoning_content || delta.reasoning; 
                         const tool_calls = delta.tool_calls;
@@ -95,7 +94,7 @@ export const streamChatCompletions = async (
                         }
                     }
                 } catch (e) {
-                    // Ignore parse errors for partial chunks
+                    // Ignore
                 }
             }
         }

@@ -139,6 +139,19 @@ const CodeTerminal: React.FC<{ code: string }> = ({ code }) => {
     );
 };
 
+// Helper for Static Code Viewer
+const SourceCodeViewer: React.FC<{ code: string }> = ({ code }) => {
+    return (
+        <div className="w-full h-full bg-[#1e1e1e] flex flex-col relative overflow-hidden">
+             <div className="flex-1 overflow-auto custom-scrollbar-dark p-6">
+                <pre className="text-xs font-mono text-green-400 whitespace-pre-wrap break-all leading-relaxed">
+                    {code}
+                </pre>
+             </div>
+        </div>
+    );
+};
+
 export default function NewTechIdentifier() {
     const [step, setStep] = useState<Step>('upload');
     const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -148,6 +161,10 @@ export default function NewTechIdentifier() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    
+    // View Mode for Result (Slide or Code)
+    const [viewMode, setViewMode] = useState<'slide' | 'code'>('slide');
+    const [copyStatus, setCopyStatus] = useState('复制代码');
 
     const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -322,6 +339,7 @@ export default function NewTechIdentifier() {
 
         setStep('generate');
         setIsProcessing(true);
+        setViewMode('slide'); // Reset view to slide when starting generation
 
         for (let i = 0; i < selectedItems.length; i++) {
             const item = selectedItems[i];
@@ -441,6 +459,16 @@ export default function NewTechIdentifier() {
             alert('PDF 生成失败，请重试。');
         } finally {
             setDownloadingId(null);
+        }
+    };
+
+    const handleCopyCode = async (code: string) => {
+        try {
+            await navigator.clipboard.writeText(code);
+            setCopyStatus('已复制!');
+            setTimeout(() => setCopyStatus('复制代码'), 2000);
+        } catch (e) {
+            alert('复制失败');
         }
     };
 
@@ -617,6 +645,7 @@ export default function NewTechIdentifier() {
     if (step === 'generate') {
         const selectedItems = techList.filter(t => t.isSelected);
         const currentItem = selectedItems[currentProcessingIndex];
+        const isDone = currentItem?.generationStatus === 'done';
 
         return (
             <div className="h-full flex overflow-hidden bg-slate-50">
@@ -678,7 +707,34 @@ export default function NewTechIdentifier() {
                             </span>
                         </div>
                         
+                        {/* View Toggle */}
+                        {isDone && (
+                            <div className="flex bg-slate-100 p-1 rounded-lg">
+                                 <button
+                                    onClick={() => setViewMode('slide')}
+                                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'slide' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                 >
+                                    <EyeIcon className="w-3.5 h-3.5" /> 预览
+                                 </button>
+                                 <button
+                                    onClick={() => setViewMode('code')}
+                                    className={`flex items-center gap-1 px-3 py-1 rounded-md text-xs font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                 >
+                                    <CodeIcon className="w-3.5 h-3.5" /> 代码
+                                 </button>
+                            </div>
+                        )}
+
                         <div className="flex items-center gap-3">
+                             {isDone && viewMode === 'code' && currentItem?.htmlCode && (
+                                <button 
+                                    onClick={() => handleCopyCode(currentItem.htmlCode!)}
+                                    className="px-3 py-1.5 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100 transition-colors border border-slate-200"
+                                >
+                                    {copyStatus}
+                                </button>
+                             )}
+
                             {currentItem?.htmlCode && (
                                 <button 
                                     onClick={() => handleDownloadPDF(currentItem)}
@@ -705,7 +761,7 @@ export default function NewTechIdentifier() {
                                     </div>
                                 )}
 
-                                {/* 2. Code Stream View */}
+                                {/* 2. Code Stream View (During Generation) */}
                                 {currentItem.generationStatus === 'coding' && (
                                     <div className="absolute inset-0 p-8 flex justify-center bg-[#0f172a]">
                                         <div className="w-full max-w-4xl h-full animate-in fade-in duration-300">
@@ -714,9 +770,13 @@ export default function NewTechIdentifier() {
                                     </div>
                                 )}
 
-                                {/* 3. Final Slide View */}
+                                {/* 3. Final Result View (Slide or Code) */}
                                 {currentItem.generationStatus === 'done' && currentItem.htmlCode && (
-                                    <ScaledSlide html={currentItem.htmlCode} />
+                                    viewMode === 'slide' ? (
+                                        <ScaledSlide html={currentItem.htmlCode} />
+                                    ) : (
+                                        <SourceCodeViewer code={currentItem.htmlCode} />
+                                    )
                                 )}
 
                                 {/* 4. Pending/Empty State */}
@@ -752,5 +812,11 @@ export default function NewTechIdentifier() {
 const PlayIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path fillRule="evenodd" d="M4.5 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" clipRule="evenodd" />
+    </svg>
+);
+// Local CopyIcon if needed, but we used text.
+const CopyIcon = ({ className }: { className?: string }) => (
+     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
     </svg>
 );

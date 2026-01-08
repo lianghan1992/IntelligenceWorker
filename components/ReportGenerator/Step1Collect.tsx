@@ -6,6 +6,9 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 
+// --- 统一模型配置 ---
+const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+
 // --- Helper: Robust Partial JSON Parser ---
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
@@ -153,7 +156,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
-        // --- KEY CHANGE: Inject Reference Materials ---
         let finalPrompt = userPromptText;
         if (data.referenceMaterials && data.referenceMaterials.length > 0) {
             finalPrompt = `【参考背景资料】\n${data.referenceMaterials}\n\n【用户指令】\n${userPromptText}`;
@@ -165,13 +167,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             { role: 'user', content: finalPrompt }
         ];
 
-        let modelToUse = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free"; 
-        try {
-            const prompt = await getPromptDetail("38c86a22-ad69-4c4a-acd8-9c15b9e92600"); 
-            if (prompt.channel_code && prompt.model_id) {
-                modelToUse = `${prompt.channel_code}@${prompt.model_id}`;
-            }
-        } catch (e) { console.warn("Using default model for outline"); }
+        // 统一硬编码模型
+        const modelToUse = DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '', model: modelToUse }]);
         let accumulatedContent = '';
@@ -255,18 +252,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
-            let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
-            if (autoGenMode === 'text') {
-                 try {
-                    const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-                    if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-                } catch(e) {}
-            } else {
-                 try {
-                    const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
-                    if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-                } catch(e) {}
-            }
+            // 统一硬编码模型
+            const modelStr = DEFAULT_STABLE_MODEL;
 
             setHistory(prev => [...prev, { 
                 role: 'assistant', 
@@ -286,7 +273,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let systemPromptContent = '';
 
                 if (autoGenMode === 'text') {
-                    // Inject Date for text generation context
                     const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
                     
                     try {
@@ -407,11 +393,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
         
-        let modelStr = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free";
-        try {
-           const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-           if (promptDetail.channel_code) modelStr = `${promptDetail.channel_code}@${promptDetail.model_id}`;
-        } catch(e) {}
+        // 统一硬编码模型
+        const modelStr = DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
         
@@ -444,7 +427,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                  const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
                  const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
                  
-                 // Inject date for content modification context
                  messages = [
                      { role: 'system', content: `You are an expert editor. Current Date: ${currentDate}.` },
                      { role: 'user', content: userMsg }
@@ -549,12 +531,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
     const hasHtml = data.pages.some(p => !!p.html);
     
-    // Determine if we are in "Edit Context" mode (meaning we are composing/editing, but not auto-generating)
     const isEditMode = stage === 'compose' && !autoGenMode;
     const activePage = data.pages[activePageIndex];
     const isHtmlEdit = !!activePage?.html;
 
-    // Watch for stage change to trigger initial text generation
     useEffect(() => {
         if (stage === 'compose' && !autoGenMode && !allTextReady && !isLlmActive) {
             setAutoGenMode('text');
@@ -606,7 +586,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 return (
                     <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                        {/* Model Badge */}
                         {isAssistant && msg.model && (
                             <div className="mb-2 flex items-center gap-1.5 ml-1">
                                 <div className="flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-indigo-600 shadow-sm">
@@ -632,7 +611,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                 />
                             )}
                             
-                            {/* Empty state while thinking */}
                             {isAssistant && isEmpty && isLlmActive && isLast && (
                                 <div className="flex items-center gap-2 text-slate-400 text-xs italic py-1">
                                     <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
@@ -677,7 +655,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 </div>
             )}
 
-            {/* Action Buttons inside Chat */}
             {stage === 'compose' && allTextReady && !autoGenMode && !hasHtml && (
                 <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4">
                     <button 
@@ -712,7 +689,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0">
-                    {/* Explicit Modification Indicator & Chips */}
                     {isEditMode && (
                         <div className="space-y-3 mb-3 animate-in fade-in slide-in-from-bottom-1">
                              <div className={`px-3 py-2 border rounded-lg flex items-center justify-between ${isHtmlEdit ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
@@ -735,7 +711,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                  </span>
                              </div>
                              
-                             {/* Quick Action Chips based on Context */}
                              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                                 {(isHtmlEdit 
                                     ? ['换个深色主题', '增加图表', '改为左右布局', '字体加大', '重绘'] 
@@ -778,7 +753,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         </button>
                     </div>
                     
-                    {/* Context Hint */}
                     {stage === 'compose' && !autoGenMode && (
                         <p className="text-[10px] text-center text-slate-400 mt-2 flex items-center justify-center gap-1">
                            <span className={`w-1.5 h-1.5 rounded-full ${isEditMode ? 'bg-green-400' : 'bg-slate-300'}`}></span>

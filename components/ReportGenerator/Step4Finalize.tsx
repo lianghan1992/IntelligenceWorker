@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PPTPageData } from './types';
 import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../api/stratify'; 
@@ -17,6 +16,7 @@ interface Step4FinalizeProps {
     onStreamingUpdate?: (msg: any) => void;
 }
 
+const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
 const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
 
 const extractStreamingHtml = (rawText: string): string => {
@@ -50,8 +50,9 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
             let accumulatedText = '';
             
+            // 使用硬编码的稳定模型
             await streamChatCompletions({
-                model: `${prompt.channel_code}@${prompt.model_id}`,
+                model: DEFAULT_STABLE_MODEL,
                 messages: [
                     { role: 'system', content: prompt.content },
                     { role: 'user', content: userPrompt }
@@ -118,7 +119,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      <button 
                         onClick={handleExport}
                         disabled={!allRendered || isExporting}
-                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                          {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>} 导出 PDF
                      </button>
@@ -147,7 +148,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      ) : (
                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-900">
                              <div className="relative">
-                                 <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-20 animate-pulse"></div>
+                                 <div className="absolute inset-0 bg-indigo-50 blur-xl opacity-20 animate-pulse"></div>
                                  <BrainIcon className="w-16 h-16 relative z-10" />
                              </div>
                              <p className="mt-4 font-mono text-xs uppercase tracking-[0.2em] animate-pulse">Rendering Pixel Perfect Slide...</p>
