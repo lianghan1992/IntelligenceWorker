@@ -38,6 +38,41 @@ export default function NewTechIdentifier() {
         setTimeout(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     };
 
+    // --- CSV Parser ---
+    // Robustly parses CSV rows, respecting quoted fields containing newlines
+    const parseCSVRows = (text: string): string[] => {
+        const rows: string[] = [];
+        let currentRow = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const nextChar = text[i + 1];
+            
+            if (char === '"') {
+                inQuotes = !inQuotes;
+            }
+            
+            // If not inside quotes, treat newline as row delimiter
+            if (!inQuotes && (char === '\n' || (char === '\r' && nextChar === '\n'))) {
+                if (currentRow.trim().length > 0) {
+                    rows.push(currentRow);
+                }
+                currentRow = '';
+                if (char === '\r') i++; // Skip \n if CRLF
+            } else {
+                currentRow += char;
+            }
+        }
+        
+        // Push the last row if exists
+        if (currentRow.trim().length > 0) {
+            rows.push(currentRow);
+        }
+        
+        return rows;
+    };
+
     // --- Step 1: Upload ---
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -46,8 +81,10 @@ export default function NewTechIdentifier() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
-            // Simple CSV parser: split by new line
-            const rows = text.split(/\r?\n/).filter(row => row.trim().length > 0);
+            
+            // Use the robust parser instead of simple split
+            const rows = parseCSVRows(text);
+
             // Remove header if it looks like one (simple heuristic)
             if (rows.length > 0 && (rows[0].includes('title') || rows[0].includes('标题'))) {
                 rows.shift();
