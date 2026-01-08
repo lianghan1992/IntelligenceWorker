@@ -1,9 +1,18 @@
 
-import React, { useState, useRef } from 'react';
-import { CloudIcon, ArrowRightIcon, RefreshIcon, CheckIcon, DocumentTextIcon, DownloadIcon, ExternalLinkIcon } from '../../../icons';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { CloudIcon, ArrowRightIcon, RefreshIcon, CheckIcon, DocumentTextIcon, DownloadIcon, ExternalLinkIcon, CodeIcon, EyeIcon, ClockIcon } from '../../../icons';
 import { streamOpenRouterChat } from '../../utils/llm';
 import { generatePdf } from '../../utils/services';
 import { PROMPT_IDENTIFICATION, PROMPT_DEEP_DIVE, PROMPT_HTML_GEN } from './prompts';
+
+// Add markdown parser support
+declare global {
+  interface Window {
+    marked?: {
+      parse(markdownString: string): string;
+    };
+  }
+}
 
 const MODEL_NAME = "xiaomi/mimo-v2-flash:free";
 
@@ -17,9 +26,118 @@ interface TechItem {
     isSelected: boolean;
     markdownDetail?: string;
     htmlCode?: string;
+    generationStatus?: 'pending' | 'analyzing' | 'coding' | 'done' | 'error';
 }
 
 type Step = 'upload' | 'identify' | 'select' | 'generate';
+
+// Helper component for scaling slide
+const ScaledSlide: React.FC<{ html: string }> = ({ html }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
+
+    useEffect(() => {
+        const updateScale = () => {
+            if (containerRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current;
+                const targetRatio = 16 / 9;
+                const containerRatio = clientWidth / clientHeight;
+                
+                let newScale;
+                if (containerRatio > targetRatio) {
+                    // Container is wider than 16:9, scale based on height
+                    newScale = (clientHeight - 40) / 900;
+                } else {
+                    // Container is narrower, scale based on width
+                    newScale = (clientWidth - 40) / 1600;
+                }
+                setScale(newScale);
+            }
+        };
+
+        window.addEventListener('resize', updateScale);
+        updateScale();
+        // Delay update to ensure layout is settled
+        setTimeout(updateScale, 100);
+
+        return () => window.removeEventListener('resize', updateScale);
+    }, []);
+
+    return (
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-slate-100 overflow-hidden relative">
+             <div 
+                style={{ 
+                    width: '1600px', 
+                    height: '900px', 
+                    transform: `scale(${scale})`, 
+                    transformOrigin: 'center center',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                }}
+                className="bg-white"
+            >
+                <iframe 
+                    srcDoc={html}
+                    className="w-full h-full border-none bg-white pointer-events-none select-none"
+                    title="Slide Preview"
+                />
+            </div>
+            {/* Overlay to block iframe interactions */}
+            <div className="absolute inset-0 z-10 bg-transparent"></div>
+        </div>
+    );
+};
+
+// Helper for Markdown rendering
+const MarkdownPreview: React.FC<{ content: string }> = ({ content }) => {
+    const html = useMemo(() => {
+        if (window.marked) {
+            return window.marked.parse(content);
+        }
+        return `<pre class="whitespace-pre-wrap">${content}</pre>`;
+    }, [content]);
+
+    return (
+        <div className="prose prose-sm max-w-none p-8 bg-white shadow-sm border border-slate-200 rounded-xl overflow-y-auto h-full custom-scrollbar">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <RefreshIcon className="w-3 h-3 animate-spin" />
+                正在生成深度分析报告...
+            </h3>
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+            {/* Auto-scroll anchor */}
+            <div className="h-4" /> 
+        </div>
+    );
+};
+
+// Helper for Code Streaming
+const CodeTerminal: React.FC<{ code: string }> = ({ code }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [code]);
+
+    return (
+        <div className="bg-[#1e1e1e] text-green-400 font-mono text-xs p-6 rounded-xl shadow-2xl h-full flex flex-col overflow-hidden border border-slate-700">
+             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+                <span className="flex items-center gap-2 font-bold text-slate-300">
+                    <CodeIcon className="w-4 h-4" /> 
+                    HTML Generator
+                </span>
+                <span className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-green-500 animate-pulse">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                    Live Coding
+                </span>
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-y-auto whitespace-pre-wrap break-all leading-relaxed opacity-90 custom-scrollbar-dark">
+                {code}
+                <span className="inline-block w-2 h-4 bg-green-500 ml-1 animate-pulse align-middle"></span>
+            </div>
+        </div>
+    );
+};
 
 export default function NewTechIdentifier() {
     const [step, setStep] = useState<Step>('upload');
@@ -40,7 +158,6 @@ export default function NewTechIdentifier() {
     };
 
     // --- CSV Parser ---
-    // Parses CSV text into headers and rows, respecting quoted fields.
     const parseCSV = (text: string) => {
         const rows: string[][] = [];
         let currentRow: string[] = [];
@@ -53,19 +170,15 @@ export default function NewTechIdentifier() {
 
             if (char === '"') {
                 if (inQuotes && nextChar === '"') {
-                    // Escaped quote
                     currentCell += '"';
                     i++;
                 } else {
-                    // Toggle quote state
                     inQuotes = !inQuotes;
                 }
             } else if (char === ',' && !inQuotes) {
-                // End of cell
                 currentRow.push(currentCell.trim());
                 currentCell = '';
             } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !inQuotes) {
-                // End of row
                 currentRow.push(currentCell.trim());
                 if (currentRow.length > 0 && (currentRow.length > 1 || currentRow[0] !== '')) {
                      rows.push(currentRow);
@@ -78,7 +191,6 @@ export default function NewTechIdentifier() {
             }
         }
         
-        // Handle last row if no newline at EOF
         if (currentCell || currentRow.length > 0) {
              currentRow.push(currentCell.trim());
              if (currentRow.length > 0) rows.push(currentRow);
@@ -95,9 +207,7 @@ export default function NewTechIdentifier() {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target?.result as string;
-            
             const rawRows = parseCSV(text);
-            
             if (rawRows.length > 0) {
                 setCsvHeaders(rawRows[0]);
                 setCsvRows(rawRows.slice(1));
@@ -109,21 +219,17 @@ export default function NewTechIdentifier() {
         reader.readAsText(file);
     };
 
-    // --- Step 2: Identify (Batch Processing) ---
+    // --- Step 2: Identify ---
     const parseJsonResult = (text: string): TechItem[] => {
         try {
-            // Find JSON array brackets
             const start = text.indexOf('[');
             const end = text.lastIndexOf(']');
-            
             if (start === -1 || end === -1) {
                 console.warn("No JSON array found in response");
                 return [];
             }
-            
             const jsonStr = text.substring(start, end + 1);
             const items = JSON.parse(jsonStr);
-            
             if (!Array.isArray(items)) return [];
 
             return items.map((item: any) => ({
@@ -133,7 +239,8 @@ export default function NewTechIdentifier() {
                 description: item.description || '',
                 status: item.status || '未知',
                 originalUrl: item.original_url || '',
-                isSelected: true, // Default select all
+                isSelected: true,
+                generationStatus: 'pending'
             }));
         } catch (e) {
             console.error("JSON Parse failed:", e);
@@ -147,7 +254,6 @@ export default function NewTechIdentifier() {
         setIsProcessing(true);
         setTechList([]);
 
-        // Batch size (e.g., 5 rows per request to avoid context limit)
         const BATCH_SIZE = 5;
         const headerStr = csvHeaders.join(',');
         
@@ -155,7 +261,6 @@ export default function NewTechIdentifier() {
             const batch = csvRows.slice(i, i + BATCH_SIZE);
             addLog(`正在分析第 ${i + 1} - ${Math.min(i + BATCH_SIZE, csvRows.length)} 行...`);
             
-            // Format batch as CSV string with header repeated for context
             const batchCsvStr = [headerStr, ...batch.map(r => r.join(','))].join('\n');
             const prompt = `${PROMPT_IDENTIFICATION}\n\n**【CSV片段内容】**\n${batchCsvStr}`;
             
@@ -169,9 +274,7 @@ export default function NewTechIdentifier() {
                         let buffer = "";
                         streamOpenRouterChat(
                             [{ role: 'user', content: prompt }],
-                            (token) => {
-                                buffer += token;
-                            },
+                            (token) => { buffer += token; },
                             () => {
                                 const newItems = parseJsonResult(buffer);
                                 if (newItems.length > 0) {
@@ -183,16 +286,13 @@ export default function NewTechIdentifier() {
                                 batchSuccess = true;
                                 resolve();
                             },
-                            (err) => {
-                                reject(err);
-                            },
+                            (err) => reject(err),
                             MODEL_NAME
                         );
                     });
                 } catch (err: any) {
                     attempts++;
                     console.error(`Batch analysis failed (Attempt ${attempts}/${maxRetries}):`, err);
-                    
                     if (attempts < maxRetries) {
                         addLog(`请求异常 (${err.message})，正在进行第 ${attempts} 次重试...`);
                         await new Promise(r => setTimeout(r, 2000));
@@ -202,7 +302,6 @@ export default function NewTechIdentifier() {
                 }
             }
         }
-        
         setIsProcessing(false);
         setStep('select');
         addLog("所有内容分析完毕，请确认需要生成报告的技术点。");
@@ -213,7 +312,7 @@ export default function NewTechIdentifier() {
         setTechList(prev => prev.map(item => item.id === id ? { ...item, isSelected: !item.isSelected } : item));
     };
 
-    // --- Step 4: Generation Loop ---
+    // --- Step 4: Generation Loop (Updated with Streaming) ---
     const generateReports = async () => {
         const selectedItems = techList.filter(t => t.isSelected);
         if (selectedItems.length === 0) {
@@ -230,7 +329,9 @@ export default function NewTechIdentifier() {
             addLog(`正在处理 [${i + 1}/${selectedItems.length}]: ${item.name}...`);
 
             // 1. Generate Deep Dive Markdown
-            addLog(` > 正在编写深度分析报告 (Markdown)...`);
+            // Update status to 'analyzing'
+            setTechList(prev => prev.map(t => t.id === item.id ? { ...t, generationStatus: 'analyzing', markdownDetail: '' } : t));
+            
             const deepDivePrompt = `${PROMPT_DEEP_DIVE}\n\n**输入信息(技术名称/描述/领域):**\n名称：${item.name}\n领域：${item.field}\n描述：${item.description}\n现状：${item.status}`;
             
             let markdownBuffer = "";
@@ -243,7 +344,11 @@ export default function NewTechIdentifier() {
                         markdownBuffer = ""; // Reset buffer
                         streamOpenRouterChat(
                             [{ role: 'user', content: deepDivePrompt }],
-                            (token) => { markdownBuffer += token; },
+                            (token) => { 
+                                markdownBuffer += token;
+                                // Streaming Update
+                                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, markdownDetail: markdownBuffer } : t));
+                            },
                             () => { mdSuccess = true; resolve(); },
                             (err) => reject(err),
                             MODEL_NAME
@@ -258,16 +363,15 @@ export default function NewTechIdentifier() {
 
             if (!mdSuccess) {
                 addLog(` > [${item.name}] Markdown 生成失败，跳过后续步骤。`);
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, generationStatus: 'error' } : t));
                 continue;
             }
 
-            // Save Markdown
-            setTechList(prev => prev.map(t => t.id === item.id ? { ...t, markdownDetail: markdownBuffer } : t));
-
             // 2. Generate HTML
-            addLog(` > 正在生成 HTML 幻灯片代码...`);
-            const htmlPrompt = `${PROMPT_HTML_GEN}\n\n**待转换的 Markdown 内容:**\n${markdownBuffer}`;
+            // Update status to 'coding'
+            setTechList(prev => prev.map(t => t.id === item.id ? { ...t, generationStatus: 'coding', htmlCode: '' } : t));
             
+            const htmlPrompt = `${PROMPT_HTML_GEN}\n\n**待转换的 Markdown 内容:**\n${markdownBuffer}`;
             let htmlBuffer = "";
             let htmlAttempts = 0;
             let htmlSuccess = false;
@@ -278,7 +382,11 @@ export default function NewTechIdentifier() {
                         htmlBuffer = ""; // Reset buffer
                         streamOpenRouterChat(
                             [{ role: 'user', content: htmlPrompt }],
-                            (token) => htmlBuffer += token,
+                            (token) => {
+                                htmlBuffer += token;
+                                // Streaming Update for Terminal View
+                                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: htmlBuffer } : t));
+                            },
                             () => { htmlSuccess = true; resolve(); },
                             (err) => reject(err),
                             MODEL_NAME
@@ -296,12 +404,18 @@ export default function NewTechIdentifier() {
                 let cleanHtml = htmlBuffer;
                 const match = htmlBuffer.match(/```html([\s\S]*?)```/);
                 if (match) cleanHtml = match[1];
+                else {
+                     // Fallback: look for <!DOCTYPE html> start
+                     const startIdx = htmlBuffer.indexOf('<!DOCTYPE html>');
+                     if (startIdx !== -1) cleanHtml = htmlBuffer.substring(startIdx);
+                }
 
-                // Save HTML
-                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: cleanHtml } : t));
+                // Save HTML and mark done
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, htmlCode: cleanHtml, generationStatus: 'done' } : t));
                 addLog(` > [${item.name}] 处理完成。`);
             } else {
                 addLog(` > [${item.name}] HTML 生成失败。`);
+                setTechList(prev => prev.map(t => t.id === item.id ? { ...t, generationStatus: 'error' } : t));
             }
         }
 
@@ -334,6 +448,7 @@ export default function NewTechIdentifier() {
     
     // 1. Upload View
     if (step === 'upload') {
+        // ... (Keep existing upload code)
         return (
             <div className="flex flex-col h-full p-10 animate-in fade-in zoom-in">
                 {csvRows.length === 0 ? (
@@ -403,7 +518,6 @@ export default function NewTechIdentifier() {
                                                 {row.map((cell, j) => (
                                                     <td key={j} className="p-3 max-w-xs truncate" title={cell}>{cell}</td>
                                                 ))}
-                                                {/* Fill remaining cells if row is shorter than header */}
                                                 {Array.from({ length: Math.max(0, csvHeaders.length - row.length) }).map((_, j) => (
                                                     <td key={`empty-${j}`} className="p-3"></td>
                                                 ))}
@@ -419,7 +533,7 @@ export default function NewTechIdentifier() {
         );
     }
 
-    // 2. Processing Logs (Shared View for Identify)
+    // 2. Processing Logs
     if (step === 'identify') {
         return (
             <div className="p-10 h-full flex flex-col">
@@ -439,6 +553,7 @@ export default function NewTechIdentifier() {
 
     // 3. Selection View
     if (step === 'select') {
+        // ... (Keep existing selection view)
         return (
             <div className="h-full flex flex-col p-6">
                 <div className="flex justify-between items-center mb-6">
@@ -498,82 +613,133 @@ export default function NewTechIdentifier() {
         );
     }
 
-    // 4. Generation & Result View
+    // 4. Generation & Result View (Enhanced)
     if (step === 'generate') {
         const selectedItems = techList.filter(t => t.isSelected);
         const currentItem = selectedItems[currentProcessingIndex];
 
         return (
-            <div className="h-full flex overflow-hidden">
+            <div className="h-full flex overflow-hidden bg-slate-50">
                 {/* Sidebar List */}
-                <div className="w-72 bg-white border-r border-slate-200 flex flex-col">
-                    <div className="p-4 border-b border-slate-100 font-bold text-slate-700">生成队列</div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                <div className="w-80 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
+                    <div className="p-4 border-b border-slate-100 font-bold text-slate-700 flex justify-between items-center bg-gray-50/50">
+                         <span>生成队列 ({selectedItems.length})</span>
+                         {isProcessing && <RefreshIcon className="w-4 h-4 text-indigo-600 animate-spin" />}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                         {selectedItems.map((item, idx) => (
                             <div 
                                 key={item.id}
-                                className={`p-3 rounded-lg border text-sm transition-all ${
+                                className={`group p-3 rounded-xl border text-sm transition-all cursor-pointer flex flex-col gap-1 ${
                                     idx === currentProcessingIndex 
-                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-900 shadow-sm'
-                                        : item.htmlCode 
-                                            ? 'border-green-200 bg-green-50 text-green-800'
-                                            : 'border-transparent text-slate-500'
+                                        ? 'border-indigo-500 bg-indigo-50/50 shadow-sm'
+                                        : item.generationStatus === 'done'
+                                            ? 'border-green-200 bg-green-50/30'
+                                            : 'border-transparent hover:bg-slate-50'
                                 }`}
                                 onClick={() => !isProcessing && setCurrentProcessingIndex(idx)}
                             >
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="font-bold truncate">{idx+1}. {item.name}</span>
-                                    {item.htmlCode && <CheckIcon className="w-4 h-4 text-green-600" />}
-                                    {isProcessing && idx === currentProcessingIndex && <RefreshIcon className="w-4 h-4 text-indigo-600 animate-spin" />}
+                                <div className="flex justify-between items-start">
+                                    <span className={`font-bold truncate ${idx === currentProcessingIndex ? 'text-indigo-900' : 'text-slate-700'}`}>{idx+1}. {item.name}</span>
+                                    <div className="flex-shrink-0 ml-2">
+                                        {item.generationStatus === 'done' && <CheckIcon className="w-4 h-4 text-green-600" />}
+                                        {(item.generationStatus === 'analyzing' || item.generationStatus === 'coding') && <RefreshIcon className="w-3.5 h-3.5 text-indigo-500 animate-spin" />}
+                                        {item.generationStatus === 'error' && <span className="text-xs text-red-500 font-bold">Error</span>}
+                                        {item.generationStatus === 'pending' && <span className="text-[10px] text-slate-300">Wait</span>}
+                                    </div>
                                 </div>
-                                <div className="text-xs opacity-70 truncate">{item.field}</div>
+                                <div className="flex justify-between items-center text-xs opacity-70">
+                                    <span className="truncate max-w-[150px]">{item.field}</span>
+                                    <span className="uppercase text-[10px] font-bold tracking-wider">
+                                        {item.generationStatus === 'analyzing' ? 'Analyzing...' : item.generationStatus === 'coding' ? 'Coding...' : ''}
+                                    </span>
+                                </div>
                             </div>
                         ))}
+                    </div>
+                    
+                    {/* Log Console (Mini) */}
+                    <div className="h-32 bg-[#0f172a] text-slate-400 font-mono text-[10px] p-3 overflow-auto custom-scrollbar-dark border-t border-slate-700 flex-shrink-0">
+                         {logs.slice(-10).map((l,i) => <div key={i} className="mb-0.5 break-all">{l}</div>)}
+                         <div ref={logEndRef} />
                     </div>
                 </div>
 
                 {/* Preview Area */}
-                <div className="flex-1 bg-slate-100 flex flex-col relative overflow-hidden">
+                <div className="flex-1 flex flex-col relative overflow-hidden min-w-0">
                     {/* Toolbar */}
-                    <div className="h-14 bg-white border-b border-slate-200 flex justify-between items-center px-6">
-                        <h3 className="font-bold text-slate-800">{currentItem?.name} - 预览</h3>
-                        {currentItem?.htmlCode && (
-                            <button 
-                                onClick={() => handleDownloadPDF(currentItem)}
-                                disabled={downloadingId === currentItem.id}
-                                className="flex items-center gap-2 px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-indigo-600 transition-colors disabled:opacity-50"
-                            >
-                                {downloadingId === currentItem.id ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4" />}
-                                导出 PDF
-                            </button>
-                        )}
+                    <div className="h-14 bg-white border-b border-slate-200 flex justify-between items-center px-6 flex-shrink-0 z-20">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <h3 className="font-bold text-slate-800 truncate">{currentItem?.name}</h3>
+                            <span className="text-xs text-slate-400 border-l border-slate-200 pl-3">
+                                {currentItem?.generationStatus === 'analyzing' && 'Step 1: 深度分析与文案撰写'}
+                                {currentItem?.generationStatus === 'coding' && 'Step 2: HTML 页面构建'}
+                                {currentItem?.generationStatus === 'done' && 'Ready: 幻灯片预览'}
+                            </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                            {currentItem?.htmlCode && (
+                                <button 
+                                    onClick={() => handleDownloadPDF(currentItem)}
+                                    disabled={downloadingId === currentItem.id}
+                                    className="flex items-center gap-2 px-4 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-indigo-600 transition-colors disabled:opacity-50 shadow-sm"
+                                >
+                                    {downloadingId === currentItem.id ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4" />}
+                                    导出 PDF
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Canvas */}
-                    <div className="flex-1 flex items-center justify-center p-8 overflow-auto">
-                        {currentItem?.htmlCode ? (
-                            <div className="relative shadow-2xl origin-top" style={{ width: '1600px', height: '900px', transform: 'scale(0.6)', transformOrigin: 'center top' }}>
-                                <iframe 
-                                    srcDoc={currentItem.htmlCode}
-                                    className="w-full h-full border-none bg-white"
-                                    title="Preview"
-                                />
-                            </div>
+                    {/* Canvas Stage */}
+                    <div className="flex-1 relative bg-slate-100 overflow-hidden">
+                        {currentItem ? (
+                            <>
+                                {/* 1. Markdown Stream View */}
+                                {currentItem.generationStatus === 'analyzing' && (
+                                    <div className="absolute inset-0 p-8 flex justify-center">
+                                        <div className="w-full max-w-3xl h-full animate-in fade-in zoom-in-95 duration-300">
+                                            <MarkdownPreview content={currentItem.markdownDetail || ''} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 2. Code Stream View */}
+                                {currentItem.generationStatus === 'coding' && (
+                                    <div className="absolute inset-0 p-8 flex justify-center bg-[#0f172a]">
+                                        <div className="w-full max-w-4xl h-full animate-in fade-in duration-300">
+                                            <CodeTerminal code={currentItem.htmlCode || ''} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 3. Final Slide View */}
+                                {currentItem.generationStatus === 'done' && currentItem.htmlCode && (
+                                    <ScaledSlide html={currentItem.htmlCode} />
+                                )}
+
+                                {/* 4. Pending/Empty State */}
+                                {currentItem.generationStatus === 'pending' && (
+                                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                                         <ClockIcon className="w-16 h-16 opacity-20 mb-4" />
+                                         <p className="font-medium">等待处理...</p>
+                                     </div>
+                                )}
+                                
+                                {currentItem.generationStatus === 'error' && (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400">
+                                        <p className="font-bold">生成失败</p>
+                                        <p className="text-sm">请查看日志了解详情</p>
+                                    </div>
+                                )}
+                            </>
                         ) : (
-                            <div className="text-center text-slate-400">
-                                <RefreshIcon className="w-12 h-12 mx-auto mb-4 animate-spin text-indigo-300" />
-                                <p className="font-bold">正在生成内容...</p>
-                                <p className="text-sm mt-2 opacity-70">Step 1: Deep Analysis &rarr; Step 2: HTML Coding</p>
+                            <div className="flex items-center justify-center h-full text-slate-400">
+                                选择左侧项目以查看详情
                             </div>
                         )}
                     </div>
-                    
-                    {/* Log Overlay */}
-                    {isProcessing && (
-                        <div className="absolute bottom-0 left-0 right-0 h-32 bg-slate-900/90 backdrop-blur text-green-400 font-mono text-xs p-4 overflow-auto border-t border-slate-700">
-                             {logs.slice(-5).map((l,i) => <div key={i}>{l}</div>)}
-                        </div>
-                    )}
                 </div>
             </div>
         );
