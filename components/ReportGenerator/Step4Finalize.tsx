@@ -17,6 +17,7 @@ interface Step4FinalizeProps {
 }
 
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
 
 const extractStreamingHtml = (rawText: string): string => {
@@ -50,9 +51,9 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
             let accumulatedText = '';
             
-            // 使用硬编码的稳定模型
+            // 使用更先进的 HTML 生成模型
             await streamChatCompletions({
-                model: DEFAULT_STABLE_MODEL,
+                model: HTML_GENERATION_MODEL,
                 messages: [
                     { role: 'system', content: prompt.content },
                     { role: 'user', content: userPrompt }

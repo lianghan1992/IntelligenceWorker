@@ -8,6 +8,7 @@ import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 
 // --- Helper: Robust Partial JSON Parser ---
 export const tryParsePartialJson = (jsonStr: string) => {
@@ -167,7 +168,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             { role: 'user', content: finalPrompt }
         ];
 
-        // 统一硬编码模型
+        // 大纲生成使用稳定模型
         const modelToUse = DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '', model: modelToUse }]);
@@ -252,8 +253,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
-            // 统一硬编码模型
-            const modelStr = DEFAULT_STABLE_MODEL;
+            // 核心修改：根据生成类型切换模型
+            const modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
             setHistory(prev => [...prev, { 
                 role: 'assistant', 
@@ -392,14 +393,14 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         setIsLlmActive(true);
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
+        const isHtmlMode = !!page.html;
         
-        // 统一硬编码模型
-        const modelStr = DEFAULT_STABLE_MODEL;
+        // 核心修改：根据修改内容类型切换模型
+        const modelStr = isHtmlMode ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
         
         let messages: ChatMessage[] = [];
-        const isHtmlMode = !!page.html;
 
         try {
              if (isHtmlMode) {
