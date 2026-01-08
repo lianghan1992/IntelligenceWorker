@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { 
     TrashIcon, PencilIcon, CheckIcon, PlusIcon, 
     ArrowRightIcon, ChevronDownIcon, ChevronRightIcon,
-    RefreshIcon
+    RefreshIcon, ViewGridIcon
 } from '../icons';
 
 interface VisualEditorProps {
@@ -131,7 +131,10 @@ const EDITOR_SCRIPT = `
           zIndex: comp.zIndex,
           textAlign: comp.textAlign,
           fontWeight: comp.fontWeight,
-          scale: currentScale
+          scale: currentScale,
+          width: comp.width,
+          height: comp.height,
+          letterSpacing: comp.letterSpacing
       }, '*');
   }
 
@@ -181,6 +184,9 @@ const EDITOR_SCRIPT = `
         selectedEl.style.fontSize = '';
         selectedEl.style.fontWeight = '';
         selectedEl.style.textAlign = '';
+        selectedEl.style.width = '';
+        selectedEl.style.height = '';
+        selectedEl.style.letterSpacing = '';
     }
     else if (action === 'DELETE') {
         selectedEl.remove();
@@ -248,6 +254,9 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         scale: number;
         textAlign: string;
         fontWeight: string;
+        width: string;
+        height: string;
+        letterSpacing: string;
     } | null>(null);
 
     useEffect(() => {
@@ -277,7 +286,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     fontSize: e.data.fontSize,
                     scale: e.data.scale || 1,
                     textAlign: e.data.textAlign,
-                    fontWeight: e.data.fontWeight
+                    fontWeight: e.data.fontWeight,
+                    width: e.data.width,
+                    height: e.data.height,
+                    letterSpacing: e.data.letterSpacing || '0px'
                 });
             } else if (e.data.type === 'DESELECT') {
                 setSelectedElement(null);
@@ -313,9 +325,25 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     const handleScale = (delta: number) => {
         if (!selectedElement) return;
         const current = selectedElement.scale || 1;
-        const newVal = Math.max(0.2, Math.min(3.0, parseFloat((current + delta).toFixed(1)))); // Limit scale 0.2x to 3.0x
+        const newVal = Math.max(0.2, Math.min(3.0, parseFloat((current + delta).toFixed(1)))); 
         sendCommand('UPDATE_TRANSFORM', newVal);
         setSelectedElement({ ...selectedElement, scale: newVal });
+    };
+
+    const handleDimension = (prop: 'width' | 'height', delta: number) => {
+        if (!selectedElement) return;
+        const current = parseInt(selectedElement[prop]) || 0;
+        const newVal = `${Math.max(1, current + delta)}px`;
+        sendCommand('UPDATE_STYLE', { [prop]: newVal });
+        setSelectedElement({ ...selectedElement, [prop]: newVal });
+    };
+
+    const handleLetterSpacing = (delta: number) => {
+        if (!selectedElement) return;
+        const current = parseFloat(selectedElement.letterSpacing) || 0;
+        const newVal = `${(current + delta).toFixed(1)}px`;
+        sendCommand('UPDATE_STYLE', { letterSpacing: newVal });
+        setSelectedElement({ ...selectedElement, letterSpacing: newVal });
     };
 
     const handleAlign = (align: 'left' | 'center' | 'right') => {
@@ -333,7 +361,16 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
 
     const handleReset = () => {
         sendCommand('RESET_STYLE');
-        if(selectedElement) setSelectedElement({ ...selectedElement, scale: 1, fontSize: '', fontWeight: 'normal', textAlign: 'left' });
+        if(selectedElement) setSelectedElement({ 
+            ...selectedElement, 
+            scale: 1, 
+            fontSize: '', 
+            fontWeight: 'normal', 
+            textAlign: 'left',
+            width: '',
+            height: '',
+            letterSpacing: '0px'
+        });
     };
 
     const handleDelete = () => {
@@ -348,87 +385,110 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
             
             {/* Extended Floating Toolbar */}
             {selectedElement && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-200 p-2.5 flex items-center gap-3 z-50 animate-in fade-in slide-in-from-top-4 select-none ring-1 ring-black/5">
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-200 p-2 flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-4 select-none ring-1 ring-black/5 overflow-x-auto max-w-[95vw] custom-scrollbar">
                     
                     {/* 1. Meta Info */}
-                    <div className="flex items-center gap-2 pr-3 border-r border-slate-200">
+                    <div className="flex items-center gap-2 pr-2 border-r border-slate-200 flex-shrink-0">
                         <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded uppercase tracking-wider">{selectedElement.tagName}</span>
                     </div>
 
                     {/* 2. Text Style Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5">
+                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
                         {/* Font Size */}
                         <div className="flex items-center">
-                            <button onClick={() => handleFontSize(-2)} className="w-7 h-7 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-xs">A-</button>
-                            <span className="text-[10px] w-6 text-center font-mono text-slate-400">{parseInt(selectedElement.fontSize)}</span>
-                            <button onClick={() => handleFontSize(2)} className="w-7 h-7 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-xs">A+</button>
+                            <button onClick={() => handleFontSize(-2)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-[10px]">A-</button>
+                            <span className="text-[9px] w-5 text-center font-mono text-slate-400">{parseInt(selectedElement.fontSize)}</span>
+                            <button onClick={() => handleFontSize(2)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-[10px]">A+</button>
                         </div>
                         
-                        <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
                         
                         {/* Bold */}
                         <button 
                             onClick={handleBold} 
-                            className={`w-7 h-7 flex items-center justify-center rounded font-serif font-bold text-xs transition-colors ${selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700 ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white text-slate-500'}`}
+                            className={`w-6 h-6 flex items-center justify-center rounded font-serif font-bold text-[10px] transition-colors ${selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700 ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white text-slate-500'}`}
                         >
                             B
                         </button>
 
-                        <div className="w-px h-4 bg-slate-200 mx-0.5"></div>
+                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
+                        
+                        {/* Letter Spacing */}
+                        <div className="flex items-center" title="字间距">
+                             <button onClick={() => handleLetterSpacing(-0.5)} className="w-5 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold text-[9px] tracking-tighter">AV</button>
+                             <button onClick={() => handleLetterSpacing(0.5)} className="w-5 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold text-[9px] tracking-widest">AV</button>
+                        </div>
+
+                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
 
                         {/* Align */}
                         <div className="flex items-center gap-0.5">
-                            <button onClick={() => handleAlign('left')} className={`w-6 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'left' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>
+                            <button onClick={() => handleAlign('left')} className={`w-5 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'left' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>
                             </button>
-                            <button onClick={() => handleAlign('center')} className={`w-6 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'center' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>
+                            <button onClick={() => handleAlign('center')} className={`w-5 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'center' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>
                             </button>
                         </div>
                     </div>
 
                     {/* 3. Scale Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5">
-                        <button onClick={() => handleScale(-0.1)} className="w-7 h-7 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="缩小">
-                            <div className="w-3 h-0.5 bg-current"></div>
+                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
+                        <button onClick={() => handleScale(-0.1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="缩小">
+                            <div className="w-2 h-0.5 bg-current"></div>
                         </button>
-                        <span className="text-[10px] w-8 text-center font-mono text-slate-400">{Math.round(selectedElement.scale * 100)}%</span>
-                        <button onClick={() => handleScale(0.1)} className="w-7 h-7 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="放大">
+                        <span className="text-[9px] w-7 text-center font-mono text-slate-400">{Math.round(selectedElement.scale * 100)}%</span>
+                        <button onClick={() => handleScale(0.1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="放大">
                             <PlusIcon className="w-3 h-3" />
                         </button>
                     </div>
 
-                    {/* 4. Color Group */}
-                    <div className="flex items-center gap-1 px-1">
-                        {['#000000', '#2563EB', '#DC2626', '#F59E0B'].map(c => (
+                    {/* 4. Dimension Group (W/H) */}
+                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
+                        <div className="flex items-center">
+                            <span className="text-[8px] font-bold text-slate-400 px-1">W</span>
+                            <button onClick={() => handleDimension('width', -10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">-</button>
+                            <button onClick={() => handleDimension('width', 10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">+</button>
+                        </div>
+                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
+                        <div className="flex items-center">
+                            <span className="text-[8px] font-bold text-slate-400 px-1">H</span>
+                            <button onClick={() => handleDimension('height', -10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">-</button>
+                            <button onClick={() => handleDimension('height', 10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">+</button>
+                        </div>
+                    </div>
+
+                    {/* 5. Color Group */}
+                    <div className="flex items-center gap-1 px-1 flex-shrink-0">
+                        {['#000000', '#2563EB', '#DC2626', '#F59E0B', '#10B981', '#FFFFFF'].map(c => (
                             <button
                                 key={c}
                                 onClick={() => handleColor(c)}
-                                className="w-5 h-5 rounded-full border border-black/10 hover:scale-110 transition-transform shadow-sm"
+                                className={`w-4 h-4 rounded-full border border-black/10 hover:scale-110 transition-transform shadow-sm ${c === '#FFFFFF' ? 'ring-1 ring-slate-200' : ''}`}
                                 style={{ backgroundColor: c }}
                             />
                         ))}
                     </div>
 
-                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                    <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
 
-                    {/* 5. Actions Group */}
-                    <div className="flex items-center gap-1">
+                    {/* 6. Actions Group */}
+                    <div className="flex items-center gap-1 flex-shrink-0">
                         <button onClick={() => handleLayer('up')} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="上移一层">
-                            <ArrowRightIcon className="w-3.5 h-3.5 -rotate-90" />
+                            <ArrowRightIcon className="w-3 h-3 -rotate-90" />
                         </button>
                         <button onClick={() => handleLayer('down')} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="下移一层">
-                             <ArrowRightIcon className="w-3.5 h-3.5 rotate-90" />
+                             <ArrowRightIcon className="w-3 h-3 rotate-90" />
                         </button>
                          <button onClick={handleReset} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="重置样式">
-                            <RefreshIcon className="w-3.5 h-3.5" />
+                            <RefreshIcon className="w-3 h-3" />
                         </button>
                     </div>
 
-                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                    <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
 
-                    <button onClick={handleDelete} className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors" title="删除元素 (Del)">
-                        <TrashIcon className="w-4 h-4" />
+                    <button onClick={handleDelete} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors flex-shrink-0" title="删除元素 (Del)">
+                        <TrashIcon className="w-3.5 h-3.5" />
                     </button>
                 </div>
             )}
