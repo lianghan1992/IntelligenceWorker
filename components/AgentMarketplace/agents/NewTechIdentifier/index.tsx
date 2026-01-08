@@ -59,31 +59,35 @@ export default function NewTechIdentifier() {
     };
 
     // --- Step 2: Identify (Batch Processing) ---
-    const parseMarkdownTable = (markdown: string): TechItem[] => {
-        const items: TechItem[] = [];
-        const lines = markdown.split('\n');
-        let inTable = false;
+    const parseJsonResult = (text: string): TechItem[] => {
+        try {
+            // Find JSON array brackets
+            const start = text.indexOf('[');
+            const end = text.lastIndexOf(']');
+            
+            if (start === -1 || end === -1) {
+                console.warn("No JSON array found in response");
+                return [];
+            }
+            
+            const jsonStr = text.substring(start, end + 1);
+            const items = JSON.parse(jsonStr);
+            
+            if (!Array.isArray(items)) return [];
 
-        for (const line of lines) {
-            if (line.trim().startsWith('|') && line.includes('---')) {
-                inTable = true;
-                continue;
-            }
-            if (inTable && line.trim().startsWith('|')) {
-                const cols = line.split('|').map(c => c.trim()).filter(c => c);
-                if (cols.length >= 4) {
-                    items.push({
-                        id: crypto.randomUUID(),
-                        name: cols[0].replace(/\*\*/g, ''),
-                        field: cols[1],
-                        description: cols[2],
-                        status: cols[3],
-                        isSelected: true, // Default select all
-                    });
-                }
-            }
+            return items.map((item: any) => ({
+                id: crypto.randomUUID(),
+                name: item.name || '未知技术',
+                field: item.field || '其他',
+                description: item.description || '',
+                status: item.status || '未知',
+                originalUrl: item.original_url,
+                isSelected: true, // Default select all
+            }));
+        } catch (e) {
+            console.error("JSON Parse failed:", e);
+            return [];
         }
-        return items;
     };
 
     const startIdentification = async () => {
@@ -109,9 +113,13 @@ export default function NewTechIdentifier() {
                         buffer += token;
                     },
                     () => {
-                        const newItems = parseMarkdownTable(buffer);
-                        setTechList(prev => [...prev, ...newItems]);
-                        addLog(`批次分析完成，识别到 ${newItems.length} 个技术点。`);
+                        const newItems = parseJsonResult(buffer);
+                        if (newItems.length > 0) {
+                            setTechList(prev => [...prev, ...newItems]);
+                            addLog(`批次分析完成，识别到 ${newItems.length} 个技术点。`);
+                        } else {
+                            addLog(`批次分析完成，未识别到有效技术点或格式解析失败。`);
+                        }
                         resolve();
                     },
                     (err) => {
