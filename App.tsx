@@ -26,6 +26,11 @@ export const App = () => {
 
   useEffect(() => {
     const init = async () => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
       try {
         const currentUser = await getMe();
         setUser(currentUser);
@@ -33,6 +38,8 @@ export const App = () => {
         setSubscriptions(subs);
       } catch (e) {
         console.error("Not logged in or failed to fetch", e);
+        // If getMe fails (e.g. token expired), apiFetch might have already cleared token/reloaded,
+        // or if it's a network error, we just stay in logged out state.
       } finally {
         setIsLoading(false);
       }

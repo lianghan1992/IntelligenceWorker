@@ -18,12 +18,13 @@ const app = express();
 app.use(cors());
 
 // --- 代理设置 ---
-const apiTarget = 'http://127.0.0.1:7657';
+const apiTarget = 'https://autoinsight_api.jingyu.today:8081';
 
 // 代理所有 /api 请求到后端
 app.use('/api', createProxyMiddleware({
   target: apiTarget,
   changeOrigin: true,
+  secure: false, // 允许非安全证书
   logLevel: 'debug',
   onProxyReq: (proxyReq, req, res) => {
     // 关键修复：确保将原始请求的协议（http或https）通过 X-Forwarded-Proto 头传递给后端。
@@ -37,6 +38,8 @@ app.use('/api', createProxyMiddleware({
 const wsProxy = createProxyMiddleware({
     target: apiTarget,
     ws: true,
+    changeOrigin: true,
+    secure: false,
     logLevel: 'debug',
 });
 app.use('/socket.io', wsProxy);

@@ -7,16 +7,18 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      // 将 /api 请求代理到本地 7657 端口的后端服务
-      // e.g. /api/sources -> http://127.0.0.1:7657/api/sources
+      // 将 /api 请求代理到远程后端服务
       '/api': {
-        target: 'http://127.0.0.1:7657',
+        target: 'https://autoinsight_api.jingyu.today:8081',
         changeOrigin: true, // 必须设置为 true，否则后端会收到错误的 Host 头
+        secure: false, // 允许自签名证书等 SSL 问题
       },
       // 将 WebSocket 连接也代理到后端服务器
       '/socket.io': {
-        target: 'ws://127.0.0.1:7657',
+        target: 'https://autoinsight_api.jingyu.today:8081',
         ws: true, // 启用 WebSocket 代理
+        changeOrigin: true,
+        secure: false,
       },
     },
   },
