@@ -4,7 +4,7 @@ import { STRATIFY_SERVICE_PATH } from '../../../config';
 
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
-    content: string;
+    content: string | any[]; // Support multimodal content in future
 }
 
 /**
@@ -16,7 +16,7 @@ export async function streamOpenRouterChat(
     onToken: (token: string) => void,
     onDone: () => void,
     onError: (error: Error) => void,
-    model: string = "google/gemini-2.0-flash-lite-preview-02-05:free" // Default cost-effective model
+    model: string = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free" // Default cost-effective model with channel prefix
 ) {
     try {
         const token = localStorage.getItem('accessToken');
@@ -28,6 +28,7 @@ export async function streamOpenRouterChat(
             headers['Authorization'] = `Bearer ${token}`;
         }
 
+        // Updated endpoint to match StratifyAI v1 gateway
         const response = await fetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
             method: 'POST',
             headers,
