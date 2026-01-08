@@ -5,7 +5,7 @@ import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
-    PlayIcon
+    PlayIcon, LightningBoltIcon
 } from '../icons';
 import { VisualEditor } from './VisualEditor';
 
@@ -25,6 +25,46 @@ const PROMPT_ID_HTML = "14920b9c-604f-4066-bb80-da7a47b65572";
 const extractStreamingHtml = (rawText: string): string => {
     return rawText.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
 };
+
+const GuidePanel: React.FC = () => (
+    <div className="absolute right-6 top-1/2 -translate-y-1/2 w-64 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 p-5 text-white shadow-2xl z-20 animate-in slide-in-from-right-10 fade-in duration-700 hidden xl:block">
+        <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-3">
+            <LightningBoltIcon className="w-4 h-4 text-yellow-400" />
+            <h3 className="font-bold text-sm tracking-wide">操作指南</h3>
+        </div>
+        
+        <div className="space-y-4">
+            <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">基础交互</h4>
+                <ul className="text-xs space-y-2 text-slate-300">
+                    <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>单击选中元素，弹出工具栏</li>
+                    <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>双击文字可直接输入修改</li>
+                    <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>按住鼠标拖拽调整位置</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">快捷键</h4>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="bg-white/10 rounded px-2 py-1.5 flex justify-between items-center">
+                        <span className="text-slate-300">删除</span>
+                        <kbd className="font-mono bg-black/20 px-1 rounded">Del</kbd>
+                    </div>
+                    <div className="bg-white/10 rounded px-2 py-1.5 flex justify-between items-center">
+                        <span className="text-slate-300">取消</span>
+                        <kbd className="font-mono bg-black/20 px-1 rounded">Esc</kbd>
+                    </div>
+                </div>
+            </div>
+
+            <div className="pt-2 border-t border-white/10">
+                <p className="text-[10px] text-slate-500 italic">
+                    提示：使用工具栏中的放大/缩小功能调整元素尺寸，而非文字大小，以保持布局完美。
+                </p>
+            </div>
+        </div>
+    </div>
+);
 
 export const Step4Finalize: React.FC<Step4FinalizeProps> = ({ 
     topic, 
@@ -46,9 +86,9 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 const { clientWidth, clientHeight } = containerRef.current;
                 const baseWidth = 1600;
                 const baseHeight = 900;
-                // Leave some padding
-                const wRatio = (clientWidth - 80) / baseWidth;
-                const hRatio = (clientHeight - 80) / baseHeight;
+                // Leave enough padding for UI panels
+                const wRatio = (clientWidth - 300) / baseWidth; 
+                const hRatio = (clientHeight - 100) / baseHeight;
                 setScale(Math.min(wRatio, hRatio));
             }
         };
@@ -168,13 +208,13 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                  <button 
                     onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))}
                     disabled={activeIdx === 0}
-                    className="absolute left-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-20"
+                    className="absolute left-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-30"
                  >
                      <ChevronLeftIcon className="w-6 h-6" />
                  </button>
 
                  {/* Slide Container / Visual Editor */}
-                 <div className="w-full h-full flex items-center justify-center p-4">
+                 <div className="w-full h-full flex items-center justify-center p-4 relative">
                      {activePage && activePage.html ? (
                          <div className="relative shadow-2xl rounded-sm overflow-hidden ring-1 ring-white/10" style={{ width: '100%', height: '100%' }}>
                             <VisualEditor 
@@ -194,11 +234,14 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      )}
                  </div>
 
+                 {/* Right Guide Panel (HUD) */}
+                 <GuidePanel />
+
                  {/* Next Button */}
                  <button 
                     onClick={() => setActiveIdx(Math.min(pages.length - 1, activeIdx + 1))}
                     disabled={activeIdx === pages.length - 1}
-                    className="absolute right-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-20"
+                    className="absolute right-8 p-4 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 transition-all disabled:opacity-0 z-30"
                  >
                      <ChevronRightIcon className="w-6 h-6" />
                  </button>
