@@ -11,21 +11,48 @@ const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 
 // --- Helper: Robust Partial JSON Parser ---
+/**
+ * 增强版解析器：
+ * 针对开启搜索功能后，模型可能在 JSON 块之后输出 [1], [2] 等引用的情况。
+ * 通过精准提取第一个 { 和最后一个 } 之间的内容来确保解析成功。
+ */
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     try {
         let cleanStr = jsonStr.trim();
+        // 1. 移除可能存在的思考链
         cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        
+        // 2. 查找 JSON 边界
+        const firstBrace = cleanStr.indexOf('{');
+        const lastBrace = cleanStr.lastIndexOf('}');
+        
+        if (firstBrace !== -1) {
+            // 如果找到了闭合括号，尝试提取中间内容
+            if (lastBrace !== -1 && lastBrace > firstBrace) {
+                const candidate = cleanStr.substring(firstBrace, lastBrace + 1);
+                try {
+                    return JSON.parse(candidate);
+                } catch (e) {
+                    // 如果标准解析失败，可能是流还没完全闭合，尝试补全
+                    try { return JSON.parse(candidate + ']}'); } catch (e2) {}
+                    try { return JSON.parse(candidate + '}'); } catch (e3) {}
+                }
+            } else {
+                // 如果只有开括号，说明还在流式输出中
+                const incomplete = cleanStr.substring(firstBrace);
+                try { return JSON.parse(incomplete + ']}'); } catch (e) {}
+                try { return JSON.parse(incomplete + '}'); } catch (e) {}
+            }
+        }
+        
+        // 3. 回退方案：尝试从 Markdown 代码块提取
         const codeBlockMatch = cleanStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
         if (codeBlockMatch) {
-            cleanStr = codeBlockMatch[1].trim();
-        } else {
-             const firstBrace = cleanStr.indexOf('{');
-             if (firstBrace !== -1) {
-                 cleanStr = cleanStr.substring(firstBrace);
-             }
+            try { return JSON.parse(codeBlockMatch[1].trim()); } catch (e) {}
         }
-        return JSON.parse(cleanStr);
+
+        return null;
     } catch (e) {
         return null;
     }
@@ -195,24 +222,25 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
                 
                 const partialOutline = tryParsePartialJson(accumulatedContent);
-                if (partialOutline && (partialOutline.title || (partialOutline.pages && partialOutline.pages.length > 0))) {
+                // 只要检测到包含 pages 的结构，就开始同步数据并准备切换状态
+                if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
                         outline: partialOutline 
                     }));
-                    if (stage === 'collect') setStage('outline');
+                    // 如果当前是收集阶段，检测到大纲后立即进入大纲预览阶段
+                    if (!isRefinement) {
+                        setStage('outline');
+                    }
                 }
             });
             
-            try {
-                const parsedOutline = tryParsePartialJson(accumulatedContent);
-                if (parsedOutline && parsedOutline.pages) {
-                    setData(prev => ({ ...prev, topic: parsedOutline.title, outline: parsedOutline }));
-                    if (stage === 'collect') setStage('outline');
-                }
-            } catch (e) {
-                 console.error("Final JSON parse failed:", e);
+            // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
+            const finalOutline = tryParsePartialJson(accumulatedContent);
+            if (finalOutline && finalOutline.pages) {
+                setData(prev => ({ ...prev, topic: finalOutline.title || prev.topic, outline: finalOutline }));
+                if (!isRefinement) setStage('outline');
             }
         } catch (e) {
             console.error(e);
