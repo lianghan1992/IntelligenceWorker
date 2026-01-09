@@ -724,6 +724,8 @@ export interface SessionSnapshot {
 
 export interface UsageStat {
     user_id: string;
+    username?: string; // New: User name
+    email?: string;    // New: User email
     agent_id: string;
     session_id: string;
     session_time: string;
@@ -732,4 +734,12 @@ export interface UsageStat {
     total_output_tokens: number;
     total_cost: number;
     original_cost: number;
+}
+
+export interface UsageSummary {
+    total_tokens: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_cost: number;
+    total_original_cost: number;
 }

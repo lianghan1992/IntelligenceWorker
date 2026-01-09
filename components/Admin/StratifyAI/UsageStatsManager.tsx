@@ -1,13 +1,14 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { getUsageStats } from '../../../api/stratify';
-import { UsageStat } from '../../../types';
-import { RefreshIcon, FilterIcon, ChartIcon, ServerIcon, UserIcon, CalendarIcon } from '../../icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { getUsageStats, getUsageSummary } from '../../../api/stratify';
+import { UsageStat, UsageSummary } from '../../../types';
+import { RefreshIcon, ChartIcon, ServerIcon, UserIcon, CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
 export const UsageStatsManager: React.FC = () => {
     const [stats, setStats] = useState<UsageStat[]>([]);
+    const [summary, setSummary] = useState<UsageSummary | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     
     // Filters
@@ -16,37 +17,48 @@ export const UsageStatsManager: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
-    const fetchStats = useCallback(async () => {
+    // Pagination
+    const [page, setPage] = useState(1);
+    const limit = 20;
+
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await getUsageStats({
+            const params = {
                 user_id: userId || undefined,
                 agent_id: agentId || undefined,
                 start_date: startDate ? new Date(startDate).toISOString() : undefined,
-                end_date: endDate ? new Date(endDate).toISOString() : undefined
+                end_date: endDate ? new Date(endDate).toISOString() : undefined,
+            };
+
+            // Fetch Summary
+            const summaryData = await getUsageSummary(params);
+            setSummary(summaryData);
+
+            // Fetch List with Pagination
+            const listData = await getUsageStats({
+                ...params,
+                skip: (page - 1) * limit,
+                limit: limit
             });
             // Sort by time descending by default
-            const sorted = (data || []).sort((a, b) => new Date(b.session_time).getTime() - new Date(a.session_time).getTime());
+            const sorted = (listData || []).sort((a, b) => new Date(b.session_time).getTime() - new Date(a.session_time).getTime());
             setStats(sorted);
         } catch (e) {
-            console.error("Failed to fetch usage stats", e);
+            console.error("Failed to fetch usage data", e);
         } finally {
             setIsLoading(false);
         }
-    }, [userId, agentId, startDate, endDate]);
+    }, [userId, agentId, startDate, endDate, page]);
 
     useEffect(() => {
-        fetchStats();
-    }, [fetchStats]);
+        fetchData();
+    }, [fetchData]);
 
-    const { totalCost, totalOriginalCost, totalInput, totalOutput } = useMemo(() => {
-        return stats.reduce((acc, curr) => ({
-            totalCost: acc.totalCost + curr.total_cost,
-            totalOriginalCost: acc.totalOriginalCost + curr.original_cost,
-            totalInput: acc.totalInput + curr.total_input_tokens,
-            totalOutput: acc.totalOutput + curr.total_output_tokens,
-        }), { totalCost: 0, totalOriginalCost: 0, totalInput: 0, totalOutput: 0 });
-    }, [stats]);
+    const handleSearch = () => {
+        setPage(1); // Reset to first page on new search
+        fetchData();
+    };
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -93,7 +105,7 @@ export const UsageStatsManager: React.FC = () => {
                         />
                     </div>
                     <button 
-                        onClick={fetchStats}
+                        onClick={handleSearch}
                         className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-colors"
                         title="刷新数据"
                     >
@@ -102,23 +114,23 @@ export const UsageStatsManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Summary Cards */}
+            {/* Summary Cards (Server Side Aggregated) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white border-b border-slate-100">
                 <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
                     <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Cost (Final)</div>
-                    <div className="text-xl font-black text-indigo-700">¥{totalCost.toFixed(4)}</div>
+                    <div className="text-xl font-black text-indigo-700">¥{(summary?.total_cost || 0).toFixed(4)}</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Tokens (In)</div>
-                    <div className="text-xl font-black text-slate-700">{totalInput.toLocaleString()}</div>
+                    <div className="text-xl font-black text-slate-700">{(summary?.total_input_tokens || 0).toLocaleString()}</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Tokens (Out)</div>
-                    <div className="text-xl font-black text-slate-700">{totalOutput.toLocaleString()}</div>
+                    <div className="text-xl font-black text-slate-700">{(summary?.total_output_tokens || 0).toLocaleString()}</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Raw Cost</div>
-                    <div className="text-xl font-black text-slate-500">¥{totalOriginalCost.toFixed(4)}</div>
+                    <div className="text-xl font-black text-slate-500">¥{(summary?.total_original_cost || 0).toFixed(4)}</div>
                 </div>
             </div>
 
@@ -147,8 +159,11 @@ export const UsageStatsManager: React.FC = () => {
                                     <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">
                                         {new Date(stat.session_time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                     </td>
-                                    <td className="px-4 py-3 max-w-[120px] truncate" title={stat.user_id}>
-                                        <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{stat.user_id.slice(0, 8)}...</span>
+                                    <td className="px-4 py-3 max-w-[150px]" title={`ID: ${stat.user_id}`}>
+                                        <div className="font-bold text-slate-700 text-xs truncate">
+                                            {stat.username || <span className="text-slate-400 font-normal">Unknown</span>}
+                                        </div>
+                                        <div className="font-mono text-[10px] text-slate-400 truncate">{stat.email || stat.user_id.slice(0, 8)}</div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex flex-col">
@@ -172,6 +187,29 @@ export const UsageStatsManager: React.FC = () => {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Pagination */}
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-between items-center text-xs text-slate-500">
+                <span>
+                    当前页: {page} (每页 {limit} 条)
+                </span>
+                <div className="flex gap-2">
+                    <button 
+                        disabled={page <= 1} 
+                        onClick={() => setPage(p => p - 1)} 
+                        className="px-3 py-1 border rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                        <ChevronLeftIcon className="w-4 h-4"/>
+                    </button>
+                    <button 
+                        disabled={stats.length < limit} 
+                        onClick={() => setPage(p => p + 1)} 
+                        className="px-3 py-1 border rounded hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                        <ChevronRightIcon className="w-4 h-4"/>
+                    </button>
+                </div>
             </div>
         </div>
     );

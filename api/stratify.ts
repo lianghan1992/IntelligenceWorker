@@ -2,7 +2,7 @@
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt, ModelPricing, AgentSession, SessionSnapshot, UsageStat } from '../types';
+import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt, ModelPricing, AgentSession, SessionSnapshot, UsageStat, UsageSummary } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
@@ -444,4 +444,9 @@ export const restoreSnapshot = (sessionId: string, snapshotId: string): Promise<
 export const getUsageStats = (params: any = {}): Promise<UsageStat[]> => {
     const query = createApiQuery(params);
     return apiFetch<UsageStat[]>(`${STRATIFY_SERVICE_PATH}/v1/stats/usage${query}`);
+};
+
+export const getUsageSummary = (params: any = {}): Promise<UsageSummary> => {
+    const query = createApiQuery(params);
+    return apiFetch<UsageSummary>(`${STRATIFY_SERVICE_PATH}/v1/stats/summary${query}`);
 };
