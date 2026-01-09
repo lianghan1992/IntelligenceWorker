@@ -1,5 +1,4 @@
 
-
 export type View = 'cockpit' | 'techboard' | 'dives' | 'events' | 'ai' | 'marketplace' | 'admin';
 
 export interface User {
@@ -690,4 +689,12 @@ export interface LLMChannel {
     api_key?: string; // Optional for input/update, usually not returned fully
     created_at?: string;
     updated_at?: string;
+}
+
+export interface ModelPricing {
+    model_name: string;
+    input_price: number;
+    output_price: number;
+    multiplier: number;
+    is_active: boolean;
 }

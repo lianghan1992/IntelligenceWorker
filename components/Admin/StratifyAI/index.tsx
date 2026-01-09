@@ -1,15 +1,14 @@
 
 import React, { useState } from 'react';
 import { ScenarioManager } from './ScenarioManager';
-import { TaskManager } from './TaskManager';
-import { QueueStatus } from './QueueStatus';
 import { ChannelManager } from './ChannelManager';
-import { SparklesIcon, DocumentTextIcon, ClockIcon, ViewGridIcon, ServerIcon } from '../../icons';
+import { PricingManager } from './PricingManager';
+import { SparklesIcon, ViewGridIcon, ServerIcon, ChartIcon } from '../../icons';
 
-type SubView = 'scenarios' | 'tasks' | 'status' | 'channels';
+type SubView = 'channels' | 'scenarios' | 'pricing';
 
 export const StratifyAiManager: React.FC = () => {
-    const [subView, setSubView] = useState<SubView>('scenarios');
+    const [subView, setSubView] = useState<SubView>('channels');
 
     return (
         <div className="p-4 md:p-6 h-full flex flex-col bg-gray-50/50">
@@ -20,18 +19,6 @@ export const StratifyAiManager: React.FC = () => {
                 </h1>
                 <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
-                        <button
-                            onClick={() => setSubView('scenarios')}
-                            className={`
-                                whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm flex items-center gap-2
-                                ${subView === 'scenarios' 
-                                    ? 'border-indigo-600 text-indigo-600' 
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                            `}
-                        >
-                            <ViewGridIcon className="w-5 h-5" />
-                            场景与提示词
-                        </button>
                         <button
                             onClick={() => setSubView('channels')}
                             className={`
@@ -45,38 +32,37 @@ export const StratifyAiManager: React.FC = () => {
                             模型渠道管理
                         </button>
                         <button
-                            onClick={() => setSubView('tasks')}
+                            onClick={() => setSubView('scenarios')}
                             className={`
                                 whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm flex items-center gap-2
-                                ${subView === 'tasks' 
+                                ${subView === 'scenarios' 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                             `}
                         >
-                            <ClockIcon className="w-5 h-5" />
-                            报告任务流水
+                            <ViewGridIcon className="w-5 h-5" />
+                            场景与提示词
                         </button>
                         <button
-                            onClick={() => setSubView('status')}
+                            onClick={() => setSubView('pricing')}
                             className={`
                                 whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm flex items-center gap-2
-                                ${subView === 'status' 
+                                ${subView === 'pricing' 
                                     ? 'border-indigo-600 text-indigo-600' 
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
                             `}
                         >
-                            <DocumentTextIcon className="w-5 h-5" />
-                            队列状态
+                            <ChartIcon className="w-5 h-5" />
+                            计费与定价管理
                         </button>
                     </nav>
                 </div>
             </div>
 
             <div className="flex-1 overflow-hidden">
-                {subView === 'scenarios' && <ScenarioManager />}
                 {subView === 'channels' && <ChannelManager />}
-                {subView === 'tasks' && <TaskManager />}
-                {subView === 'status' && <QueueStatus />}
+                {subView === 'scenarios' && <ScenarioManager />}
+                {subView === 'pricing' && <PricingManager />}
             </div>
         </div>
     );

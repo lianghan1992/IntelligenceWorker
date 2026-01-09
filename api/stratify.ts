@@ -1,7 +1,8 @@
+
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt } from '../types';
+import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt, ModelPricing } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
@@ -368,3 +369,14 @@ export const chatCompletions = (data: { model: string; messages: any[]; stream?:
         body: JSON.stringify(data),
     });
 };
+
+// --- 8. Pricing & Billing Admin ---
+
+export const getPricings = (): Promise<ModelPricing[]> =>
+    apiFetch<ModelPricing[]>(`${STRATIFY_SERVICE_PATH}/admin/pricing`);
+
+export const setPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> =>
+    apiFetch<ModelPricing>(`${STRATIFY_SERVICE_PATH}/admin/pricing`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
