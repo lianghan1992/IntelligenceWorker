@@ -7,7 +7,6 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
-import { SessionHistoryModal } from './SessionHistoryModal';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -158,18 +157,20 @@ interface CopilotSidebarProps {
     sessionTitle?: string;
     onTitleChange?: (newTitle: string) => void;
     onSwitchSession?: (sessionId: string) => void;
+    // Callback to ensure session exists before generation
+    onEnsureSession?: () => Promise<string>;
+    onToggleHistory?: () => void;
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
     sessionId, statusBar,
-    sessionTitle, onTitleChange, onSwitchSession
+    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     
     // Title Edit State
@@ -257,6 +258,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         let accumulatedReasoning = '';
 
         try {
+            // Lazy Creation Trigger: Ensure we have a session ID before calling LLM
+            let activeSessionId = sessionId;
+            if (!activeSessionId && onEnsureSession) {
+                activeSessionId = await onEnsureSession();
+            }
+
             await streamChatCompletions({
                 model: modelToUse, 
                 messages: apiMessages,
@@ -288,7 +295,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         setStage('outline');
                     }
                 }
-            }, undefined, undefined, sessionId); // Pass sessionId
+            }, undefined, undefined, activeSessionId); // Pass active session ID
             
             // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
@@ -309,6 +316,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (stage !== 'compose' || isLlmActive || !autoGenMode) return;
 
         const processQueue = async () => {
+            // Lazy Creation Trigger if we somehow got here without a session (unlikely but safe)
+            let activeSessionId = sessionId;
+            if (!activeSessionId && onEnsureSession) {
+                activeSessionId = await onEnsureSession();
+            }
+
             const pages = data.pages;
             let targetIdx = -1;
 
@@ -430,7 +443,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                         return { ...prev, pages: newPages };
                     });
-                }, undefined, undefined, sessionId); // Pass sessionId
+                }, undefined, undefined, activeSessionId); // Pass active session ID
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -473,6 +486,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     // --- Logic: Modification (Context-Aware) ---
     const handleModification = async (instruction: string) => {
         setIsLlmActive(true);
+
+        // Lazy Creation Trigger
+        let activeSessionId = sessionId;
+        if (!activeSessionId && onEnsureSession) {
+            activeSessionId = await onEnsureSession();
+        }
+
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
         const isHtmlMode = !!page.html;
@@ -556,7 +576,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     return { ...prev, pages: newPages };
                 });
-            }, undefined, undefined, sessionId); // Pass sessionId
+            }, undefined, undefined, activeSessionId); // Pass active session ID
 
             setData(prev => {
                 const newPages = [...prev.pages];
@@ -813,7 +833,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 {/* Right: Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                      <button 
-                        onClick={() => setIsHistoryModalOpen(true)} 
+                        onClick={onToggleHistory} 
                         className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
                         title="查看历史任务"
                     >
@@ -911,14 +931,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     )}
                 </div>
             </div>
-
-            {isHistoryModalOpen && (
-                <SessionHistoryModal 
-                    onClose={() => setIsHistoryModalOpen(false)} 
-                    currentSessionId={sessionId}
-                    onSwitchSession={onSwitchSession}
-                />
-            )}
+            
+            {/* Modal removed here, now handled by index via prop if needed, or we just rely on parent */}
         </div>
     );
 };

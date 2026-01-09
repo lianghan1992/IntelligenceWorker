@@ -2,28 +2,51 @@
 import React, { useState, useEffect } from 'react';
 import { getSessions, deleteSession } from '../../api/stratify';
 import { AgentSession } from '../../types';
-import { CloseIcon, ClockIcon, TrashIcon, ArrowRightIcon, SparklesIcon } from '../icons';
+import { 
+    CloseIcon, ClockIcon, TrashIcon, ArrowRightIcon, 
+    SparklesIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon 
+} from '../icons';
 
-interface SessionHistoryModalProps {
+interface SessionHistoryDrawerProps {
+    isOpen: boolean;
     onClose: () => void;
     currentSessionId?: string;
-    onSwitchSession?: (sessionId: string) => void;
+    onSwitchSession: (sessionId: string) => void;
 }
 
-export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClose, currentSessionId, onSwitchSession }) => {
+const StageBadge: React.FC<{ stage: string }> = ({ stage }) => {
+    const map: Record<string, { label: string; color: string }> = {
+        'collect': { label: '构思中', color: 'bg-slate-100 text-slate-500 border-slate-200' },
+        'outline': { label: '大纲确认', color: 'bg-purple-50 text-purple-600 border-purple-200' },
+        'compose': { label: '内容生成', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+        'finalize': { label: '定稿', color: 'bg-green-50 text-green-600 border-green-200' },
+    };
+    const conf = map[stage] || map['collect'];
+    
+    return (
+        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${conf.color} font-medium`}>
+            {conf.label}
+        </span>
+    );
+};
+
+export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({ 
+    isOpen, onClose, currentSessionId, onSwitchSession 
+}) => {
     const [sessions, setSessions] = useState<AgentSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isDeleting, setIsDeleting] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
-        loadSessions();
-    }, []);
+        if (isOpen) {
+            loadSessions();
+        }
+    }, [isOpen]);
 
     const loadSessions = async () => {
         setIsLoading(true);
         try {
-            // Fetch sessions sorted by update time desc
-            const res = await getSessions({ agent_id: 'report-generator', sort_by: 'updated_at', order: 'desc', limit: 20 });
+            const res = await getSessions({ agent_id: 'report-generator', sort_by: 'updated_at', order: 'desc', limit: 50 });
             setSessions(res || []);
         } catch (e) {
             console.error("Failed to load sessions", e);
@@ -32,95 +55,138 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClos
         }
     };
 
-    const handleRestore = (sessionId: string) => {
-        if (onSwitchSession) {
-            onSwitchSession(sessionId);
-            onClose();
-        } else {
-            // Fallback (should not happen if parent passes prop correctly)
-            const url = new URL(window.location.href);
-            url.searchParams.set('session_id', sessionId);
-            window.location.href = url.toString();
-        }
-    };
-
     const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation();
-        if (!confirm('确定要删除这条历史记录吗？')) return;
+        if (!confirm('确定要永久删除这份报告任务吗？此操作无法撤销。')) return;
         
-        setIsDeleting(sessionId);
+        setDeletingId(sessionId);
         try {
             await deleteSession(sessionId);
             setSessions(prev => prev.filter(s => s.id !== sessionId));
+            // If deleting current session, parent might handle it, but for now we just remove from list
         } catch (error) {
             alert('删除失败');
         } finally {
-            setIsDeleting(null);
+            setDeletingId(null);
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
-                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
-                    <h3 className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                        <ClockIcon className="w-5 h-5 text-indigo-600"/> 历史报告任务
-                    </h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-200 rounded-full transition-colors">
+        <>
+            {/* Backdrop */}
+            <div 
+                className={`fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[40] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={onClose}
+            ></div>
+
+            {/* Drawer Panel */}
+            <div 
+                className={`fixed top-0 left-0 bottom-0 w-[400px] bg-white shadow-2xl z-[50] transform transition-transform duration-300 ease-out border-r border-slate-200 flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            >
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div>
+                        <h3 className="font-black text-xl text-slate-800 flex items-center gap-2 tracking-tight">
+                            <ClockIcon className="w-5 h-5 text-indigo-600"/> 历史任务
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">共 {sessions.length} 份报告草稿</p>
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 transition-colors"
+                    >
                         <CloseIcon className="w-5 h-5"/>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-slate-50/50">
+                {/* List */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-slate-50/30">
                     {isLoading ? (
-                        <div className="py-10 text-center text-gray-400 text-sm">加载中...</div>
+                        <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+                            <span className="text-xs">同步历史记录...</span>
+                        </div>
                     ) : sessions.length === 0 ? (
-                        <div className="py-10 text-center flex flex-col items-center gap-3 text-gray-400">
-                            <SparklesIcon className="w-10 h-10 opacity-20" />
-                            <p className="text-sm">暂无历史任务</p>
+                        <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-4 opacity-60">
+                            <SparklesIcon className="w-16 h-16 text-slate-200" />
+                            <p className="text-sm font-medium">暂无历史任务</p>
                         </div>
                     ) : (
-                        <div className="space-y-2">
-                            {sessions.map(session => (
+                        sessions.map(session => {
+                            const isCurrent = currentSessionId === session.id;
+                            // Parse context data safely to get page count
+                            let pageCount = 0;
+                            try {
+                                if (session.context_data && session.context_data.data && Array.isArray(session.context_data.data.pages)) {
+                                    pageCount = session.context_data.data.pages.length;
+                                }
+                            } catch (e) {}
+
+                            return (
                                 <div 
                                     key={session.id}
-                                    onClick={() => handleRestore(session.id)}
-                                    className={`group p-4 bg-white border rounded-xl cursor-pointer hover:shadow-md transition-all flex justify-between items-center ${
-                                        currentSessionId === session.id ? 'border-indigo-500 ring-1 ring-indigo-500/20' : 'border-gray-200 hover:border-indigo-300'
-                                    }`}
+                                    onClick={() => { onSwitchSession(session.id); onClose(); }}
+                                    className={`
+                                        group relative p-4 rounded-2xl border cursor-pointer transition-all duration-200
+                                        ${isCurrent 
+                                            ? 'bg-white border-indigo-500 shadow-md ring-1 ring-indigo-500/10' 
+                                            : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
+                                        }
+                                    `}
                                 >
-                                    <div className="min-w-0 flex-1 pr-4">
-                                        <h4 className={`font-bold text-sm truncate mb-1 ${currentSessionId === session.id ? 'text-indigo-700' : 'text-slate-700'}`}>
-                                            {session.title || '未命名报告'}
-                                        </h4>
-                                        <div className="flex items-center gap-3 text-xs text-gray-400">
-                                            <span>{new Date(session.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                            {session.total_cost > 0 && (
-                                                <span className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 font-mono">
-                                                    ¥{session.total_cost.toFixed(2)}
+                                    {/* Active Indicator */}
+                                    {isCurrent && (
+                                        <div className="absolute top-4 right-4 w-2 h-2 bg-indigo-500 rounded-full shadow-sm animate-pulse"></div>
+                                    )}
+
+                                    <div className="flex flex-col gap-3">
+                                        {/* Title & Stage */}
+                                        <div>
+                                            <div className="flex justify-between items-start pr-4">
+                                                <h4 className={`font-bold text-sm leading-snug line-clamp-2 ${isCurrent ? 'text-indigo-900' : 'text-slate-800'}`}>
+                                                    {session.title || '未命名报告任务'}
+                                                </h4>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <StageBadge stage={session.current_stage || 'collect'} />
+                                                <span className="text-[10px] text-slate-400 font-mono">
+                                                    {new Date(session.updated_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                 </span>
-                                            )}
-                                            {currentSessionId === session.id && (
-                                                <span className="text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">当前</span>
-                                            )}
+                                            </div>
+                                        </div>
+
+                                        {/* Metrics Divider */}
+                                        <div className="h-px bg-slate-50"></div>
+
+                                        {/* Stats */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                <div className="flex items-center gap-1" title="生成页数">
+                                                    <DocumentTextIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                    <span className="font-mono">{pageCount} P</span>
+                                                </div>
+                                                <div className="flex items-center gap-1" title="预估消耗">
+                                                    <ChartIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                    <span className="font-mono">¥{session.total_cost?.toFixed(3) || '0.000'}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Actions */}
+                                            <button 
+                                                onClick={(e) => handleDelete(e, session.id)}
+                                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                title="删除任务"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            onClick={(e) => handleDelete(e, session.id)}
-                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                            title="删除"
-                                        >
-                                            <TrashIcon className="w-4 h-4" />
-                                        </button>
-                                        <ArrowRightIcon className="w-4 h-4 text-gray-300 group-hover:text-indigo-500" />
-                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            );
+                        })
                     )}
                 </div>
             </div>
-        </div>
+        </>
     );
 };

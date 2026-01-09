@@ -6,6 +6,7 @@ import { Step4Finalize } from './Step4Finalize';
 import { PPTStage, ChatMessage, PPTData } from './types';
 import { createSession, getSession, updateSession } from '../../api/stratify';
 import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon } from '../icons';
+import { SessionHistoryDrawer } from './SessionHistoryModal'; // Updated import
 
 const DEFAULT_DATA: PPTData = {
     topic: '',
@@ -27,6 +28,9 @@ const ScenarioWorkstation: React.FC = () => {
     const [sessionTitle, setSessionTitle] = useState<string>('未命名报告');
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
     const [sessionCost, setSessionCost] = useState(0);
+    
+    // UI State
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
     // Helper: Load specific session
     const loadSession = useCallback(async (sid: string) => {
@@ -52,30 +56,48 @@ const ScenarioWorkstation: React.FC = () => {
         }
     }, []);
 
-    // Helper: Create new session
-    const createNewSession = useCallback(async () => {
-        try {
-            // Reset Local State
-            setStage('collect');
-            setHistory([]);
-            setData(DEFAULT_DATA);
-            setActivePageIndex(0);
-            setIsLlmActive(false);
-            setSessionTitle('未命名报告');
+    // Helper: Reset to New Draft (Lazy Creation)
+    // Does NOT create a backend session immediately.
+    const resetToNewDraft = useCallback(() => {
+        setStage('collect');
+        setHistory([]);
+        setData(DEFAULT_DATA);
+        setActivePageIndex(0);
+        setIsLlmActive(false);
+        setSessionTitle('未命名报告');
+        setSessionId(null); // Clear ID, wait for user interaction to create
+        setSessionCost(0);
+        setSaveStatus('idle');
 
+        // Clear URL param
+        const newUrl = window.location.pathname;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+    }, []);
+
+    // Helper: Ensure Session Exists (Lazy Creation Trigger)
+    // Called by child components before performing an action that needs a session
+    const ensureSessionCreated = async (): Promise<string> => {
+        if (sessionId) return sessionId;
+
+        try {
             // Create Backend Session
             const session = await createSession('report-generator', '未命名报告');
-            setSessionId(session.id);
+            const newId = session.id;
+            
+            setSessionId(newId);
             setSessionCost(0);
-            setSaveStatus('idle');
+            setSaveStatus('saved'); // Initially saved state
 
             // Update URL
-            const newUrl = window.location.pathname + `?session_id=${session.id}`;
+            const newUrl = window.location.pathname + `?session_id=${newId}`;
             window.history.pushState({ path: newUrl }, '', newUrl);
+            
+            return newId;
         } catch (e) {
-            console.error("Failed to create session", e);
+            console.error("Failed to create session lazily", e);
+            throw e;
         }
-    }, []);
+    };
 
     // Initial Load
     useEffect(() => {
@@ -84,21 +106,19 @@ const ScenarioWorkstation: React.FC = () => {
         if (sid) {
             loadSession(sid);
         } else {
-            createNewSession();
+            // Do nothing, we start in "Draft" mode (sessionId = null)
         }
-    }, [loadSession, createNewSession]);
+    }, [loadSession]);
 
-    // Auto Save
+    // Auto Save (Only if sessionId exists)
     useEffect(() => {
         if (!sessionId) return;
         
         const save = async () => {
             setSaveStatus('saving');
             try {
-                // If title is default or matches topic logic, auto-update it. 
-                // But if user manually renamed it (handled separately), we might want to respect that.
-                // For simplicity: If the current sessionTitle is "未命名报告" AND we have a topic, update it.
                 let titleToSave = sessionTitle;
+                // Auto-update title if it's default and we have a topic
                 if (sessionTitle === '未命名报告' && data.topic) {
                     titleToSave = data.topic.length > 20 ? data.topic.slice(0, 20) + '...' : data.topic;
                     setSessionTitle(titleToSave);
@@ -120,7 +140,7 @@ const ScenarioWorkstation: React.FC = () => {
 
         const timer = setTimeout(save, 2000); // 2s debounce
         return () => clearTimeout(timer);
-    }, [sessionId, data, history, stage, sessionTitle]); // Added sessionTitle to deps
+    }, [sessionId, data, history, stage, sessionTitle]); 
 
     // Manual Title Update Handler
     const handleTitleChange = (newTitle: string) => {
@@ -131,38 +151,49 @@ const ScenarioWorkstation: React.FC = () => {
         }
     };
 
-    const handleReset = () => {
-        if (confirm('确定要新建任务吗？当前未保存的进度可能会丢失（虽然有自动保存）。')) {
-            createNewSession();
+    const handleResetConfirm = () => {
+        // If we have a session, confirm before clearing. If it's already a draft (null id), just clear.
+        if (sessionId && confirm('确定要新建任务吗？当前进度将保存至历史记录。')) {
+            resetToNewDraft();
+        } else if (!sessionId) {
+             resetToNewDraft(); // Just reset local state if dirty
         }
     };
 
     // Component Props for Children
     const sharedProps = {
-        sessionId: sessionId || undefined,
+        sessionId: sessionId || undefined, // undefined to child if null
     };
 
     // Render Status Bar Component
     const StatusBar = () => (
         <div className="flex items-center gap-3 text-xs font-medium">
-             <div className="flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
-                 <ChartIcon className="w-3.5 h-3.5 text-indigo-500" />
-                 <span>消耗: ¥{sessionCost.toFixed(4)}</span>
-             </div>
-             <div className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
-                 saveStatus === 'saving' ? 'text-blue-500 bg-blue-50' :
-                 saveStatus === 'saved' ? 'text-green-600 bg-green-50' :
-                 saveStatus === 'error' ? 'text-red-500 bg-red-50' : 'text-slate-400'
-             }`}>
-                 {saveStatus === 'saving' && <RefreshIcon className="w-3.5 h-3.5 animate-spin" />}
-                 {saveStatus === 'saved' && <CheckIcon className="w-3.5 h-3.5" />}
-                 {saveStatus === 'error' && <CloudIcon className="w-3.5 h-3.5" />}
-                 <span>
-                     {saveStatus === 'saving' ? '保存中...' : 
-                      saveStatus === 'saved' ? '已保存' : 
-                      saveStatus === 'error' ? '保存失败' : ''}
-                 </span>
-             </div>
+             {sessionId ? (
+                 <>
+                    <div className="flex items-center gap-1 text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                        <ChartIcon className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>消耗: ¥{sessionCost.toFixed(4)}</span>
+                    </div>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                        saveStatus === 'saving' ? 'text-blue-500 bg-blue-50' :
+                        saveStatus === 'saved' ? 'text-green-600 bg-green-50' :
+                        saveStatus === 'error' ? 'text-red-500 bg-red-50' : 'text-slate-400'
+                    }`}>
+                        {saveStatus === 'saving' && <RefreshIcon className="w-3.5 h-3.5 animate-spin" />}
+                        {saveStatus === 'saved' && <CheckIcon className="w-3.5 h-3.5" />}
+                        {saveStatus === 'error' && <CloudIcon className="w-3.5 h-3.5" />}
+                        <span>
+                            {saveStatus === 'saving' ? '保存中...' : 
+                             saveStatus === 'saved' ? '已保存' : 
+                             saveStatus === 'error' ? '保存失败' : '草稿'}
+                        </span>
+                    </div>
+                 </>
+             ) : (
+                 <div className="flex items-center gap-1 text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 italic">
+                     草稿模式 (未保存)
+                 </div>
+             )}
         </div>
     );
 
@@ -196,12 +227,15 @@ const ScenarioWorkstation: React.FC = () => {
                     setIsLlmActive={setIsLlmActive}
                     activePageIndex={activePageIndex}
                     setActivePageIndex={setActivePageIndex}
-                    onReset={handleReset}
+                    onReset={handleResetConfirm}
                     statusBar={<StatusBar />}
                     // Session Management Props
                     sessionTitle={sessionTitle}
                     onTitleChange={handleTitleChange}
                     onSwitchSession={loadSession}
+                    // Lazy Creation Logic
+                    onEnsureSession={ensureSessionCreated}
+                    onToggleHistory={() => setIsHistoryOpen(true)}
                     {...sharedProps}
                 />
             </div>
@@ -219,6 +253,14 @@ const ScenarioWorkstation: React.FC = () => {
                     {...sharedProps}
                 />
             </div>
+            
+            {/* History Drawer (Portal-like) */}
+            <SessionHistoryDrawer 
+                isOpen={isHistoryOpen} 
+                onClose={() => setIsHistoryOpen(false)} 
+                currentSessionId={sessionId || undefined}
+                onSwitchSession={loadSession}
+            />
         </div>
     );
 };
