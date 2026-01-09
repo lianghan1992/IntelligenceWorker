@@ -154,18 +154,38 @@ interface CopilotSidebarProps {
     onReset: () => void;
     sessionId?: string; 
     statusBar?: React.ReactNode; 
+    // New props for session management
+    sessionTitle?: string;
+    onTitleChange?: (newTitle: string) => void;
+    onSwitchSession?: (sessionId: string) => void;
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
-    sessionId, statusBar
+    sessionId, statusBar,
+    sessionTitle, onTitleChange, onSwitchSession
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    
+    // Title Edit State
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [tempTitle, setTempTitle] = useState('');
+
+    useEffect(() => {
+        setTempTitle(sessionTitle || '');
+    }, [sessionTitle]);
+
+    const saveTitle = () => {
+        if (tempTitle.trim() && onTitleChange) {
+            onTitleChange(tempTitle.trim());
+        }
+        setIsEditingTitle(false);
+    };
 
     // Auto-resize textarea
     useEffect(() => {
@@ -754,27 +774,57 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             <div className="h-16 px-5 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex items-center justify-between shadow-sm z-10 flex-shrink-0">
                 
                 {/* Left: Status Bar */}
-                <div className="flex items-center">
-                     {statusBar}
+                <div className="flex items-center gap-4 flex-1 overflow-hidden mr-2">
+                     <div className="flex-shrink-0">
+                        {statusBar}
+                     </div>
+                     
+                     {/* Title Editor */}
+                     <div className="flex items-center gap-2 min-w-0 flex-1">
+                         <div className="h-4 w-px bg-slate-200"></div>
+                         {isEditingTitle ? (
+                             <div className="flex items-center gap-1 flex-1">
+                                 <input 
+                                     autoFocus
+                                     value={tempTitle}
+                                     onChange={e => setTempTitle(e.target.value)}
+                                     onBlur={saveTitle}
+                                     onKeyDown={e => e.key === 'Enter' && saveTitle()}
+                                     className="w-full bg-white border border-indigo-300 rounded px-2 py-0.5 text-xs font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
+                                     placeholder="输入任务标题..."
+                                 />
+                                 <button onClick={saveTitle} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                                     <CheckCircleIcon className="w-3.5 h-3.5" />
+                                 </button>
+                             </div>
+                         ) : (
+                             <div 
+                                className="group flex items-center gap-2 cursor-pointer hover:bg-slate-100 px-2 py-1 rounded-md transition-colors flex-1 min-w-0"
+                                onClick={() => { setIsEditingTitle(true); setTempTitle(sessionTitle || '未命名报告'); }}
+                                title="点击修改标题"
+                             >
+                                 <span className="text-xs font-bold text-slate-700 truncate">{sessionTitle || '未命名报告'}</span>
+                                 <PencilIcon className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                             </div>
+                         )}
+                     </div>
                 </div>
 
                 {/* Right: Actions */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-shrink-0">
                      <button 
                         onClick={() => setIsHistoryModalOpen(true)} 
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-200 hover:text-indigo-600 transition-all shadow-sm"
+                        className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
                         title="查看历史任务"
                     >
-                        <ClockIcon className="w-3.5 h-3.5" />
-                        <span>历史记录</span>
+                        <ClockIcon className="w-5 h-5" />
                     </button>
                      <button 
                         onClick={onReset} 
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95"
-                        title="清空当前会话"
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="新建任务"
                     >
-                        <PlusIcon className="w-3.5 h-3.5" />
-                        <span>新建任务</span>
+                        <PlusIcon className="w-5 h-5" />
                     </button>
                 </div>
             </div>
@@ -866,6 +916,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 <SessionHistoryModal 
                     onClose={() => setIsHistoryModalOpen(false)} 
                     currentSessionId={sessionId}
+                    onSwitchSession={onSwitchSession}
                 />
             )}
         </div>

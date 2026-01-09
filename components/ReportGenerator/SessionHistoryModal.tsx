@@ -7,9 +7,10 @@ import { CloseIcon, ClockIcon, TrashIcon, ArrowRightIcon, SparklesIcon } from '.
 interface SessionHistoryModalProps {
     onClose: () => void;
     currentSessionId?: string;
+    onSwitchSession?: (sessionId: string) => void;
 }
 
-export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClose, currentSessionId }) => {
+export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClose, currentSessionId, onSwitchSession }) => {
     const [sessions, setSessions] = useState<AgentSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -32,10 +33,15 @@ export const SessionHistoryModal: React.FC<SessionHistoryModalProps> = ({ onClos
     };
 
     const handleRestore = (sessionId: string) => {
-        // Reload page with new session ID to ensure clean state reset
-        const url = new URL(window.location.href);
-        url.searchParams.set('session_id', sessionId);
-        window.location.href = url.toString();
+        if (onSwitchSession) {
+            onSwitchSession(sessionId);
+            onClose();
+        } else {
+            // Fallback (should not happen if parent passes prop correctly)
+            const url = new URL(window.location.href);
+            url.searchParams.set('session_id', sessionId);
+            window.location.href = url.toString();
+        }
     };
 
     const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
