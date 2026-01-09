@@ -52,7 +52,11 @@ const ScenarioWorkstation: React.FC = () => {
             window.history.pushState({ path: newUrl }, '', newUrl);
         } catch (e) {
             console.error("Failed to load session", e);
-            alert("加载会话失败");
+            // Fail gracefully: Clear invalid session ID from URL and reset to draft state
+            // Do NOT alert, as this often happens on refresh if session was deleted or expired
+            setSessionId(null);
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
         }
     }, []);
 
