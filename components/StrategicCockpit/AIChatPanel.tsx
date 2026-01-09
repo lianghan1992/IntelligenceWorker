@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { streamChatCompletions } from '../../api/stratify';
+import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticSegments, fetchJinaReader } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
@@ -190,6 +190,7 @@ export const AIChatPanel: React.FC<{
     onReferenceClick?: (article: InfoItem) => void;
 }> = ({ className, onReferenceClick }) => {
     const [input, setInput] = useState('');
+    const [sessionId, setSessionId] = useState<string | null>(null);
     
     // Initialize with current date to inform user
     const [messages, setMessages] = useState<Message[]>(() => {
@@ -215,6 +216,19 @@ export const AIChatPanel: React.FC<{
     useEffect(() => {
         scrollToBottom();
     }, [messages, isStreaming, isSearching]);
+
+    // Ensure session exists
+    const ensureSession = async () => {
+        if (sessionId) return sessionId;
+        try {
+            const sess = await createSession('strategic-copilot', 'Copilot Chat');
+            setSessionId(sess.id);
+            return sess.id;
+        } catch (e) {
+            console.error("Failed to create session", e);
+            return null;
+        }
+    };
 
     // 增强版 JSON 提取
     const extractJson = (str: string) => {
@@ -246,6 +260,10 @@ export const AIChatPanel: React.FC<{
     const handleSend = async () => {
         if (!input.trim() || isStreaming || isSearching) return;
         
+        const activeSessionId = await ensureSession();
+        // Even if session creation fails, we might want to proceed (backend might handle it or just fail billing) 
+        // but cleaner to have it. For now proceed.
+
         const currentInput = input.trim();
         const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: currentInput, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
@@ -319,7 +337,7 @@ INSTRUCTIONS:
                 } else {
                      updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
                 }
-            });
+            }, undefined, undefined, activeSessionId || undefined);
 
             // 第二阶段：提取搜索词并执行检索
             let finalToolName = '';
@@ -519,7 +537,7 @@ INSTRUCTIONS:
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
-                });
+                }, undefined, undefined, activeSessionId || undefined);
             } else {
                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }

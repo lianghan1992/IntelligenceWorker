@@ -15,6 +15,9 @@ const DEFAULT_DATA: PPTData = {
     pages: []
 };
 
+// Agent ID for Report Generator (Required for Billing)
+const REPORT_GENERATOR_AGENT_ID = '212fb1f7-9b92-42b9-a315-d05addaebcae';
+
 const ScenarioWorkstation: React.FC = () => {
     // --- State Initialization ---
     const [stage, setStage] = useState<PPTStage>('collect');
@@ -84,8 +87,8 @@ const ScenarioWorkstation: React.FC = () => {
         if (sessionId) return sessionId;
 
         try {
-            // Create Backend Session
-            const session = await createSession('report-generator', '未命名报告');
+            // Create Backend Session with fixed Agent ID
+            const session = await createSession(REPORT_GENERATOR_AGENT_ID, '未命名报告');
             const newId = session.id;
             
             setSessionId(newId);

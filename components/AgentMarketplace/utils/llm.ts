@@ -16,7 +16,8 @@ export async function streamOpenRouterChat(
     onToken: (token: string) => void,
     onDone: () => void,
     onError: (error: Error) => void,
-    model: string = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free" // Default cost-effective model with channel prefix
+    model: string = "openrouter@google/gemini-2.0-flash-lite-preview-02-05:free", // Default cost-effective model with channel prefix
+    sessionId?: string
 ) {
     try {
         const token = localStorage.getItem('accessToken');
@@ -26,6 +27,10 @@ export async function streamOpenRouterChat(
         
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        if (sessionId) {
+            headers['X-Session-ID'] = sessionId;
         }
 
         // Updated endpoint to match StratifyAI v1 gateway

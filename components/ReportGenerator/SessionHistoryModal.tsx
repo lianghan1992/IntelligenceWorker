@@ -14,6 +14,9 @@ interface SessionHistoryDrawerProps {
     onSwitchSession: (sessionId: string) => void;
 }
 
+// Agent ID for Report Generator
+const REPORT_GENERATOR_AGENT_ID = '212fb1f7-9b92-42b9-a315-d05addaebcae';
+
 const StageBadge: React.FC<{ stage: string }> = ({ stage }) => {
     const map: Record<string, { label: string; color: string }> = {
         'collect': { label: '构思中', color: 'bg-slate-100 text-slate-500 border-slate-200' },
@@ -46,7 +49,8 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
     const loadSessions = async () => {
         setIsLoading(true);
         try {
-            const res = await getSessions({ agent_id: 'report-generator', sort_by: 'updated_at', order: 'desc', limit: 50 });
+            // FIX: Use specific agent_id
+            const res = await getSessions({ agent_id: REPORT_GENERATOR_AGENT_ID, sort_by: 'updated_at', order: 'desc', limit: 50 });
             setSessions(res || []);
         } catch (e) {
             console.error("Failed to load sessions", e);

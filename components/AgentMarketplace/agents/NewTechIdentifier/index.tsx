@@ -4,6 +4,7 @@ import { CloudIcon, ArrowRightIcon, RefreshIcon, CheckIcon, DocumentTextIcon, Do
 import { streamOpenRouterChat } from '../../utils/llm';
 import { generatePdf } from '../../utils/services';
 import { PROMPT_IDENTIFICATION, PROMPT_DEEP_DIVE, PROMPT_HTML_GEN } from './prompts';
+import { createSession } from '../../../../api/stratify';
 
 // Add markdown parser support
 declare global {
@@ -162,6 +163,7 @@ export default function NewTechIdentifier() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     
     // View Mode for Result (Slide or Code)
     const [viewMode, setViewMode] = useState<'slide' | 'code'>('slide');
@@ -173,6 +175,19 @@ export default function NewTechIdentifier() {
     const addLog = (msg: string) => {
         setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
         setTimeout(() => logEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    };
+
+    // Ensure session exists
+    const ensureSession = async () => {
+        if (sessionId) return sessionId;
+        try {
+            const sess = await createSession('new-tech-identifier', 'New Tech Analysis Task');
+            setSessionId(sess.id);
+            return sess.id;
+        } catch (e) {
+            console.error("Failed to create session", e);
+            return null;
+        }
     };
 
     // --- CSV Parser ---
@@ -272,6 +287,8 @@ export default function NewTechIdentifier() {
         setIsProcessing(true);
         setTechList([]);
 
+        const activeSessionId = await ensureSession();
+
         const BATCH_SIZE = 5;
         const headerStr = csvHeaders.join(',');
         
@@ -305,7 +322,8 @@ export default function NewTechIdentifier() {
                                 resolve();
                             },
                             (err) => reject(err),
-                            MODEL_NAME
+                            MODEL_NAME,
+                            activeSessionId || undefined
                         );
                     });
                 } catch (err: any) {
@@ -337,6 +355,8 @@ export default function NewTechIdentifier() {
             alert("请至少选择一项技术");
             return;
         }
+
+        const activeSessionId = await ensureSession();
 
         setStep('generate');
         setIsProcessing(true);
@@ -370,7 +390,8 @@ export default function NewTechIdentifier() {
                             },
                             () => { mdSuccess = true; resolve(); },
                             (err) => reject(err),
-                            MODEL_NAME
+                            MODEL_NAME,
+                            activeSessionId || undefined
                         );
                     });
                 } catch (err: any) {
@@ -408,7 +429,8 @@ export default function NewTechIdentifier() {
                             },
                             () => { htmlSuccess = true; resolve(); },
                             (err) => reject(err),
-                            MODEL_NAME
+                            MODEL_NAME,
+                            activeSessionId || undefined
                         );
                     });
                 } catch (err: any) {
