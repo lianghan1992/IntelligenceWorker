@@ -124,7 +124,7 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
                     srcDoc={html}
                     className="w-full h-full border-none pointer-events-none select-none"
                     title="Slide Preview"
-                    sandbox="allow-scripts allow-same-origin" 
+                    sandbox="allow-scripts" 
                 />
             </div>
         </div>

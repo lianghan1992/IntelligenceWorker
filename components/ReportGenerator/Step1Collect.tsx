@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
@@ -14,51 +14,32 @@ const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
 const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
 
 // --- Helper: Robust Partial JSON Parser ---
-/**
- * 增强版解析器：
- * 针对开启搜索功能后，模型可能在 JSON 块之后输出 [1], [2] 等引用的情况。
- * 通过精准提取第一个 { 和最后一个 } 之间的内容来确保解析成功。
- */
 export const tryParsePartialJson = (jsonStr: string) => {
     if (!jsonStr) return null;
     try {
         let cleanStr = jsonStr.trim();
-        // 1. 移除可能存在的思考链
         cleanStr = cleanStr.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        
-        // 2. 查找 JSON 边界
         const firstBrace = cleanStr.indexOf('{');
         const lastBrace = cleanStr.lastIndexOf('}');
-        
         if (firstBrace !== -1) {
-            // 如果找到了闭合括号，尝试提取中间内容
             if (lastBrace !== -1 && lastBrace > firstBrace) {
                 const candidate = cleanStr.substring(firstBrace, lastBrace + 1);
-                try {
-                    return JSON.parse(candidate);
-                } catch (e) {
-                    // 如果标准解析失败，可能是流还没完全闭合，尝试补全
+                try { return JSON.parse(candidate); } catch (e) {
                     try { return JSON.parse(candidate + ']}'); } catch (e2) {}
                     try { return JSON.parse(candidate + '}'); } catch (e3) {}
                 }
             } else {
-                // 如果只有开括号，说明还在流式输出中
                 const incomplete = cleanStr.substring(firstBrace);
                 try { return JSON.parse(incomplete + ']}'); } catch (e) {}
                 try { return JSON.parse(incomplete + '}'); } catch (e) {}
             }
         }
-        
-        // 3. 回退方案：尝试从 Markdown 代码块提取
         const codeBlockMatch = cleanStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
         if (codeBlockMatch) {
             try { return JSON.parse(codeBlockMatch[1].trim()); } catch (e) {}
         }
-
         return null;
-    } catch (e) {
-        return null;
-    }
+    } catch (e) { return null; }
 };
 
 // --- Helper: Strict HTML Extractor ---
@@ -102,6 +83,23 @@ const parseThinkTag = (text: string) => {
         };
     }
     return { reasoning: '', content: text };
+};
+
+// --- Helper: Markdown Renderer ---
+const MarkdownContent: React.FC<{ content: string; className?: string }> = ({ content, className }) => {
+    const html = React.useMemo(() => {
+        if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(content);
+        }
+        return content.replace(/\n/g, '<br/>'); // Fallback
+    }, [content]);
+
+    return (
+        <div 
+            className={`markdown-body ${className}`}
+            dangerouslySetInnerHTML={{ __html: html }}
+        />
+    );
 };
 
 // --- Thinking Component ---
@@ -154,8 +152,8 @@ interface CopilotSidebarProps {
     activePageIndex: number;
     setActivePageIndex: (n: number) => void;
     onReset: () => void;
-    sessionId?: string; // Added sessionId
-    statusBar?: React.ReactNode; // Added status bar slot
+    sessionId?: string; 
+    statusBar?: React.ReactNode; 
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
@@ -167,6 +165,16 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            const scrollHeight = textareaRef.current.scrollHeight;
+            textareaRef.current.style.height = Math.min(Math.max(scrollHeight, 44), 100) + 'px'; // Min 44px (1 line), Max ~4 lines
+        }
+    }, [input]);
 
     // --- Guidance State ---
     const [activeGuide, setActiveGuide] = useState<'outline' | 'compose' | null>(null);
@@ -248,21 +256,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
                 
                 const partialOutline = tryParsePartialJson(accumulatedContent);
-                // 只要检测到包含 pages 的结构，就开始同步数据并准备切换状态
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
                         outline: partialOutline 
                     }));
-                    // 如果当前是收集阶段，检测到大纲后立即进入大纲预览阶段
                     if (!isRefinement) {
                         setStage('outline');
                     }
                 }
-            }, undefined, undefined, sessionId); // Pass sessionId
+            }, undefined, undefined, sessionId);
             
-            // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
             if (finalOutline && finalOutline.pages) {
                 setData(prev => ({ ...prev, topic: finalOutline.title || prev.topic, outline: finalOutline }));
@@ -307,7 +312,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
-            // 核心修改：根据生成类型切换模型
             const modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
             setHistory(prev => [...prev, { 
@@ -402,7 +406,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                         return { ...prev, pages: newPages };
                     });
-                }, undefined, undefined, sessionId); // Pass sessionId
+                }, undefined, undefined, sessionId);
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -449,7 +453,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const page = data.pages[targetIdx];
         const isHtmlMode = !!page.html;
         
-        // 核心修改：根据修改内容类型切换模型
         const modelStr = isHtmlMode ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
@@ -528,7 +531,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     return { ...prev, pages: newPages };
                 });
-            }, undefined, undefined, sessionId); // Pass sessionId
+            }, undefined, undefined, sessionId);
 
             setData(prev => {
                 const newPages = [...prev.pages];
@@ -600,6 +603,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
+             {/* Styles for Markdown */}
+             <style>{`
+                .markdown-body p { margin-bottom: 0.5rem; }
+                .markdown-body ul, .markdown-body ol { margin-left: 1.25rem; list-style-type: disc; margin-bottom: 0.5rem; }
+                .markdown-body ol { list-style-type: decimal; }
+                .markdown-body h1, .markdown-body h2, .markdown-body h3 { font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; }
+                .markdown-body code { background: #f1f5f9; padding: 0.2rem 0.4rem; rounded: 4px; font-size: 0.85em; }
+                .markdown-body pre { background: #1e293b; color: #e2e8f0; padding: 0.75rem; rounded-lg; overflow-x: auto; margin-bottom: 0.5rem; }
+                .markdown-body pre code { background: transparent; padding: 0; color: inherit; }
+                .markdown-body blockquote { border-left: 3px solid #cbd5e1; padding-left: 1rem; color: #64748b; }
+            `}</style>
+            
             {history.filter(m => !m.hidden).map((msg, i) => {
                 const isAssistant = msg.role === 'assistant';
                 const isLast = i === history.length - 1;
@@ -694,7 +709,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="whitespace-pre-wrap">{parsedContent.content}</div>
+                                <MarkdownContent 
+                                    content={parsedContent.content} 
+                                    className={msg.role === 'user' ? 'text-white prose-invert' : 'text-slate-700'} 
+                                />
                             )}
                         </div>
                     </div>
@@ -729,19 +747,29 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         <div className="flex flex-col h-full bg-[#f8fafc] border-r border-slate-200">
             {/* Header */}
             <div className="h-16 px-5 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex items-center justify-between shadow-sm z-10 flex-shrink-0">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-md shadow-indigo-200">
-                        <SparklesIcon className="w-4 h-4" />
-                    </div>
-                    <span className="font-bold text-slate-800 tracking-tight text-sm">Auto Insight</span>
-                </div>
-                <div className="flex items-center gap-2">
+                
+                {/* Left: Status Bar */}
+                <div className="flex items-center">
                      {statusBar}
-                     <button onClick={() => setIsHistoryModalOpen(true)} className="text-xs font-medium text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md flex items-center gap-1" title="历史记录">
+                </div>
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-3">
+                     <button 
+                        onClick={() => setIsHistoryModalOpen(true)} 
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-white border border-slate-200 rounded-lg text-xs font-bold hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                        title="查看历史任务"
+                    >
                         <ClockIcon className="w-3.5 h-3.5" />
+                        <span>历史记录</span>
                     </button>
-                     <button onClick={onReset} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md">
-                        重置
+                     <button 
+                        onClick={onReset} 
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95"
+                        title="清空当前会话"
+                    >
+                        <PlusIcon className="w-3.5 h-3.5" />
+                        <span>新建任务</span>
                     </button>
                 </div>
             </div>
@@ -795,23 +823,24 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          </div>
                     )}
                     
-                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 ${isEditMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200'}`}>
-                        <input 
+                    <div className={`relative shadow-sm rounded-xl transition-all duration-300 bg-white ${isEditMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200 border'}`}>
+                        <textarea 
+                            ref={textareaRef}
                             value={input}
                             onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleSend()}
                             placeholder={
                                 stage === 'collect' ? "输入研报主题..." : 
                                 (autoGenMode ? "正在生成中..." : 
                                 (isEditMode ? "输入修改指令..." : "输入内容..."))
                             }
-                            className="w-full bg-slate-50 text-slate-800 placeholder:text-slate-400 border border-transparent rounded-xl pl-4 pr-12 py-3.5 text-sm focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                            className="w-full bg-transparent text-slate-800 placeholder:text-slate-400 border-none rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-0 resize-none overflow-y-auto min-h-[44px]"
                             disabled={isLlmActive}
+                            rows={1}
                         />
                         <button 
                             onClick={() => handleSend()}
                             disabled={!input.trim() || isLlmActive}
-                            className={`absolute right-2 top-2 p-1.5 text-white rounded-lg transition-all shadow-sm ${
+                            className={`absolute right-2 bottom-2 p-1.5 text-white rounded-lg transition-all shadow-sm ${
                                 isEditMode && input.trim() ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300'
                             }`}
                         >

@@ -509,7 +509,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                         ref={iframeRef}
                         className="w-full h-full border-none bg-white"
                         title="Visual Editor"
-                        sandbox="allow-scripts allow-same-origin"
+                        sandbox="allow-scripts"
                     />
                 </div>
                 
