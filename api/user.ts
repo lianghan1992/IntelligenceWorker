@@ -29,6 +29,9 @@ export const getUsers = async (params: any): Promise<PaginatedResponse<UserListI
     };
 }
 
+export const getUserById = (userId: string): Promise<UserListItem> =>
+    apiFetch<UserListItem>(`${USER_SERVICE_PATH}/users/${userId}`);
+
 export const updateUser = (userId: string, data: UserForAdminUpdate): Promise<UserListItem> => 
     apiFetch<UserListItem>(`${USER_SERVICE_PATH}/users/${userId}`, {
         method: 'PUT',
