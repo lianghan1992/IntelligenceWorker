@@ -721,3 +721,15 @@ export interface SessionSnapshot {
     description: string;
     created_at: string;
 }
+
+export interface UsageStat {
+    user_id: string;
+    agent_id: string;
+    session_id: string;
+    session_time: string;
+    model: string;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_cost: number;
+    original_cost: number;
+}
