@@ -63,7 +63,6 @@ export const SessionHistoryDrawer: React.FC<SessionHistoryDrawerProps> = ({
         try {
             await deleteSession(sessionId);
             setSessions(prev => prev.filter(s => s.id !== sessionId));
-            // If deleting current session, parent might handle it, but for now we just remove from list
         } catch (error) {
             alert('删除失败');
         } finally {

@@ -6,7 +6,7 @@ import { Step4Finalize } from './Step4Finalize';
 import { PPTStage, ChatMessage, PPTData } from './types';
 import { createSession, getSession, updateSession } from '../../api/stratify';
 import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon } from '../icons';
-import { SessionHistoryDrawer } from './SessionHistoryModal'; // Updated import
+import { SessionHistoryDrawer } from './SessionHistoryModal';
 
 const DEFAULT_DATA: PPTData = {
     topic: '',
