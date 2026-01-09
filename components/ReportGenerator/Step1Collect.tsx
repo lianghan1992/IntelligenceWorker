@@ -256,18 +256,21 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
                 
                 const partialOutline = tryParsePartialJson(accumulatedContent);
+                // 只要检测到包含 pages 的结构，就开始同步数据并准备切换状态
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
                         outline: partialOutline 
                     }));
+                    // 如果当前是收集阶段，检测到大纲后立即进入大纲预览阶段
                     if (!isRefinement) {
                         setStage('outline');
                     }
                 }
-            }, undefined, undefined, sessionId);
+            }, undefined, undefined, sessionId); // Pass sessionId
             
+            // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
             if (finalOutline && finalOutline.pages) {
                 setData(prev => ({ ...prev, topic: finalOutline.title || prev.topic, outline: finalOutline }));
@@ -312,6 +315,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
             
+            // 核心修改：根据生成类型切换模型
             const modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
             setHistory(prev => [...prev, { 
@@ -406,7 +410,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                         return { ...prev, pages: newPages };
                     });
-                }, undefined, undefined, sessionId);
+                }, undefined, undefined, sessionId); // Pass sessionId
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -453,6 +457,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const page = data.pages[targetIdx];
         const isHtmlMode = !!page.html;
         
+        // 核心修改：根据修改内容类型切换模型
         const modelStr = isHtmlMode ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
@@ -531,7 +536,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     return { ...prev, pages: newPages };
                 });
-            }, undefined, undefined, sessionId);
+            }, undefined, undefined, sessionId); // Pass sessionId
 
             setData(prev => {
                 const newPages = [...prev.pages];
@@ -757,7 +762,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 <div className="flex items-center gap-3">
                      <button 
                         onClick={() => setIsHistoryModalOpen(true)} 
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-white border border-slate-200 rounded-lg text-xs font-bold hover:border-indigo-300 hover:text-indigo-600 transition-all shadow-sm"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-200 hover:text-indigo-600 transition-all shadow-sm"
                         title="查看历史任务"
                     >
                         <ClockIcon className="w-3.5 h-3.5" />
