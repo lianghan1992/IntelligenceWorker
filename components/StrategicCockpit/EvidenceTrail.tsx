@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
-import { DownloadIcon, ExternalLinkIcon, ChevronRightIcon, SparklesIcon } from '../icons';
-import { getArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
+import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon } from '../icons';
+import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
 
 // 为从CDN加载的 `marked` 库提供类型声明
 declare global {
@@ -18,12 +18,13 @@ interface EvidenceTrailProps {
 }
 
 const Spinner: React.FC = () => (
-    <svg className="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>
 );
 
+// Helper to unescape unicode characters in content (e.g., \u25cf -> ●)
 const unescapeUnicode = (str: string) => {
     return str.replace(/\\u([0-9a-fA-F]{4})/gi, (match, grp) => {
         return String.fromCharCode(parseInt(grp, 16));
@@ -38,15 +39,17 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
 
+    // Fetch Content logic
     useEffect(() => {
         if (!selectedArticle) return;
         
         let active = true;
         setHtmlContent(null);
         setFullContent(selectedArticle.content || '');
-        setArticleUrl(selectedArticle.original_url || ''); 
+        setArticleUrl(selectedArticle.original_url || ''); // Init from prop
         
         const loadData = async () => {
+            // Always fetch detail if content is missing or too short
             const needsDetail = !selectedArticle.original_url || !selectedArticle.content || selectedArticle.content.length < 100;
 
             if (needsDetail) {
@@ -56,6 +59,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                     if (active) {
                         if (detail.original_url) setArticleUrl(detail.original_url);
                         if (detail.content) setFullContent(detail.content);
+                        // If detail also reports it's atomized, we should respect that
                         if (detail.is_atomized) selectedArticle.is_atomized = true;
                     }
                 } catch(e) {
@@ -99,7 +103,7 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (e: any) {
-            alert('下载失败');
+            alert('下载失败: ' + (e.message || '系统繁忙，请稍后再试'));
         } finally {
             setIsDownloading(false);
         }
@@ -107,6 +111,8 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     
     const fallbackArticleHtml = useMemo(() => {
         if (!fullContent) return '';
+
+        // Unescape potential unicode escape sequences first
         const decodedContent = unescapeUnicode(fullContent);
 
         if (window.marked && typeof window.marked.parse === 'function') {
@@ -127,111 +133,156 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
 
     if (!selectedArticle) {
         return (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-[#F8FAFC]">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-slate-100">
-                    <span className="text-2xl opacity-20">📄</span>
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 bg-white">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                    <DocumentTextIcon className="w-10 h-10 text-slate-300" />
                 </div>
-                <h3 className="font-bold text-lg text-slate-700 mb-1">Market Intelligence</h3>
-                <p className="text-slate-400 text-sm">Select an item to view report</p>
+                <h3 className="font-bold text-xl text-slate-800 mb-2">AI 智能研报</h3>
+                <p className="text-slate-500 text-sm">请从左侧选择一项情报</p>
             </div>
         );
     }
 
     return (
-        <div className="h-full flex flex-col bg-[#F8FAFC] overflow-hidden relative">
-            {/* Reference Style Header */}
-            <header className="h-16 flex items-center justify-between px-6 border-b border-slate-200 bg-white/50 backdrop-blur-sm sticky top-0 z-20 flex-shrink-0">
-                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                    <span className="hover:text-indigo-600 cursor-pointer transition-colors">Intelligence</span>
-                    <ChevronRightIcon className="w-3 h-3 text-slate-300" />
-                    <span className="text-slate-900">Report View</span>
-                </div>
-                <div className="flex items-center gap-3">
-                     {htmlContent && (
-                        <button 
-                            onClick={handleDownloadPdf}
-                            disabled={isDownloading}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
-                        >
-                            {isDownloading ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
-                            Export PDF
-                        </button>
-                    )}
-                     {articleUrl && (
-                        <a 
-                            href={articleUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                        >
-                            <ExternalLinkIcon className="w-3.5 h-3.5" />
-                            Original
-                        </a>
-                    )}
-                </div>
-            </header>
-
-            {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
-                <div className="max-w-4xl mx-auto pb-20">
-                    {/* Article Header */}
-                    <div className="mb-8 border-b border-slate-200 pb-6">
-                        <div className="flex items-center gap-2 mb-2">
-                             <span className="text-indigo-600 font-bold tracking-widest text-xs uppercase">{selectedArticle.source_name}</span>
-                             {selectedArticle.is_atomized && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-600">
-                                    <SparklesIcon className="w-3 h-3" /> AI Processed
-                                </span>
-                             )}
-                        </div>
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight leading-tight">
+        <aside className="h-full flex flex-col bg-white overflow-hidden relative">
+            {/* Header - Ultra Compact */}
+            <div className="flex-shrink-0 border-b border-slate-100 bg-white/95 backdrop-blur z-20 px-4 py-3 md:px-5 md:py-3">
+                
+                {/* Desktop View: Single Row Layout */}
+                <div className="hidden md:flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
+                        {/* Meta */}
+                        <span className="flex-shrink-0 font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-xs">
+                            {selectedArticle.source_name}
+                        </span>
+                        <span className="flex-shrink-0 text-slate-400 text-xs border-r border-slate-200 pr-3 mr-1">
+                            {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit'})}
+                        </span>
+                        
+                        {/* Title (Truncated) */}
+                        <h3 className="font-bold text-slate-900 text-base truncate" title={selectedArticle.title}>
                             {selectedArticle.title}
-                        </h1>
-                        <p className="mt-4 text-xs font-mono text-slate-400 uppercase">
-                            Published: {new Date(selectedArticle.publish_date || selectedArticle.created_at).toLocaleString()}
-                        </p>
+                        </h3>
+
+                        {/* AI Status Badge */}
+                        {selectedArticle.is_atomized && (
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-purple-50 border border-purple-100 flex-shrink-0">
+                                <SparklesIcon className="w-3 h-3 text-purple-600" />
+                                <span className="text-[10px] font-bold text-purple-600">已原子化</span>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Body */}
-                    {(isHtmlLoading || isContentLoading) ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
-                            <p className="text-sm font-medium">Retrieving content...</p>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {htmlContent && (
+                            <button 
+                                onClick={handleDownloadPdf}
+                                disabled={isDownloading}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                                title="下载 PDF 报告"
+                            >
+                                {isDownloading ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                                PDF
+                            </button>
+                        )}
+                        <div className="h-4 w-px bg-slate-200 mx-1"></div>
+                        
+                        {articleUrl ? (
+                            <a 
+                                href={articleUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 rounded-lg transition-colors text-xs font-bold"
+                                title="阅读原文"
+                            >
+                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                阅读原文
+                            </a>
+                        ) : (
+                            <button 
+                                disabled
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-300 bg-slate-50 rounded-lg text-xs font-bold cursor-not-allowed"
+                                title="链接不可用"
+                            >
+                                <ExternalLinkIcon className="w-3.5 h-3.5" />
+                                暂无链接
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Mobile View: Stacked Layout */}
+                <div className="md:hidden flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-xs">
+                            <span className="font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded">
+                                {selectedArticle.source_name}
+                            </span>
+                            {selectedArticle.is_atomized && (
+                                <span className="text-[10px] font-bold text-purple-600 flex items-center gap-1">
+                                    <SparklesIcon className="w-3 h-3" /> 原子化
+                                </span>
+                            )}
                         </div>
-                    ) : htmlContent ? (
-                         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-                            <iframe 
-                                srcDoc={htmlContent} 
-                                className="w-full min-h-[800px] border-none" 
-                                title="Article Content"
-                                sandbox="allow-scripts allow-same-origin"
-                                onLoad={(e) => {
-                                    // Adjust height to fit content
-                                    const iframe = e.currentTarget;
-                                    setTimeout(() => {
-                                        if(iframe.contentWindow) {
-                                            iframe.style.height = iframe.contentWindow.document.body.scrollHeight + 'px';
-                                        }
-                                    }, 500);
-                                }}
-                            />
+                        <div className="flex items-center gap-2">
+                            {htmlContent && (
+                                <button 
+                                    onClick={handleDownloadPdf}
+                                    disabled={isDownloading}
+                                    className="p-1.5 text-red-500 bg-red-50 rounded-lg disabled:opacity-50"
+                                >
+                                    {isDownloading ? <Spinner /> : <DownloadIcon className="w-4 h-4" />}
+                                </button>
+                            )}
+                            {articleUrl && (
+                                <a 
+                                    href={articleUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="p-1.5 text-slate-600 bg-slate-100 rounded-lg"
+                                >
+                                    <ArrowRightIcon className="w-4 h-4" />
+                                </a>
+                            )}
                         </div>
-                    ) : (
-                        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-                             <article 
-                                className="prose prose-slate max-w-none 
-                                    prose-headings:font-bold prose-headings:text-slate-900 prose-headings:tracking-tight
-                                    prose-p:text-slate-600 prose-p:leading-7
-                                    prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
-                                    prose-strong:text-slate-800 prose-strong:font-bold
-                                    prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-slate-50 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r
-                                    prose-li:text-slate-600"
-                                dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
-                            />
-                        </div>
-                    )}
+                    </div>
+                    <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">
+                        {selectedArticle.title}
+                    </h3>
                 </div>
             </div>
-        </div>
+
+            {/* Content Area */}
+            <div className="flex-1 bg-white overflow-hidden relative">
+                {(isHtmlLoading || isContentLoading) ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                        <p className="text-sm font-medium">正在加载内容...</p>
+                    </div>
+                ) : htmlContent ? (
+                    <div className="h-full w-full bg-slate-50">
+                        <iframe 
+                            srcDoc={htmlContent} 
+                            className="w-full h-full border-none" 
+                            title="Article Content"
+                            sandbox="allow-scripts allow-same-origin"
+                        />
+                    </div>
+                ) : (
+                    <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white">
+                        <article 
+                            className="prose prose-sm md:prose-base prose-slate max-w-none 
+                                prose-headings:font-bold prose-headings:text-slate-900
+                                prose-p:text-slate-600 prose-p:leading-relaxed prose-p:mb-4
+                                prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline
+                                prose-img:rounded-lg prose-img:shadow-sm
+                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:bg-indigo-50 prose-blockquote:px-4 prose-blockquote:py-2 prose-blockquote:not-italic prose-blockquote:text-indigo-800"
+                            dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
+                        />
+                    </div>
+                )}
+            </div>
+        </aside>
     );
 };
