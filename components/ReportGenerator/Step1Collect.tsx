@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
@@ -152,11 +153,14 @@ interface CopilotSidebarProps {
     activePageIndex: number;
     setActivePageIndex: (n: number) => void;
     onReset: () => void;
+    sessionId?: string; // Added sessionId
+    statusBar?: React.ReactNode; // Added status bar slot
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
-    isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset
+    isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
+    sessionId, statusBar
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -254,7 +258,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         setStage('outline');
                     }
                 }
-            });
+            }, undefined, undefined, sessionId); // Pass sessionId
             
             // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
@@ -396,7 +400,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                         return { ...prev, pages: newPages };
                     });
-                });
+                }, undefined, undefined, sessionId); // Pass sessionId
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -522,7 +526,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     return { ...prev, pages: newPages };
                 });
-            });
+            }, undefined, undefined, sessionId); // Pass sessionId
 
             setData(prev => {
                 const newPages = [...prev.pages];
@@ -729,9 +733,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                     <span className="font-bold text-slate-800 tracking-tight text-sm">Auto Insight</span>
                 </div>
-                <button onClick={onReset} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md">
-                    重置
-                </button>
+                <div className="flex items-center gap-2">
+                     {statusBar}
+                     <button onClick={onReset} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md">
+                        重置
+                    </button>
+                </div>
             </div>
 
             {/* Content */}

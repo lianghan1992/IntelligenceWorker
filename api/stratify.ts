@@ -2,7 +2,7 @@
 // src/api/stratify.ts
 
 import { STRATIFY_SERVICE_PATH } from '../config';
-import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt, ModelPricing } from '../types';
+import { StratifyTask, GenerateStreamParams, StratifyScenario, StratifyScenarioFile, StratifyQueueStatus, LLMChannel, StratifyPrompt, ModelPricing, AgentSession, SessionSnapshot } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
 // --- 1. The Plumber: Universal Stream Generator ---
@@ -41,12 +41,17 @@ export const streamChatCompletions = async (
     params: ChatCompletionRequest,
     onData: (data: { content?: string; reasoning?: string; tool_calls?: any[] }) => void,
     onDone?: () => void,
-    onError?: (err: any) => void
+    onError?: (err: any) => void,
+    sessionId?: string // Added sessionId support
 ) => {
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'Accept': 'text/event-stream',
     };
+
+    if (sessionId) {
+        headers['X-Session-ID'] = sessionId;
+    }
 
     try {
         const response = await fetch(`/openrouter/chat/completions`, {
@@ -363,10 +368,14 @@ export const generateBatchPdf = async (htmlFiles: { html: string; filename: stri
     return response.blob();
 };
 
-export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }): Promise<any> => {
+export const chatCompletions = (data: { model: string; messages: any[]; stream?: boolean; temperature?: number }, sessionId?: string): Promise<any> => {
+    const headers: any = {};
+    if (sessionId) headers['X-Session-ID'] = sessionId;
+
     return apiFetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
         method: 'POST',
         body: JSON.stringify(data),
+        headers
     });
 };
 
@@ -379,4 +388,46 @@ export const setPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> =
     apiFetch<ModelPricing>(`${STRATIFY_SERVICE_PATH}/admin/pricing`, {
         method: 'POST',
         body: JSON.stringify(data),
+    });
+
+// --- 14. Session Management ---
+
+export const createSession = (agentId: string, title: string): Promise<AgentSession> =>
+    apiFetch<AgentSession>(`${STRATIFY_SERVICE_PATH}/v1/sessions`, {
+        method: 'POST',
+        body: JSON.stringify({ agent_id: agentId, title }),
+    });
+
+export const getSessions = (params: any = {}): Promise<AgentSession[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<AgentSession[]>(`${STRATIFY_SERVICE_PATH}/v1/sessions${query}`);
+}
+
+export const getSession = (id: string): Promise<AgentSession> =>
+    apiFetch<AgentSession>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${id}`);
+
+export const updateSession = (id: string, data: Partial<AgentSession>): Promise<AgentSession> =>
+    apiFetch<AgentSession>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+
+export const deleteSession = (id: string): Promise<void> =>
+    apiFetch<void>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${id}`, {
+        method: 'DELETE',
+    });
+
+export const createSnapshot = (sessionId: string, stageTag: string, description: string): Promise<SessionSnapshot> =>
+    apiFetch<SessionSnapshot>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${sessionId}/snapshots`, {
+        method: 'POST',
+        body: JSON.stringify({ stage_tag: stageTag, description }),
+    });
+
+export const getSnapshots = (sessionId: string): Promise<SessionSnapshot[]> =>
+    apiFetch<SessionSnapshot[]>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${sessionId}/snapshots`);
+
+export const restoreSnapshot = (sessionId: string, snapshotId: string): Promise<AgentSession> =>
+    apiFetch<AgentSession>(`${STRATIFY_SERVICE_PATH}/v1/sessions/${sessionId}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({ snapshot_id: snapshotId }),
     });

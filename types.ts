@@ -698,3 +698,26 @@ export interface ModelPricing {
     multiplier: number;
     is_active: boolean;
 }
+
+export interface AgentSession {
+    id: string;
+    user_id: string;
+    agent_id: string;
+    title: string;
+    current_stage: string;
+    context_data: any;
+    total_tokens: number;
+    total_cost: number;
+    currency: string;
+    updated_at: string;
+    created_at: string;
+    status: string;
+}
+
+export interface SessionSnapshot {
+    id: string;
+    session_id: string;
+    stage_tag: string;
+    description: string;
+    created_at: string;
+}
