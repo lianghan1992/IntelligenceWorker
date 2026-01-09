@@ -5,7 +5,7 @@ import {
     getScenarios, createScenario, updateScenario, deleteScenario, 
     getChannels, getPrompts, createPrompt, updatePrompt, deletePrompt 
 } from '../../../api/stratify';
-import { PlusIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ViewGridIcon, ServerIcon, LightningBoltIcon, CodeIcon, DocumentTextIcon, RefreshIcon } from '../../icons';
+import { PlusIcon, TrashIcon, PencilIcon, CloseIcon, CheckIcon, ViewGridIcon, ServerIcon, LightningBoltIcon, CodeIcon, DocumentTextIcon, RefreshIcon, ChipIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
@@ -365,6 +365,8 @@ export const ScenarioManager: React.FC = () => {
     const [confirmDeleteScenario, setConfirmDeleteScenario] = useState<StratifyScenario | null>(null);
     const [confirmDeletePrompt, setConfirmDeletePrompt] = useState<StratifyPrompt | null>(null);
 
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
     const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -428,6 +430,12 @@ export const ScenarioManager: React.FC = () => {
         }
     };
 
+    const handleCopyId = (id: string) => {
+        navigator.clipboard.writeText(id);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
+
     return (
         <div className="h-full flex gap-6 overflow-hidden">
             {/* Scenarios List (Left) */}
@@ -451,7 +459,17 @@ export const ScenarioManager: React.FC = () => {
                         >
                             <div className="flex-1 min-w-0">
                                 <p className={`font-bold text-sm truncate ${selectedScenario?.id === s.id ? 'text-indigo-900' : 'text-slate-700'}`}>{s.title}</p>
-                                <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{s.name}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-[10px] text-slate-400 font-mono truncate">{s.name}</p>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleCopyId(s.id); }}
+                                        className="text-[10px] text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded px-1 transition-colors flex items-center gap-1"
+                                        title="点击复制 ID"
+                                    >
+                                        <ChipIcon className="w-3 h-3" />
+                                        {copiedId === s.id ? 'Copied!' : 'ID'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -470,7 +488,15 @@ export const ScenarioManager: React.FC = () => {
                             <div className="flex-1 min-w-0 pr-4">
                                 <div className="flex items-center gap-3 mb-2">
                                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">{selectedScenario.title}</h2>
-                                    <span className="text-[10px] font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-sm uppercase">{selectedScenario.name}</span>
+                                    <div 
+                                        className="flex items-center gap-1 text-[10px] font-mono font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-sm uppercase cursor-pointer hover:border-indigo-300 hover:text-indigo-600 transition-colors"
+                                        onClick={() => handleCopyId(selectedScenario.id)}
+                                        title="点击复制场景 ID"
+                                    >
+                                        {selectedScenario.id}
+                                        {copiedId === selectedScenario.id && <CheckIcon className="w-3 h-3 text-green-500" />}
+                                    </div>
+                                    <span className="text-[10px] font-mono text-slate-400">({selectedScenario.name})</span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-slate-500">
                                     <p className="line-clamp-1 max-w-xl">{selectedScenario.description || '暂无描述'}</p>

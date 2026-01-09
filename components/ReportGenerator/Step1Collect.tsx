@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
+import { SessionHistoryModal } from './SessionHistoryModal';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -165,6 +166,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
     const [autoGenMode, setAutoGenMode] = useState<'text' | 'html' | null>(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
     // --- Guidance State ---
     const [activeGuide, setActiveGuide] = useState<'outline' | 'compose' | null>(null);
@@ -735,6 +737,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                      {statusBar}
+                     <button onClick={() => setIsHistoryModalOpen(true)} className="text-xs font-medium text-slate-400 hover:text-indigo-600 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md flex items-center gap-1" title="历史记录">
+                        <ClockIcon className="w-3.5 h-3.5" />
+                    </button>
                      <button onClick={onReset} className="text-xs font-medium text-slate-400 hover:text-red-500 transition-colors px-2 py-1 hover:bg-slate-100 rounded-md">
                         重置
                     </button>
@@ -822,6 +827,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     )}
                 </div>
             </div>
+
+            {isHistoryModalOpen && (
+                <SessionHistoryModal 
+                    onClose={() => setIsHistoryModalOpen(false)} 
+                    currentSessionId={sessionId}
+                />
+            )}
         </div>
     );
 };
