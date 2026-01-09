@@ -117,20 +117,20 @@ export const UsageStatsManager: React.FC = () => {
             {/* Summary Cards (Server Side Aggregated) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white border-b border-slate-100">
                 <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-                    <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Total Cost (Final)</div>
+                    <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1">总结算费用 (倍率后)</div>
                     <div className="text-xl font-black text-indigo-700">¥{(summary?.total_cost || 0).toFixed(4)}</div>
                 </div>
+                <div className="p-3 bg-orange-50 rounded-xl border border-orange-100">
+                    <div className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1">总原始费用 (倍率前)</div>
+                    <div className="text-xl font-black text-orange-700">¥{(summary?.total_original_cost || 0).toFixed(4)}</div>
+                </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Tokens (In)</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Input Tokens</div>
                     <div className="text-xl font-black text-slate-700">{(summary?.total_input_tokens || 0).toLocaleString()}</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Tokens (Out)</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Output Tokens</div>
                     <div className="text-xl font-black text-slate-700">{(summary?.total_output_tokens || 0).toLocaleString()}</div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Raw Cost</div>
-                    <div className="text-xl font-black text-slate-500">¥{(summary?.total_original_cost || 0).toFixed(4)}</div>
                 </div>
             </div>
 
@@ -145,14 +145,15 @@ export const UsageStatsManager: React.FC = () => {
                             <th className="px-4 py-3 whitespace-nowrap">模型</th>
                             <th className="px-4 py-3 text-right whitespace-nowrap">Input Tokens</th>
                             <th className="px-4 py-3 text-right whitespace-nowrap">Output Tokens</th>
-                            <th className="px-4 py-3 text-right whitespace-nowrap">结算费用 (CNY)</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">原始费用</th>
+                            <th className="px-4 py-3 text-right whitespace-nowrap">结算费用</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {isLoading && stats.length === 0 ? (
-                            <tr><td colSpan={7} className="py-20 text-center"><Spinner /></td></tr>
+                            <tr><td colSpan={8} className="py-20 text-center"><Spinner /></td></tr>
                         ) : stats.length === 0 ? (
-                            <tr><td colSpan={7} className="py-20 text-center text-slate-400 italic">暂无统计数据</td></tr>
+                            <tr><td colSpan={8} className="py-20 text-center text-slate-400 italic">暂无统计数据</td></tr>
                         ) : (
                             stats.map((stat, idx) => (
                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
@@ -176,12 +177,8 @@ export const UsageStatsManager: React.FC = () => {
                                     </td>
                                     <td className="px-4 py-3 text-right font-mono text-xs">{stat.total_input_tokens.toLocaleString()}</td>
                                     <td className="px-4 py-3 text-right font-mono text-xs">{stat.total_output_tokens.toLocaleString()}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        <span className="font-bold text-slate-700">¥{stat.total_cost.toFixed(4)}</span>
-                                        {stat.total_cost !== stat.original_cost && (
-                                            <span className="block text-[9px] text-slate-400 line-through">¥{stat.original_cost.toFixed(4)}</span>
-                                        )}
-                                    </td>
+                                    <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">¥{stat.original_cost.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-right font-bold text-indigo-600">¥{stat.total_cost.toFixed(4)}</td>
                                 </tr>
                             ))
                         )}

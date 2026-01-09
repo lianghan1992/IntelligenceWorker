@@ -140,6 +140,7 @@ export interface UserForAdminUpdate {
     email: string;
     plan_name: string;
     status: string;
+    
 }
 
 export interface UserProfileDetails {
