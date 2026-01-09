@@ -62,6 +62,17 @@ const ScenarioWorkstation: React.FC = () => {
             window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
         }
     }, []);
+    
+    // Helper: Refresh Session Data (Cost, Tokens) without resetting local editing state
+    const refreshSession = useCallback(async () => {
+        if (!sessionId) return;
+        try {
+             const session = await getSession(sessionId);
+             setSessionCost(session.total_cost || 0);
+        } catch (e) {
+            console.warn("Failed to refresh session stats", e);
+        }
+    }, [sessionId]);
 
     // Helper: Reset to New Draft (Lazy Creation)
     // Does NOT create a backend session immediately.
@@ -170,6 +181,7 @@ const ScenarioWorkstation: React.FC = () => {
     // Component Props for Children
     const sharedProps = {
         sessionId: sessionId || undefined, // undefined to child if null
+        onRefreshSession: refreshSession,
     };
 
     // Render Status Bar Component

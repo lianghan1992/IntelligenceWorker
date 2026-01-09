@@ -33,9 +33,9 @@ export interface ChatCompletionRequest {
 }
 
 /**
- * 核心修改：切换至 Nginx 反向代理接口
- * 1. URL 改为 '/openrouter/chat/completions'
- * 2. 移除 Authorization Header (由 Nginx 注入)
+ * 核心修改：
+ * 1. URL 修正为 StratifyAI 标准网关路径 /v1/chat/completions
+ * 2. 强制传递 X-Session-ID 以确保计费准确
  */
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
@@ -49,12 +49,20 @@ export const streamChatCompletions = async (
         'Accept': 'text/event-stream',
     };
 
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     if (sessionId) {
+        // @ts-ignore
         headers['X-Session-ID'] = sessionId;
+    } else {
+        console.warn("streamChatCompletions called without sessionId. Billing may not be tracked.");
     }
 
     try {
-        const response = await fetch(`/openrouter/chat/completions`, {
+        const response = await fetch(`${STRATIFY_SERVICE_PATH}/v1/chat/completions`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ ...params, stream: true }),
@@ -62,7 +70,7 @@ export const streamChatCompletions = async (
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`OpenRouter Error (${response.status}): ${errorText}`);
+            throw new Error(`API Error (${response.status}): ${errorText}`);
         }
 
         if (!response.body) throw new Error("No response body");

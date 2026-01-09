@@ -17,6 +17,7 @@ interface Step4FinalizeProps {
     onLlmStatusChange?: (isActive: boolean) => void;
     onStreamingUpdate?: (msg: any) => void;
     sessionId?: string; // Added sessionId
+    onRefreshSession?: () => void; // Added refresh handler
 }
 
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -73,7 +74,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     onBackToCompose,
     onUpdatePages,
     onLlmStatusChange,
-    sessionId
+    sessionId,
+    onRefreshSession
 }) => {
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
@@ -134,13 +136,15 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 setPages(finalPages);
                 onUpdatePages(finalPages);
                 onLlmStatusChange?.(false);
+                // Refresh billing after done
+                if (onRefreshSession) onRefreshSession();
             }, (err) => {
                 onLlmStatusChange?.(false);
             }, sessionId); // Pass sessionId
         } catch (e) {
             onLlmStatusChange?.(false);
         }
-    }, [pages, topic, onLlmStatusChange, onUpdatePages, sessionId]);
+    }, [pages, topic, onLlmStatusChange, onUpdatePages, sessionId, onRefreshSession]);
 
     useEffect(() => {
         const isBusy = pages.some(p => p.isGenerating);

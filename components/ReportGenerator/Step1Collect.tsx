@@ -160,13 +160,15 @@ interface CopilotSidebarProps {
     // Callback to ensure session exists before generation
     onEnsureSession?: () => Promise<string>;
     onToggleHistory?: () => void;
+    // Refresh Billing
+    onRefreshSession?: () => void;
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
     sessionId, statusBar,
-    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory
+    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -295,7 +297,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         setStage('outline');
                     }
                 }
-            }, undefined, undefined, activeSessionId); // Pass active session ID
+            }, () => {
+                // onDone: Refresh session cost
+                if (onRefreshSession) onRefreshSession();
+            }, undefined, activeSessionId); // Pass active session ID
             
             // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
@@ -443,7 +448,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         }
                         return { ...prev, pages: newPages };
                     });
-                }, undefined, undefined, activeSessionId); // Pass active session ID
+                }, () => {
+                    // onDone
+                    if (onRefreshSession) onRefreshSession();
+                }, undefined, activeSessionId); // Pass active session ID
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -576,7 +584,9 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     }
                     return { ...prev, pages: newPages };
                 });
-            }, undefined, undefined, activeSessionId); // Pass active session ID
+            }, () => {
+                if (onRefreshSession) onRefreshSession();
+            }, undefined, activeSessionId); // Pass active session ID
 
             setData(prev => {
                 const newPages = [...prev.pages];
