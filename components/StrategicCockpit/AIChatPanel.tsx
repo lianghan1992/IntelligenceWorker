@@ -4,6 +4,7 @@ import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticSegments, fetchJinaReader } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
+import { AGENTS } from '../../agentConfig';
 
 declare global {
   interface Window {
@@ -221,7 +222,8 @@ export const AIChatPanel: React.FC<{
     const ensureSession = async () => {
         if (sessionId) return sessionId;
         try {
-            const sess = await createSession('strategic-copilot', 'Copilot Chat');
+            // Use global agent ID
+            const sess = await createSession(AGENTS.STRATEGIC_COPILOT, 'Copilot Chat');
             setSessionId(sess.id);
             return sess.id;
         } catch (e) {

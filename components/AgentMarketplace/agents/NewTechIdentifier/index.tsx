@@ -5,6 +5,7 @@ import { streamOpenRouterChat } from '../../utils/llm';
 import { generatePdf } from '../../utils/services';
 import { PROMPT_IDENTIFICATION, PROMPT_DEEP_DIVE, PROMPT_HTML_GEN } from './prompts';
 import { createSession } from '../../../../api/stratify';
+import { AGENTS } from '../../../../agentConfig';
 
 // Add markdown parser support
 declare global {
@@ -181,7 +182,8 @@ export default function NewTechIdentifier() {
     const ensureSession = async () => {
         if (sessionId) return sessionId;
         try {
-            const sess = await createSession('new-tech-identifier', 'New Tech Analysis Task');
+            // Use global agent ID
+            const sess = await createSession(AGENTS.NEW_TECH_IDENTIFIER, 'New Tech Analysis Task');
             setSessionId(sess.id);
             return sess.id;
         } catch (e) {

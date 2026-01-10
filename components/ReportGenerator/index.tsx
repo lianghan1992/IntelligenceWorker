@@ -7,6 +7,7 @@ import { PPTStage, ChatMessage, PPTData } from './types';
 import { createSession, getSession, updateSession } from '../../api/stratify';
 import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon } from '../icons';
 import { SessionHistoryDrawer } from './SessionHistoryModal';
+import { AGENTS } from '../../agentConfig';
 
 const DEFAULT_DATA: PPTData = {
     topic: '',
@@ -16,7 +17,8 @@ const DEFAULT_DATA: PPTData = {
 };
 
 // Agent ID for Report Generator (Required for Billing)
-const REPORT_GENERATOR_AGENT_ID = '212fb1f7-9b92-42b9-a315-d05addaebcae';
+// Using global configuration
+const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 
 const ScenarioWorkstation: React.FC = () => {
     // --- State Initialization ---

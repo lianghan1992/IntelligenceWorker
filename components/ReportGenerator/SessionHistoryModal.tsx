@@ -6,6 +6,7 @@ import {
     CloseIcon, ClockIcon, TrashIcon, ArrowRightIcon, 
     SparklesIcon, DocumentTextIcon, ChartIcon, CheckCircleIcon 
 } from '../icons';
+import { AGENTS } from '../../agentConfig';
 
 interface SessionHistoryDrawerProps {
     isOpen: boolean;
@@ -15,7 +16,8 @@ interface SessionHistoryDrawerProps {
 }
 
 // Agent ID for Report Generator
-const REPORT_GENERATOR_AGENT_ID = '212fb1f7-9b92-42b9-a315-d05addaebcae';
+// Using global configuration
+const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 
 const StageBadge: React.FC<{ stage: string }> = ({ stage }) => {
     const map: Record<string, { label: string; color: string }> = {

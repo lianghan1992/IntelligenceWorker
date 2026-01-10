@@ -1,6 +1,4 @@
 
-
-
 import React, { useState } from 'react';
 import { User, View } from '../types';
 import {
@@ -23,6 +21,7 @@ interface HeaderProps {
     onNavigate: (view: View) => void;
     onUpgrade: () => void;
     onLogout: () => void;
+    onShowBilling: () => void; // New prop
     user: User;
 }
 
@@ -59,7 +58,7 @@ const NavItem: React.FC<{
 );
 
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, user }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, onShowBilling, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -130,7 +129,15 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                                         <div className="py-1">
                                             <a href="#" className="block px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">个人资料</a>
                                             <a href="#" className="block px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">偏好设置</a>
-                                            <a href="#" className="block px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">账单管理</a>
+                                            <button 
+                                                onClick={() => {
+                                                    setIsUserMenuOpen(false);
+                                                    onShowBilling();
+                                                }}
+                                                className="block w-full text-left px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                            >
+                                                账单管理
+                                            </button>
                                         </div>
                                         <div className="border-t border-slate-50 my-1"></div>
                                         <button 
