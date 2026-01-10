@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
-import { searchSemanticSegments, fetchJinaReader } from '../../api/intelligence';
-import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, SearchIcon, GlobeIcon, DatabaseIcon } from '../icons';
+import { searchSemanticSegments } from '../../api/intelligence';
+import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 
@@ -27,35 +27,19 @@ interface Message {
 
 const MODEL_ID = "zhipu@glm-4.5-flash";
 
+// Only keep Knowledge Base Search
 const TOOLS = [
     {
         type: "function",
         function: {
             name: "search_knowledge_base",
-            description: "Search the internal automotive intelligence database for stored facts, news, and technical parameters.",
+            description: "Search the internal automotive intelligence database for facts, news, and technical parameters.",
             parameters: {
                 type: "object",
                 properties: {
                     query: {
                         type: "string",
-                        description: "The search keywords."
-                    }
-                },
-                required: ["query"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "search_google",
-            description: "Search the real-time internet (Google) for very recent news, live events, or specific data not found in the internal database.",
-            parameters: {
-                type: "object",
-                properties: {
-                    query: {
-                        type: "string",
-                        description: "The search keywords for Google."
+                        description: "The optimized search keywords for vector database."
                     }
                 },
                 required: ["query"]
@@ -105,27 +89,10 @@ const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ co
 // --- 显式检索片段展示组件 ---
 const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSearching: boolean; onClick: (item: InfoItem) => void }> = ({ query, items, isSearching, onClick }) => {
     const [isExpanded, setIsExpanded] = useState(true);
-    const [searchStep, setSearchStep] = useState(0);
-    
-    useEffect(() => {
-        if(isSearching) {
-            const interval = setInterval(() => setSearchStep(s => (s + 1) % 3), 800);
-            return () => clearInterval(interval);
-        } else {
-            setSearchStep(0);
-        }
-    }, [isSearching]);
-
-    const searchStatusText = [
-        "正在解析检索意图...",
-        "正在连接数据源...",
-        "正在阅读与整理..."
-    ];
     
     if ((!query && !isSearching) || (query === 'EMPTY_FALLBACK')) return null;
 
     const itemCount = items ? items.length : 0;
-    const isExternal = items.some(i => i.source_name === 'Google Search');
 
     return (
         <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/30 overflow-hidden animate-in fade-in slide-in-from-top-2 shadow-sm max-w-full">
@@ -133,7 +100,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100/50 transition-colors select-none"
             >
-                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-500 flex-shrink-0" /> : (isExternal ? <GlobeIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />)}
+                {isSearching ? <RefreshIcon className="w-3.5 h-3.5 animate-spin text-blue-500 flex-shrink-0" /> : <DatabaseIcon className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
                 <span className="flex-1 text-left truncate min-w-0">
                     {isSearching ? `检索中: "${query || '深度分析...'}"` : `检索完成: "${query}"`}
                 </span>
@@ -145,13 +112,8 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
             {isExpanded && (
                 <div className="p-2 border-t border-blue-100/50">
                     {isSearching && (
-                        <div className="py-3 flex flex-col items-center justify-center text-blue-400 gap-2">
-                             <div className="flex gap-1">
-                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
-                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-75"></div>
-                                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
-                             </div>
-                             <span className="text-[10px] font-medium opacity-80">{searchStatusText[searchStep]}</span>
+                        <div className="py-2 flex flex-col items-center justify-center text-blue-400 gap-1">
+                             <span className="text-[10px] font-medium opacity-80 animate-pulse">正在从知识库召回数据...</span>
                         </div>
                     )}
                     {!isSearching && (
@@ -191,13 +153,12 @@ export const AIChatPanel: React.FC<{
     const [input, setInput] = useState('');
     const [sessionId, setSessionId] = useState<string | null>(null);
     
-    // Initialize with current date to inform user
     const [messages, setMessages] = useState<Message[]>(() => {
         const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         return [{ 
             id: 'init', 
             role: 'assistant', 
-            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我可以为您深入分析汽车行业动态，支持实时检索、数据校验与长文本总结。`, 
+            content: `我是您的 **AI 情报副驾驶**。\n📅 今天是 **${today}**。\n\n我专注于智能汽车领域的垂直情报分析，支持知识库实时检索。`, 
             timestamp: Date.now() 
         }];
     });
@@ -206,7 +167,6 @@ export const AIChatPanel: React.FC<{
     const [isSearching, setIsSearching] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
-    // Parse model name for display
     const displayModelName = React.useMemo(() => {
         const parts = MODEL_ID.split('@');
         return parts.length > 1 ? parts[1].toUpperCase() : MODEL_ID.toUpperCase();
@@ -234,53 +194,52 @@ export const AIChatPanel: React.FC<{
         }
     };
 
-    // 增强版 JSON 提取
+    // Simplified JSON extraction for robustness
     const extractJson = (str: string) => {
-        const codeBlockMatch = str.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-        if (codeBlockMatch) {
-            try { return JSON.parse(codeBlockMatch[1]); } catch (e) { /* continue */ }
-        }
-        try { return JSON.parse(str); } catch (e) { /* continue */ }
-        const firstOpen = str.indexOf('{');
-        const lastClose = str.lastIndexOf('}');
-        if (firstOpen !== -1 && lastClose > firstOpen) {
-            const potentialJson = str.substring(firstOpen, lastClose + 1);
-            try { return JSON.parse(potentialJson); } catch (e) { 
-                try {
-                     const fixed = potentialJson.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-                     return JSON.parse(fixed);
-                } catch(e2) { /* continue */ }
+        try {
+            const firstOpen = str.indexOf('{');
+            const lastClose = str.lastIndexOf('}');
+            if (firstOpen !== -1 && lastClose > firstOpen) {
+                const potentialJson = str.substring(firstOpen, lastClose + 1);
+                return JSON.parse(potentialJson);
             }
-        }
+        } catch (e) { /* ignore */ }
         return null;
     };
 
     const handleSend = async () => {
-        if (!input.trim() || isStreaming || isSearching) return;
-        
-        const activeSessionId = await ensureSession();
         const currentInput = input.trim();
+        if (!currentInput || isStreaming || isSearching) return;
+        
+        // 1. Immediate UI update
+        setInput('');
         const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: currentInput, timestamp: Date.now() };
         setMessages(prev => [...prev, userMsg]);
-        setInput('');
         setIsStreaming(true);
+
+        // 2. Ensure Session
+        const activeSessionId = await ensureSession();
 
         const currentHistory = [...messages, userMsg];
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         
-        const systemPrompt = `You are Auto Insight Copilot, an expert in the automotive industry.
-Current Date: ${currentDate}.
-Your Knowledge Cutoff is old.
+        // New System Prompt
+        const systemPrompt = `你是一个情报检索和回答专家，你的回复仅允许与智能汽车相关，如果用户闲聊可以拒绝。
+当前日期: ${currentDate}。
 
-Tools available:
-1. "search_knowledge_base": For internal historical data/facts.
-2. "search_google": For real-time news (today/this month) or specific external info.
+能力限制：
+1. 你的回答必须基于事实，如果不知道，请使用 "search_knowledge_base" 工具检索。
+2. 严禁编造信息。
+3. 如果用户问题涉及具体数据、新闻、技术参数，必须优先使用工具。
 
-INSTRUCTIONS:
-- If the user asks about recent events (today, this week/month) or specific data, YOU MUST USE A TOOL.
-- When using a tool, output ONLY the JSON object. DO NOT output any conversational text.
-- Format: { "tool": "search_google", "query": "..." }
-- If no tool is needed, answer directly in Chinese.`;
+工具使用规则：
+- 仅当需要外部信息时才调用工具。
+- 调用工具时，必须输出严格的 JSON 格式： { "tool": "search_knowledge_base", "query": "优化的搜索关键词" }
+- "query" 字段应针对向量检索进行优化（去除非关键词，提取核心实体和意图）。
+
+示例：
+用户："问界M9的销量怎么样？"
+输出：{ "tool": "search_knowledge_base", "query": "问界M9 销量 数据 2024" }`;
 
         let accumulatedContent = '';
         let accumulatedReasoning = '';
@@ -296,11 +255,13 @@ INSTRUCTIONS:
                 ],
                 tools: TOOLS,
                 stream: true,
-                temperature: 0.1
+                temperature: 0.1,
+                enable_billing: false // Disable billing for AI Copilot
             }, (chunk) => {
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
                 
+                // Native Tool Call Detection
                 if (chunk.tool_calls) {
                     if (!nativeToolCall) nativeToolCall = { name: '', arguments: '' };
                     const call = chunk.tool_calls[0];
@@ -309,57 +270,37 @@ INSTRUCTIONS:
                     isToolCallDetected = true;
                 }
 
+                // Text-based JSON Tool Call Detection (Fallback)
                 const contentTrimmed = accumulatedContent.trimStart();
-                const isJsonStart = contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json');
-                
-                if (!isToolCallDetected && (
-                    contentTrimmed.includes('"tool":') || 
-                    contentTrimmed.includes('search_google')
-                )) {
+                if (!isToolCallDetected && (contentTrimmed.startsWith('{') || contentTrimmed.startsWith('```json'))) {
                     isToolCallDetected = true;
                 }
 
-                if (isJsonStart || isToolCallDetected) {
+                if (isToolCallDetected) {
                      if (!isSearching) setIsSearching(true);
-                     updateLastAssistantMessage("", accumulatedReasoning, "分析意图中...");
+                     updateLastAssistantMessage("", accumulatedReasoning, "分析检索意图中...");
                 } else {
                      updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
                 }
             }, undefined, undefined, activeSessionId || undefined);
 
-            let finalToolName = '';
+            // --- Tool Execution Logic ---
             let finalToolQuery = '';
             
+            // 1. Try Native Tool
             if (nativeToolCall?.name) {
-                finalToolName = nativeToolCall.name;
                 try {
                     const args = JSON.parse(nativeToolCall.arguments);
                     finalToolQuery = args.query;
                 } catch (e) { /* ignore */ }
             }
             
+            // 2. Try JSON Extraction from Text
             if (!finalToolQuery) {
                 const jsonObj = extractJson(accumulatedContent);
-                if (jsonObj) {
-                    finalToolName = jsonObj.tool || jsonObj.action || finalToolName;
-                    finalToolQuery = jsonObj.query || finalToolQuery;
-                    if (!finalToolName && (jsonObj.source === 'google')) finalToolName = 'search_google';
+                if (jsonObj && jsonObj.query) {
+                    finalToolQuery = jsonObj.query;
                 }
-            }
-
-            if (!finalToolQuery) {
-                const dqMatch = accumulatedContent.match(/"query"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                if (dqMatch) finalToolQuery = dqMatch[1];
-            }
-
-            const intentDetected = isToolCallDetected || !!finalToolName;
-
-            if (intentDetected && !finalToolQuery) {
-                 finalToolQuery = currentInput;
-            }
-
-            if (finalToolQuery && !finalToolName) {
-                finalToolName = (accumulatedContent.includes('google') || finalToolQuery.includes('最新')) ? 'search_google' : 'search_knowledge_base';
             }
 
             if (finalToolQuery) {
@@ -369,87 +310,29 @@ INSTRUCTIONS:
 
                 let citations: InfoItem[] = [];
                 
-                if (finalToolName === 'search_google') {
-                    const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(finalToolQuery)}&tbs=qdr:m&num=10`;
-                    
-                    try {
-                        const searchResultMarkdown = await fetchJinaReader(googleUrl, {
-                            'X-Return-Format': 'markdown',
-                            'X-Target-Selector': '#center_col', 
-                            'X-Remove-Selector': 'header, .class, #id'
-                        });
-
-                        const urls = new Set<string>();
-                        const linkRegex = /\[.*?\]\((https?:\/\/[^)]+)\)/g;
-                        let match;
-                        while ((match = linkRegex.exec(searchResultMarkdown)) !== null) {
-                            if (!match[1].includes('google.com') && !match[1].startsWith('/')) {
-                                urls.add(match[1]);
-                            }
-                        }
-
-                        const topUrls = Array.from(urls).slice(0, 5);
-                        
-                        if (topUrls.length > 0) {
-                            updateLastAssistantMessage("", accumulatedReasoning, `正在阅读 ${topUrls.length} 篇网页...`);
-                            const contentPromises = topUrls.map(async (url) => {
-                                try {
-                                    const content = await fetchJinaReader(url);
-                                    const titleMatch = content.match(/^#+\s+(.*)$/m);
-                                    const title = titleMatch ? titleMatch[1] : url;
-                                    return {
-                                        id: url,
-                                        title: title.substring(0, 100),
-                                        content: content.substring(0, 3000),
-                                        source_name: 'Google Search',
-                                        original_url: url,
-                                        created_at: new Date().toISOString(),
-                                        similarity: 1
-                                    } as InfoItem;
-                                } catch (e) {
-                                    return null;
-                                }
-                            });
-                            const fetchedArticles = await Promise.all(contentPromises);
-                            citations = fetchedArticles.filter((item): item is InfoItem => item !== null && item.content.length > 50);
-                        }
-                        
-                        if (citations.length === 0) {
-                             citations = [{
-                                id: 'google-summary',
-                                title: 'Google 搜索摘要',
-                                content: searchResultMarkdown.substring(0, 4000),
-                                source_name: 'Google Search',
-                                original_url: googleUrl,
-                                created_at: new Date().toISOString(),
-                                similarity: 1
-                            }];
-                        }
-                    } catch (e) {
-                        citations = [];
-                    }
-                } else {
-                    try {
-                        const searchRes = await searchSemanticSegments({
-                            query_text: finalToolQuery,
-                            page: 1,
-                            page_size: 10,
-                            similarity_threshold: 0.15
-                        });
-                        citations = searchRes.items || [];
-                    } catch (e) { /* ignore */ }
+                // Execute Vector Search
+                try {
+                    const searchRes = await searchSemanticSegments({
+                        query_text: finalToolQuery,
+                        page: 1,
+                        page_size: 8,
+                        similarity_threshold: 0.25
+                    });
+                    citations = searchRes.items || [];
+                } catch (e) {
+                    console.error("Search failed", e);
                 }
 
                 setIsSearching(false);
                 setIsStreaming(true); 
 
                 const context = citations.map((item, idx) => 
-                    `[${idx+1}] 标题: ${item.title}\n来源: ${item.source_name}\n内容: ${item.content}`
-                ).join('\n\n') || "未找到相关信息。";
+                    `[${idx+1}] 标题: ${item.title}\n内容: ${item.content}`
+                ).join('\n\n') || "知识库中未找到高度相关的信息。";
 
                 const toolResponseMsg = {
-                    role: 'system',
-                    content: `### ${finalToolName === 'search_google' ? '互联网搜索' : '知识库检索'}结果 (关键词: ${finalToolQuery}):\n${context}\n\n请综合以上信息回答用户。`
+                    role: 'user', // Treat tool output as user context for better instruction following in some models
+                    content: `### 检索结果 (关键词: ${finalToolQuery}):\n${context}\n\n请基于以上检索结果回答用户的问题。如果结果不相关，请诚实告知。`
                 };
 
                 accumulatedContent = '';
@@ -461,18 +344,23 @@ INSTRUCTIONS:
                         ...currentHistory.map(m => ({ role: m.role, content: m.content })),
                         toolResponseMsg
                     ],
-                    stream: true
+                    stream: true,
+                    enable_billing: false // Disable billing for AI Copilot
                 }, (chunk) => {
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
                 }, undefined, undefined, activeSessionId || undefined);
+            } else if (isToolCallDetected && !finalToolQuery) {
+                 // Fallback if tool detected but no query parsed
+                 updateLastAssistantMessage(accumulatedContent || "无法解析工具参数，请重试。", accumulatedReasoning);
             } else {
-                updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
+                 // Normal text response update is already done in stream callback
+                 updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
             }
 
         } catch (error) {
-            updateLastAssistantMessage(accumulatedContent + "\n\n> *⚠️ 连接异常，请重试。*", accumulatedReasoning);
+            updateLastAssistantMessage(accumulatedContent + "\n\n> *⚠️ 网络连接异常，请重试。*", accumulatedReasoning);
         } finally {
             setIsStreaming(false);
             setIsSearching(false);
@@ -509,9 +397,9 @@ INSTRUCTIONS:
     const renderMessageContent = (content: string, isUser: boolean) => {
         if (!content) return null;
         
-        let displayContent = content;
-        if (!isUser && displayContent.trim().startsWith('{') && displayContent.includes('tool')) {
-             return <div className="text-xs text-slate-400 italic">正在处理工具调用...</div>;
+        // Hide raw tool JSON from user view
+        if (!isUser && (content.trim().startsWith('{') || content.trim().startsWith('```json'))) {
+             return <div className="text-xs text-slate-400 italic">正在解析工具指令...</div>;
         }
 
         const userProseClass = "prose prose-sm max-w-none text-white break-words prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
@@ -521,11 +409,11 @@ INSTRUCTIONS:
             return (
                 <div 
                     className={isUser ? userProseClass : aiProseClass}
-                    dangerouslySetInnerHTML={{ __html: window.marked.parse(displayContent) }} 
+                    dangerouslySetInnerHTML={{ __html: window.marked.parse(content) }} 
                 />
             );
         }
-        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{displayContent}</div>;
+        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
     };
 
     return (

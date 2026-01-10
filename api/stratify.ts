@@ -30,6 +30,7 @@ export interface ChatCompletionRequest {
     temperature?: number;
     top_p?: number;
     max_tokens?: number;
+    enable_billing?: boolean;
 }
 
 /**

@@ -28,7 +28,8 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
 
     useEffect(() => {
         if (isOpen) {
-            setForm(channel ? { ...channel, api_key: '' } : { // Clear API key for security, user re-enters if updating
+            // Fix: Use channel data directly, do not clear api_key as backend now returns it (possibly masked or full depending on permissions)
+            setForm(channel ? { ...channel } : { 
                 channel_code: '',
                 name: '',
                 base_url: 'https://api.openai.com/v1',
@@ -115,7 +116,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                                 value={form.api_key} 
                                 onChange={e => setForm({...form, api_key: e.target.value})}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none min-h-[80px] resize-y placeholder:text-slate-400 leading-relaxed"
-                                placeholder={isEditing ? "(留空则不修改)\nsk-key1,\nsk-key2,\n..." : "sk-key1,\nsk-key2"}
+                                placeholder="sk-key1,\nsk-key2"
                             />
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed bg-blue-50 text-blue-600 p-2 rounded-lg border border-blue-100">
