@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemSource, InfoItem, User } from '../../types';
 import { lookCategories } from './data';
-import { StrategicCompass } from './StrategicCompass';
 import { IntelligenceCenter } from './IntelligenceCenter';
 import { EvidenceTrail } from './EvidenceTrail';
 import { AIChatPanel } from './AIChatPanel';
@@ -137,29 +136,15 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#f8fafc] font-sans overflow-hidden">
+        <div className="h-full flex flex-col bg-slate-100 font-sans overflow-hidden">
             
-            {/* --- Top Navigation Bar --- */}
-            <header className="flex-shrink-0 bg-white border-b border-slate-200 z-20 px-6 h-16 flex items-center justify-between shadow-sm">
-                 <div className="flex-1 overflow-hidden">
-                    <StrategicCompass
-                        categories={lookCategories}
-                        selectedLook={selectedLook}
-                        setSelectedLook={setSelectedLook}
-                        selectedSubLook={selectedSubLook}
-                        setSelectedSubLook={setSelectedSubLook}
-                        onSubCategoryClick={(value, label) => handleNavChange(value, label)}
-                        activeQuery={activeQuery}
-                    />
-                </div>
-            </header>
-
             {/* --- Main 3-Column Layout --- */}
-            <div className="flex-1 flex overflow-hidden relative bg-slate-50/50">
+            <div className="flex-1 flex overflow-hidden relative md:p-3 md:gap-3">
                 
                 {/* 1. Left Column: Intelligence List */}
                 <div className={`
-                    w-full md:w-[380px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col z-10 transition-transform duration-300 absolute md:static inset-0 h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+                    w-full md:w-[400px] flex-shrink-0 flex flex-col z-10 transition-transform duration-300 absolute md:static inset-0 h-full
+                    bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'list' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
                 `}>
                     <IntelligenceCenter
@@ -175,24 +160,30 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         onPageChange={handlePageChange}
                         onSearch={handleSearch}
                         isSidebarOpen={true}
+                        // Compass Props
+                        categories={lookCategories}
+                        selectedLook={selectedLook}
+                        setSelectedLook={setSelectedLook}
+                        selectedSubLook={selectedSubLook}
+                        setSelectedSubLook={setSelectedSubLook}
+                        onSubCategoryClick={(value, label) => handleNavChange(value, label)}
+                        activeQuery={activeQuery}
                     />
                 </div>
 
                 {/* 2. Middle Column: Detail View */}
                 <div className={`
-                    flex-1 bg-slate-50 flex flex-col min-w-0 transition-transform duration-300 absolute md:static inset-0 z-20 md:z-0
+                    flex-1 flex flex-col min-w-0 transition-transform duration-300 absolute md:static inset-0 z-20 md:z-0
+                    bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'detail' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                 `}>
-                    <div className="h-full p-0 md:p-4 lg:p-6 overflow-hidden">
-                        <div className="h-full bg-white rounded-none md:rounded-2xl border-0 md:border border-slate-200 shadow-sm overflow-hidden relative">
-                             <EvidenceTrail selectedArticle={selectedArticle} />
-                        </div>
-                    </div>
+                     <EvidenceTrail selectedArticle={selectedArticle} />
                 </div>
 
                 {/* 3. Right Column: AI Chat (Fixed) */}
                 <div className={`
-                    w-full md:w-[400px] xl:w-[450px] flex-shrink-0 bg-white border-l border-slate-200 flex flex-col z-30 transition-transform duration-300 absolute md:static inset-0 shadow-[-4px_0_24px_rgba(0,0,0,0.02)]
+                    w-full md:w-[400px] xl:w-[450px] flex-shrink-0 flex flex-col z-30 transition-transform duration-300 absolute md:static inset-0
+                    bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'chat' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                 `}>
                      <AIChatPanel onReferenceClick={handleCopilotCitationClick} />

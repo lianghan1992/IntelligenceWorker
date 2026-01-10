@@ -47,7 +47,7 @@ export const AGENTS = {
  * 用于前端日志显示、计费账单展示等非关键业务逻辑。
  */
 export const AGENT_NAMES = {
-    [AGENTS.REPORT_GENERATOR]: 'AI 深度研报生成',
+    [AGENTS.REPORT_GENERATOR]: 'AI报告生成',
     [AGENTS.NEW_TECH_IDENTIFIER]: '新技术识别',
-    [AGENTS.STRATEGIC_COPILOT]: '战略副驾驶',
+    [AGENTS.STRATEGIC_COPILOT]: 'AI情报助手',
 };

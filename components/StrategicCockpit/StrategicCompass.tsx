@@ -31,9 +31,9 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     };
 
     return (
-        <div className="flex flex-col w-full h-full justify-center">
+        <div className="w-full">
             {/* Main Categories */}
-            <div className="flex items-center space-x-3 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
                 {categories.map((category) => {
                     const isActive = selectedLook === category.key;
                     return (
@@ -41,14 +41,14 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                             key={category.key}
                             onClick={() => handleCategoryClick(category)}
                             className={`
-                                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap border
+                                flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap border shadow-sm
                                 ${isActive 
-                                    ? 'bg-slate-900 text-white border-slate-900 shadow-md transform scale-[1.02]' 
+                                    ? 'bg-slate-800 text-white border-slate-800 transform scale-[1.02]' 
                                     : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700'
                                 }
                             `}
                         >
-                            <category.icon className={`w-4 h-4 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} />
+                            <category.icon className={`w-3.5 h-3.5 ${isActive ? 'text-indigo-300' : 'text-slate-400'}`} />
                             <span>{category.label}</span>
                         </button>
                     );

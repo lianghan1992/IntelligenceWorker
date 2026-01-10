@@ -529,7 +529,7 @@ INSTRUCTIONS:
     };
 
     return (
-        <div className={`flex flex-col h-full bg-[#f8fafc] border-l border-slate-200 shadow-xl overflow-hidden ${className}`}>
+        <div className={`flex flex-col h-full bg-white shadow-xl overflow-hidden ${className}`}>
             <style>{`
                 .custom-slim-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-slim-scrollbar::-webkit-scrollbar-track { background: transparent; }
