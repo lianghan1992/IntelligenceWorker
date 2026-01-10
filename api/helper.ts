@@ -5,49 +5,58 @@
 export async function apiFetch<T>(url: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers || {});
     
-    // 关键修复：登录和注册请求不应携带旧的 Token，防止后端鉴权中间件在校验账号密码前先报错 401
-    const isAuthRequest = url.includes('/login') || url.includes('/register');
+    // 强制检查：如果是登录/注册接口，绝对不发送 Authorization 头
+    // 这可以防止后端中间件因为收到过期 Token 而提前拦截请求 (返回 401)
+    const isPublicEndpoint = url.includes('/login') || url.includes('/register');
     const token = localStorage.getItem('accessToken');
     
-    if (token && !isAuthRequest) {
+    if (token && !isPublicEndpoint) {
         headers.set('Authorization', `Bearer ${token}`);
+    } else if (isPublicEndpoint) {
+        // 调试日志：确保在登录时不发送 Token
+        console.debug(`[AutoInsight] Skipping Auth header for public endpoint: ${url}`);
     }
     
-    // Only set JSON content type if body is NOT FormData AND NOT URLSearchParams
-    // We explicitly allow DELETE to have a body and Content-Type
+    // Auto-set JSON content type
     if (!(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && options.method !== 'GET') {
         headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(url, { ...options, headers });
+    try {
+        const response = await fetch(url, { ...options, headers });
 
-    if (response.status === 401) {
-        // 关键修复：如果是正常的业务请求 Token 过期，则清除 Token 并刷新
-        // 但如果是登录请求本身返回 401（账号密码错），则不应刷新页面，否则用户看不到报错信息
-        if (!isAuthRequest) {
-            localStorage.removeItem('accessToken');
-            window.location.reload();
-            throw new Error('认证失败，请重新登录。');
+        if (response.status === 401) {
+            // 如果是普通业务接口报 401，说明 Token 过期，需要踢出用户
+            // 如果是登录接口报 401，说明密码错误，不应刷新页面
+            if (!isPublicEndpoint) {
+                console.warn('[AutoInsight] Session expired, redirecting to login.');
+                localStorage.removeItem('accessToken');
+                window.location.reload();
+                throw new Error('会话已过期，请重新登录。');
+            }
+            // 登录接口的 401 交给后续的 response.json() 处理错误信息
         }
-        // 对于登录请求的 401，我们直接交给业务逻辑处理，不触发 reload
-    }
 
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-        throw new Error(errorData.message || '请求失败');
-    }
-    
-    // Handle cases where response might be empty (e.g., 204 No Content)
-    if (response.status === 204) {
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
+            throw new Error(errorData.message || `请求失败 (${response.status})`);
+        }
+        
+        // Handle 204 No Content
+        if (response.status === 204) {
+            return {} as T;
+        }
+
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            return response.json();
+        }
+        
         return {} as T;
+    } catch (error) {
+        // 捕获网络错误等
+        throw error;
     }
-
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.indexOf("application/json") !== -1) {
-        return response.json();
-    }
-    
-    return {} as T;
 }
 
 export const createApiQuery = (params: any): string => {
@@ -57,18 +66,15 @@ export const createApiQuery = (params: any): string => {
         if (Object.prototype.hasOwnProperty.call(params, key)) {
             const value = params[key];
 
-            // Skip null, undefined, and empty strings
             if (value === null || value === undefined || value === '') {
                 continue;
             }
 
             if (Array.isArray(value)) {
-                // For arrays, append each item if the array is not empty
                 if (value.length > 0) {
                     value.forEach(item => searchParams.append(key, String(item)));
                 }
             } else {
-                // For other types, just append
                 searchParams.append(key, String(value));
             }
         }
