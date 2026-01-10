@@ -25,7 +25,7 @@ interface Message {
     timestamp?: number;
 }
 
-const MODEL_ID = "zhipu@glm-4-flash";
+const MODEL_ID = "zhipu@glm-4.5-flash";
 
 const TOOLS = [
     {
