@@ -25,7 +25,7 @@ interface Message {
     timestamp?: number;
 }
 
-const MODEL_ID = "openrouter@nex-agi/deepseek-v3.1-nex-n1:free";
+const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
 
 const TOOLS = [
     {
