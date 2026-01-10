@@ -269,7 +269,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             await streamChatCompletions({
                 model: modelToUse, 
                 messages: apiMessages,
-                stream: true
+                stream: true,
+                enable_billing: true
             }, (chunk) => {
                 if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                 if (chunk.content) accumulatedContent += chunk.content;
@@ -417,7 +418,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 await streamChatCompletions({
                     model: modelStr,
                     messages: messages,
-                    stream: true
+                    stream: true,
+                    enable_billing: true
                 }, (chunk) => {
                     if (chunk.reasoning) accReasoning += chunk.reasoning;
                     if (chunk.content) accContent += chunk.content;
@@ -556,7 +558,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
              await streamChatCompletions({
                 model: modelStr,
                 messages: messages as any[],
-                stream: true
+                stream: true,
+                enable_billing: true
             }, (chunk) => {
                 if (chunk.reasoning) accReasoning += chunk.reasoning;
                 if (chunk.content) accContent += chunk.content;

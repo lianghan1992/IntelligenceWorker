@@ -26,8 +26,28 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
     const [startX, setStartX] = useState(0);
     const [scrollLeft, setScrollLeft] = useState(0);
 
-    const handleCategoryClick = (category: Category) => {
+    const handleCategoryClick = (category: Category, e: React.MouseEvent<HTMLButtonElement>) => {
         if (isDragging) return; // Prevent click when dragging
+
+        // 核心逻辑：计算并滚动到中间
+        if (scrollRef.current) {
+            const container = scrollRef.current;
+            const target = e.currentTarget;
+            
+            // 目标元素中心点相对于父容器内容的偏移量
+            const targetCenter = target.offsetLeft + target.offsetWidth / 2;
+            // 容器可视宽度的一半
+            const containerHalfWidth = container.offsetWidth / 2;
+            
+            // 计算需要的 scrollLeft
+            const scrollTo = targetCenter - containerHalfWidth;
+
+            container.scrollTo({
+                left: scrollTo,
+                behavior: 'smooth'
+            });
+        }
+
         setSelectedLook(category.key);
         setSelectedSubLook(null);
         onSubCategoryClick(category.label, category.label);
@@ -77,7 +97,7 @@ export const StrategicCompass: React.FC<StrategicCompassProps> = ({
                     return (
                         <button
                             key={category.key}
-                            onClick={() => handleCategoryClick(category)}
+                            onClick={(e) => handleCategoryClick(category, e)}
                             className={`
                                 flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all duration-300 whitespace-nowrap shadow-sm border
                                 ${isActive 

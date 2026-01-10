@@ -126,7 +126,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                     { role: 'system', content: prompt.content },
                     { role: 'user', content: userPrompt }
                 ],
-                stream: true
+                stream: true,
+                enable_billing: true
             }, (data) => {
                 if (data.content) accumulatedText += data.content;
             }, () => {
