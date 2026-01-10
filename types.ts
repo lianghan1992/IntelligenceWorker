@@ -263,10 +263,10 @@ export interface SemanticSearchResponse {
 }
 
 export interface CreateIntelLlmTaskRequest {
-    user_uuid: string;
+    user_id: string;
     description: string;
     time_range?: string;
-    source_uuids?: string[];
+    source_ids?: string[];
     need_summary?: boolean;
 }
 

@@ -6,10 +6,15 @@ import { User } from '../types';
 import { apiFetch } from './helper';
 
 // --- Auth API ---
-export const login = (email: string, password: string): Promise<{ accessToken: string; user: User }> => {
+export const login = async (email: string, password: string): Promise<{ accessToken: string; user: User }> => {
     // 增加 trim() 以防止复制粘贴时首尾带空格导致后端校验失败
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
+
+    // 【关键修复】在发起登录请求前，主动清除本地可能存在的旧 Token
+    // 这确保了 apiFetch 即使读取 localStorage 也读不到 Token，从而绝对不会发送 Authorization 头
+    // 比依赖 URL 判断更安全、更彻底
+    localStorage.removeItem('accessToken');
 
     return apiFetch<{ accessToken: string; user: User }>(`${USER_SERVICE_PATH}/login`, {
         method: 'POST',
@@ -24,6 +29,9 @@ export const register = (username: string, email: string, password: string): Pro
     const cleanUsername = username.trim();
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
+
+    // 注册时同样清除旧 Token
+    localStorage.removeItem('accessToken');
 
     return apiFetch<{ message: string }>(`${USER_SERVICE_PATH}/register`, {
         method: 'POST',

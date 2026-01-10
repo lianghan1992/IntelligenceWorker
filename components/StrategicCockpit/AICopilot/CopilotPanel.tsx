@@ -45,7 +45,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClos
             const timeRange = timeRangeParts.length > 0 ? timeRangeParts.join(',') : undefined;
 
             await createIntelLlmTask({
-                user_uuid: user.id,
+                user_id: user.id, // Fixed: use user_id to match backend
                 description,
                 time_range: timeRange,
                 need_summary: config.needSummary

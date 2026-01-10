@@ -20,13 +20,13 @@ const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/
 
 // Loading Fallback Component
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-full w-full">
+  <div className="flex items-center justify-center h-screen w-full bg-gray-50">
     <div className="flex flex-col items-center gap-3">
       <svg className="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
-      <span className="text-sm text-gray-500">加载模块中...</span>
+      <span className="text-sm text-gray-500 font-medium">系统初始化中...</span>
     </div>
   </div>
 );
@@ -34,7 +34,13 @@ const PageLoader = () => (
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<View>('cockpit'); // Default view updated to 'cockpit'
-  const [isLoading, setIsLoading] = useState(true);
+  
+  // ⚡️ PERFORMANCE OPTIMIZATION: Optimistic Initialization
+  // Initialize isLoading based on whether we potentially have a session (token exists).
+  // If no token (New User), start as FALSE to render HomePage immediately (Zero Wait Time).
+  // If token exists (Returning User), start as TRUE to verify session.
+  const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('accessToken'));
+  
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showBillingModal, setShowBillingModal] = useState(false);
@@ -42,7 +48,6 @@ const App: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
   // PWA Cleanup: Unregister Service Worker if it exists
-  // Executing this inside useEffect ensures the document is in a valid state
   useEffect(() => {
     const cleanupServiceWorker = async () => {
       if ('serviceWorker' in navigator) {
@@ -50,8 +55,8 @@ const App: React.FC = () => {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) {
             await registration.unregister();
-            console.log('ServiceWorker unregistered successfully.');
           }
+          console.log('ServiceWorker cleanup done.');
         } catch (error) {
           console.warn('Service Worker unregistration failed (non-critical):', error);
         }
@@ -74,32 +79,37 @@ const App: React.FC = () => {
 
   const loadInitialData = useCallback(async () => {
     if (!user) return;
-    setIsLoading(true);
+    // Don't set full page loading for background data fetch
     try {
         const subs = await getUserSubscribedSources();
         setSubscriptions(subs);
     } catch (error) {
       console.error("Failed to load initial data", error);
-    } finally {
-      setIsLoading(false);
     }
   }, [user]);
 
   useEffect(() => {
     const checkUser = async () => {
-      setIsLoading(true);
       const token = localStorage.getItem('accessToken');
-      if (token) {
-        try {
-          const userData = await getMe();
-          setUser(userData);
-        } catch (e) {
-          console.error("Failed to verify token:", e);
-          localStorage.removeItem('accessToken');
-          setUser(null);
-        }
+      
+      // If no token, we are already in "not loading" state (from useState init).
+      // Just ensure we are explicitly set to false to be safe.
+      if (!token) {
+          setIsLoading(false);
+          return;
       }
-      setIsLoading(false);
+
+      // If token exists, verify it
+      try {
+        const userData = await getMe();
+        setUser(userData);
+      } catch (e) {
+        console.error("Failed to verify token:", e);
+        localStorage.removeItem('accessToken');
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
     };
     checkUser();
   }, []);
@@ -114,10 +124,12 @@ const App: React.FC = () => {
       setView(newView);
   };
   
-  if (isLoading && !user) {
-    return <div className="flex items-center justify-center h-screen bg-gray-100 text-gray-600">正在初始化应用...</div>;
+  // Show loading spinner ONLY if we are verifying a session
+  if (isLoading) {
+    return <PageLoader />;
   }
 
+  // Instant render for non-authenticated users
   if (!user) {
     return (
       <>
@@ -128,10 +140,6 @@ const App: React.FC = () => {
   }
 
   const renderView = () => {
-    if (isLoading) {
-        return <div className="flex items-center justify-center h-full text-gray-600">正在加载数据...</div>;
-    }
-
     switch (view) {
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} user={user} />;

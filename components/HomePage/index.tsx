@@ -11,18 +11,19 @@ interface HomePageProps {
     onEnter: () => void;
 }
 
-// --- 1. 全局背景：动态光斑 ---
+// --- 1. 全局背景：动态光斑 (优化版) ---
+// 移除了 mix-blend-mode: multiply 和高强度 blur，改为 opacity 和 transform，极大降低渲染开销
 const BackgroundBlobs: React.FC = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
-        {/* Noise Texture */}
-        <div className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay" 
+        {/* Noise Texture - Removed mix-blend-overlay for performance, just low opacity */}
+        <div className="absolute inset-0 z-0 opacity-[0.02]" 
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
         </div>
         
-        {/* Animated Blobs - Updated colors for Indigo theme */}
-        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob"></div>
-        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-blue-200/40 rounded-full mix-blend-multiply filter blur-[80px] animate-blob animation-delay-4000"></div>
+        {/* Animated Blobs - Optimized: Reduced blur, removed blend mode, added will-change */}
+        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-indigo-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob will-change-transform"></div>
+        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob animation-delay-2000 will-change-transform"></div>
+        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-blue-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob animation-delay-4000 will-change-transform"></div>
         
         <style>{`
             @keyframes blob {
@@ -32,7 +33,7 @@ const BackgroundBlobs: React.FC = () => (
                 100% { transform: translate(0px, 0px) scale(1); }
             }
             .animate-blob {
-                animation: blob 10s infinite;
+                animation: blob 20s infinite;
             }
             .animation-delay-2000 {
                 animation-delay: 2s;
@@ -40,59 +41,57 @@ const BackgroundBlobs: React.FC = () => (
             .animation-delay-4000 {
                 animation-delay: 4s;
             }
+            /* GPU Acceleration Hint */
+            .will-change-transform {
+                will-change: transform;
+            }
         `}</style>
     </div>
 );
 
-// --- 2. Hero区域特效：五彩粒子汇聚流 ---
+// --- 2. Hero区域特效：五彩粒子汇聚流 (优化版) ---
+// 移除了 SVG filter (glow-strong) 以避免每一帧的重绘
 const HeroParticleConvergence: React.FC = () => {
     return (
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
             <svg className="w-full h-full opacity-80" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice">
-                <defs>
-                    <filter id="glow-strong" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="3" result="blur" />
-                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                    </filter>
-                </defs>
-                
                 <path id="hero-p1" d="M 0,100 Q 360,200 720,300" fill="none" />
                 <path id="hero-p2" d="M 0,700 Q 360,500 720,300" fill="none" />
                 <path id="hero-p3" d="M 1440,100 Q 1080,200 720,300" fill="none" />
                 <path id="hero-p4" d="M 1440,700 Q 1080,500 720,300" fill="none" />
                 <path id="hero-p5" d="M 720,-50 Q 720,150 720,300" fill="none" />
 
-                <g filter="url(#glow-strong)">
-                    <circle r="4" fill="#ef4444">
+                <g>
+                    <circle r="4" fill="#ef4444" opacity="0.8">
                         <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p1"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="3s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;0.8;0" dur="3s" repeatCount="indefinite" />
                         <animate attributeName="r" values="2;5;0" dur="3s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="4" fill="#3b82f6">
+                    <circle r="4" fill="#3b82f6" opacity="0.8">
                         <animateMotion dur="4s" begin="0.5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p3"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="4s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;0.8;0" dur="4s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="5" fill="#a855f7">
+                    <circle r="5" fill="#a855f7" opacity="0.8">
                         <animateMotion dur="5s" begin="0s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p2"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;0.8;0" dur="5s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="4" fill="#10b981">
+                    <circle r="4" fill="#10b981" opacity="0.8">
                         <animateMotion dur="3.5s" begin="1s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p4"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="3.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;0.8;0" dur="3.5s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="4" fill="#f59e0b">
+                    <circle r="4" fill="#f59e0b" opacity="0.8">
                         <animateMotion dur="4.5s" begin="2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p5"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;1;0" dur="4.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;0.8;0" dur="4.5s" repeatCount="indefinite" />
                     </circle>
                 </g>
             </svg>
@@ -131,23 +130,16 @@ const DataProcessingVisual: React.FC = () => {
                             <stop offset="50%" stopColor="#4f46e5" stopOpacity="0.6" />
                             <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
                         </linearGradient>
-                        <filter id="glow-line-strong">
-                            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                            <feMerge>
-                                <feMergeNode in="coloredBlur"/>
-                                <feMergeNode in="SourceGraphic"/>
-                            </feMerge>
-                        </filter>
                     </defs>
 
                     <g className="hidden md:block" opacity="0.8">
                         {[100, 200, 300].map((y, i) => (
-                            <path key={`in-${i}`} d={`M 300,${y} C 450,${y} 400,225 640,225`} fill="none" stroke="url(#flow-gradient)" strokeWidth="1.5" strokeDasharray="4 4" filter="url(#glow-line-strong)">
+                            <path key={`in-${i}`} d={`M 300,${y} C 450,${y} 400,225 640,225`} fill="none" stroke="url(#flow-gradient)" strokeWidth="1.5" strokeDasharray="4 4">
                                 <animate attributeName="stroke-dashoffset" from="16" to="0" dur="1.5s" repeatCount="indefinite" />
                             </path>
                         ))}
                         {[100, 200, 300].map((y, i) => (
-                            <path key={`out-${i}`} d={`M 640,225 C 880,225 830,${y} 980,${y}`} fill="none" stroke="url(#flow-gradient)" strokeWidth="1.5" strokeDasharray="4 4" filter="url(#glow-line-strong)">
+                            <path key={`out-${i}`} d={`M 640,225 C 880,225 830,${y} 980,${y}`} fill="none" stroke="url(#flow-gradient)" strokeWidth="1.5" strokeDasharray="4 4">
                                 <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="1.5s" repeatCount="indefinite" />
                             </path>
                         ))}
@@ -155,10 +147,10 @@ const DataProcessingVisual: React.FC = () => {
                     <g className="md:hidden" opacity="0.8">
                         {[100, 200].map((x, i) => (
                             <React.Fragment key={i}>
-                                <path d={`M ${x},150 C ${x},250 200,250 200,225`} fill="none" stroke="url(#flow-gradient-vertical)" strokeWidth="2" strokeDasharray="4 4" filter="url(#glow-line-strong)">
+                                <path d={`M ${x},150 C ${x},250 200,250 200,225`} fill="none" stroke="url(#flow-gradient-vertical)" strokeWidth="2" strokeDasharray="4 4">
                                     <animate attributeName="stroke-dashoffset" from="8" to="0" dur="1s" repeatCount="indefinite" />
                                 </path>
-                                <path d={`M 200,225 C 200,350 ${x},350 ${x},450`} fill="none" stroke="url(#flow-gradient-vertical)" strokeWidth="2" strokeDasharray="4 4" filter="url(#glow-line-strong)">
+                                <path d={`M 200,225 C 200,350 ${x},350 ${x},450`} fill="none" stroke="url(#flow-gradient-vertical)" strokeWidth="2" strokeDasharray="4 4">
                                     <animate attributeName="stroke-dashoffset" from="0" to="-8" dur="1s" repeatCount="indefinite" />
                                 </path>
                             </React.Fragment>

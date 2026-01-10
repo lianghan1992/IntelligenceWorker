@@ -89,10 +89,10 @@ export const LlmTaskManager: React.FC = () => {
             const timeRange = timeRangeParts.length > 0 ? timeRangeParts.join(',') : undefined;
 
             await createIntelLlmTask({
-                user_uuid: userUuid,
+                user_id: userUuid, // Fixed: use user_id to match backend
                 description,
                 time_range: timeRange,
-                source_uuids: selectedSources.length > 0 ? selectedSources : undefined,
+                source_ids: selectedSources.length > 0 ? selectedSources : undefined, // Fixed: use source_ids to match backend
                 need_summary: needSummary
             });
             

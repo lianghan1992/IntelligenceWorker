@@ -10,14 +10,19 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
     const isPublicEndpoint = url.includes('/login') || url.includes('/register');
     const token = localStorage.getItem('accessToken');
     
-    if (token && !isPublicEndpoint) {
-        headers.set('Authorization', `Bearer ${token}`);
-    } else if (isPublicEndpoint) {
-        // 调试日志：确保在登录时不发送 Token
-        console.debug(`[AutoInsight] Skipping Auth header for public endpoint: ${url}`);
+    // Debug Log: 帮助确认是否运行了新代码
+    if (isPublicEndpoint) {
+        console.debug(`%c[AutoInsight v1.3] Public Endpoint Request: ${url}`, 'color: blue; font-weight: bold;');
     }
     
-    // Auto-set JSON content type
+    // 注意：api/auth.ts 现在会在调用此函数前主动清除 accessToken
+    // 所以这里的 token 变量在登录时应为 null
+    if (token && !isPublicEndpoint) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+    
+    // 强制设置 Content-Type 为 application/json (除非是 FormData)
+    // 确保后端能正确解析 Body
     if (!(options.body instanceof FormData) && !(options.body instanceof URLSearchParams) && options.method !== 'GET') {
         headers.set('Content-Type', 'application/json');
     }
@@ -34,12 +39,14 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
                 window.location.reload();
                 throw new Error('会话已过期，请重新登录。');
             }
-            // 登录接口的 401 交给后续的 response.json() 处理错误信息
+            // 登录接口的 401 (账号密码错误) 交给后续逻辑处理，不要在这里 throw
         }
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-            throw new Error(errorData.message || `请求失败 (${response.status})`);
+            // 尝试读取后端返回的错误详情 (例如 {"detail": "Incorrect password"})
+            const errorData = await response.json().catch(() => null);
+            const errorMessage = errorData?.detail || errorData?.message || `请求失败 (${response.status})`;
+            throw new Error(errorMessage);
         }
         
         // Handle 204 No Content
