@@ -72,7 +72,7 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                     </button>
                 </div>
                 
-                <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">渠道代码 (Code)</label>
@@ -106,17 +106,21 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">API Key</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
+                            API Key (支持多Key轮询)
+                        </label>
                         <div className="relative">
-                            <KeyIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input 
-                                type="password"
+                            <KeyIcon className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                            <textarea 
                                 value={form.api_key} 
                                 onChange={e => setForm({...form, api_key: e.target.value})}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder={isEditing ? "(留空则不修改)" : "sk-..."}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none min-h-[80px] resize-y placeholder:text-slate-400 leading-relaxed"
+                                placeholder={isEditing ? "(留空则不修改)\nsk-key1,\nsk-key2,\n..." : "sk-key1,\nsk-key2"}
                             />
                         </div>
+                        <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed bg-blue-50 text-blue-600 p-2 rounded-lg border border-blue-100">
+                            <strong>提示：</strong> 支持配置多个 API Key 以实现负载均衡。请使用英文逗号分隔，系统将自动轮询使用。
+                        </p>
                     </div>
 
                     <div>
@@ -124,32 +128,34 @@ const ChannelEditorModal: React.FC<ChannelEditorModalProps> = ({ isOpen, onClose
                         <textarea 
                             value={form.models} 
                             onChange={e => setForm({...form, models: e.target.value})}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none h-20 resize-y"
                             placeholder="gpt-4o, claude-3-5-sonnet, gemini-pro..."
                         />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="checkbox" 
-                            id="is_active"
-                            checked={form.is_active}
-                            onChange={e => setForm({...form, is_active: e.target.checked})}
-                            className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                        />
-                        <label htmlFor="is_active" className="text-sm font-bold text-slate-700">启用此渠道</label>
+                    <div className="flex items-center gap-2 pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input 
+                                type="checkbox" 
+                                id="is_active"
+                                checked={form.is_active}
+                                onChange={e => setForm({...form, is_active: e.target.checked})}
+                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300 cursor-pointer"
+                            />
+                            <span className="text-sm font-bold text-slate-700">启用此渠道</span>
+                        </label>
                     </div>
                 </div>
 
                 <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                    <button onClick={onClose} className="px-5 py-2 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-500 font-bold text-sm hover:bg-slate-200 transition-colors">取消</button>
                     <button 
                         onClick={handleSubmit} 
                         disabled={isSaving || !form.channel_code || !form.name}
-                        className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
                     >
                         {isSaving ? <Spinner /> : <CheckIcon className="w-4 h-4" />}
-                        保存
+                        保存配置
                     </button>
                 </div>
             </div>

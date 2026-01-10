@@ -25,7 +25,7 @@ interface Message {
     timestamp?: number;
 }
 
-const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
+const MODEL_ID = "zhipu@glm-4-flash";
 
 const TOOLS = [
     {
@@ -205,6 +205,12 @@ export const AIChatPanel: React.FC<{
     const [isStreaming, setIsStreaming] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    
+    // Parse model name for display
+    const displayModelName = React.useMemo(() => {
+        const parts = MODEL_ID.split('@');
+        return parts.length > 1 ? parts[1].toUpperCase() : MODEL_ID.toUpperCase();
+    }, []);
 
     const scrollToBottom = () => {
         setTimeout(() => {
@@ -539,7 +545,7 @@ INSTRUCTIONS:
                     </div>
                     <div>
                         <h3 className="text-sm font-extrabold text-slate-800 tracking-tight">AI Copilot</h3>
-                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Insight Assistant</p>
+                        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{displayModelName}</p>
                     </div>
                 </div>
                 {isSearching && (

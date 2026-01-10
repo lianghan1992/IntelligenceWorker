@@ -11,7 +11,7 @@ const ArticleCard: React.FC<{
     <div
         onClick={onClick}
         className={`
-            group p-3 rounded-[12px] transition-all duration-200 cursor-pointer mb-2 border relative overflow-hidden
+            group p-3 md:p-3 rounded-[12px] transition-all duration-200 cursor-pointer mb-2 border relative overflow-hidden
             ${isActive 
                 ? 'bg-white border-indigo-500/30 shadow-md shadow-indigo-500/5 ring-1 ring-indigo-500/20 z-10' 
                 : 'bg-white border-slate-100 shadow-sm hover:shadow hover:border-slate-300/50 hover:-translate-y-0.5'
@@ -20,14 +20,15 @@ const ArticleCard: React.FC<{
     >
         {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>}
         
-        <h4 className={`font-bold text-[13px] sm:text-[14px] leading-snug line-clamp-2 mb-2 transition-colors ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
+        {/* Mobile-optimized Title */}
+        <h4 className={`font-bold text-[14px] sm:text-[14px] leading-snug line-clamp-2 mb-2 transition-colors ${isActive ? 'text-indigo-900' : 'text-slate-800 group-hover:text-indigo-700'}`}>
             {article.title}
         </h4>
 
         <div className="flex justify-between items-center gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
                 <span className={`
-                    inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full uppercase
+                    inline-flex items-center px-2 py-0.5 text-[10px] font-bold tracking-wide rounded-full uppercase truncate max-w-[120px]
                     ${isActive ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors'}
                 `}>
                     {article.source_name}
@@ -39,7 +40,7 @@ const ArticleCard: React.FC<{
                     </span>
                 )}
             </div>
-            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-medium whitespace-nowrap">
                 <ClockIcon className="w-3 h-3" />
                 {new Date(article.publish_date || article.created_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </span>
