@@ -24,11 +24,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
     const handleDownload = async () => {
         setIsDownloading(true);
         try {
-            const blob = await downloadIntelLlmTaskReport(task.uuid);
+            const blob = await downloadIntelLlmTaskReport(task.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `report_${task.uuid.slice(0, 8)}.csv`;
+            a.download = `report_${task.id.slice(0, 8)}.csv`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -67,7 +67,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task }) => {
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-mono text-slate-400">ID: {task.uuid.slice(0, 6)}</span>
+                <span className="text-[10px] font-mono text-slate-400">ID: {task.id.slice(0, 6)}</span>
                 <span className="text-[10px] text-slate-400">
                     {new Date(task.created_at).toLocaleDateString()} {new Date(task.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                 </span>

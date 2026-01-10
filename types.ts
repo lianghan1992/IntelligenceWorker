@@ -271,11 +271,12 @@ export interface CreateIntelLlmTaskRequest {
 }
 
 export interface IntelLlmTask {
-    uuid: string;
+    id: string;
     description: string;
     status: string;
     progress: number;
     created_at: string;
+    time_range?: string;
 }
 
 export interface IntelligenceTaskPublic extends SpiderTask {

@@ -101,7 +101,7 @@ export const CopilotPanel: React.FC<CopilotPanelProps> = ({ user, isOpen, onClos
                     </div>
                 ) : (
                     tasks.map(task => (
-                        <TaskItem key={task.uuid} task={task} />
+                        <TaskItem key={task.id} task={task} />
                     ))
                 )}
             </div>

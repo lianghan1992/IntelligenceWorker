@@ -434,8 +434,8 @@ export const getIntelLlmTasks = (params: any): Promise<{ items: IntelLlmTask[] }
     return apiFetch<{ items: IntelLlmTask[] }>(`${INTELSPIDER_SERVICE_PATH}/llm/tasks${query}`); 
 }
 
-export const downloadIntelLlmTaskReport = async (uuid: string): Promise<Blob> => {
-    const url = `${INTELSPIDER_SERVICE_PATH}/llm/tasks/${uuid}/download`;
+export const downloadIntelLlmTaskReport = async (id: string): Promise<Blob> => {
+    const url = `${INTELSPIDER_SERVICE_PATH}/llm/tasks/${id}/download`;
     const token = localStorage.getItem('accessToken');
     const headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);

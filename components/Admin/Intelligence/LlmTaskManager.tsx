@@ -113,13 +113,13 @@ export const LlmTaskManager: React.FC = () => {
     };
 
     const handleDownload = async (task: IntelLlmTask) => {
-        setIsDownloading(task.uuid);
+        setIsDownloading(task.id);
         try {
-            const blob = await downloadIntelLlmTaskReport(task.uuid);
+            const blob = await downloadIntelLlmTaskReport(task.id);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `report_${task.uuid.slice(0, 8)}.csv`;
+            a.download = `report_${task.id.slice(0, 8)}.csv`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -264,12 +264,11 @@ export const LlmTaskManager: React.FC = () => {
                                 <tr><td colSpan={5} className="py-8 text-center text-gray-400">暂无任务</td></tr>
                             ) : (
                                 tasks.map(task => (
-                                    <tr key={task.uuid} className="hover:bg-gray-50 transition-colors">
+                                    <tr key={task.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-gray-900 max-w-md truncate" title={task.description}>
                                             {task.description}
                                         </td>
                                         <td className="px-6 py-4 text-xs font-mono text-gray-500">
-                                            {/* @ts-ignore: Assuming time_range exists on IntelLlmTask based on create payload */}
                                             {task.time_range || '-'}
                                         </td>
                                         <td className="px-6 py-4">
@@ -282,10 +281,10 @@ export const LlmTaskManager: React.FC = () => {
                                             {task.status === 'completed' && (
                                                 <button 
                                                     onClick={() => handleDownload(task)}
-                                                    disabled={isDownloading === task.uuid}
+                                                    disabled={isDownloading === task.id}
                                                     className="text-purple-600 hover:text-purple-800 font-bold text-xs flex items-center gap-1 ml-auto disabled:opacity-50"
                                                 >
-                                                    {isDownloading === task.uuid ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
+                                                    {isDownloading === task.id ? <Spinner /> : <DownloadIcon className="w-3.5 h-3.5" />}
                                                     下载报告
                                                 </button>
                                             )}
