@@ -242,6 +242,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAcc
                     onToggleHistory={() => setIsHistoryOpen(true)}
                     user={user}
                     onTriggerLogin={onTriggerLogin}
+                    checkProAccess={checkProAccess}
                     {...sharedProps}
                 />
             </div>

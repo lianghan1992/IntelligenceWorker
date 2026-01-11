@@ -165,6 +165,7 @@ interface CopilotSidebarProps {
     onRefreshSession?: () => void;
     user?: User | null;
     onTriggerLogin?: () => void;
+    checkProAccess: () => boolean; // Added
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
@@ -172,7 +173,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
     sessionId, statusBar,
     sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession,
-    user, onTriggerLogin
+    user, onTriggerLogin, checkProAccess
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -801,7 +802,12 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             {stage === 'compose' && allTextReady && !autoGenMode && !hasHtml && (
                 <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4">
                     <button 
-                        onClick={() => setAutoGenMode('html')}
+                        onClick={() => {
+                            // PLG Gate for HTML Generation
+                            if (checkProAccess()) {
+                                setAutoGenMode('html');
+                            }
+                        }}
                         className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
                     >
                         <PlayIcon className="w-3 h-3" /> 开始设计幻灯片
