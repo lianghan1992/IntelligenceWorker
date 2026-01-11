@@ -2,22 +2,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { 
     ArrowRightIcon, VideoCameraIcon, LogoIcon, 
-    EyeIcon, ChartIcon, DocumentTextIcon, SparklesIcon
+    EyeIcon, ChartIcon, DocumentTextIcon, SparklesIcon,
+    GlobeIcon, ChipIcon, LightningBoltIcon
 } from '../icons';
 
 interface HomePageProps {
     onEnter: () => void;
 }
 
-// ... (Keep existing BackgroundBlobs component unchanged) ...
+// --- Visual Components ---
+
 const BackgroundBlobs: React.FC = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none z-0">
-        <div className="absolute inset-0 z-0 opacity-[0.02]" 
+        <div className="absolute inset-0 z-0 opacity-[0.03]" 
              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}>
         </div>
-        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-indigo-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob will-change-transform"></div>
-        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob animation-delay-2000 will-change-transform"></div>
-        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-blue-200/30 rounded-full filter blur-[60px] opacity-60 animate-blob animation-delay-4000 will-change-transform"></div>
+        <div className="absolute top-[-10%] left-[10%] w-[45rem] h-[45rem] bg-indigo-400/20 rounded-full filter blur-[80px] opacity-60 animate-blob will-change-transform mix-blend-multiply"></div>
+        <div className="absolute top-[-10%] right-[10%] w-[40rem] h-[40rem] bg-purple-400/20 rounded-full filter blur-[80px] opacity-60 animate-blob animation-delay-2000 will-change-transform mix-blend-multiply"></div>
+        <div className="absolute bottom-[-20%] left-[30%] w-[50rem] h-[50rem] bg-blue-400/20 rounded-full filter blur-[80px] opacity-60 animate-blob animation-delay-4000 will-change-transform mix-blend-multiply"></div>
         <style>{`
             @keyframes blob {
                 0% { transform: translate(0px, 0px) scale(1); }
@@ -34,75 +36,44 @@ const BackgroundBlobs: React.FC = () => (
             .animation-delay-4000 {
                 animation-delay: 4s;
             }
-            .will-change-transform {
-                will-change: transform;
-            }
         `}</style>
     </div>
 );
 
-// ... (Keep HeroParticleConvergence, DataProcessingVisual, Mock components, ScrollReveal unchanged) ...
-// For brevity, I am assuming the intermediate visual components are preserved exactly as is.
-// I will include the full file content structure but focus on the main change at the bottom.
-
 const HeroParticleConvergence: React.FC = () => {
     return (
         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-            <svg className="w-full h-full opacity-80" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice">
-                <path id="hero-p1" d="M 0,100 Q 360,200 720,300" fill="none" />
-                <path id="hero-p2" d="M 0,700 Q 360,500 720,300" fill="none" />
-                <path id="hero-p3" d="M 1440,100 Q 1080,200 720,300" fill="none" />
-                <path id="hero-p4" d="M 1440,700 Q 1080,500 720,300" fill="none" />
-                <path id="hero-p5" d="M 720,-50 Q 720,150 720,300" fill="none" />
+            <svg className="w-full h-full opacity-60" viewBox="0 0 1440 800" preserveAspectRatio="xMidYMid slice">
+                <path id="hero-p1" d="M -100,200 Q 360,400 720,400 T 1540,200" fill="none" stroke="url(#grad1)" strokeWidth="0.5" />
+                <path id="hero-p2" d="M -100,600 Q 360,400 720,400 T 1540,600" fill="none" stroke="url(#grad2)" strokeWidth="0.5" />
+                <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#818cf8" stopOpacity="0" />
+                        <stop offset="50%" stopColor="#6366f1" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
+                    </linearGradient>
+                    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#c084fc" stopOpacity="0" />
+                        <stop offset="50%" stopColor="#a855f7" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#c084fc" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
 
                 <g>
-                    <circle r="4" fill="#ef4444" opacity="0.8">
-                        <animateMotion dur="3s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
+                    <circle r="3" fill="#6366f1" opacity="0.8">
+                        <animateMotion dur="6s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p1"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;0.8;0" dur="3s" repeatCount="indefinite" />
-                        <animate attributeName="r" values="2;5;0" dur="3s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;1;0" dur="6s" repeatCount="indefinite" />
                     </circle>
-                    <circle r="4" fill="#3b82f6" opacity="0.8">
-                        <animateMotion dur="4s" begin="0.5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
-                            <mpath href="#hero-p3"/>
-                        </animateMotion>
-                        <animate attributeName="opacity" values="0;0.8;0" dur="4s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="5" fill="#a855f7" opacity="0.8">
-                        <animateMotion dur="5s" begin="0s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
+                    <circle r="2" fill="#a855f7" opacity="0.6">
+                        <animateMotion dur="8s" begin="1s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
                             <mpath href="#hero-p2"/>
                         </animateMotion>
-                        <animate attributeName="opacity" values="0;0.8;0" dur="5s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="4" fill="#10b981" opacity="0.8">
-                        <animateMotion dur="3.5s" begin="1s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
-                            <mpath href="#hero-p4"/>
-                        </animateMotion>
-                        <animate attributeName="opacity" values="0;0.8;0" dur="3.5s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="4" fill="#f59e0b" opacity="0.8">
-                        <animateMotion dur="4.5s" begin="2s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.4 0 0.2 1">
-                            <mpath href="#hero-p5"/>
-                        </animateMotion>
-                        <animate attributeName="opacity" values="0;0.8;0" dur="4.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0;1;0" dur="8s" repeatCount="indefinite" />
                     </circle>
                 </g>
             </svg>
-        </div>
-    );
-};
-
-const DataProcessingVisual: React.FC = () => {
-    // ... (Keep existing visualization code) ...
-    // Simplified for XML block limit, assume exact same visual component logic
-    return (
-        <div className="relative w-full max-w-7xl mx-auto mt-16 flex flex-col md:flex-row h-[400px] z-20 group items-center justify-center">
-             {/* Placeholder for complex visual to save space in XML response. 
-                 In real implementation, keep original code. */}
-             <div className="text-center text-slate-400 animate-pulse">
-                [AI Processing Visualization Layer]
-             </div>
         </div>
     );
 };
@@ -138,10 +109,27 @@ const ScrollReveal: React.FC<{ children: React.ReactNode; delay?: number }> = ({
     );
 };
 
-// ... FeatureSection, Mock components ... 
-// Assuming they exist or using placeholders. 
-// Since I must provide full content, I will implement a simplified version of the section renders 
-// to ensure the file is valid while focusing on the requested change.
+const FeatureCard: React.FC<{
+    icon: React.ElementType;
+    title: string;
+    desc: string;
+    color: string;
+}> = ({ icon: Icon, title, desc, color }) => (
+    <div className="group relative p-8 bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+        <div className={`absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500 ${color}`}>
+            <Icon className="w-24 h-24" />
+        </div>
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 text-white shadow-lg ${color.replace('text-', 'bg-').replace('500', '500')}`}>
+            <Icon className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-800 mb-3">{title}</h3>
+        <p className="text-sm text-slate-500 leading-relaxed">
+            {desc}
+        </p>
+    </div>
+);
+
+// --- Main Page ---
 
 export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
     return (
@@ -149,58 +137,173 @@ export const HomePage: React.FC<HomePageProps> = ({ onEnter }) => {
             
             <BackgroundBlobs />
             
-            <section className="relative pt-32 pb-16 sm:pt-40 sm:pb-24 overflow-visible z-10">
+            {/* Header / Nav */}
+            <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 backdrop-blur-sm border-b border-white/50">
+                <div className="flex items-center gap-2">
+                    <LogoIcon className="w-8 h-8" />
+                    <span className="font-extrabold text-lg tracking-tight">
+                        <span className="text-[#2563EB]">Auto</span><span className="text-[#7C3AED]">Insight</span>
+                    </span>
+                </div>
+                <button 
+                    onClick={onEnter}
+                    className="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors"
+                >
+                    进入工作台
+                </button>
+            </nav>
+
+            {/* Hero Section */}
+            <section className="relative pt-32 pb-20 sm:pt-48 sm:pb-32 overflow-visible z-10">
                 <HeroParticleConvergence />
                 <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
                     
                     <ScrollReveal>
-                        <div className="flex justify-center mb-6">
-                            <div className="w-24 h-24 rounded-3xl bg-white/50 backdrop-blur-md border border-white/60 shadow-xl shadow-indigo-500/10 flex items-center justify-center p-5 transform hover:scale-105 transition-transform duration-500">
-                                <LogoIcon className="w-full h-full" />
+                        <div className="flex justify-center mb-8">
+                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/80 border border-indigo-100 shadow-sm backdrop-blur-md">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                                </span>
+                                <span className="text-xs font-bold text-indigo-900 tracking-wide uppercase">Intelligence Automation Platform</span>
                             </div>
                         </div>
                     </ScrollReveal>
 
-                    <ScrollReveal delay={50}>
-                        <div className="mx-auto mb-8 inline-flex items-center rounded-full border border-indigo-100 bg-white/80 backdrop-blur-sm px-4 py-1.5 shadow-sm ring-1 ring-indigo-50">
-                            <span className="flex h-2 w-2 mr-2 relative">
-                                <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-600"></span>
-                            </span>
-                            <span className="text-[10px] sm:text-xs font-bold text-indigo-700 tracking-wide uppercase">AUTO INSIGHT • INTELLIGENCE AUTOMATION</span>
-                        </div>
-                    </ScrollReveal>
-
                     <ScrollReveal delay={100}>
-                        <h1 className="mx-auto max-w-5xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl leading-[1.1] drop-shadow-sm">
-                            全域情报自动精炼，
-                            <br className="hidden sm:block" />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600">
-                                AI 实时交付决策研报
-                            </span>
+                        <h1 className="mx-auto max-w-5xl text-5xl font-black tracking-tight text-slate-900 sm:text-7xl lg:text-8xl leading-[1.1] mb-8">
+                            全域情报
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600"> 自动精炼</span>
                         </h1>
                     </ScrollReveal>
 
                     <ScrollReveal delay={200}>
-                        <p className="mx-auto mt-6 max-w-3xl text-base sm:text-lg text-slate-600 leading-relaxed px-4 font-medium">
-                            <strong className="text-slate-900 font-bold">专为汽车行业打造。</strong> 覆盖前沿技术趋势、竞品动态追踪与市场舆情监控。
-                            告别繁琐的人工搜集，AI 为您完成从 <strong>全网感知、数据清洗到结构化报告</strong> 的最后一公里。
+                        <p className="mx-auto mt-6 max-w-2xl text-lg sm:text-xl text-slate-500 leading-relaxed font-medium">
+                            专为汽车行业打造的 AI 决策大脑。
+                            <br className="hidden sm:block"/>
+                            从全网感知、数据清洗到结构化报告生成，<span className="text-slate-900 font-bold">只需一键。</span>
                         </p>
                     </ScrollReveal>
 
                     <ScrollReveal delay={400}>
-                        <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row px-4">
-                            <button onClick={onEnter} className="w-full sm:w-auto group relative inline-flex h-12 sm:h-14 items-center justify-center overflow-hidden rounded-full bg-slate-900 px-8 sm:px-10 font-medium text-white shadow-xl shadow-slate-900/20 transition-all duration-300 hover:bg-indigo-600 hover:scale-105 hover:shadow-indigo-600/30 focus:outline-none">
-                                <span className="mr-2 text-base sm:text-lg">进入工作台</span>
+                        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row px-4">
+                            <button onClick={onEnter} className="w-full sm:w-auto group relative inline-flex h-14 items-center justify-center overflow-hidden rounded-full bg-slate-900 px-10 font-bold text-white shadow-xl shadow-slate-900/20 transition-all duration-300 hover:bg-indigo-600 hover:scale-105 hover:shadow-indigo-600/30 focus:outline-none">
+                                <span className="mr-2 text-lg">立即体验</span>
                                 <ArrowRightIcon className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                             </button>
-                            <button onClick={onEnter} className="w-full sm:w-auto inline-flex h-12 sm:h-14 items-center justify-center rounded-full border border-slate-200 bg-white/80 backdrop-blur px-8 font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 focus:outline-none">
-                                <VideoCameraIcon className="mr-2 h-5 w-5 text-slate-500" />
-                                免费体验
+                            <button onClick={onEnter} className="w-full sm:w-auto inline-flex h-14 items-center justify-center rounded-full border border-slate-200 bg-white/60 backdrop-blur px-10 font-bold text-slate-700 shadow-sm transition-colors hover:bg-white hover:text-slate-900 focus:outline-none">
+                                <VideoCameraIcon className="mr-2 h-5 w-5 text-slate-400" />
+                                观看演示
                             </button>
                         </div>
-                        <p className="mt-4 text-xs text-slate-400">无需登录即可体验核心功能</p>
                     </ScrollReveal>
+                </div>
+            </section>
+
+            {/* Feature Grid */}
+            <section className="relative py-20 bg-white/50 border-t border-slate-200/50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <ScrollReveal>
+                        <div className="text-center mb-16">
+                            <h2 className="text-3xl font-black text-slate-900 sm:text-4xl">核心能力矩阵</h2>
+                            <p className="mt-4 text-slate-500 max-w-2xl mx-auto">
+                                集成多模态 AI 引擎，打通情报获取、分析、生产全链路。
+                            </p>
+                        </div>
+                    </ScrollReveal>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        <ScrollReveal delay={100}>
+                            <FeatureCard 
+                                icon={EyeIcon}
+                                title="AI 情报洞察"
+                                desc="实时监控全网数千个信源，利用 NLP 技术自动去重、分类并提取关键事实，构建行业知识图谱。"
+                                color="text-indigo-500"
+                            />
+                        </ScrollReveal>
+                        <ScrollReveal delay={200}>
+                            <FeatureCard 
+                                icon={SparklesIcon}
+                                title="深度研报生成"
+                                desc="输入主题，AI 自动搜集资料、构建大纲、撰写万字长文，并一键渲染为精美的 HTML 幻灯片。"
+                                color="text-purple-500"
+                            />
+                        </ScrollReveal>
+                        <ScrollReveal delay={300}>
+                            <FeatureCard 
+                                icon={ChartIcon}
+                                title="竞争力看板"
+                                desc="结构化拆解竞品参数，从智能驾驶、座舱、三电等维度进行细颗粒度对标，发现技术趋势。"
+                                color="text-blue-500"
+                            />
+                        </ScrollReveal>
+                        <ScrollReveal delay={400}>
+                            <FeatureCard 
+                                icon={VideoCameraIcon}
+                                title="发布会直播分析"
+                                desc="实时转录发布会语音，结合视觉分析提取关键帧，即时生成能够刷屏的传播金句与总结。"
+                                color="text-orange-500"
+                            />
+                        </ScrollReveal>
+                    </div>
+                </div>
+            </section>
+
+            {/* Data Visual Strip (Simplified Representation) */}
+            <section className="py-20 overflow-hidden relative bg-slate-900 text-white">
+                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#4f46e5 1px, transparent 1px)', backgroundSize: '30px 30px' }}></div>
+                <div className="max-w-7xl mx-auto px-4 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+                    <div className="flex-1">
+                        <h2 className="text-3xl font-bold mb-6">数据驱动决策</h2>
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30">
+                                    <GlobeIcon className="w-6 h-6 text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-lg">全球视野</h4>
+                                    <p className="text-slate-400 text-sm">覆盖中、美、欧主流车企动态与供应链情报</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
+                                    <ChipIcon className="w-6 h-6 text-emerald-400" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-lg">硬核技术</h4>
+                                    <p className="text-slate-400 text-sm">深挖芯片、算法、电池等底层技术参数</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-orange-500/20 rounded-xl border border-orange-500/30">
+                                    <LightningBoltIcon className="w-6 h-6 text-orange-400" />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-lg">极速响应</h4>
+                                    <p className="text-slate-400 text-sm">事件发生后分钟级推送分析报告</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex-1 w-full max-w-lg">
+                        {/* Abstract Dashboard Graphic */}
+                        <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500">
+                            <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-4">
+                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="h-20 bg-indigo-900/50 rounded-lg w-full animate-pulse"></div>
+                                <div className="flex gap-3">
+                                    <div className="h-32 bg-slate-700/50 rounded-lg flex-1"></div>
+                                    <div className="h-32 bg-slate-700/50 rounded-lg flex-1"></div>
+                                </div>
+                                <div className="h-4 bg-slate-700/30 rounded w-3/4"></div>
+                                <div className="h-4 bg-slate-700/30 rounded w-1/2"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
