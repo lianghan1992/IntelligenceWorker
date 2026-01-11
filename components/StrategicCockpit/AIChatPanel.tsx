@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { streamChatCompletions, createSession } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon } from '../icons';
-import { InfoItem, User } from '../../types';
+import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
 
 declare global {
@@ -149,9 +149,7 @@ const RetrievedIntelligence: React.FC<{ query: string; items: InfoItem[]; isSear
 export const AIChatPanel: React.FC<{ 
     className?: string; 
     onReferenceClick?: (article: InfoItem) => void;
-    user?: User | null;
-    onTriggerLogin?: () => void;
-}> = ({ className, onReferenceClick, user, onTriggerLogin }) => {
+}> = ({ className, onReferenceClick }) => {
     const [input, setInput] = useState('');
     const [sessionId, setSessionId] = useState<string | null>(null);
     
@@ -210,12 +208,6 @@ export const AIChatPanel: React.FC<{
     };
 
     const handleSend = async () => {
-        // PLG Check: Require Login for Chat
-        if (!user) {
-            if (onTriggerLogin) onTriggerLogin();
-            return;
-        }
-
         const currentInput = input.trim();
         if (!currentInput || isStreaming || isSearching) return;
         

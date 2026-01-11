@@ -6,13 +6,12 @@ import {
     fetchDeepInsightPageImage
 } from '../../api/deepInsight';
 import { 
-    CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon, SparklesIcon
+    CloseIcon, DownloadIcon, DocumentTextIcon, PlusIcon, TagIcon
 } from '../icons';
 
 interface DeepDiveReaderProps {
     task: DeepInsightTask;
     onClose: () => void;
-    checkProAccess: () => boolean;
 }
 
 // Helper for formatting bytes
@@ -101,7 +100,7 @@ const PageImage: React.FC<{ docId: string; pageIndex: number; scale: number }> =
     );
 };
 
-export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose, checkProAccess }) => {
+export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [scale, setScale] = useState(1.0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -113,8 +112,6 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose, c
     }, [task.total_pages]);
 
     const handleDownload = async () => {
-        if (!checkProAccess()) return;
-
         setIsDownloading(true);
         try {
             const blob = await downloadDeepInsightOriginalPdf(task.id);
@@ -207,9 +204,7 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose, c
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
                                     <DocumentTextIcon className="w-16 h-16 opacity-20" />
                                     <p>该文档暂无预览页面或正在处理中 (Pages: {task.total_pages})</p>
-                                    <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm flex items-center gap-1">
-                                        <SparklesIcon className="w-3 h-3"/> 升级解锁原文下载
-                                    </button>
+                                    <button onClick={handleDownload} className="text-blue-600 hover:underline text-sm">下载原文件查看</button>
                                 </div>
                             )}
                         </div>
@@ -235,16 +230,10 @@ export const DeepDiveReader: React.FC<DeepDiveReaderProps> = ({ task, onClose, c
                         <button 
                             onClick={handleDownload}
                             disabled={isDownloading}
-                            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-medium py-3.5 px-4 rounded-lg shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:opacity-70 group"
+                            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3.5 px-4 rounded-lg shadow-sm transition-all active:scale-[0.98] disabled:opacity-70"
                         >
-                            {isDownloading ? (
-                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                            ) : (
-                                <>
-                                    <DownloadIcon className="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" />
-                                    <span>升级并下载 PDF</span>
-                                </>
-                            )}
+                            <DownloadIcon className="w-5 h-5" />
+                            <span>下载完整 PDF</span>
                         </button>
 
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">

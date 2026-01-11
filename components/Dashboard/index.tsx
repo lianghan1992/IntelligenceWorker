@@ -10,7 +10,7 @@ import { SearchIcon, PlusIcon, SparklesIcon } from '../icons';
 
 // --- Main Dashboard Component ---
 interface DashboardProps {
-    user: User | null; // Allow null user
+    user: User;
     subscriptions: SystemSource[];
     onNavigate: (view: View) => void;
 }
@@ -30,7 +30,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
                 {/* 1. Welcome Header (Simple) */}
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">
-                        欢迎回来，{user ? user.username : '访客'}
+                        欢迎回来，{user.username}
                     </h1>
                     <p className="text-sm text-slate-500 mt-1">
                         这里是您的智能情报指挥中心。
@@ -98,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, subscriptions, onNav
 
             </div>
 
-            {isFocusPointModalOpen && user && (
+            {isFocusPointModalOpen && (
                 <FocusPointManagerModal onClose={handleFocusPointModalClose} />
             )}
         </div>

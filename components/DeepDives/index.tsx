@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { DeepInsightTask, DeepInsightCategory, User } from '../../types';
+import { DeepInsightTask, DeepInsightCategory } from '../../types';
 import { 
     getDeepInsightTasks, 
     getDeepInsightCategories,
@@ -307,14 +307,7 @@ const ReportCard: React.FC<{
 
 // --- Main Page ---
 
-interface DeepDivesProps {
-    user: User | null;
-    onTriggerLogin: () => void;
-    onTriggerUpgrade: () => void;
-    checkProAccess: () => boolean;
-}
-
-export const DeepDives: React.FC<DeepDivesProps> = ({ user, onTriggerLogin, onTriggerUpgrade, checkProAccess }) => {
+export const DeepDives: React.FC = () => {
     const [tasks, setTasks] = useState<DeepInsightTask[]>([]);
     const [categories, setCategories] = useState<DeepInsightCategory[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -590,7 +583,6 @@ export const DeepDives: React.FC<DeepDivesProps> = ({ user, onTriggerLogin, onTr
                 <DeepDiveReader 
                     task={readerTask} 
                     onClose={() => setReaderTask(null)} 
-                    checkProAccess={checkProAccess}
                 />
             )}
         </div>

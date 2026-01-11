@@ -28,8 +28,7 @@ interface MainCanvasProps {
     isLlmActive: boolean;
     setStage?: (stage: PPTStage) => void; 
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
-    sessionId?: string;
-    checkProAccess: () => boolean; // Added for PLG
+    sessionId?: string; // Added sessionId
 }
 
 // --- Helper: Simple HTML Syntax Highlighter ---
@@ -133,7 +132,7 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
 };
 
 export const MainCanvas: React.FC<MainCanvasProps> = ({ 
-    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId, checkProAccess
+    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];
@@ -245,7 +244,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     }, [activePage?.html, activePage?.isGenerating]);
 
 
-    const hasReadyHtml = data.pages.length > 0 && data.pages.some(p => !!p.html);
+    const hasReadyHtml = data.pages.some(p => !!p.html);
 
     // --- Views ---
 
@@ -380,7 +379,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                      ))}
                  </div>
                  
-                 {/* Only show 'Enter Finalize' button here, but logic to switch to HTML gen is in Sidebar */}
                  {hasReadyHtml && (
                      <div className="p-4 border-t border-slate-200">
                          <button 

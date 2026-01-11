@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User, View } from '../types';
 import {
+    HomeIcon,
     EyeIcon,
     DiveIcon,
     VideoCameraIcon,
@@ -13,17 +14,15 @@ import {
     CloseIcon,
     ChartIcon,
     CubeIcon,
-    UserIcon,
 } from './icons';
 
 interface HeaderProps {
     currentView: View;
     onNavigate: (view: View) => void;
     onUpgrade: () => void;
-    onLogin: () => void;
     onLogout: () => void;
-    onShowBilling: () => void;
-    user: User | null;
+    onShowBilling: () => void; // New prop
+    user: User;
 }
 
 const navItems: { view: View; label: string; icon: React.FC<React.SVGProps<SVGSVGElement>> }[] = [
@@ -59,12 +58,12 @@ const NavItem: React.FC<{
 );
 
 
-export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogin, onLogout, onShowBilling, user }) => {
+export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgrade, onLogout, onShowBilling, user }) => {
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const finalNavItems = [...navItems];
-    if (user && user.email === '326575140@qq.com') {
+    if (user.email === '326575140@qq.com') {
         finalNavItems.push({ view: 'admin', label: '后台管理', icon: GearIcon });
     }
     
@@ -99,39 +98,27 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
 
                     {/* Right side: Upgrade, User Menu, and Mobile Menu Button */}
                     <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-                        {user && user.plan_name !== 'pro' && (
-                             <button
-                                onClick={onUpgrade}
-                                className="hidden lg:inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:from-indigo-500 hover:to-violet-500 transition-all transform hover:-translate-y-0.5 whitespace-nowrap"
-                            >
-                                <SparklesIcon className="w-3.5 h-3.5 mr-1.5" />
-                                升级专业版
-                            </button>
-                        )}
+                        <button
+                            onClick={onUpgrade}
+                            className="hidden lg:inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 rounded-full shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:from-indigo-500 hover:to-violet-500 transition-all transform hover:-translate-y-0.5 whitespace-nowrap"
+                        >
+                            <SparklesIcon className="w-3.5 h-3.5 mr-1.5" />
+                            升级专业版
+                        </button>
 
                         <div className="relative">
-                            {user ? (
-                                <button
-                                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                                    className="flex items-center gap-2 p-1 pr-3 rounded-full hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 group relative z-50"
-                                >
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
-                                        {user.username.charAt(0).toUpperCase()}
-                                    </div>
-                                    <span className="hidden sm:inline text-sm font-semibold text-slate-600 group-hover:text-slate-900 max-w-[100px] truncate">{user.username}</span>
-                                    <ChevronDownIcon className="hidden sm:block w-3 h-3 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:rotate-180" />
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={onLogin}
-                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
-                                >
-                                    <UserIcon className="w-4 h-4" />
-                                    登录 / 注册
-                                </button>
-                            )}
+                            <button
+                                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                                className="flex items-center gap-2 p-1 pr-3 rounded-full hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 group relative z-50"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold border-2 border-white shadow-sm group-hover:scale-105 transition-transform">
+                                    {user.username.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="hidden sm:inline text-sm font-semibold text-slate-600 group-hover:text-slate-900 max-w-[100px] truncate">{user.username}</span>
+                                <ChevronDownIcon className="hidden sm:block w-3 h-3 text-slate-400 group-hover:text-slate-600 transition-transform group-hover:rotate-180" />
+                            </button>
 
-                            {isUserMenuOpen && user && (
+                            {isUserMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)}></div>
                                     <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl ring-1 ring-black/5 py-2 animate-in fade-in-0 zoom-in-95 origin-top-right z-50">
@@ -205,33 +192,18 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onNavigate, onUpgra
                             </button>
                         ))}
                     </nav>
-                    {user && user.plan_name !== 'pro' && (
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                             <button
-                                onClick={() => {
-                                    onUpgrade();
-                                    setIsMobileMenuOpen(false);
-                                }}
-                                className="w-full flex items-center justify-center px-4 py-3.5 text-base font-bold text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
-                            >
-                                <SparklesIcon className="w-5 h-5 mr-2" />
-                                升级专业版
-                            </button>
-                        </div>
-                    )}
-                     {!user && (
-                        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                             <button
-                                onClick={() => {
-                                    onLogin();
-                                    setIsMobileMenuOpen(false);
-                                }}
-                                className="w-full flex items-center justify-center px-4 py-3.5 text-base font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
-                            >
-                                登录 / 注册
-                            </button>
-                        </div>
-                    )}
+                    <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                         <button
+                            onClick={() => {
+                                onUpgrade();
+                                setIsMobileMenuOpen(false);
+                            }}
+                            className="w-full flex items-center justify-center px-4 py-3.5 text-base font-bold text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+                        >
+                            <SparklesIcon className="w-5 h-5 mr-2" />
+                            升级专业版
+                        </button>
+                    </div>
                 </div>
             )}
         </header>

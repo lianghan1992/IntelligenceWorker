@@ -116,19 +116,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         const decodedContent = unescapeUnicode(fullContent);
 
         if (window.marked && typeof window.marked.parse === 'function') {
-            // Enhanced Image Styling Regex
-            // Wraps images in a figure with better styling, shadow, and hover effect
             const markdownWithStyledImages = decodedContent.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
-                `<figure class="my-10 group relative overflow-hidden rounded-2xl shadow-lg border border-slate-200 bg-slate-50 transition-all hover:shadow-xl">
-                    <div class="overflow-hidden">
-                        <img src="$2" alt="$1" class="w-full object-cover transform transition-transform duration-700 group-hover:scale-105" loading="lazy" />
-                    </div>
-                    <figcaption class="px-4 py-3 text-center text-xs font-medium text-slate-500 bg-white border-t border-slate-100 flex items-center justify-center gap-2">
-                        <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        $1
-                    </figcaption>
-                </figure>`
+                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-xl w-full object-cover shadow-md border border-slate-100"><figcaption class="text-center text-xs text-slate-400 mt-2 italic">$1</figcaption></figure>'
             );
             return window.marked.parse(markdownWithStyledImages);
         }
@@ -228,30 +218,20 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         />
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto p-6 md:px-12 md:py-10 custom-scrollbar bg-white scroll-smooth relative">
-                        {/* Improved Content Container with Animation */}
-                        <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
-                            <article 
-                                className="prose prose-slate max-w-none 
-                                    prose-headings:font-display prose-headings:font-bold prose-headings:text-slate-900 
-                                    prose-h1:text-3xl prose-h1:mb-8 prose-h1:leading-tight
-                                    prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-slate-100 prose-h2:pb-3 prose-h2:text-indigo-950
-                                    prose-h3:text-lg prose-h3:mt-8 prose-h3:mb-4 prose-h3:text-indigo-900
-                                    prose-p:text-slate-600 prose-p:leading-8 prose-p:mb-6 prose-p:text-[15px]
-                                    prose-a:text-blue-600 prose-a:font-semibold prose-a:no-underline hover:prose-a:underline hover:prose-a:text-blue-700
-                                    prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:bg-indigo-50/30 prose-blockquote:px-6 prose-blockquote:py-4 prose-blockquote:rounded-r-xl prose-blockquote:not-italic prose-blockquote:text-indigo-900 prose-blockquote:my-8
-                                    prose-strong:text-slate-900 prose-strong:font-bold
-                                    prose-li:text-slate-600 prose-li:my-2
-                                    prose-code:text-indigo-600 prose-code:bg-indigo-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-sm prose-code:before:content-none prose-code:after:content-none
-                                    [&_figure]:my-10"
-                                dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
-                            />
-                            
-                            <div className="mt-16 pt-8 border-t border-slate-100 text-center text-xs text-slate-300 pb-8 flex items-center justify-center gap-2">
-                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                                END OF INTELLIGENCE
-                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                            </div>
+                    <div className="h-full overflow-y-auto p-6 md:px-10 md:py-8 custom-scrollbar bg-white scroll-smooth">
+                        <article 
+                            className="prose prose-sm md:prose-base prose-slate max-w-none 
+                                prose-headings:font-black prose-headings:tracking-tight prose-headings:text-slate-900
+                                prose-p:text-slate-600 prose-p:leading-loose prose-p:mb-6
+                                prose-a:text-indigo-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline
+                                prose-strong:text-slate-800 prose-strong:font-bold
+                                prose-img:rounded-xl prose-img:shadow-lg prose-img:my-8
+                                prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:bg-slate-50 prose-blockquote:px-6 prose-blockquote:py-4 prose-blockquote:rounded-r-lg prose-blockquote:not-italic prose-blockquote:text-slate-700
+                                prose-li:text-slate-600"
+                            dangerouslySetInnerHTML={{ __html: fallbackArticleHtml }}
+                        />
+                         <div className="mt-12 pt-8 border-t border-slate-100 text-center text-xs text-slate-300 pb-8">
+                            — END OF DOCUMENT —
                         </div>
                     </div>
                 )}

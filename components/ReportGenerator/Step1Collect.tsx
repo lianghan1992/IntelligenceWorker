@@ -7,7 +7,6 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
-import { User } from '../../types';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -163,17 +162,13 @@ interface CopilotSidebarProps {
     onToggleHistory?: () => void;
     // Refresh Billing
     onRefreshSession?: () => void;
-    user?: User | null;
-    onTriggerLogin?: () => void;
-    checkProAccess: () => boolean; // Added
 }
 
 export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
     stage, setStage, history, setHistory, data, setData, 
     isLlmActive, setIsLlmActive, activePageIndex, setActivePageIndex, onReset,
     sessionId, statusBar,
-    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession,
-    user, onTriggerLogin, checkProAccess
+    sessionTitle, onTitleChange, onSwitchSession, onEnsureSession, onToggleHistory, onRefreshSession
 }) => {
     const [input, setInput] = useState('');
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -630,12 +625,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     // --- Handlers ---
     const handleSend = async (val?: string) => {
-        // PLG Check
-        if (!user) {
-            if (onTriggerLogin) onTriggerLogin();
-            return;
-        }
-
         if (activeGuide) dismissGuide(activeGuide);
 
         const text = val || input;
@@ -802,12 +791,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             {stage === 'compose' && allTextReady && !autoGenMode && !hasHtml && (
                 <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4">
                     <button 
-                        onClick={() => {
-                            // PLG Gate for HTML Generation
-                            if (checkProAccess()) {
-                                setAutoGenMode('html');
-                            }
-                        }}
+                        onClick={() => setAutoGenMode('html')}
                         className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-xs font-bold shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
                     >
                         <PlayIcon className="w-3 h-3" /> 开始设计幻灯片
@@ -932,12 +916,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                             ref={textareaRef}
                             value={input}
                             onChange={e => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend();
-                                }
-                            }}
                             placeholder={
                                 stage === 'collect' ? "输入研报主题..." : 
                                 (autoGenMode ? "正在生成中..." : 

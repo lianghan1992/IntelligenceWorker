@@ -3,22 +3,9 @@ import React, { useState, Suspense } from 'react';
 import { MarketHome } from './MarketHome';
 import { AgentLayout } from './AgentLayout';
 import { AGENT_REGISTRY } from './registry';
-import { User } from '../../types';
 
-interface AgentMarketplaceProps {
-    checkProAccess: () => boolean;
-    user: User | null;
-}
-
-const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ checkProAccess }) => {
+const AgentMarketplace: React.FC = () => {
     const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
-
-    const handleSelectAgent = (agentId: string) => {
-        // PLG Check: Gated Access
-        if (checkProAccess()) {
-            setActiveAgentId(agentId);
-        }
-    };
 
     const activeAgent = activeAgentId 
         ? AGENT_REGISTRY.find(a => a.id === activeAgentId) 
@@ -43,7 +30,7 @@ const AgentMarketplace: React.FC<AgentMarketplaceProps> = ({ checkProAccess }) =
         );
     }
 
-    return <MarketHome onSelectAgent={handleSelectAgent} />;
+    return <MarketHome onSelectAgent={setActiveAgentId} />;
 };
 
 export default AgentMarketplace;

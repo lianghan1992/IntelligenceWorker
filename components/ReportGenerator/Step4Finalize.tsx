@@ -5,7 +5,7 @@ import { streamChatCompletions, getPromptDetail, generateBatchPdf } from '../../
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
-    PlayIcon, LightningBoltIcon, SparklesIcon
+    PlayIcon, LightningBoltIcon
 } from '../icons';
 import { VisualEditor } from './VisualEditor';
 
@@ -16,9 +16,8 @@ interface Step4FinalizeProps {
     onUpdatePages: (newPages: PPTPageData[]) => void;
     onLlmStatusChange?: (isActive: boolean) => void;
     onStreamingUpdate?: (msg: any) => void;
-    sessionId?: string; 
-    onRefreshSession?: () => void; 
-    checkProAccess: () => boolean; // Added
+    sessionId?: string; // Added sessionId
+    onRefreshSession?: () => void; // Added refresh handler
 }
 
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -45,7 +44,21 @@ const GuidePanel: React.FC = () => (
                     <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>按住鼠标拖拽调整位置</li>
                 </ul>
             </div>
-            {/* ... shortcuts omitted for brevity ... */}
+
+            <div>
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">快捷键</h4>
+                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="bg-white/10 rounded px-2 py-1.5 flex justify-between items-center">
+                        <span className="text-slate-300">删除</span>
+                        <kbd className="font-mono bg-black/20 px-1 rounded">Del</kbd>
+                    </div>
+                    <div className="bg-white/10 rounded px-2 py-1.5 flex justify-between items-center">
+                        <span className="text-slate-300">取消</span>
+                        <kbd className="font-mono bg-black/20 px-1 rounded">Esc</kbd>
+                    </div>
+                </div>
+            </div>
+
             <div className="pt-2 border-t border-white/10">
                 <p className="text-[10px] text-slate-500 italic">
                     提示：使用工具栏中的放大/缩小功能调整元素尺寸，而非文字大小，以保持布局完美。
@@ -62,31 +75,35 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     onUpdatePages,
     onLlmStatusChange,
     sessionId,
-    onRefreshSession,
-    checkProAccess
+    onRefreshSession
 }) => {
     const [pages, setPages] = useState<PPTPageData[]>(initialPages);
     const [activeIdx, setActiveIdx] = useState(0);
     const [isExporting, setIsExporting] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [scale, setScale] = useState(0.6); 
+    const [scale, setScale] = useState(0.6); // Default scale
 
+    // Auto-calculate scale based on container size
     useEffect(() => {
         const updateScale = () => {
             if (containerRef.current) {
                 const { clientWidth, clientHeight } = containerRef.current;
                 const baseWidth = 1600;
                 const baseHeight = 900;
+                // Leave enough padding for UI panels
                 const wRatio = (clientWidth - 300) / baseWidth; 
                 const hRatio = (clientHeight - 100) / baseHeight;
                 setScale(Math.min(wRatio, hRatio));
             }
         };
+        
+        // Initial calc
         updateScale();
         window.addEventListener('resize', updateScale);
         return () => window.removeEventListener('resize', updateScale);
     }, []);
     
+    // HTML Generation
     const generateHtml = useCallback(async (idx: number) => {
         const page = pages[idx];
         if (!page || page.html || page.isGenerating) return;
@@ -102,6 +119,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
             const userPrompt = `主题: ${topic}\n内容:\n${page.content}`;
             let accumulatedText = '';
             
+            // 使用更先进的 HTML 生成模型
             await streamChatCompletions({
                 model: HTML_GENERATION_MODEL,
                 messages: [
@@ -119,10 +137,11 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 setPages(finalPages);
                 onUpdatePages(finalPages);
                 onLlmStatusChange?.(false);
+                // Refresh billing after done
                 if (onRefreshSession) onRefreshSession();
             }, (err) => {
                 onLlmStatusChange?.(false);
-            }, sessionId); 
+            }, sessionId); // Pass sessionId
         } catch (e) {
             onLlmStatusChange?.(false);
         }
@@ -141,8 +160,6 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const allRendered = pages.every(p => p.html && !p.isGenerating);
 
     const handleExport = async () => {
-        if (!checkProAccess()) return;
-
         setIsExporting(true);
         try {
              const pdfPages = pages.map((p, idx) => ({
@@ -167,8 +184,10 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
 
     return (
         <div className="h-full flex flex-col bg-[#0f172a] text-white overflow-hidden relative font-sans">
+             {/* Background Glow */}
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-96 bg-indigo-600/20 blur-[120px] pointer-events-none"></div>
 
+             {/* Header */}
              <div className="px-8 py-4 flex justify-between items-center z-10 bg-[#0f172a]/80 backdrop-blur-sm border-b border-white/5">
                  <div>
                      <h2 className="text-xl font-black tracking-tight">{topic}</h2>
@@ -183,15 +202,16 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      <button 
                         onClick={handleExport}
                         disabled={!allRendered || isExporting}
-                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
+                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
-                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <SparklesIcon className="w-4 h-4 group-hover:scale-110 transition-transform"/>} 
-                         升级并导出 PDF
+                         {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>} 导出 PDF
                      </button>
                  </div>
              </div>
 
+             {/* Main Stage */}
              <div className="flex-1 flex items-center justify-center relative z-0 overflow-hidden" ref={containerRef}>
+                 {/* Prev Button */}
                  <button 
                     onClick={() => setActiveIdx(Math.max(0, activeIdx - 1))}
                     disabled={activeIdx === 0}
@@ -200,6 +220,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      <ChevronLeftIcon className="w-6 h-6" />
                  </button>
 
+                 {/* Slide Container / Visual Editor */}
                  <div className="w-full h-full flex items-center justify-center p-4 relative">
                      {activePage && activePage.html ? (
                          <div className="relative shadow-2xl rounded-sm overflow-hidden ring-1 ring-white/10" style={{ width: '100%', height: '100%' }}>
@@ -220,8 +241,10 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      )}
                  </div>
 
+                 {/* Right Guide Panel (HUD) */}
                  <GuidePanel />
 
+                 {/* Next Button */}
                  <button 
                     onClick={() => setActiveIdx(Math.min(pages.length - 1, activeIdx + 1))}
                     disabled={activeIdx === pages.length - 1}
@@ -231,6 +254,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                  </button>
              </div>
 
+             {/* Filmstrip Footer */}
              <div className="h-32 bg-[#020617] border-t border-white/5 flex items-center px-8 gap-4 overflow-x-auto custom-scrollbar-dark z-10">
                  {pages.map((p, i) => (
                      <div 
