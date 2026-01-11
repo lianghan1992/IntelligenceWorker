@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getUsageStats, getUsageSummary } from '../../api/stratify';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet } from '../../api/user';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus } from '../../api/user';
 import { UsageStat, UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse } from '../../types';
 import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
@@ -37,6 +37,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const [paymentMethod, setPaymentMethod] = useState<'alipay' | 'manual'>('alipay');
     const [isSubmittingRecharge, setIsSubmittingRecharge] = useState(false);
     const [rechargeResult, setRechargeResult] = useState<RechargeResponse | null>(null);
+    const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | null>(null);
+    const pollingRef = useRef<any>(null);
 
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
@@ -105,6 +107,36 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         fetchWalletAndQuota();
     }, [startDate, endDate]); 
 
+    // Polling logic for payment status
+    useEffect(() => {
+        if (rechargeResult && rechargeResult.order_no && paymentStatus !== 'success') {
+            const poll = async () => {
+                try {
+                    const statusRes = await checkPaymentStatus(rechargeResult.order_no);
+                    if (statusRes.status === 'paid') {
+                        setPaymentStatus('success');
+                        fetchWalletAndQuota();
+                        if (pollingRef.current) clearInterval(pollingRef.current);
+                    }
+                } catch (e) {
+                    console.warn("Payment status check failed", e);
+                }
+            };
+
+            pollingRef.current = setInterval(poll, 3000);
+            return () => {
+                if (pollingRef.current) clearInterval(pollingRef.current);
+            };
+        }
+    }, [rechargeResult, paymentStatus]);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+        };
+    }, []);
+
     // Helper to get readable agent name
     const getAgentName = (id: string) => {
         // @ts-ignore
@@ -114,17 +146,24 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const handleRecharge = async () => {
         setIsSubmittingRecharge(true);
         setRechargeResult(null);
+        setPaymentStatus('pending');
         try {
             const res = await rechargeWallet(rechargeAmount, paymentMethod);
             setRechargeResult(res);
-            // Refresh wallet balance in background
-            setTimeout(fetchWalletAndQuota, 3000);
         } catch (e: any) {
             alert('充值请求失败: ' + e.message);
+            setPaymentStatus(null);
         } finally {
             setIsSubmittingRecharge(false);
         }
     };
+
+    const closeRecharge = () => {
+        setShowRecharge(false);
+        setRechargeResult(null);
+        setPaymentStatus(null);
+        if (pollingRef.current) clearInterval(pollingRef.current);
+    }
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -333,13 +372,27 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg"><PlusIcon className="w-5 h-5"/></span>
                                 账户充值
                             </h3>
-                            <button onClick={() => { setShowRecharge(false); setRechargeResult(null); }} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full">
+                            <button onClick={closeRecharge} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full">
                                 <CloseIcon className="w-6 h-6" />
                             </button>
                         </div>
                         
                         <div className="flex-1 overflow-y-auto p-8 flex justify-center">
-                            {!rechargeResult ? (
+                            {paymentStatus === 'success' ? (
+                                <div className="w-full max-w-md text-center space-y-6 animate-in fade-in zoom-in">
+                                     <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckCircleIcon className="w-12 h-12 text-green-600" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-slate-800">支付成功！</h3>
+                                    <p className="text-slate-500">充值金额已到账，您可以继续使用服务。</p>
+                                    <button 
+                                        onClick={closeRecharge}
+                                        className="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all shadow-lg active:scale-[0.98]"
+                                    >
+                                        返回
+                                    </button>
+                                </div>
+                            ) : !rechargeResult ? (
                                 <div className="w-full max-w-md space-y-8">
                                     <div className="space-y-4">
                                         <label className="text-sm font-bold text-slate-700 block">选择充值金额</label>
@@ -408,23 +461,26 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 </div>
                             ) : (
                                 <div className="w-full max-w-md text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <CheckCircleIcon className="w-10 h-10 text-green-600" />
+                                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                                        <div className="animate-pulse text-blue-600 font-bold text-sm">扫码支付</div>
                                     </div>
                                     <h3 className="text-2xl font-bold text-slate-800">订单已创建</h3>
                                     
                                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
                                         <p className="text-sm text-slate-500">订单号: <span className="font-mono font-bold text-slate-700 select-all">{rechargeResult.order_no}</span></p>
                                         {rechargeResult.qr_code_url ? (
-                                            <div className="flex flex-col items-center gap-2">
+                                            <div className="flex flex-col items-center gap-4">
                                                  <div className="w-48 h-48 bg-white p-2 rounded-lg shadow-inner border flex items-center justify-center">
-                                                     {/* Mock QR Code Display */}
-                                                     <div className="text-center text-slate-300 text-xs">
-                                                         [QR Code Mock]<br/>
-                                                         {rechargeResult.qr_code_url}
-                                                     </div>
+                                                     <img 
+                                                         src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(rechargeResult.qr_code_url)}`} 
+                                                         alt="Payment QR" 
+                                                         className="w-full h-full object-contain"
+                                                     />
                                                  </div>
-                                                 <p className="text-xs text-slate-500">请使用手机扫码支付</p>
+                                                 <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                                     正在检测支付状态...
+                                                 </div>
                                             </div>
                                         ) : rechargeResult.pay_url ? (
                                             <a 
@@ -441,10 +497,10 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     </div>
                                     
                                     <button 
-                                        onClick={() => { setShowRecharge(false); setRechargeResult(null); fetchWalletAndQuota(); }}
-                                        className="text-slate-500 hover:text-slate-800 font-bold text-sm"
+                                        onClick={closeRecharge}
+                                        className="text-slate-500 hover:text-slate-800 font-bold text-sm underline decoration-slate-300 underline-offset-4"
                                     >
-                                        完成并关闭
+                                        稍后支付
                                     </button>
                                 </div>
                             )}

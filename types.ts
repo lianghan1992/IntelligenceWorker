@@ -40,6 +40,16 @@ export interface QuotaItem {
     allow_overage: boolean;
 }
 
+export interface QuotaConfig {
+    id?: string; // Optional if backend generates it and doesn't return immediately in list (though usually it does)
+    plan_type: string;
+    resource_key: string;
+    limit_value: number;
+    period: 'monthly' | 'daily' | 'total'; // 'total' implies lifetime or one-time
+    allow_overage: boolean;
+    overage_unit_price: number;
+}
+
 export interface WalletBalance {
     balance: number;
     currency: string;
@@ -50,6 +60,12 @@ export interface RechargeResponse {
     pay_url?: string;
     qr_code_url?: string;
     message: string;
+}
+
+export interface PaymentStatusResponse {
+    status: 'paid' | 'pending' | 'failed' | 'cancelled';
+    remote_status?: string;
+    order?: any;
 }
 
 export interface DeepDive {

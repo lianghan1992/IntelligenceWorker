@@ -2,7 +2,8 @@
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
-    PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse
+    PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
+    PaymentStatusResponse, QuotaConfig
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -82,4 +83,17 @@ export const rechargeWallet = (amount: number, gateway: string = 'manual'): Prom
     apiFetch(`${USER_SERVICE_PATH}/wallet/recharge`, {
         method: 'POST',
         body: JSON.stringify({ amount, gateway })
+    });
+
+export const checkPaymentStatus = (orderNo: string): Promise<PaymentStatusResponse> =>
+    apiFetch(`${USER_SERVICE_PATH}/payment/status/${orderNo}`);
+
+// --- Quota Management (Admin) ---
+export const getQuotaConfigs = (): Promise<QuotaConfig[]> => 
+    apiFetch<QuotaConfig[]>(`${USER_SERVICE_PATH}/quotas`);
+
+export const createQuotaConfig = (data: Partial<QuotaConfig>): Promise<void> => 
+    apiFetch(`${USER_SERVICE_PATH}/quotas`, {
+        method: 'POST',
+        body: JSON.stringify(data)
     });

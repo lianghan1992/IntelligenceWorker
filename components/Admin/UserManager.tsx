@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserListItem, UserForAdminUpdate, UserProfileDetails } from '../../types';
 import { getUsers, updateUser, deleteUser, getUserProfileDetails } from '../../api';
-import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon, UsersIcon } from '../icons';
+import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon, UsersIcon, ChartIcon } from '../icons';
 import { ConfirmationModal } from './ConfirmationModal';
+import { QuotaConfigModal } from './QuotaConfigModal';
 
 const Spinner: React.FC = () => (
     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -175,6 +176,7 @@ export const UserManager: React.FC = () => {
     });
 
     const [modalState, setModalState] = useState<{ type: 'edit' | 'delete' | 'details_sources' | 'details_pois', user: UserListItem | null }>({ type: 'edit', user: null });
+    const [isQuotaModalOpen, setIsQuotaModalOpen] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -230,6 +232,12 @@ export const UserManager: React.FC = () => {
                     <UsersIcon className="w-8 h-8 text-indigo-600" /> 用户管理
                 </h1>
                 <div className="flex items-center gap-2">
+                     <button 
+                        onClick={() => setIsQuotaModalOpen(true)}
+                        className="flex items-center gap-1 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg shadow-sm hover:text-indigo-600 hover:border-indigo-200 transition-all"
+                    >
+                        <ChartIcon className="w-4 h-4"/> 权益配置
+                    </button>
                      <button onClick={fetchUsers} className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm" title="刷新">
                         <RefreshIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
                     </button>
@@ -356,6 +364,8 @@ export const UserManager: React.FC = () => {
             {modalState.user && modalState.type === 'delete' && <ConfirmationModal title="确认删除用户" message={`您确定要删除用户 "${modalState.user.username}" 吗？此操作不可撤销，并将清除该用户的所有关联数据。`} onConfirm={handleDeleteUser} onCancel={() => setModalState({type: 'delete', user: null})} variant="destructive" />}
             {modalState.user && modalState.type === 'details_sources' && <UserDetailsModal user={modalState.user} type="sources" onClose={() => setModalState({type: 'details_sources', user: null})} />}
             {modalState.user && modalState.type === 'details_pois' && <UserDetailsModal user={modalState.user} type="pois" onClose={() => setModalState({type: 'details_pois', user: null})} />}
+            
+            {isQuotaModalOpen && <QuotaConfigModal isOpen={isQuotaModalOpen} onClose={() => setIsQuotaModalOpen(false)} />}
         </div>
     );
 };

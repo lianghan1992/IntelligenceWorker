@@ -62,7 +62,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ onClose }) => {
                             <div className="bg-white border border-gray-200 rounded-xl p-8">
                                 <h3 className="text-2xl font-semibold text-gray-900 mb-2">{freePlan.name}</h3>
                                 <p className="text-gray-500 mb-6">体验核心价值，开始您的情报之旅。</p>
-                                <p className="text-4xl font-bold text-gray-900 mb-6">¥{freePlan.price || 0} <span className="text-lg font-normal text-gray-500">/ 月</span></p>
+                                <p className="text-4xl font-bold text-gray-900 mb-6">¥0 <span className="text-lg font-normal text-gray-500">/ 月</span></p>
                                 <button className="w-full py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors">当前计划</button>
                                 <ul className="space-y-4 mt-8 text-left text-sm">
                                     <FeatureItem included={true}>核心情报源追踪 (最多 {freePlan.max_sources || 3} 个)</FeatureItem>
@@ -82,7 +82,7 @@ export const PricingModal: React.FC<PricingModalProps> = ({ onClose }) => {
                                 <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs font-bold px-4 py-1 rounded-full uppercase">最受欢迎</div>
                                 <h3 className="text-2xl font-semibold text-blue-600 mb-2">{proPlan.name}</h3>
                                 <p className="text-gray-600 mb-6">专业人士不可或缺的生产力倍增器。</p>
-                                <p className="text-4xl font-bold text-gray-900 mb-2">¥{proPlan.price || 99} <span className="text-lg font-normal text-gray-500">/ 月</span></p>
+                                <p className="text-4xl font-bold text-gray-900 mb-2">¥49 <span className="text-lg font-normal text-gray-500">/ 月</span></p>
                                 <button className="w-full py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors transform hover:scale-105">立即升级</button>
                                 <ul className="space-y-4 mt-8 text-left text-sm">
                                     <FeatureItem included={true}>**无限制**核心情报源追踪</FeatureItem>
