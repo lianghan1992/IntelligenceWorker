@@ -2,7 +2,7 @@
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
-    PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance
+    PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -78,7 +78,7 @@ export const getMyQuotaUsage = (): Promise<QuotaItem[]> =>
 export const getWalletBalance = (): Promise<WalletBalance> => 
     apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/wallet/balance`);
 
-export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<{ message: string, order_id?: string }> => 
+export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<RechargeResponse> => 
     apiFetch(`${USER_SERVICE_PATH}/wallet/recharge`, {
         method: 'POST',
         body: JSON.stringify({ amount, gateway })

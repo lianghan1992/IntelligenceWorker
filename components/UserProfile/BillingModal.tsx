@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { getUsageStats, getUsageSummary } from '../../api/stratify';
-import { getMyQuotaUsage, getWalletBalance } from '../../api/user';
-import { UsageStat, UsageSummary, User, QuotaItem, WalletBalance } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon } from '../icons';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet } from '../../api/user';
+import { UsageStat, UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse } from '../../types';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -29,6 +30,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const [page, setPage] = useState(1);
     const limit = 20;
     const [hasMore, setHasMore] = useState(true);
+
+    // Recharge State
+    const [showRecharge, setShowRecharge] = useState(false);
+    const [rechargeAmount, setRechargeAmount] = useState<number>(100);
+    const [paymentMethod, setPaymentMethod] = useState<'alipay' | 'manual'>('alipay');
+    const [isSubmittingRecharge, setIsSubmittingRecharge] = useState(false);
+    const [rechargeResult, setRechargeResult] = useState<RechargeResponse | null>(null);
 
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
@@ -103,9 +111,24 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         return AGENT_NAMES[id] || id;
     };
 
+    const handleRecharge = async () => {
+        setIsSubmittingRecharge(true);
+        setRechargeResult(null);
+        try {
+            const res = await rechargeWallet(rechargeAmount, paymentMethod);
+            setRechargeResult(res);
+            // Refresh wallet balance in background
+            setTimeout(fetchWalletAndQuota, 3000);
+        } catch (e: any) {
+            alert('充值请求失败: ' + e.message);
+        } finally {
+            setIsSubmittingRecharge(false);
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
                 
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center flex-shrink-0">
@@ -124,8 +147,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                 </div>
 
                 {/* Wallet & Quota Section */}
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white p-6 flex-shrink-0">
-                    <div className="flex justify-between items-start mb-6">
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white p-6 flex-shrink-0 relative overflow-hidden">
+                    <div className="flex justify-between items-start mb-6 relative z-10">
                         <div>
                             <div className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">账户余额</div>
                             <div className="text-4xl font-black tracking-tight flex items-baseline gap-1">
@@ -136,13 +159,16 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 </button>
                             </div>
                         </div>
-                        <button className="px-5 py-2 bg-white text-indigo-600 rounded-lg font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors">
-                            立即充值
+                        <button 
+                            onClick={() => setShowRecharge(true)}
+                            className="px-5 py-2 bg-white text-indigo-600 rounded-lg font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors flex items-center gap-2"
+                        >
+                            <PlusIcon className="w-4 h-4" /> 立即充值
                         </button>
                     </div>
                     
                     {/* Quota Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
                         {quotas.map(quota => (
                             <div key={quota.resource_key} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
                                 <div className="text-indigo-200 text-[10px] font-bold uppercase mb-1">{quota.resource_key}</div>
@@ -298,6 +324,133 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         </div>
                     </div>
                 </div>
+
+                {/* Recharge Overlay Modal */}
+                {showRecharge && (
+                    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in fade-in zoom-in-95">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <span className="bg-indigo-100 text-indigo-600 p-1.5 rounded-lg"><PlusIcon className="w-5 h-5"/></span>
+                                账户充值
+                            </h3>
+                            <button onClick={() => { setShowRecharge(false); setRechargeResult(null); }} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full">
+                                <CloseIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-8 flex justify-center">
+                            {!rechargeResult ? (
+                                <div className="w-full max-w-md space-y-8">
+                                    <div className="space-y-4">
+                                        <label className="text-sm font-bold text-slate-700 block">选择充值金额</label>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            {[50, 100, 200, 500, 1000].map(amt => (
+                                                <button
+                                                    key={amt}
+                                                    onClick={() => setRechargeAmount(amt)}
+                                                    className={`py-3 rounded-xl border font-bold text-sm transition-all ${
+                                                        rechargeAmount === amt 
+                                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' 
+                                                            : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    ¥ {amt}
+                                                </button>
+                                            ))}
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                                                <input 
+                                                    type="number" 
+                                                    value={rechargeAmount}
+                                                    onChange={e => setRechargeAmount(Math.max(1, Number(e.target.value)))}
+                                                    className={`w-full py-3 pl-6 pr-3 rounded-xl border font-bold text-sm outline-none transition-all text-center focus:ring-2 focus:ring-indigo-500 ${
+                                                        ![50, 100, 200, 500, 1000].includes(rechargeAmount) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'
+                                                    }`}
+                                                    placeholder="自定义"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <label className="text-sm font-bold text-slate-700 block">支付方式</label>
+                                        <div className="flex flex-col gap-3">
+                                            <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'alipay' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                                <input type="radio" name="payment" className="hidden" checked={paymentMethod === 'alipay'} onChange={() => setPaymentMethod('alipay')} />
+                                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">支</div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-slate-800">支付宝</div>
+                                                    <div className="text-xs text-slate-400">推荐使用</div>
+                                                </div>
+                                                {paymentMethod === 'alipay' && <CheckCircleIcon className="w-5 h-5 text-blue-500" />}
+                                            </label>
+                                            
+                                            <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'manual' ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                                <input type="radio" name="payment" className="hidden" checked={paymentMethod === 'manual'} onChange={() => setPaymentMethod('manual')} />
+                                                <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">M</div>
+                                                <div className="flex-1">
+                                                    <div className="font-bold text-slate-800">人工转账 / 测试</div>
+                                                    <div className="text-xs text-slate-400">联系客服确认入账</div>
+                                                </div>
+                                                {paymentMethod === 'manual' && <CheckCircleIcon className="w-5 h-5 text-indigo-500" />}
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <button 
+                                        onClick={handleRecharge}
+                                        disabled={isSubmittingRecharge}
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmittingRecharge && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
+                                        确认支付 ¥{rechargeAmount.toFixed(2)}
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="w-full max-w-md text-center space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <CheckCircleIcon className="w-10 h-10 text-green-600" />
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-slate-800">订单已创建</h3>
+                                    
+                                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+                                        <p className="text-sm text-slate-500">订单号: <span className="font-mono font-bold text-slate-700 select-all">{rechargeResult.order_no}</span></p>
+                                        {rechargeResult.qr_code_url ? (
+                                            <div className="flex flex-col items-center gap-2">
+                                                 <div className="w-48 h-48 bg-white p-2 rounded-lg shadow-inner border flex items-center justify-center">
+                                                     {/* Mock QR Code Display */}
+                                                     <div className="text-center text-slate-300 text-xs">
+                                                         [QR Code Mock]<br/>
+                                                         {rechargeResult.qr_code_url}
+                                                     </div>
+                                                 </div>
+                                                 <p className="text-xs text-slate-500">请使用手机扫码支付</p>
+                                            </div>
+                                        ) : rechargeResult.pay_url ? (
+                                            <a 
+                                                href={rechargeResult.pay_url} 
+                                                target="_blank" 
+                                                rel="noreferrer"
+                                                className="block w-full py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
+                                            >
+                                                前往支付页面
+                                            </a>
+                                        ) : (
+                                            <p className="text-green-600 font-bold">{rechargeResult.message}</p>
+                                        )}
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={() => { setShowRecharge(false); setRechargeResult(null); fetchWalletAndQuota(); }}
+                                        className="text-slate-500 hover:text-slate-800 font-bold text-sm"
+                                    >
+                                        完成并关闭
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

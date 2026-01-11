@@ -45,6 +45,13 @@ export interface WalletBalance {
     currency: string;
 }
 
+export interface RechargeResponse {
+    order_no: string;
+    pay_url?: string;
+    qr_code_url?: string;
+    message: string;
+}
+
 export interface DeepDive {
     id: string;
     title: string;
