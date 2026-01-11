@@ -8,6 +8,7 @@ import { createSession, getSession, updateSession } from '../../api/stratify';
 import { CloudIcon, CheckIcon, RefreshIcon, ChartIcon } from '../icons';
 import { SessionHistoryDrawer } from './SessionHistoryModal';
 import { AGENTS } from '../../agentConfig';
+import { User } from '../../types';
 
 const DEFAULT_DATA: PPTData = {
     topic: '',
@@ -16,11 +17,14 @@ const DEFAULT_DATA: PPTData = {
     pages: []
 };
 
-// Agent ID for Report Generator (Required for Billing)
-// Using global configuration
 const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 
-const ScenarioWorkstation: React.FC = () => {
+interface ReportGeneratorProps {
+    user: User | null;
+    checkProAccess: () => boolean;
+}
+
+const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAccess }) => {
     // --- State Initialization ---
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -57,15 +61,13 @@ const ScenarioWorkstation: React.FC = () => {
             window.history.pushState({ path: newUrl }, '', newUrl);
         } catch (e) {
             console.error("Failed to load session", e);
-            // Fail gracefully: Clear invalid session ID from URL and reset to draft state
-            // Do NOT alert, as this often happens on refresh if session was deleted or expired
+            // Fail gracefully
             setSessionId(null);
             const cleanUrl = window.location.pathname;
             window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
         }
     }, []);
     
-    // Helper: Refresh Session Data (Cost, Tokens) without resetting local editing state
     const refreshSession = useCallback(async () => {
         if (!sessionId) return;
         try {
@@ -76,8 +78,6 @@ const ScenarioWorkstation: React.FC = () => {
         }
     }, [sessionId]);
 
-    // Helper: Reset to New Draft (Lazy Creation)
-    // Does NOT create a backend session immediately.
     const resetToNewDraft = useCallback(() => {
         setStage('collect');
         setHistory([]);
@@ -85,30 +85,25 @@ const ScenarioWorkstation: React.FC = () => {
         setActivePageIndex(0);
         setIsLlmActive(false);
         setSessionTitle('未命名报告');
-        setSessionId(null); // Clear ID, wait for user interaction to create
+        setSessionId(null);
         setSessionCost(0);
         setSaveStatus('idle');
 
-        // Clear URL param
         const newUrl = window.location.pathname;
         window.history.pushState({ path: newUrl }, '', newUrl);
     }, []);
 
-    // Helper: Ensure Session Exists (Lazy Creation Trigger)
-    // Called by child components before performing an action that needs a session
     const ensureSessionCreated = async (): Promise<string> => {
         if (sessionId) return sessionId;
 
         try {
-            // Create Backend Session with fixed Agent ID
             const session = await createSession(REPORT_GENERATOR_AGENT_ID, '未命名报告');
             const newId = session.id;
             
             setSessionId(newId);
             setSessionCost(0);
-            setSaveStatus('saved'); // Initially saved state
+            setSaveStatus('saved'); 
 
-            // Update URL
             const newUrl = window.location.pathname + `?session_id=${newId}`;
             window.history.pushState({ path: newUrl }, '', newUrl);
             
@@ -119,18 +114,14 @@ const ScenarioWorkstation: React.FC = () => {
         }
     };
 
-    // Initial Load
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const sid = params.get('session_id');
         if (sid) {
             loadSession(sid);
-        } else {
-            // Do nothing, we start in "Draft" mode (sessionId = null)
         }
     }, [loadSession]);
 
-    // Auto Save (Only if sessionId exists)
     useEffect(() => {
         if (!sessionId) return;
         
@@ -138,7 +129,6 @@ const ScenarioWorkstation: React.FC = () => {
             setSaveStatus('saving');
             try {
                 let titleToSave = sessionTitle;
-                // Auto-update title if it's default and we have a topic
                 if (sessionTitle === '未命名报告' && data.topic) {
                     titleToSave = data.topic.length > 20 ? data.topic.slice(0, 20) + '...' : data.topic;
                     setSessionTitle(titleToSave);
@@ -158,35 +148,30 @@ const ScenarioWorkstation: React.FC = () => {
             }
         };
 
-        const timer = setTimeout(save, 2000); // 2s debounce
+        const timer = setTimeout(save, 2000); 
         return () => clearTimeout(timer);
     }, [sessionId, data, history, stage, sessionTitle]); 
 
-    // Manual Title Update Handler
     const handleTitleChange = (newTitle: string) => {
         setSessionTitle(newTitle);
-        // Save immediately ensures the list is updated
         if (sessionId) {
             updateSession(sessionId, { title: newTitle }).catch(console.error);
         }
     };
 
     const handleResetConfirm = () => {
-        // If we have a session, confirm before clearing. If it's already a draft (null id), just clear.
         if (sessionId && confirm('确定要新建任务吗？当前进度将保存至历史记录。')) {
             resetToNewDraft();
         } else if (!sessionId) {
-             resetToNewDraft(); // Just reset local state if dirty
+             resetToNewDraft();
         }
     };
 
-    // Component Props for Children
     const sharedProps = {
-        sessionId: sessionId || undefined, // undefined to child if null
+        sessionId: sessionId || undefined, 
         onRefreshSession: refreshSession,
     };
 
-    // Render Status Bar Component
     const StatusBar = () => (
         <div className="flex items-center gap-3 text-xs font-medium">
              {sessionId ? (
@@ -218,7 +203,6 @@ const ScenarioWorkstation: React.FC = () => {
         </div>
     );
 
-    // 如果处于 Finalize 阶段，全屏渲染精修器，不显示侧边栏
     if (stage === 'finalize') {
         return (
             <Step4Finalize 
@@ -227,6 +211,7 @@ const ScenarioWorkstation: React.FC = () => {
                 onBackToCompose={() => setStage('compose')}
                 onUpdatePages={(newPages) => setData(prev => ({ ...prev, pages: newPages }))}
                 onLlmStatusChange={setIsLlmActive}
+                checkProAccess={checkProAccess}
                 {...sharedProps}
             />
         );
@@ -235,7 +220,6 @@ const ScenarioWorkstation: React.FC = () => {
     return (
         <div className="flex h-full w-full bg-[#f8fafc] overflow-hidden text-slate-900 font-sans relative">
             
-            {/* Left: Copilot Sidebar (Wider) */}
             <div className="w-[450px] flex-shrink-0 flex flex-col border-r border-slate-200 bg-[#0f172a] relative z-20 transition-all duration-300">
                 <CopilotSidebar 
                     stage={stage}
@@ -250,18 +234,15 @@ const ScenarioWorkstation: React.FC = () => {
                     setActivePageIndex={setActivePageIndex}
                     onReset={handleResetConfirm}
                     statusBar={<StatusBar />}
-                    // Session Management Props
                     sessionTitle={sessionTitle}
                     onTitleChange={handleTitleChange}
                     onSwitchSession={loadSession}
-                    // Lazy Creation Logic
                     onEnsureSession={ensureSessionCreated}
                     onToggleHistory={() => setIsHistoryOpen(true)}
                     {...sharedProps}
                 />
             </div>
 
-            {/* Right: Main Canvas (Flex - The Business Presentation View) */}
             <div className="flex-1 relative bg-slate-50 overflow-hidden flex flex-col">
                 <MainCanvas 
                     stage={stage}
@@ -275,7 +256,6 @@ const ScenarioWorkstation: React.FC = () => {
                 />
             </div>
             
-            {/* History Drawer (Portal-like) */}
             <SessionHistoryDrawer 
                 isOpen={isHistoryOpen} 
                 onClose={() => setIsHistoryOpen(false)} 
@@ -286,10 +266,10 @@ const ScenarioWorkstation: React.FC = () => {
     );
 };
 
-export const ReportGenerator: React.FC = () => {
+export const ReportGenerator: React.FC<ReportGeneratorProps> = (props) => {
     return (
         <div className="h-full w-full">
-            <ScenarioWorkstation />
+            <ScenarioWorkstation {...props} />
         </div>
     );
 };

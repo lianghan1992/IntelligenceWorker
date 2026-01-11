@@ -15,8 +15,9 @@ const DeepDives = React.lazy(() => import('./components/DeepDives/index').then(m
 const IndustryEvents = React.lazy(() => import('./components/IndustryEvents/index').then(module => ({ default: module.IndustryEvents })));
 const ReportGenerator = React.lazy(() => import('./components/ReportGenerator/index').then(module => ({ default: module.ReportGenerator })));
 const AdminPage = React.lazy(() => import('./components/Admin/index').then(module => ({ default: module.AdminPage })));
-// New Marketplace
 const AgentMarketplace = React.lazy(() => import('./components/AgentMarketplace/index'));
+const Dashboard = React.lazy(() => import('./components/Dashboard/index').then(module => ({ default: module.Dashboard })));
+
 
 // Loading Fallback Component
 const PageLoader = () => (
@@ -33,12 +34,9 @@ const PageLoader = () => (
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<View>('cockpit'); // Default view updated to 'cockpit'
+  const [view, setView] = useState<View>('home'); // Default to home (landing page)
   
   // ⚡️ PERFORMANCE OPTIMIZATION: Optimistic Initialization
-  // Initialize isLoading based on whether we potentially have a session (token exists).
-  // If no token (New User), start as FALSE to render HomePage immediately (Zero Wait Time).
-  // If token exists (Returning User), start as TRUE to verify session.
   const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('accessToken'));
   
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -47,7 +45,7 @@ const App: React.FC = () => {
   
   const [subscriptions, setSubscriptions] = useState<SystemSource[]>([]);
 
-  // PWA Cleanup: Unregister Service Worker if it exists
+  // PWA Cleanup
   useEffect(() => {
     const cleanupServiceWorker = async () => {
       if ('serviceWorker' in navigator) {
@@ -56,9 +54,8 @@ const App: React.FC = () => {
           for (const registration of registrations) {
             await registration.unregister();
           }
-          console.log('ServiceWorker cleanup done.');
         } catch (error) {
-          console.warn('Service Worker unregistration failed (non-critical):', error);
+          console.warn('Service Worker unregistration failed:', error);
         }
       }
     };
@@ -68,18 +65,20 @@ const App: React.FC = () => {
   const handleLoginSuccess = useCallback((loggedInUser: User) => {
     setUser(loggedInUser);
     setShowAuthModal(false);
-    setView('cockpit'); // Navigate to cockpit after login
-  }, []);
+    // If on home, go to cockpit. If elsewhere, stay there.
+    if (view === 'home') {
+        setView('cockpit');
+    }
+  }, [view]);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('accessToken');
     setUser(null);
-    setView('cockpit');
+    setView('home'); 
   }, []);
 
   const loadInitialData = useCallback(async () => {
     if (!user) return;
-    // Don't set full page loading for background data fetch
     try {
         const subs = await getUserSubscribedSources();
         setSubscriptions(subs);
@@ -91,15 +90,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkUser = async () => {
       const token = localStorage.getItem('accessToken');
-      
-      // If no token, we are already in "not loading" state (from useState init).
-      // Just ensure we are explicitly set to false to be safe.
       if (!token) {
           setIsLoading(false);
           return;
       }
-
-      // If token exists, verify it
       try {
         const userData = await getMe();
         setUser(userData);
@@ -124,39 +118,71 @@ const App: React.FC = () => {
       setView(newView);
   };
   
-  // Show loading spinner ONLY if we are verifying a session
+  // PLG Helper: Check access or trigger modal
+  // Returns true if access granted, false (and opens modal) if denied
+  const checkProAccess = useCallback(() => {
+      if (!user) {
+          setShowAuthModal(true);
+          return false;
+      }
+      if (user.plan_name !== 'pro' && user.plan_name !== 'expert' && user.plan_name !== 'enterprise') {
+          setShowPricingModal(true);
+          return false;
+      }
+      return true;
+  }, [user]);
+
+  // Loading spinner only for session verification
   if (isLoading) {
     return <PageLoader />;
   }
 
-  // Instant render for non-authenticated users
-  if (!user) {
-    return (
-      <>
-        <HomePage onEnter={() => setShowAuthModal(true)} />
-        {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
-      </>
-    );
+  // Landing Page Logic: If view is 'home', show HomePage. 
+  // Note: HomePage is now part of the routing, not just a blocker.
+  if (view === 'home') {
+      return (
+        <>
+            <HomePage onEnter={() => setView('cockpit')} />
+            {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
+        </>
+      );
   }
 
   const renderView = () => {
+    // Props passed to components that need access control
+    const accessProps = {
+        user,
+        onTriggerLogin: () => setShowAuthModal(true),
+        onTriggerUpgrade: () => setShowPricingModal(true),
+        checkProAccess
+    };
+
     switch (view) {
       case 'cockpit':
         return <StrategicCockpit subscriptions={subscriptions} user={user} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
-        return <DeepDives />;
+        // DeepDives handles its own gating for downloads
+        return <DeepDives {...accessProps} />;
       case 'events':
         return <IndustryEvents />;
       case 'ai':
-        return <ReportGenerator />;
+        // ReportGenerator handles gating for export
+        return <ReportGenerator {...accessProps} />;
       case 'marketplace':
-        return <AgentMarketplace />;
+        // Marketplace handles gating for usage
+        return <AgentMarketplace {...accessProps} />;
       case 'admin':
+        // Admin is strictly protected
+        if (!user || user.email !== '326575140@qq.com') return <div className="p-10 text-center">Access Denied</div>;
         return <AdminPage />;
       default:
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        // Main Dashboard as fallback for logged in users, or Cockpit for guests
+        if (user) {
+             return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
+        }
+        return <StrategicCockpit subscriptions={subscriptions} user={null} />;
     }
   };
 
@@ -167,6 +193,7 @@ const App: React.FC = () => {
             currentView={view}
             onNavigate={handleNavigate}
             onUpgrade={() => setShowPricingModal(true)}
+            onLogin={() => setShowAuthModal(true)}
             onLogout={handleLogout}
             onShowBilling={() => setShowBillingModal(true)}
         />
@@ -175,6 +202,9 @@ const App: React.FC = () => {
             {renderView()}
           </Suspense>
         </main>
+        
+        {/* Global Modals */}
+        {showAuthModal && <AuthModal onLoginSuccess={handleLoginSuccess} onClose={() => setShowAuthModal(false)} />}
         {showPricingModal && <PricingModal onClose={() => setShowPricingModal(false)} />}
         {showBillingModal && user && <BillingModal user={user} onClose={() => setShowBillingModal(false)} />}
     </div>
