@@ -10,9 +10,10 @@ import { searchArticlesFiltered, getArticlesByTags } from '../../api';
 interface StrategicCockpitProps {
     subscriptions: SystemSource[];
     user?: User | null; 
+    onTriggerLogin?: () => void;
 }
 
-export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {
+export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user, onTriggerLogin }) => {
     // --- State Management ---
     
     // Navigation & Query
@@ -186,7 +187,11 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                     bg-white md:rounded-2xl md:border border-slate-200 md:shadow-sm overflow-hidden
                     ${mobileTab === 'chat' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
                 `}>
-                     <AIChatPanel onReferenceClick={handleCopilotCitationClick} />
+                     <AIChatPanel 
+                        onReferenceClick={handleCopilotCitationClick}
+                        user={user}
+                        onTriggerLogin={onTriggerLogin} 
+                     />
                 </div>
             </div>
 

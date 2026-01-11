@@ -159,7 +159,7 @@ const App: React.FC = () => {
 
     switch (view) {
       case 'cockpit':
-        return <StrategicCockpit subscriptions={subscriptions} user={user} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={user} onTriggerLogin={() => setShowAuthModal(true)} />;
       case 'techboard':
         return <CompetitivenessDashboard />;
       case 'dives':
@@ -182,7 +182,7 @@ const App: React.FC = () => {
         if (user) {
              return <Dashboard user={user} subscriptions={subscriptions} onNavigate={handleNavigate} />;
         }
-        return <StrategicCockpit subscriptions={subscriptions} user={null} />;
+        return <StrategicCockpit subscriptions={subscriptions} user={null} onTriggerLogin={() => setShowAuthModal(true)} />;
     }
   };
 

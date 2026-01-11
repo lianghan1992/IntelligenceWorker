@@ -22,9 +22,10 @@ const REPORT_GENERATOR_AGENT_ID = AGENTS.REPORT_GENERATOR;
 interface ReportGeneratorProps {
     user: User | null;
     checkProAccess: () => boolean;
+    onTriggerLogin: () => void;
 }
 
-const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAccess }) => {
+const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAccess, onTriggerLogin }) => {
     // --- State Initialization ---
     const [stage, setStage] = useState<PPTStage>('collect');
     const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -239,6 +240,8 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAcc
                     onSwitchSession={loadSession}
                     onEnsureSession={ensureSessionCreated}
                     onToggleHistory={() => setIsHistoryOpen(true)}
+                    user={user}
+                    onTriggerLogin={onTriggerLogin}
                     {...sharedProps}
                 />
             </div>
