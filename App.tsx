@@ -168,7 +168,7 @@ const App: React.FC = () => {
       case 'events':
         return <IndustryEvents />;
       case 'ai':
-        // ReportGenerator handles gating for export
+        // ReportGenerator handles gating for export and HTML gen
         return <ReportGenerator {...accessProps} />;
       case 'marketplace':
         // Marketplace handles gating for usage

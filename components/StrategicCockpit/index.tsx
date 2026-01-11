@@ -9,7 +9,7 @@ import { searchArticlesFiltered, getArticlesByTags } from '../../api';
 
 interface StrategicCockpitProps {
     subscriptions: SystemSource[];
-    user?: User; 
+    user?: User | null; 
 }
 
 export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscriptions, user }) => {

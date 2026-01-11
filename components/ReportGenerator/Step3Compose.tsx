@@ -380,6 +380,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                      ))}
                  </div>
                  
+                 {/* Only show 'Enter Finalize' button here, but logic to switch to HTML gen is in Sidebar */}
                  {hasReadyHtml && (
                      <div className="p-4 border-t border-slate-200">
                          <button 
