@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { getUsageStats, getUsageSummary } from '../../api/stratify';
-import { UsageStat, UsageSummary, User } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon } from '../icons';
+import { getMyQuotaUsage, getWalletBalance } from '../../api/user';
+import { UsageStat, UsageSummary, User, QuotaItem, WalletBalance } from '../../types';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -15,7 +15,11 @@ const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-2
 export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => {
     const [stats, setStats] = useState<UsageStat[]>([]);
     const [summary, setSummary] = useState<UsageSummary | null>(null);
+    const [wallet, setWallet] = useState<WalletBalance | null>(null);
+    const [quotas, setQuotas] = useState<QuotaItem[]>([]);
+    
     const [isLoading, setIsLoading] = useState(false);
+    const [isRefreshingWallet, setIsRefreshingWallet] = useState(false);
     
     // Filters
     const [startDate, setStartDate] = useState('');
@@ -26,7 +30,20 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const limit = 20;
     const [hasMore, setHasMore] = useState(true);
 
-    const fetchData = useCallback(async (isLoadMore = false) => {
+    const fetchWalletAndQuota = async () => {
+        setIsRefreshingWallet(true);
+        try {
+            const [w, q] = await Promise.all([getWalletBalance(), getMyQuotaUsage()]);
+            setWallet(w);
+            setQuotas(q);
+        } catch (e) {
+            console.error("Failed to fetch wallet info", e);
+        } finally {
+            setIsRefreshingWallet(false);
+        }
+    };
+
+    const fetchUsageData = useCallback(async (isLoadMore = false) => {
         if (!user || !user.id) return;
         
         const currentPage = isLoadMore ? page + 1 : 1;
@@ -76,8 +93,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     }, [user, startDate, endDate, page]);
 
     useEffect(() => {
-        fetchData();
-    }, [startDate, endDate]); // Trigger on filter change
+        fetchUsageData();
+        fetchWalletAndQuota();
+    }, [startDate, endDate]); 
 
     // Helper to get readable agent name
     const getAgentName = (id: string) => {
@@ -87,7 +105,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+            <div className="bg-white w-full max-w-5xl h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
                 
                 {/* Header */}
                 <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/80 flex justify-between items-center flex-shrink-0">
@@ -96,8 +114,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                             <ChartIcon className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">账单管理</h2>
-                            <p className="text-xs text-slate-500">查看您的模型调用消耗与费用明细</p>
+                            <h2 className="text-xl font-bold text-slate-800">账单与权益</h2>
+                            <p className="text-xs text-slate-500">管理您的账户余额、权益额度与详细消耗记录</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
@@ -105,13 +123,50 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                     </button>
                 </div>
 
-                {/* Tabs / Sub-nav (Visual only for now as requested) */}
-                <div className="px-6 border-b border-slate-200 bg-white">
-                    <div className="flex gap-6">
-                        <button className="py-3 border-b-2 border-indigo-600 text-indigo-600 font-bold text-sm">模型消耗</button>
-                        {/* Placeholder for future tabs */}
-                        <button className="py-3 border-b-2 border-transparent text-slate-500 font-medium text-sm hover:text-slate-700 cursor-not-allowed opacity-50">充值记录</button>
-                        <button className="py-3 border-b-2 border-transparent text-slate-500 font-medium text-sm hover:text-slate-700 cursor-not-allowed opacity-50">发票管理</button>
+                {/* Wallet & Quota Section */}
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white p-6 flex-shrink-0">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <div className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-1">账户余额</div>
+                            <div className="text-4xl font-black tracking-tight flex items-baseline gap-1">
+                                <span className="text-2xl">¥</span>
+                                {wallet ? wallet.balance.toFixed(2) : '--'}
+                                <button onClick={fetchWalletAndQuota} className="ml-3 p-1.5 bg-white/10 hover:bg-white/20 rounded-lg transition-colors">
+                                    <RefreshIcon className={`w-4 h-4 ${isRefreshingWallet ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
+                        </div>
+                        <button className="px-5 py-2 bg-white text-indigo-600 rounded-lg font-bold text-sm shadow-lg hover:bg-indigo-50 transition-colors">
+                            立即充值
+                        </button>
+                    </div>
+                    
+                    {/* Quota Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {quotas.map(quota => (
+                            <div key={quota.resource_key} className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/10">
+                                <div className="text-indigo-200 text-[10px] font-bold uppercase mb-1">{quota.resource_key}</div>
+                                <div className="flex justify-between items-end">
+                                    <div className="text-xl font-bold">
+                                        {quota.usage_count}
+                                        <span className="text-xs font-normal text-indigo-200 mx-1">/</span>
+                                        <span className="text-sm">{quota.limit_value === -1 ? '∞' : quota.limit_value}</span>
+                                    </div>
+                                    {quota.limit_value !== -1 && quota.usage_count >= quota.limit_value && (
+                                        <span className="text-[10px] bg-red-500/80 px-1.5 rounded text-white font-bold">已耗尽</span>
+                                    )}
+                                </div>
+                                <div className="w-full h-1 bg-white/20 rounded-full mt-2 overflow-hidden">
+                                    <div 
+                                        className={`h-full ${quota.usage_count >= quota.limit_value && quota.limit_value !== -1 ? 'bg-red-400' : 'bg-green-400'}`} 
+                                        style={{ width: quota.limit_value === -1 ? '100%' : `${Math.min(100, (quota.usage_count / quota.limit_value) * 100)}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                        {quotas.length === 0 && (
+                            <div className="text-indigo-200 text-sm italic">暂无权益信息</div>
+                        )}
                     </div>
                 </div>
 
@@ -120,10 +175,10 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                     {/* Filters & Summary */}
                     <div className="p-6 pb-2 space-y-6">
                         
-                        {/* Summary Cards */}
+                        {/* Usage Summary Cards */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">总计消费</span>
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">本期总消费</span>
                                 <div className="text-2xl font-black text-indigo-600 truncate">
                                     ¥ {(summary?.total_cost || 0).toFixed(4)}
                                 </div>
@@ -150,29 +205,32 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
                         {/* Toolbar */}
                         <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-                                <CalendarIcon className="w-4 h-4 text-slate-400" />
-                                <input 
-                                    type="date" 
-                                    value={startDate} 
-                                    onChange={e => setStartDate(e.target.value)} 
-                                    className="text-sm text-slate-600 outline-none border-none bg-transparent" 
-                                />
-                                <span className="text-slate-300">-</span>
-                                <input 
-                                    type="date" 
-                                    value={endDate} 
-                                    onChange={e => setEndDate(e.target.value)} 
-                                    className="text-sm text-slate-600 outline-none border-none bg-transparent" 
-                                />
+                            <h3 className="font-bold text-slate-700 text-sm">模型调用明细</h3>
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                                    <CalendarIcon className="w-4 h-4 text-slate-400" />
+                                    <input 
+                                        type="date" 
+                                        value={startDate} 
+                                        onChange={e => setStartDate(e.target.value)} 
+                                        className="text-sm text-slate-600 outline-none border-none bg-transparent w-24" 
+                                    />
+                                    <span className="text-slate-300">-</span>
+                                    <input 
+                                        type="date" 
+                                        value={endDate} 
+                                        onChange={e => setEndDate(e.target.value)} 
+                                        className="text-sm text-slate-600 outline-none border-none bg-transparent w-24" 
+                                    />
+                                </div>
+                                <button 
+                                    onClick={() => fetchUsageData(false)} 
+                                    className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm"
+                                    title="刷新"
+                                >
+                                    <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => fetchData(false)} 
-                                className="p-2 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-indigo-600 transition-colors shadow-sm"
-                                title="刷新"
-                            >
-                                <RefreshIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                            </button>
                         </div>
                     </div>
 
@@ -231,7 +289,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                             {/* Load More Trigger */}
                             {hasMore && !isLoading && stats.length > 0 && (
                                 <button 
-                                    onClick={() => fetchData(true)}
+                                    onClick={() => fetchUsageData(true)}
                                     className="w-full py-3 text-xs font-bold text-slate-500 hover:bg-slate-50 border-t border-slate-100 transition-colors"
                                 >
                                     加载更多...

@@ -20,9 +20,29 @@ export interface SystemSource {
     articles_count?: number;
 }
 
+export interface PlanConfig {
+    name: string;
+    price?: number;
+    max_sources?: number;
+    max_pois?: number;
+    features?: string[];
+}
+
 export interface PlanDetails {
-    free: { name: string; price: number; max_sources: number; max_pois: number };
-    premium: { name: string; price: number };
+    [key: string]: PlanConfig;
+}
+
+export interface QuotaItem {
+    resource_key: string;
+    usage_count: number;
+    limit_value: number; // -1 for unlimited
+    period_end?: string;
+    allow_overage: boolean;
+}
+
+export interface WalletBalance {
+    balance: number;
+    currency: string;
 }
 
 export interface DeepDive {
