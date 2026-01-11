@@ -252,6 +252,7 @@ const ScenarioWorkstation: React.FC<ReportGeneratorProps> = ({ user, checkProAcc
                     isLlmActive={isLlmActive}
                     setStage={setStage}
                     setData={setData}
+                    checkProAccess={checkProAccess}
                     {...sharedProps}
                 />
             </div>

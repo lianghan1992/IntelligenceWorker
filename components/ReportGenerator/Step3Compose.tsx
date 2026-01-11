@@ -28,7 +28,8 @@ interface MainCanvasProps {
     isLlmActive: boolean;
     setStage?: (stage: PPTStage) => void; 
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
-    sessionId?: string; // Added sessionId
+    sessionId?: string;
+    checkProAccess: () => boolean; // Added for PLG
 }
 
 // --- Helper: Simple HTML Syntax Highlighter ---
@@ -132,7 +133,7 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
 };
 
 export const MainCanvas: React.FC<MainCanvasProps> = ({ 
-    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId
+    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId, checkProAccess
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];
@@ -244,7 +245,7 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
     }, [activePage?.html, activePage?.isGenerating]);
 
 
-    const hasReadyHtml = data.pages.some(p => !!p.html);
+    const hasReadyHtml = data.pages.length > 0 && data.pages.some(p => !!p.html);
 
     // --- Views ---
 
