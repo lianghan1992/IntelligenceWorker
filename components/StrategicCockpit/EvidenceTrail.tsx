@@ -92,96 +92,113 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         return () => { active = false; };
     }, [selectedArticle]);
     
-    // Manage Blob URL for HTML content to support complex scripts (charts) better than srcDoc
+    // Manage Blob URL for HTML content with ROBUST script injection
     useEffect(() => {
         if (htmlContent) {
             let finalHtml = htmlContent;
 
-            // --- 智能修复 1: 自动提取图表容器 ID 并强制设置高度 ---
-            // 很多时候 Tailwind 加载慢导致 height:0，导致图表不显示。我们强制给容器加 min-height。
-            let chartIdStyle = '';
-            // 正则匹配 new ApexCharts(document.querySelector("#chartId"), ...)
-            const apexMatch = finalHtml.match(/new\s+ApexCharts\s*\(\s*document\.querySelector\s*\(\s*["']#([\w-]+)["']\s*\)/i);
-            if (apexMatch && apexMatch[1]) {
-                const chartId = apexMatch[1];
-                chartIdStyle = `#${chartId} { min-height: 350px !important; width: 100% !important; display: block; }`;
-            }
-            
-            // 尝试匹配 ECharts 容器 (document.getElementById('main'))
-            const echartsMatch = finalHtml.match(/document\.getElementById\s*\(\s*["']([\w-]+)["']\s*\)/i);
-            if (echartsMatch && echartsMatch[1]) {
-                 const eId = echartsMatch[1];
-                 chartIdStyle += ` #${eId} { min-height: 350px !important; width: 100% !important; display: block; }`;
+            // 1. 确保 ApexCharts 库存在 (兜底)
+            if (!finalHtml.includes('apexcharts')) {
+                const cdnLink = '<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>';
+                if (finalHtml.includes('<head>')) {
+                    finalHtml = finalHtml.replace('<head>', '<head>' + cdnLink);
+                } else {
+                    finalHtml = cdnLink + finalHtml;
+                }
             }
 
-            const stylePatch = `
+            // 2. 提取并修复 ID
+            let targetId = 'reliabilityChart'; // 默认
+            const idMatch = finalHtml.match(/document\.querySelector\s*\(\s*["']#([\w-]+)["']\s*\)/) || 
+                            finalHtml.match(/document\.getElementById\s*\(\s*["']([\w-]+)["']\s*\)/);
+            if (idMatch) {
+                targetId = idMatch[1];
+            }
+
+            // 3. 强力 CSS 补丁：解决 Tailwind 在 iframe 中加载慢导致的高度塌陷
+            const cssPatch = `
                 <style>
-                    /* 基础重置 */
-                    html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
-                    /* 针对提取到的图表 ID 强制样式 */
-                    ${chartIdStyle}
-                    /* 通用兜底 */
-                    .apexcharts-canvas { margin: 0 auto; }
+                    html, body { min-height: 100%; margin: 0; padding: 0; }
+                    /* 针对特定ID */
+                    #${targetId} {
+                        min-height: 350px !important;
+                        height: 350px !important;
+                        width: 100% !important;
+                        display: block !important;
+                    }
+                    /* 通用 ApexCharts 容器 */
+                    .apexcharts-canvas {
+                        width: 100% !important;
+                        height: auto !important;
+                    }
                 </style>
             `;
 
-            // --- 智能修复 2: 注入脚本加载拦截器 (关键修复) ---
-            // 查找包含 new ApexCharts 的脚本块，并将其包裹在重试逻辑中
-            const chartScriptRegex = /<script>([\s\S]*?new ApexCharts[\s\S]*?)<\/script>/gi;
+            // 4. 强力 JS 补丁：重写初始化逻辑，增加轮询检测
+            // 匹配任何包含 new ApexCharts 的脚本块，忽略 script 标签的属性
+            const chartScriptRegex = /<script\b[^>]*>([\s\S]*?new\s+ApexCharts[\s\S]*?)<\/script>/gim;
             
-            finalHtml = finalHtml.replace(chartScriptRegex, (match, content) => {
-                // 移除原有的 <script> 标签，替换为带有等待逻辑的新脚本
-                return `<script>
+            finalHtml = finalHtml.replace(chartScriptRegex, (match, scriptContent) => {
+                // 将原有的 JS 代码包裹在安全执行的闭包中
+                // 1. 等待 DOMContentLoaded
+                // 2. 等待 ApexCharts 对象
+                // 3. 等待 目标 DIV 出现
+                return `
+                <script>
                     (function() {
-                        var attempts = 0;
-                        var maxAttempts = 100; // 20 seconds timeout
-                        
-                        var initChart = function() {
-                            // 检查库是否已加载
-                            if (typeof ApexCharts !== 'undefined') {
-                                try {
-                                    console.log("AutoInsight: ApexCharts loaded. Initializing...");
-                                    ${content}
-                                    // 强制触发一次 resize 确保图表适配容器
-                                    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-                                } catch (e) {
-                                    console.error("AutoInsight Chart Render Error:", e);
-                                    // 在页面显示错误，方便调试
-                                    var errDiv = document.createElement('div');
-                                    errDiv.style.color = 'red';
-                                    errDiv.style.padding = '20px';
-                                    errDiv.innerText = '图表渲染错误: ' + e.message;
-                                    document.body.prepend(errDiv);
-                                }
-                            } else {
-                                attempts++;
-                                if (attempts < maxAttempts) {
-                                    // 库未就绪，200ms 后重试
-                                    setTimeout(initChart, 200);
+                        var maxChecks = 50; // 10秒超时
+                        var checks = 0;
+
+                        function runChart() {
+                            var el = document.getElementById('${targetId}') || document.querySelector('#${targetId}');
+                            
+                            // 检查依赖
+                            if (typeof ApexCharts === 'undefined' || !el) {
+                                checks++;
+                                if (checks < maxChecks) {
+                                    setTimeout(runChart, 200);
                                 } else {
-                                    console.error("AutoInsight: ApexCharts library failed to load.");
-                                    var errDiv = document.createElement('div');
-                                    errDiv.style.color = 'red';
-                                    errDiv.style.padding = '20px';
-                                    errDiv.innerText = '图表组件加载超时，请检查网络。';
-                                    document.body.prepend(errDiv);
+                                    console.error('Chart init timeout: Lib or Element missing.');
+                                    if(el) el.innerHTML = '<div style="padding:20px;color:red">图表加载超时，请检查网络。</div>';
                                 }
+                                return;
                             }
-                        };
-                        
-                        // 启动初始化检查
-                        initChart();
+
+                            // 强制赋予高度 (防塌陷双重保险)
+                            if (el.clientHeight < 50) {
+                                el.style.minHeight = '300px';
+                            }
+
+                            try {
+                                console.log('Starting ApexCharts rendering...');
+                                ${scriptContent}
+                                // 强制触发 resize 确保适配
+                                setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 100);
+                            } catch (e) {
+                                console.error('Chart Execution Error:', e);
+                                el.innerHTML = '<div style="padding:20px;color:red">图表脚本错误: ' + e.message + '</div>';
+                            }
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', runChart);
+                        } else {
+                            runChart();
+                        }
                     })();
                 </script>`;
             });
 
-            // 3. 组装最终 HTML
+            // 5. 注入 CSS 到 Head
             if (finalHtml.includes('</head>')) {
-                finalHtml = finalHtml.replace('</head>', stylePatch + '</head>');
-            } else if (finalHtml.includes('<body')) {
-                finalHtml = finalHtml.replace('<body', '<head>' + stylePatch + '</head><body');
+                finalHtml = finalHtml.replace('</head>', cssPatch + '</head>');
             } else {
-                finalHtml = `<!DOCTYPE html><html><head>${stylePatch}</head><body>${finalHtml}</body></html>`;
+                finalHtml = cssPatch + finalHtml;
+            }
+
+            // 6. 如果没有完整 HTML 结构，包裹一下
+            if (!finalHtml.trim().toLowerCase().startsWith('<!doctype')) {
+                 finalHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">${cssPatch}</head><body>${finalHtml}</body></html>`;
             }
 
             const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
