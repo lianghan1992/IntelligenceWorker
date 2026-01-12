@@ -4,7 +4,7 @@ import {
     TrashIcon, ArrowRightIcon, PlusIcon, RefreshIcon, 
     CheckIcon, CloseIcon, CubeIcon, DocumentTextIcon, 
     PhotoIcon, ViewGridIcon, PencilIcon, DownloadIcon,
-    GlobeIcon // Added for general use if needed
+    GlobeIcon, LinkIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../../../api/stratify';
 
@@ -25,6 +25,12 @@ const UndoIcon = ({ className }: { className?: string }) => (
 const RedoIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/>
+    </svg>
+);
+
+const GripVerticalIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M9.5 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm5-13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0 6.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>
     </svg>
 );
 
@@ -69,14 +75,15 @@ interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
     onUpdateContent: (text: string) => void;
+    onUpdateAttribute: (key: string, value: string) => void;
     onDelete: () => void;
     onClose: () => void;
 }
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onDelete, onClose }) => {
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
     if (!element) return null;
     const parseVal = (val: string) => parseInt(val) || 0;
-    const isText = element.tagName !== 'IMG' && element.tagName !== 'HR';
+    const isImg = element.tagName === 'IMG';
 
     return (
         <div className="w-80 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
@@ -90,7 +97,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
                 {/* 1. Content */}
-                {(element.tagName !== 'IMG' && element.tagName !== 'HR' && element.tagName !== 'BR') && (
+                {(!isImg && element.tagName !== 'HR' && element.tagName !== 'BR') && (
                     <div className="space-y-3">
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><DocumentTextIcon className="w-3.5 h-3.5" /> 文本内容</h4>
                         <textarea 
@@ -98,6 +105,23 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                             onChange={(e) => onUpdateContent(e.target.value)}
                             className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 resize-y min-h-[80px]"
                         />
+                    </div>
+                )}
+                
+                {/* 1.5 Image Source */}
+                {isImg && (
+                    <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3.5 h-3.5" /> 图片源</h4>
+                        <div>
+                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">图片 URL</label>
+                             <input 
+                                type="text" 
+                                value={element.src || ''} 
+                                onChange={(e) => onUpdateAttribute('src', e.target.value)} 
+                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-xs focus:border-indigo-500 outline-none bg-slate-50 text-slate-600"
+                                placeholder="https://..."
+                             />
+                        </div>
                     </div>
                 )}
 
@@ -200,19 +224,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
-// --- 悬浮快捷工具条 (Light Theme - Fixed Position) ---
+// --- 悬浮快捷工具条 (Light Theme - Draggable - Enhanced Size) ---
 interface FloatingToolbarProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
     onUpdateTransform: (deltaX: number, deltaY: number, scale?: number) => void;
+    onUpdateAttribute: (key: string, value: string) => void;
     onLayerChange: (direction: 'up' | 'down') => void;
     onDuplicate: () => void;
     onDelete: () => void;
 }
 
-const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyle, onUpdateTransform, onLayerChange, onDuplicate, onDelete }) => {
+const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyle, onUpdateTransform, onUpdateAttribute, onLayerChange, onDuplicate, onDelete }) => {
     const tagName = element.tagName;
     const isText = tagName === 'P' || tagName === 'SPAN' || tagName === 'H1' || tagName === 'H2' || tagName === 'H3' || tagName === 'H4' || tagName === 'H5' || tagName === 'H6' || (tagName === 'DIV' && element.content?.trim().length > 0);
+    const isImg = tagName === 'IMG';
     const currentScale = element.scale || 1;
     
     // Style checks
@@ -223,92 +249,164 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
     const hasRadius = parseInt(element.borderRadius) > 0;
     const hasShadow = element.boxShadow && element.boxShadow !== 'none';
 
+    // Dragging Logic
+    const [position, setPosition] = useState({ x: 0, y: -60 }); // Relative to initial centered position
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStartRef = useRef<{x: number, y: number} | null>(null);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        dragStartRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+        e.stopPropagation();
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (isDragging && dragStartRef.current) {
+                const newX = e.clientX - dragStartRef.current.x;
+                const newY = e.clientY - dragStartRef.current.y;
+                setPosition({ x: newX, y: newY });
+            }
+        };
+        const handleMouseUp = () => {
+            setIsDragging(false);
+            dragStartRef.current = null;
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    const handleImageChange = () => {
+        const url = prompt("请输入图片 URL:", element.src || "");
+        if (url !== null) {
+            onUpdateAttribute('src', url);
+        }
+    };
+
     // Tool Button Component
-    const ToolBtn = ({ onClick, active, children, title }: any) => (
+    const ToolBtn = ({ onClick, active, children, title, className }: any) => (
         <button 
             onClick={onClick}
-            className={`p-2 rounded-lg transition-all ${
+            className={`p-2.5 rounded-lg transition-all ${
                 active 
                     ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
-            }`}
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            } ${className || ''}`}
             title={title}
         >
             {children}
         </button>
     );
 
-    const Separator = () => <div className="w-px h-5 bg-slate-200 mx-1"></div>;
+    const Separator = () => <div className="w-px h-6 bg-slate-200 mx-1.5"></div>;
 
     return (
-        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-2 flex items-center gap-1 z-50 animate-in fade-in slide-in-from-top-4 select-none min-w-max ring-1 ring-black/5">
-            
-            {/* 1. Element Tag Badge */}
-             <div className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1">
-                {tagName}
-            </div>
-
-            <Separator />
-
-            {/* 2. Quick Styles */}
-            <div className="flex items-center gap-1">
-                {/* Colors */}
-                <div className="relative group p-2 hover:bg-slate-100 rounded-lg cursor-pointer" title="文字颜色">
-                     <div className="w-4 h-4 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: element.color || '#000' }}></div>
-                     <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('color', e.target.value)} />
+        <div 
+            className="absolute z-50 flex flex-col items-center select-none"
+            style={{ 
+                left: `calc(50% + ${position.x}px)`, 
+                top: `calc(32px + ${position.y}px)`, // Offset from element top (approx) or keep static relative to container
+                // Note: The parent container centers the content. 
+                // Using transform translate might be easier if we want it relative to the element, 
+                // but here we are making it draggable relative to the initial center point.
+                cursor: isDragging ? 'grabbing' : 'default'
+            }}
+        >
+            <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/80 p-2.5 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 min-w-max ring-1 ring-black/5">
+                
+                {/* Drag Handle */}
+                <div 
+                    className="p-1.5 mr-1 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 rounded hover:bg-slate-50 transition-colors"
+                    onMouseDown={handleMouseDown}
+                    title="按住拖动工具条"
+                >
+                    <GripVerticalIcon className="w-5 h-5" />
                 </div>
-                <div className="relative group p-2 hover:bg-slate-100 rounded-lg cursor-pointer" title="背景颜色">
-                     <div className="w-4 h-4 rounded-sm border border-slate-300 shadow-sm" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
-                     <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} />
+
+                {/* 1. Element Tag Badge */}
+                 <div className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-500 uppercase tracking-widest mr-1">
+                    {tagName}
                 </div>
 
                 <Separator />
 
-                {/* Typography (If Text) */}
-                {isText && (
-                    <>
-                        <ToolBtn active={isBold} onClick={() => onUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} title="加粗"><BoldIcon className="w-4 h-4" /></ToolBtn>
-                        <ToolBtn active={isItalic} onClick={() => onUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} title="斜体"><ItalicIcon className="w-4 h-4" /></ToolBtn>
-                        <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100 ml-1">
-                            <button onClick={() => onUpdateStyle('textAlign', 'left')} className={`p-1.5 rounded ${align==='left'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => onUpdateStyle('textAlign', 'center')} className={`p-1.5 rounded ${align==='center'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => onUpdateStyle('textAlign', 'right')} className={`p-1.5 rounded ${align==='right'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
-                        </div>
-                        <Separator />
-                    </>
-                )}
+                {/* 2. Quick Styles */}
+                <div className="flex items-center gap-1">
+                    {/* Colors */}
+                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-lg cursor-pointer" title="文字颜色">
+                         <div className="w-5 h-5 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: element.color || '#000' }}></div>
+                         <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('color', e.target.value)} />
+                    </div>
+                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-lg cursor-pointer" title="背景颜色">
+                         <div className="w-5 h-5 rounded-sm border border-slate-300 shadow-sm" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
+                         <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} />
+                    </div>
 
-                {/* Box Styles */}
-                <ToolBtn active={hasRadius} onClick={() => onUpdateStyle('borderRadius', hasRadius ? '0' : '16px')} title="圆角"><CornerIcon className="w-4 h-4" /></ToolBtn>
-                <ToolBtn active={hasShadow} onClick={() => onUpdateStyle('boxShadow', hasShadow ? 'none' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)')} title="阴影"><ShadowIcon className="w-4 h-4" /></ToolBtn>
-            </div>
+                    <Separator />
 
-            <Separator />
+                    {/* Typography (If Text) */}
+                    {isText && (
+                        <>
+                            <ToolBtn active={isBold} onClick={() => onUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} title="加粗"><BoldIcon className="w-5 h-5" /></ToolBtn>
+                            <ToolBtn active={isItalic} onClick={() => onUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} title="斜体"><ItalicIcon className="w-5 h-5" /></ToolBtn>
+                            <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100 ml-1">
+                                <button onClick={() => onUpdateStyle('textAlign', 'left')} className={`p-2 rounded-md transition-all ${align==='left'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignLeftIcon className="w-4 h-4"/></button>
+                                <button onClick={() => onUpdateStyle('textAlign', 'center')} className={`p-2 rounded-md transition-all ${align==='center'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignCenterIcon className="w-4 h-4"/></button>
+                                <button onClick={() => onUpdateStyle('textAlign', 'right')} className={`p-2 rounded-md transition-all ${align==='right'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignRightIcon className="w-4 h-4"/></button>
+                            </div>
+                            <Separator />
+                        </>
+                    )}
 
-            {/* 3. Transform & Scale */}
-            <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-lg mx-1 p-0.5">
-                <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-xs font-mono">-</button>
-                <span className="text-[10px] text-slate-500 w-8 text-center font-mono font-bold select-none">{Math.round(currentScale * 100)}%</span>
-                <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-xs font-mono">+</button>
-            </div>
-            
-            {/* Nudge Arrows */}
-            <div className="flex items-center gap-0.5 p-0.5 bg-slate-50 rounded-lg border border-slate-100">
-                <button onClick={() => onUpdateTransform(-10, 0)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3 rotate-180"/></button>
-                <div className="flex flex-col gap-0.5">
-                     <button onClick={() => onUpdateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-2.5 h-2.5 -rotate-90"/></button>
-                     <button onClick={() => onUpdateTransform(0, 10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                     {/* Image Options */}
+                     {isImg && (
+                        <>
+                            <ToolBtn onClick={handleImageChange} title="更换图片链接" className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold flex items-center gap-1.5 px-3">
+                                <LinkIcon className="w-4 h-4" /> 换图
+                            </ToolBtn>
+                            <Separator />
+                        </>
+                    )}
+
+                    {/* Box Styles */}
+                    <ToolBtn active={hasRadius} onClick={() => onUpdateStyle('borderRadius', hasRadius ? '0' : '16px')} title="圆角"><CornerIcon className="w-5 h-5" /></ToolBtn>
+                    <ToolBtn active={hasShadow} onClick={() => onUpdateStyle('boxShadow', hasShadow ? 'none' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)')} title="阴影"><ShadowIcon className="w-5 h-5" /></ToolBtn>
                 </div>
-                <button onClick={() => onUpdateTransform(10, 0)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3"/></button>
+
+                <Separator />
+
+                {/* 3. Transform & Scale */}
+                <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-lg mx-1 p-0.5">
+                    <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-sm font-mono">-</button>
+                    <span className="text-xs text-slate-600 w-10 text-center font-mono font-bold select-none">{Math.round(currentScale * 100)}%</span>
+                    <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-sm font-mono">+</button>
+                </div>
+                
+                {/* Nudge Arrows */}
+                <div className="flex items-center gap-0.5 p-0.5 bg-slate-50 rounded-lg border border-slate-100 ml-1">
+                    <button onClick={() => onUpdateTransform(-10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                    <div className="flex flex-col gap-0.5">
+                         <button onClick={() => onUpdateTransform(0, -10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-sm"><ArrowRightIcon className="w-3 h-3 -rotate-90"/></button>
+                         <button onClick={() => onUpdateTransform(0, 10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-sm"><ArrowRightIcon className="w-3 h-3 rotate-90"/></button>
+                    </div>
+                    <button onClick={() => onUpdateTransform(10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3.5 h-3.5"/></button>
+                </div>
+
+                <Separator />
+
+                {/* 4. Actions */}
+                <ToolBtn onClick={() => onLayerChange('up')} title="上移一层"><LayerIcon className="w-5 h-5 text-slate-500 transform rotate-180"/></ToolBtn>
+                <ToolBtn onClick={() => onLayerChange('down')} title="下移一层"><LayerIcon className="w-5 h-5 text-slate-500"/></ToolBtn>
+                <ToolBtn onClick={onDuplicate} title="复制元素 (Duplicate)"><DuplicateIcon className="w-5 h-5 text-indigo-500"/></ToolBtn>
+                <ToolBtn onClick={onDelete} title="删除"><TrashIcon className="w-5 h-5 text-red-500"/></ToolBtn>
             </div>
-
-            <Separator />
-
-            {/* 4. Actions */}
-            <ToolBtn onClick={() => onLayerChange('up')} title="上移一层"><LayerIcon className="w-4 h-4 text-slate-400 transform rotate-180"/></ToolBtn>
-            <ToolBtn onClick={() => onLayerChange('down')} title="下移一层"><LayerIcon className="w-4 h-4 text-slate-400"/></ToolBtn>
-            <ToolBtn onClick={onDuplicate} title="复制元素 (Duplicate)"><DuplicateIcon className="w-4 h-4 text-indigo-500"/></ToolBtn>
-            <ToolBtn onClick={onDelete} title="删除"><TrashIcon className="w-4 h-4 text-red-500"/></ToolBtn>
         </div>
     );
 };
@@ -447,6 +545,7 @@ const EDITOR_SCRIPT = `
           type: 'SELECTED', 
           tagName: selectedEl.tagName,
           content: selectedEl.innerText,
+          src: selectedEl.getAttribute('src'), // Pass src for images
           color: comp.color,
           fontSize: comp.fontSize,
           fontWeight: comp.fontWeight,
@@ -507,6 +606,12 @@ const EDITOR_SCRIPT = `
         pushHistory();
         selectElement(selectedEl); // refresh selection state 
     } 
+    else if (action === 'UPDATE_ATTRIBUTE') {
+        // e.g. { key: 'src', val: 'http...' }
+        selectedEl.setAttribute(value.key, value.val);
+        pushHistory();
+        selectElement(selectedEl); 
+    }
     else if (action === 'UPDATE_TRANSFORM') {
         const currentTransform = selectedEl.style.transform || '';
         let currentScale = 1;
@@ -697,6 +802,11 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
         sendCommand('UPDATE_CONTENT', text);
         setSelectedElement((prev: any) => ({ ...prev, content: text }));
     };
+
+    const handleUpdateAttribute = (key: string, value: string) => {
+        sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
+        setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
+    };
     
     // Handle Scale/Translate from Floating Toolbar
     const handleUpdateTransform = (deltaX: number, deltaY: number, scaleVal?: number) => {
@@ -764,6 +874,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
                         <FloatingToolbar 
                             element={selectedElement}
                             onUpdateStyle={handleUpdateStyle}
+                            onUpdateAttribute={handleUpdateAttribute}
                             onUpdateTransform={handleUpdateTransform}
                             onLayerChange={(dir) => sendCommand('LAYER', dir)}
                             onDuplicate={() => sendCommand('DUPLICATE')}
@@ -778,6 +889,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
                         element={selectedElement}
                         onUpdateStyle={(k, v) => { sendCommand('UPDATE_STYLE', { [k]: v }); setSelectedElement((prev:any) => ({ ...prev, [k]: v })); }}
                         onUpdateContent={(t) => { sendCommand('UPDATE_CONTENT', t); setSelectedElement((prev:any) => ({ ...prev, content: t })); }}
+                        onUpdateAttribute={(k, v) => { sendCommand('UPDATE_ATTRIBUTE', { key: k, val: v }); setSelectedElement((prev:any) => ({ ...prev, [k]: v })); }}
                         onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
                         onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); }}
                     />
