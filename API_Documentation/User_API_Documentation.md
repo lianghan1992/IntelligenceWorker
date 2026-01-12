@@ -300,6 +300,7 @@ curl -X GET http://127.0.0.1:7657/api/user/plans
 | `period` | string | 周期 (monthly, daily) |
 | `allow_overage` | boolean | 是否允许超额付费 |
 | `overage_unit_price` | number | 超额单价 (CNY) |
+| `overage_strategy` | string | 超额策略 (`unit_price`: 固定单价, `external_pricing`: 外部/模型定价) |
 | `remark` | string | 备注 (可选) |
 
 ### 6.2 获取权益配置 (Admin)
@@ -685,3 +686,48 @@ curl -X GET http://127.0.0.1:7657/api/user/plans
   ]
 }
 ```
+
+### 6.15 消耗AI权益 (Internal)
+
+供 StratifyAI 服务调用，用于上报 Token 消耗并扣费。
+
+-   **路径:** `/api/user/quota/consume-ai`
+-   **方法:** `POST`
+-   **认证:** 需要 (系统内部或管理员)
+
+**请求体 (JSON)**
+
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `user_id` | string | 是 | 用户ID |
+| `model_name` | string | 是 | 模型名称 |
+| `input_tokens` | integer | 是 | 输入Token数 |
+| `output_tokens` | integer | 是 | 输出Token数 |
+
+## 7. 模型定价管理 (Model Pricing Management)
+
+### 7.1 获取模型定价列表
+- **路径**: `/api/user/admin/model-pricing`
+- **方法**: `GET`
+- **认证**: 需要 (管理员)
+
+### 7.2 创建/更新模型定价
+- **路径**: `/api/user/admin/model-pricing`
+- **方法**: `POST`
+- **认证**: 需要 (管理员)
+
+**请求体 (JSON)**
+
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `model_name` | string | 模型名称 |
+| `input_price` | number | 输入价格 (每1k token) |
+| `output_price` | number | 输出价格 (每1k token) |
+| `multiplier` | number | 倍率 (默认1.0) |
+| `is_active` | boolean | 是否启用 |
+
+### 7.3 删除模型定价
+- **路径**: `/api/user/admin/model-pricing/{pricing_id}`
+- **方法**: `DELETE`
+- **认证**: 需要 (管理员)
+

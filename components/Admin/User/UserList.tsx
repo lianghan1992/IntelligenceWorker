@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { UserListItem, UserForAdminUpdate } from '../../../types';
 import { getUsers, updateUser, deleteUser } from '../../../api/user';
-import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon, UsersIcon } from '../../icons';
+import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;

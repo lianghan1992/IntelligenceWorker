@@ -33,6 +33,7 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
         period: 'monthly',
         allow_overage: false,
         overage_unit_price: 0,
+        overage_strategy: 'unit_price' as 'unit_price' | 'external_pricing',
         remark: ''
     });
     const [error, setError] = useState('');
@@ -47,6 +48,7 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                 period: 'monthly',
                 allow_overage: false,
                 overage_unit_price: 0,
+                overage_strategy: 'unit_price',
                 remark: ''
             });
             setError('');
@@ -76,6 +78,7 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                 period: form.period as any,
                 allow_overage: form.allow_overage,
                 overage_unit_price: form.allow_overage ? form.overage_unit_price : 0,
+                overage_strategy: form.allow_overage ? form.overage_strategy : undefined,
                 remark: form.remark
             });
             onSuccess();
@@ -207,22 +210,45 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                             </div>
 
                             {form.allow_overage ? (
-                                <div className="animate-in fade-in space-y-2">
-                                    <label className="block text-[10px] text-slate-400 font-bold">超额单价 (CNY)</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
-                                        <input 
-                                            type="number" 
-                                            step="0.000001"
-                                            min="0"
-                                            value={form.overage_unit_price}
-                                            onChange={e => setForm({...form, overage_unit_price: parseFloat(e.target.value)})}
-                                            className="w-full bg-white border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
-                                            placeholder="0.0001"
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">/ 单位</span>
+                                <div className="animate-in fade-in space-y-3">
+                                    <div className="flex gap-2 bg-white p-1 rounded-lg border border-slate-200">
+                                        <button 
+                                            onClick={() => setForm({...form, overage_strategy: 'unit_price'})}
+                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'unit_price' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+                                        >
+                                            固定单价
+                                        </button>
+                                        <button 
+                                            onClick={() => setForm({...form, overage_strategy: 'external_pricing'})}
+                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'external_pricing' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+                                        >
+                                            模型定价
+                                        </button>
                                     </div>
-                                    <p className="text-[10px] text-slate-400">当额度用尽时，将从用户余额扣除费用。例如 Token 计费可设为 0.0001</p>
+                                    
+                                    {form.overage_strategy === 'unit_price' ? (
+                                        <div>
+                                            <label className="block text-[10px] text-slate-400 font-bold mb-1">超额单价 (CNY)</label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
+                                                <input 
+                                                    type="number" 
+                                                    step="0.000001"
+                                                    min="0"
+                                                    value={form.overage_unit_price}
+                                                    onChange={e => setForm({...form, overage_unit_price: parseFloat(e.target.value)})}
+                                                    className="w-full bg-white border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                                    placeholder="0.0001"
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">/ 单位</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-1">当额度用尽时，将从用户余额扣除费用。例如 Token 计费可设为 0.0001</p>
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 leading-relaxed">
+                                            此模式下，实际扣费金额由调用方（如 StratifyAI）根据模型倍率动态计算，此处无需配置单价。
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-xs text-slate-400 italic">
@@ -391,7 +417,7 @@ export const QuotaManager: React.FC = () => {
                                                 <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {config.period}</span>
                                             </div>
                                             {config.remark && (
-                                                <p className="text-xs text-slate-400 mt-2 italic border-l-2 border-slate-200 pl-2">
+                                                <p className="text-xs text-slate-400 mt-2 italic border-l-2 border-slate-200 pl-2 max-w-md">
                                                     {config.remark}
                                                 </p>
                                             )}
@@ -414,7 +440,9 @@ export const QuotaManager: React.FC = () => {
                                                     <div className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-100">
                                                         <CheckIcon className="w-3 h-3"/> 允许
                                                     </div>
-                                                    <span className="text-[10px] text-slate-500 font-mono mt-1">¥{config.overage_unit_price}/次</span>
+                                                    <span className="text-[10px] text-slate-500 font-mono mt-1">
+                                                        {config.overage_strategy === 'external_pricing' ? '模型定价' : `¥${config.overage_unit_price}/次`}
+                                                    </span>
                                                 </div>
                                             ) : (
                                                 <div className="flex flex-col items-center">

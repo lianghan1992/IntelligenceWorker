@@ -48,7 +48,8 @@ export interface QuotaConfig {
     period: 'monthly' | 'daily' | 'total';
     allow_overage: boolean;
     overage_unit_price: number;
-    remark?: string; // Operational note
+    overage_strategy?: 'unit_price' | 'external_pricing'; // New field
+    remark?: string; // New field
 }
 
 export interface WalletBalance {
