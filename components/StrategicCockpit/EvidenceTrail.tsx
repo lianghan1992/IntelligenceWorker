@@ -97,58 +97,63 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         if (htmlContent) {
             let finalHtml = htmlContent;
 
-            // 1. 定义强制补丁：包含全屏样式 + 自动 Resize 脚本
-            // 这能解决 99% 的 ECharts/ChartJS 在 iframe 中高度塌陷或不渲染的问题
-            const patchCode = `
+            // --- 修复 1: 注入 CSS 确保容器可见 ---
+            const stylePatch = `
                 <style>
-                    html, body {
-                        width: 100%;
-                        height: 100%;
-                        margin: 0;
-                        padding: 0;
-                        overflow-x: hidden;
-                    }
-                    /* 强制图表容器具有高度，防止塌陷 */
-                    #main, #container, .chart-container, .echarts, [id^="chart"] {
-                        width: 100% !important;
-                        min-height: 400px; /* 兜底高度 */
-                        display: block;
-                    }
+                    /* 基础重置 */
+                    html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
+                    /* 确保图表容器不仅有高度，且在 iframe 中可见 */
+                    .apexcharts-canvas { margin: 0 auto; }
                 </style>
-                <script>
-                    // 强制触发一次 resize，确保图表库重新计算尺寸
-                    window.onload = function() {
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                        }, 200);
-                        setTimeout(function() {
-                            window.dispatchEvent(new Event('resize'));
-                        }, 1000);
-                    };
-                </script>
             `;
 
-            // 2. 智能注入补丁
-            // 无论 HTML 是否完整，都强制插入我们的补丁
+            // --- 修复 2: 注入脚本加载拦截器 (关键修复) ---
+            // 查找包含 new ApexCharts 的脚本块，并将其包裹在重试逻辑中
+            // 解决 iframe 加载时，库文件尚未下载完成导致 'ApexCharts is not defined' 的问题
+            const chartScriptRegex = /<script>([\s\S]*?new ApexCharts[\s\S]*?)<\/script>/gi;
+            
+            finalHtml = finalHtml.replace(chartScriptRegex, (match, content) => {
+                // 移除原有的 <script> 标签，替换为带有等待逻辑的新脚本
+                return `<script>
+                    (function() {
+                        var attempts = 0;
+                        var maxAttempts = 50; // 10 seconds timeout
+                        
+                        var initChart = function() {
+                            // 检查库是否已加载
+                            if (typeof ApexCharts !== 'undefined') {
+                                try {
+                                    console.log("AutoInsight: Initializing Chart...");
+                                    ${content}
+                                    // 强制触发一次 resize 确保图表适配容器
+                                    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+                                } catch (e) {
+                                    console.error("AutoInsight Chart Render Error:", e);
+                                }
+                            } else {
+                                attempts++;
+                                if (attempts < maxAttempts) {
+                                    // 库未就绪，200ms 后重试
+                                    setTimeout(initChart, 200);
+                                } else {
+                                    console.error("AutoInsight: ApexCharts library failed to load in time.");
+                                }
+                            }
+                        };
+                        
+                        // 启动初始化检查
+                        initChart();
+                    })();
+                </script>`;
+            });
+
+            // 3. 组装最终 HTML
             if (finalHtml.includes('</head>')) {
-                finalHtml = finalHtml.replace('</head>', patchCode + '</head>');
+                finalHtml = finalHtml.replace('</head>', stylePatch + '</head>');
             } else if (finalHtml.includes('<body')) {
-                finalHtml = finalHtml.replace('<body', '<head>' + patchCode + '</head><body');
+                finalHtml = finalHtml.replace('<body', '<head>' + stylePatch + '</head><body');
             } else {
-                // 如果是非常简陋的片段，则包裹完整的结构
-                finalHtml = `
-                    <!DOCTYPE html>
-                    <html lang="zh-CN" style="height:100%">
-                    <head>
-                        <meta charset="utf-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        ${patchCode}
-                    </head>
-                    <body style="height:100%;margin:0;">
-                        ${finalHtml}
-                    </body>
-                    </html>
-                `;
+                finalHtml = `<!DOCTYPE html><html><head>${stylePatch}</head><body>${finalHtml}</body></html>`;
             }
 
             const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
