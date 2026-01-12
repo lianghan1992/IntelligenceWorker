@@ -289,6 +289,19 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
             onUpdateAttribute('src', url);
         }
     };
+    
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    onUpdateAttribute('src', event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     // Tool Button Component
     const ToolBtn = ({ onClick, active, children, title, className }: any) => (
@@ -312,10 +325,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
             className="absolute z-50 flex flex-col items-center select-none"
             style={{ 
                 left: `calc(50% + ${position.x}px)`, 
-                top: `calc(32px + ${position.y}px)`, // Offset from element top (approx) or keep static relative to container
-                // Note: The parent container centers the content. 
-                // Using transform translate might be easier if we want it relative to the element, 
-                // but here we are making it draggable relative to the initial center point.
+                top: `calc(32px + ${position.y}px)`,
                 cursor: isDragging ? 'grabbing' : 'default'
             }}
         >
@@ -368,9 +378,24 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                      {/* Image Options */}
                      {isImg && (
                         <>
-                            <ToolBtn onClick={handleImageChange} title="更换图片链接" className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold flex items-center gap-1.5 px-3">
-                                <LinkIcon className="w-4 h-4" /> 换图
-                            </ToolBtn>
+                            <div className="relative group">
+                                <ToolBtn className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold flex items-center gap-1.5 px-3">
+                                    <LinkIcon className="w-4 h-4" /> 换图
+                                </ToolBtn>
+                                {/* Dropdown for Image Options */}
+                                <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                                    <button 
+                                        onClick={handleImageChange}
+                                        className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-md"
+                                    >
+                                        输入 URL
+                                    </button>
+                                    <label className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-md cursor-pointer block">
+                                        本地上传
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                                    </label>
+                                </div>
+                            </div>
                             <Separator />
                         </>
                     )}
