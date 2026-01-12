@@ -1,9 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { VisualCanvas } from './VisualCanvas';
 import { 
     CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon
 } from '../../../../components/icons';
+
+// Simple Undo/Redo Icon Components
+const UndoIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z" transform="scale(-1, 1) translate(-24, 0)"/>
+    </svg>
+);
+
+const RedoIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/>
+    </svg>
+);
 
 // 简单的剪贴板图标
 const ClipboardIcon = ({ className }: { className?: string }) => (
@@ -70,11 +83,78 @@ const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// --- Custom Hook for History ---
+function useHistory<T>(initialState: T) {
+    const [history, setHistory] = useState<T[]>([initialState]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    const state = history[currentIndex];
+
+    const pushState = useCallback((newState: T) => {
+        setHistory(prev => {
+            const newHistory = prev.slice(0, currentIndex + 1);
+            // Deduplicate consecutive identical states to save memory/avoid noisy undo
+            if (newHistory[newHistory.length - 1] === newState) return prev;
+            
+            // Limit history stack size (e.g., 50)
+            if (newHistory.length > 50) newHistory.shift();
+            
+            return [...newHistory, newState];
+        });
+        setCurrentIndex(prev => {
+            const newHistoryLength = Math.min(prev + 2, 51); // index + 1 (new item)
+            // Recalculate index based on sliced array logic above is simpler:
+            // Just return history.length after update.
+            // But due to React batching, we assume:
+            return history.length >= 50 ? 49 : prev + 1; // Approximate logic, refined in effect below
+        });
+    }, [currentIndex, history.length]);
+    
+    // Fix index sync
+    useEffect(() => {
+        setCurrentIndex(history.length - 1);
+    }, [history.length]);
+
+    const undo = useCallback(() => {
+        setCurrentIndex(prev => Math.max(0, prev - 1));
+    }, []);
+
+    const redo = useCallback(() => {
+        setCurrentIndex(prev => Math.min(history.length - 1, prev + 1));
+    }, [history.length]);
+
+    const canUndo = currentIndex > 0;
+    const canRedo = currentIndex < history.length - 1;
+
+    return { state, pushState, undo, redo, canUndo, canRedo };
+}
+
 const HtmlVisualEditor: React.FC = () => {
-    const [htmlContent, setHtmlContent] = useState(DEFAULT_TEMPLATE);
+    // Replace simple useState with useHistory
+    const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo } = useHistory(DEFAULT_TEMPLATE);
+    
     const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
     const [copyStatus, setCopyStatus] = useState('复制代码');
     const [pasteStatus, setPasteStatus] = useState('从剪贴板导入');
+
+    // Keyboard Shortcuts for Undo/Redo
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    redo();
+                } else {
+                    undo();
+                }
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [undo, redo]);
 
     const handleSyncCode = (newHtml: string) => {
         setHtmlContent(newHtml);
@@ -137,6 +217,28 @@ const HtmlVisualEditor: React.FC = () => {
 
                     <div className="h-6 w-px bg-slate-200"></div>
 
+                    {/* Undo / Redo Buttons */}
+                    <div className="flex items-center gap-1">
+                        <button 
+                            onClick={undo}
+                            disabled={!canUndo}
+                            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                            title="撤回 (Ctrl+Z)"
+                        >
+                            <UndoIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            onClick={redo}
+                            disabled={!canRedo}
+                            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                            title="重做 (Ctrl+Y)"
+                        >
+                            <RedoIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <div className="h-6 w-px bg-slate-200"></div>
+
                     <button 
                         onClick={handlePaste}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-all border border-blue-100"
@@ -171,6 +273,7 @@ const HtmlVisualEditor: React.FC = () => {
                     <VisualCanvas 
                         initialHtml={htmlContent} 
                         onSave={handleSyncCode}
+                        onContentChange={handleSyncCode} // Triggered by internal iframe events (drag end, delete, etc.)
                     />
                 ) : (
                     <div className="w-full h-full bg-[#1e1e1e] flex flex-col">

@@ -7,6 +7,10 @@ import {
 interface VisualCanvasProps {
     initialHtml: string;
     onSave: (newHtml: string) => void;
+    // New prop for history tracking, distinct from manual save if needed, 
+    // but here we can reuse onSave or add onHistoryChange. 
+    // For simplicity, we use onSave to update the "Present" state in parent.
+    onContentChange?: (newHtml: string) => void; 
 }
 
 // 注入到 iframe 内部的编辑器引擎脚本
@@ -53,6 +57,26 @@ const EDITOR_SCRIPT = `
   \`;
   document.head.appendChild(style);
 
+  // --- Helper: Push History ---
+  // Sends the current HTML state to the parent.
+  // We remove editor artifacts before sending.
+  function pushHistory() {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        const wasSelected = selectedEl;
+        // Temporarily clean selection for snapshot
+        if (selectedEl) selectedEl.classList.remove('ai-editor-selected');
+        
+        // Serialize
+        const cleanHtml = document.documentElement.outerHTML;
+        
+        // Restore selection
+        if (wasSelected) wasSelected.classList.add('ai-editor-selected');
+        
+        window.parent.postMessage({ type: 'HISTORY_UPDATE', html: cleanHtml }, '*');
+      }, 50);
+  }
+
   // 2. Interaction: Click to Select
   document.body.addEventListener('click', (e) => {
     if (e.target.isContentEditable) return;
@@ -65,7 +89,7 @@ const EDITOR_SCRIPT = `
     }
 
     const target = e.target;
-    // Block selection of root nodes to avoid breaking layout
+    // Block selection of root nodes
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect();
         return;
@@ -95,6 +119,7 @@ const EDITOR_SCRIPT = `
          const onBlur = () => {
              selectedEl.contentEditable = 'false';
              selectedEl.removeEventListener('blur', onBlur);
+             pushHistory(); // Save on text edit finish
          };
          selectedEl.addEventListener('blur', onBlur);
      }
@@ -107,6 +132,7 @@ const EDITOR_SCRIPT = `
           if (!selectedEl.isContentEditable) {
               selectedEl.remove();
               deselect();
+              pushHistory(); // Save on delete
           }
       }
       if (e.key === 'Escape') {
@@ -157,7 +183,6 @@ const EDITOR_SCRIPT = `
   window.addEventListener('message', (event) => {
     const { action, value } = event.data;
     
-    // --- Scale Update Fix ---
     if (action === 'UPDATE_SCALE') {
         window.visualEditorScale = value;
         return;
@@ -176,15 +201,18 @@ const EDITOR_SCRIPT = `
 
     if (!selectedEl) return;
 
+    // --- Actions that mutate DOM ---
     if (action === 'UPDATE_STYLE') {
         Object.assign(selectedEl.style, value);
+        pushHistory(); 
     } 
     else if (action === 'UPDATE_TRANSFORM') {
         const currentTransform = selectedEl.style.transform || '';
         let translatePart = 'translate(0px, 0px)';
-        const translateMatch = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        const translateMatch = currentTransform.match(/translate\\([^)]+\\)/);
         if (translateMatch) translatePart = translateMatch[0];
         selectedEl.style.transform = \`\${translatePart} scale(\${value})\`;
+        pushHistory();
     }
     else if (action === 'RESET_STYLE') {
         selectedEl.style.transform = '';
@@ -195,15 +223,18 @@ const EDITOR_SCRIPT = `
         selectedEl.style.width = '';
         selectedEl.style.height = '';
         selectedEl.style.letterSpacing = '';
+        pushHistory();
     }
     else if (action === 'DELETE') {
         selectedEl.remove();
         deselect();
+        pushHistory();
     } 
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
         selectedEl.style.position = 'relative'; 
+        pushHistory();
     }
   });
 
@@ -231,7 +262,6 @@ const EDITOR_SCRIPT = `
     if (!isDragging || !selectedEl) return;
     e.preventDefault();
     
-    // Use local scale variable safely
     const scale = window.visualEditorScale || 1; 
     
     const dx = (e.clientX - startX) / scale; 
@@ -246,14 +276,17 @@ const EDITOR_SCRIPT = `
   });
 
   window.addEventListener('mouseup', () => {
-    isDragging = false;
+    if (isDragging) {
+        isDragging = false;
+        pushHistory(); // Save after drag ends
+    }
   });
 
 })();
 </script>
 `;
 
-export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave }) => {
+export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave, onContentChange }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
@@ -276,14 +309,12 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 const { clientWidth, clientHeight } = containerRef.current;
                 const baseWidth = 1600;
                 const baseHeight = 900;
-                // Leave some padding
                 const wRatio = (clientWidth - 60) / baseWidth; 
                 const hRatio = (clientHeight - 60) / baseHeight;
                 const newScale = Math.min(wRatio, hRatio);
                 
                 setScale(newScale);
 
-                // Update scale inside iframe for drag calculations
                 if (iframeRef.current && iframeRef.current.contentWindow) {
                     iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: newScale }, '*');
                 }
@@ -291,7 +322,6 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
         };
         
         window.addEventListener('resize', updateScale);
-        // Initial delays to handle layout shifts
         setTimeout(updateScale, 100);
         setTimeout(updateScale, 500);
         
@@ -299,17 +329,18 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
     }, []);
 
     // Load Content
-    // Improved injection logic to prevent blank screens
+    // We add a ref to track if it's the *initial* load or an *update* (undo/redo)
+    // If it's an update, we must re-write the doc.
     useEffect(() => {
         const iframe = iframeRef.current;
         if (iframe) {
             const doc = iframe.contentDocument;
             if (doc) {
-                // Prepare content
-                let content = initialHtml || '';
+                // Check if content is significantly different to avoid flickering loops
+                // In a perfect world we diff, but for now we just overwrite to ensure Undo works.
+                doc.open();
                 
-                // 1. Basic Structure Check
-                // If it looks like a fragment (no <html> tag), wrap it
+                let content = initialHtml || '';
                 if (!content.toLowerCase().includes('<html')) {
                      content = `<!DOCTYPE html>
 <html lang="en">
@@ -327,8 +358,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
 </html>`;
                 }
 
-                // 2. Inject Editor Script
-                // Place it right before the closing body tag for best execution timing
+                // Inject Editor Script logic
                 if (content.toLowerCase().includes('</body>')) {
                     content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
                 } else if (content.toLowerCase().includes('</html>')) {
@@ -338,7 +368,6 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 }
 
                 try {
-                    doc.open();
                     doc.write(content);
                     doc.close();
                 } catch (err) {
@@ -346,7 +375,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 }
             }
         }
-    }, [initialHtml]);
+    }, [initialHtml]); // Re-run when initialHtml changes (e.g. Undo/Redo)
 
     // Handle Messages from Iframe
     useEffect(() => {
@@ -369,11 +398,16 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 let cleanHtml = e.data.html;
                 cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
                 onSave(cleanHtml);
+            } else if (e.data.type === 'HISTORY_UPDATE') {
+                // Auto-save for history
+                let cleanHtml = e.data.html;
+                cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
+                if (onContentChange) onContentChange(cleanHtml);
             }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
-    }, [onSave]);
+    }, [onSave, onContentChange]);
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -505,11 +539,11 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                     ref={iframeRef}
                     className="w-full h-full border-none bg-white"
                     title="Visual Editor"
-                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms" // Remove allow-same-origin if not needed for safety, but doc.write usually implies same origin
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms" 
                 />
             </div>
             
-            {/* Sync Trigger */}
+            {/* Sync Trigger (Now handled mostly auto, but kept for explicit saves) */}
             <div className="absolute bottom-6 right-6">
                 <button 
                      onClick={() => sendCommand('GET_HTML')}
