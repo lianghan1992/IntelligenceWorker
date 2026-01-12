@@ -1,9 +1,10 @@
 
+
 import React, { useState } from 'react';
 import { AdminView } from '../../types';
 import { LivestreamTaskManager } from './LivestreamTaskManager';
 import { IntelligenceDashboard } from './IntelligenceDashboard';
-import { UserManager } from './UserManager';
+import { UserManagement } from './User/index'; // Updated import
 import { UsersIcon, VideoCameraIcon, RssIcon, BrainIcon, DocumentTextIcon, ViewGridIcon, SparklesIcon } from '../icons';
 import { CompetitivenessManager } from './CompetitivenessManager';
 import { MarkdownToHtmlManager } from './MarkdownToHtmlManager';
@@ -26,7 +27,7 @@ export const AdminPage: React.FC = () => {
     const renderView = () => {
         switch (view) {
             case 'users':
-                return <UserManager />;
+                return <UserManagement />; // Updated Component
             case 'events':
                 return <LivestreamTaskManager />;
             case 'intelligence':
@@ -40,7 +41,7 @@ export const AdminPage: React.FC = () => {
             case 'deep_insight':
                 return <DeepInsightManager />;
             default:
-                return <UserManager />;
+                return <UserManagement />;
         }
     };
 

@@ -1,9 +1,10 @@
 
+
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
-    PaymentStatusResponse, QuotaConfig
+    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -97,3 +98,55 @@ export const createQuotaConfig = (data: Partial<QuotaConfig>): Promise<void> =>
         method: 'POST',
         body: JSON.stringify(data)
     });
+
+export const deleteQuotaConfig = (id: string): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/quotas/${id}`, { method: 'DELETE' });
+
+// --- Admin Billing & Finance ---
+
+export const getAdminBills = async (params: any): Promise<PaginatedResponse<BillItem>> => {
+    // Map 'limit' to 'size' for the API standard
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills${query}`);
+    
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size,
+        totalPages: response.total_pages
+    };
+};
+
+export const getAdminBillStats = (params: any): Promise<BillStats> => {
+    const query = createApiQuery(params);
+    return apiFetch<BillStats>(`${USER_SERVICE_PATH}/admin/bills/stats${query}`);
+};
+
+export const getAdminUserBillSummary = async (params: any): Promise<PaginatedResponse<UserBillSummary>> => {
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills/users/summary${query}`);
+
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size,
+        totalPages: response.total_pages
+    };
+};
+
+export const getUserBillsAdmin = (userId: string, params: any): Promise<PaginatedResponse<BillItem>> => {
+    return getAdminBills({ ...params, user_id: userId });
+};

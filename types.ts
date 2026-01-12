@@ -68,6 +68,47 @@ export interface PaymentStatusResponse {
     order?: any;
 }
 
+// --- New Billing Types ---
+export interface BillItem {
+    id: string;
+    user_id: string;
+    username?: string;
+    email?: string;
+    bill_type: 'recharge' | 'consumption' | 'subscription' | 'refund';
+    channel: string; // payapi, balance, manual
+    gateway?: string; // manual, alipay, wechat
+    amount: number;
+    currency: string;
+    status: 'pending' | 'paid' | 'failed' | 'cancelled' | 'refunded';
+    order_no: string;
+    external_order_no?: string;
+    description?: string;
+    created_at: string;
+    paid_at?: string;
+}
+
+export interface BillStats {
+    total_count: number;
+    total_amount: number;
+    by_type: Array<{ key: string; count: number; amount: number }>;
+    by_status: Array<{ key: string; count: number; amount: number }>;
+    by_channel: Array<{ key: string; count: number; amount: number }>;
+    by_day: Array<{ day: string; count: number; amount: number }>;
+}
+
+export interface UserBillSummary {
+    user_id: string;
+    username: string;
+    email: string;
+    bills_count: number;
+    total_amount: number;
+    recharge_amount: number;
+    consumption_amount: number;
+    subscription_amount: number;
+    refund_amount: number;
+    last_bill_at?: string;
+}
+
 export interface DeepDive {
     id: string;
     title: string;
