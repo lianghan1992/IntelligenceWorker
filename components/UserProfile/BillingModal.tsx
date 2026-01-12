@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getUsageStats, getUsageSummary } from '../../api/stratify';
 import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus } from '../../api/user';
 import { UsageStat, UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse } from '../../types';
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon } from '../icons';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, SparklesIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
@@ -32,9 +32,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
     // Recharge State
     const [showRecharge, setShowRecharge] = useState(false);
-    // Allow undefined or string initially to let user type freely, parse on submit
-    const [rechargeAmount, setRechargeAmount] = useState<string>('100');
-    // Removed explicit payment method state as per request (defaulting to manual/single interface)
+    const [rechargeAmount, setRechargeAmount] = useState<string>('49'); // Default to Pro plan price
     const [isSubmittingRecharge, setIsSubmittingRecharge] = useState(false);
     const [rechargeResult, setRechargeResult] = useState<RechargeResponse | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | null>(null);
@@ -401,48 +399,64 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 </div>
                             ) : !rechargeResult ? (
                                 <div className="w-full max-w-md space-y-8">
-                                    <div className="space-y-4">
-                                        <label className="text-sm font-bold text-slate-700 block">选择充值金额</label>
-                                        <div className="grid grid-cols-3 gap-4">
-                                            {[50, 100, 200, 500, 1000].map(amt => (
-                                                <button
-                                                    key={amt}
-                                                    onClick={() => setRechargeAmount(amt.toString())}
-                                                    className={`py-3 rounded-xl border font-bold text-sm transition-all ${
-                                                        rechargeAmount === amt.toString()
-                                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' 
-                                                            : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
-                                                    }`}
-                                                >
-                                                    ¥ {amt}
-                                                </button>
-                                            ))}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <button
+                                            onClick={() => setRechargeAmount('49')}
+                                            className={`relative p-5 rounded-2xl border-2 text-left transition-all duration-200 group ${
+                                                rechargeAmount === '49' 
+                                                    ? 'border-indigo-600 bg-indigo-50 shadow-md ring-1 ring-indigo-500/20' 
+                                                    : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`p-2 rounded-xl transition-colors ${rechargeAmount === '49' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:bg-white'}`}>
+                                                        <SparklesIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div>
+                                                        <div className={`font-bold text-lg ${rechargeAmount === '49' ? 'text-indigo-900' : 'text-slate-700'}`}>订阅专业版</div>
+                                                        <div className="text-xs text-slate-500 mt-0.5">解锁无限关注点与高级功能</div>
+                                                    </div>
+                                                </div>
+                                                <div className={`text-2xl font-black font-mono tracking-tight ${rechargeAmount === '49' ? 'text-indigo-700' : 'text-slate-400'}`}>¥49.00</div>
+                                            </div>
+                                        </button>
+
+                                        <div className={`relative p-5 rounded-2xl border-2 transition-all duration-200 ${
+                                            rechargeAmount !== '49' 
+                                                ? 'border-indigo-600 bg-white shadow-md ring-1 ring-indigo-500/20' 
+                                                : 'border-slate-200 bg-slate-50/50'
+                                        }`}>
+                                            <label className="text-sm font-bold text-slate-700 block mb-3">其他金额充值</label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg font-bold">¥</span>
                                                 <input 
                                                     type="number" 
                                                     step="0.01"
                                                     min="0.01"
                                                     value={rechargeAmount}
                                                     onChange={e => setRechargeAmount(e.target.value)}
-                                                    className={`w-full py-3 pl-6 pr-3 rounded-xl border font-bold text-sm outline-none transition-all text-center focus:ring-2 focus:ring-indigo-500 ${
-                                                        ![50, 100, 200, 500, 1000].map(String).includes(rechargeAmount) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'
-                                                    }`}
-                                                    placeholder="自定义"
+                                                    onFocus={() => { if (rechargeAmount === '49') setRechargeAmount(''); }}
+                                                    className="w-full py-3 pl-10 pr-4 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-mono font-bold text-lg text-slate-800 placeholder-slate-300"
+                                                    placeholder="输入充值金额"
                                                 />
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Payment Method Selector Removed - Defaulting to single interface */}
-
                                     <button 
                                         onClick={handleRecharge}
                                         disabled={isSubmittingRecharge}
-                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                        className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
                                     >
-                                        {isSubmittingRecharge && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
-                                        确认支付 ¥{parseFloat(rechargeAmount || '0').toFixed(2)}
+                                        {isSubmittingRecharge ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                                        ) : (
+                                            <>
+                                                <span>确认支付</span>
+                                                <span className="font-mono">¥{parseFloat(rechargeAmount || '0').toFixed(2)}</span>
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             ) : (
