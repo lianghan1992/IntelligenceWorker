@@ -3,7 +3,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
     TrashIcon, ArrowRightIcon, PlusIcon, RefreshIcon, 
     CheckIcon, CloseIcon, CubeIcon, DocumentTextIcon, 
-    PhotoIcon, ViewGridIcon, PencilIcon, DownloadIcon
+    PhotoIcon, ViewGridIcon, PencilIcon, DownloadIcon,
+    GlobeIcon // Added for general use if needed
 } from '../../../../components/icons';
 import { generatePdf } from '../../../../api/stratify';
 
@@ -36,6 +37,7 @@ const UnderlineIcon = ({className}:{className?:string}) => <svg className={class
 const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
 const CornerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M21 15h-2v2c0 1.65-1.35 3-3 3H8v2h8c2.76 0 5-2.24 5-5v-2zM3 15h2v2c0 1.65 1.35 3 3 3h4v2H8c-2.76 0-5-2.24-5-5v-2zM3 9h2V7c0-1.65 1.35-3 3-3h4V2H8c-2.76 0-5 2.24-5 5v2zM21 9h-2V7c0-1.65-1.35-3-3-3h-4V2h4c2.76 0 5 2.24 5 5v2z"/></svg>;
 const ShadowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3V3zm2 16h14V5H5v14z M8 8h8v8H8V8z" opacity="0.5"/><path d="M22 22H2V2h20v20zM4 20h16V4H4v16z"/></svg>;
+const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
 
 // --- 历史记录 Hook ---
 function useHistory<T>(initialState: T) {
@@ -62,7 +64,7 @@ function useHistory<T>(initialState: T) {
     return { state, pushState, undo, redo, canUndo: currentIndex > 0, canRedo: currentIndex < history.length - 1, reset };
 }
 
-// --- 属性编辑面板 (右侧) ---
+// --- 属性编辑面板 (右侧 - 完整版) ---
 interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -74,6 +76,7 @@ interface PropertiesPanelProps {
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onDelete, onClose }) => {
     if (!element) return null;
     const parseVal = (val: string) => parseInt(val) || 0;
+    const isText = element.tagName !== 'IMG' && element.tagName !== 'HR';
 
     return (
         <div className="w-80 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
@@ -86,6 +89,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                {/* 1. Content */}
                 {(element.tagName !== 'IMG' && element.tagName !== 'HR' && element.tagName !== 'BR') && (
                     <div className="space-y-3">
                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><DocumentTextIcon className="w-3.5 h-3.5" /> 文本内容</h4>
@@ -96,17 +100,92 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                         />
                     </div>
                 )}
+
                 <div className="h-px bg-slate-100"></div>
+
+                {/* 2. Layout & Size */}
                 <div className="space-y-3">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><ViewGridIcon className="w-3.5 h-3.5" /> 布局与尺寸</h4>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽度</label>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽度 (px)</label>
                             <input type="number" value={parseVal(element.width)} onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"/>
                         </div>
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高度</label>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高度 (px)</label>
                             <input type="number" value={parseVal(element.height)} onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"/>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="h-px bg-slate-100"></div>
+
+                {/* 3. Typography (Full Controls Restored) */}
+                <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PencilIcon className="w-3.5 h-3.5" /> 字体排版</h4>
+                    
+                    {/* Color Picker */}
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">文字颜色</label>
+                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
+                            <div className="w-5 h-5 rounded border border-slate-200" style={{backgroundColor: element.color || '#000'}}></div>
+                            <input type="color" value={element.color || '#000000'} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
+                            <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="flex-1 text-xs outline-none uppercase font-mono text-slate-600"/>
+                        </div>
+                    </div>
+
+                    {/* Font Size & Weight */}
+                    <div className="flex gap-3">
+                         <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">字号 (px)</label>
+                            <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                        <div className="w-1/3">
+                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">加粗</label>
+                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full py-1.5 border rounded-md font-bold text-sm ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>B</button>
+                        </div>
+                    </div>
+
+                    {/* Alignment */}
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐方式</label>
+                        <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
+                            {['left', 'center', 'right', 'justify'].map((align) => (
+                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                                    {align === 'left' && <AlignLeftIcon className="w-4 h-4"/>}
+                                    {align === 'center' && <AlignCenterIcon className="w-4 h-4"/>}
+                                    {align === 'right' && <AlignRightIcon className="w-4 h-4"/>}
+                                    {align === 'justify' && <span className="text-[10px] font-bold">≡</span>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="h-px bg-slate-100"></div>
+
+                {/* 4. Appearance (Background, Border, Shadow) */}
+                <div className="space-y-3">
+                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3.5 h-3.5" /> 外观样式</h4>
+                     
+                     {/* Background Color */}
+                     <div>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">背景颜色</label>
+                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
+                            <div className="w-5 h-5 rounded border border-slate-200" style={{backgroundColor: element.backgroundColor || 'transparent'}}></div>
+                            <input type="color" value={element.backgroundColor || '#ffffff'} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="w-8 h-8 opacity-0 absolute cursor-pointer"/>
+                            <input type="text" value={element.backgroundColor} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="flex-1 text-xs outline-none uppercase font-mono text-slate-600" placeholder="TRANSPARENT"/>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">圆角 (px)</label>
+                            <input type="number" value={parseVal(element.borderRadius)} onChange={(e) => onUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                        <div>
+                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">不透明度</label>
+                             <input type="number" min="0" max="1" step="0.1" value={element.opacity !== undefined ? element.opacity : 1} onChange={(e) => onUpdateStyle('opacity', e.target.value)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
                         </div>
                     </div>
                 </div>
@@ -121,7 +200,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
-// --- 悬浮快捷工具条 (Light Theme) ---
+// --- 悬浮快捷工具条 (Light Theme - Fixed Position) ---
 interface FloatingToolbarProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -148,7 +227,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
     const ToolBtn = ({ onClick, active, children, title }: any) => (
         <button 
             onClick={onClick}
-            className={`p-1.5 rounded-md transition-all ${
+            className={`p-2 rounded-lg transition-all ${
                 active 
                     ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100' 
                     : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
@@ -159,22 +238,27 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
         </button>
     );
 
-    const Separator = () => <div className="w-px h-4 bg-slate-200 mx-1"></div>;
+    const Separator = () => <div className="w-px h-5 bg-slate-200 mx-1"></div>;
 
     return (
-        <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-xl rounded-xl shadow-xl border border-slate-200/80 p-2 flex items-center gap-1 z-50 animate-in fade-in slide-in-from-bottom-2 select-none min-w-max">
+        <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-200/80 p-2 flex items-center gap-1 z-50 animate-in fade-in slide-in-from-top-4 select-none min-w-max ring-1 ring-black/5">
             
-            {/* 1. Contextual Styles */}
+            {/* 1. Element Tag Badge */}
+             <div className="px-3 py-1 bg-slate-100 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-widest mr-1">
+                {tagName}
+            </div>
+
+            <Separator />
+
+            {/* 2. Quick Styles */}
             <div className="flex items-center gap-1">
                 {/* Colors */}
-                <div className="relative group p-1.5 hover:bg-slate-100 rounded-md cursor-pointer" title="文字颜色">
-                     <span className="text-[10px] font-bold text-slate-400 absolute -top-1 left-1">A</span>
-                     <div className="w-4 h-4 rounded border border-slate-300" style={{ backgroundColor: element.color || '#000' }}></div>
+                <div className="relative group p-2 hover:bg-slate-100 rounded-lg cursor-pointer" title="文字颜色">
+                     <div className="w-4 h-4 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: element.color || '#000' }}></div>
                      <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('color', e.target.value)} />
                 </div>
-                <div className="relative group p-1.5 hover:bg-slate-100 rounded-md cursor-pointer" title="背景颜色">
-                     <span className="text-[10px] font-bold text-slate-400 absolute -top-1 left-1">B</span>
-                     <div className="w-4 h-4 rounded-sm border border-slate-300" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
+                <div className="relative group p-2 hover:bg-slate-100 rounded-lg cursor-pointer" title="背景颜色">
+                     <div className="w-4 h-4 rounded-sm border border-slate-300 shadow-sm" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
                      <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} />
                 </div>
 
@@ -185,46 +269,44 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                     <>
                         <ToolBtn active={isBold} onClick={() => onUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} title="加粗"><BoldIcon className="w-4 h-4" /></ToolBtn>
                         <ToolBtn active={isItalic} onClick={() => onUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} title="斜体"><ItalicIcon className="w-4 h-4" /></ToolBtn>
-                        <ToolBtn active={isUnderline} onClick={() => onUpdateStyle('textDecoration', isUnderline ? 'none' : 'underline')} title="下划线"><UnderlineIcon className="w-4 h-4" /></ToolBtn>
-                        <Separator />
-                        <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100">
-                            <ToolBtn active={align === 'left'} onClick={() => onUpdateStyle('textAlign', 'left')} title="左对齐"><AlignLeftIcon className="w-3.5 h-3.5" /></ToolBtn>
-                            <ToolBtn active={align === 'center'} onClick={() => onUpdateStyle('textAlign', 'center')} title="居中"><AlignCenterIcon className="w-3.5 h-3.5" /></ToolBtn>
-                            <ToolBtn active={align === 'right'} onClick={() => onUpdateStyle('textAlign', 'right')} title="右对齐"><AlignRightIcon className="w-3.5 h-3.5" /></ToolBtn>
+                        <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100 ml-1">
+                            <button onClick={() => onUpdateStyle('textAlign', 'left')} className={`p-1.5 rounded ${align==='left'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => onUpdateStyle('textAlign', 'center')} className={`p-1.5 rounded ${align==='center'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => onUpdateStyle('textAlign', 'right')} className={`p-1.5 rounded ${align==='right'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
                         </div>
                         <Separator />
                     </>
                 )}
 
                 {/* Box Styles */}
-                <ToolBtn active={hasRadius} onClick={() => onUpdateStyle('borderRadius', hasRadius ? '0' : '12px')} title="圆角"><CornerIcon className="w-4 h-4" /></ToolBtn>
-                <ToolBtn active={hasShadow} onClick={() => onUpdateStyle('boxShadow', hasShadow ? 'none' : '0 10px 15px -3px rgba(0, 0, 0, 0.1)')} title="阴影"><ShadowIcon className="w-4 h-4" /></ToolBtn>
+                <ToolBtn active={hasRadius} onClick={() => onUpdateStyle('borderRadius', hasRadius ? '0' : '16px')} title="圆角"><CornerIcon className="w-4 h-4" /></ToolBtn>
+                <ToolBtn active={hasShadow} onClick={() => onUpdateStyle('boxShadow', hasShadow ? 'none' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)')} title="阴影"><ShadowIcon className="w-4 h-4" /></ToolBtn>
             </div>
 
             <Separator />
 
-            {/* 2. Transform & Scale */}
-            <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-lg mx-1">
-                <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-l-lg transition-colors text-xs font-mono">-</button>
+            {/* 3. Transform & Scale */}
+            <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-lg mx-1 p-0.5">
+                <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-xs font-mono">-</button>
                 <span className="text-[10px] text-slate-500 w-8 text-center font-mono font-bold select-none">{Math.round(currentScale * 100)}%</span>
-                <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-r-lg transition-colors text-xs font-mono">+</button>
+                <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-xs font-mono">+</button>
             </div>
             
             {/* Nudge Arrows */}
             <div className="flex items-center gap-0.5 p-0.5 bg-slate-50 rounded-lg border border-slate-100">
-                <button onClick={() => onUpdateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3 rotate-180"/></button>
+                <button onClick={() => onUpdateTransform(-10, 0)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3 rotate-180"/></button>
                 <div className="flex flex-col gap-0.5">
                      <button onClick={() => onUpdateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-2.5 h-2.5 -rotate-90"/></button>
                      <button onClick={() => onUpdateTransform(0, 10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-2.5 h-2.5 rotate-90"/></button>
                 </div>
-                <button onClick={() => onUpdateTransform(10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3"/></button>
+                <button onClick={() => onUpdateTransform(10, 0)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowRightIcon className="w-3 h-3"/></button>
             </div>
 
             <Separator />
 
-            {/* 3. Actions */}
-            <ToolBtn onClick={() => onLayerChange('up')} title="上移一层"><ArrowRightIcon className="w-4 h-4 -rotate-90 text-slate-400"/></ToolBtn>
-            <ToolBtn onClick={() => onLayerChange('down')} title="下移一层"><ArrowRightIcon className="w-4 h-4 rotate-90 text-slate-400"/></ToolBtn>
+            {/* 4. Actions */}
+            <ToolBtn onClick={() => onLayerChange('up')} title="上移一层"><LayerIcon className="w-4 h-4 text-slate-400 transform rotate-180"/></ToolBtn>
+            <ToolBtn onClick={() => onLayerChange('down')} title="下移一层"><LayerIcon className="w-4 h-4 text-slate-400"/></ToolBtn>
             <ToolBtn onClick={onDuplicate} title="复制元素 (Duplicate)"><DuplicateIcon className="w-4 h-4 text-indigo-500"/></ToolBtn>
             <ToolBtn onClick={onDelete} title="删除"><TrashIcon className="w-4 h-4 text-red-500"/></ToolBtn>
         </div>
@@ -251,15 +333,15 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 1px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-    .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
-    .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
-    .ai-r-ne { top: -5px; right: -5px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -5px; margin-top: -5px; cursor: e-resize; }
-    .ai-r-se { bottom: -5px; right: -5px; cursor: se-resize; }
-    .ai-r-s  { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
-    .ai-r-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -5px; margin-top: -5px; cursor: w-resize; }
+    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 2px solid #3b82f6; z-index: 10000; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+    .ai-r-nw { top: -6px; left: -6px; cursor: nw-resize; }
+    .ai-r-n  { top: -6px; left: 50%; margin-left: -6px; cursor: n-resize; }
+    .ai-r-ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -6px; margin-top: -6px; cursor: e-resize; }
+    .ai-r-se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: s-resize; }
+    .ai-r-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -6px; margin-top: -6px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
@@ -378,6 +460,7 @@ const EDITOR_SCRIPT = `
           borderRadius: comp.borderRadius,
           boxShadow: comp.boxShadow,
           zIndex: comp.zIndex,
+          opacity: comp.opacity,
           scale: currentScale,
           x: currentX,
           y: currentY,
@@ -676,7 +759,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
                         <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
                     </div>
                     
-                    {/* Floating HUD / Toolbar */}
+                    {/* Floating HUD / Toolbar - Positioned FIXED relative to container to avoid clipping */}
                     {selectedElement && (
                         <FloatingToolbar 
                             element={selectedElement}
