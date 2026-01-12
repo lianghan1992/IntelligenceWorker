@@ -16,12 +16,12 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
     // --- State Management ---
     
     // Navigation & Query
-    const [selectedLook, setSelectedLook] = useState('new_tech'); 
+    const [selectedLook, setSelectedLook] = useState('all'); 
     const [selectedSubLook, setSelectedSubLook] = useState<string | null>(null);
-    const [activeQuery, setActiveQuery] = useState<{ type: 'tag' | 'search', value: string, label: string }>({ 
-        type: 'tag', 
-        value: '新技术', // Default tag
-        label: '新技术' 
+    const [activeQuery, setActiveQuery] = useState<{ type: 'tag' | 'search' | 'all', value: string, label: string }>({ 
+        type: 'all', 
+        value: '', // No value needed for 'all'
+        label: '全部情报' 
     });
 
     // Content Data
@@ -39,20 +39,25 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
         selectedArticleRef.current = selectedArticle;
     }, [selectedArticle]);
 
-    // Initialize Default View
+    // Initialize Default View - Ensuring 'all' is selected if it exists
     useEffect(() => {
-        const defaultCat = lookCategories[0];
-        if (defaultCat) {
-            setSelectedLook(defaultCat.key);
-            // Default to first category tag
-            setActiveQuery({ type: 'tag', value: defaultCat.label, label: defaultCat.label });
+        if (lookCategories.some(c => c.key === 'all')) {
+            setSelectedLook('all');
+            setActiveQuery({ type: 'all', value: '', label: '全部情报' });
+        } else {
+             // Fallback to first category if 'all' is missing
+            const defaultCat = lookCategories[0];
+            if (defaultCat) {
+                setSelectedLook(defaultCat.key);
+                setActiveQuery({ type: 'tag', value: defaultCat.label, label: defaultCat.label });
+            }
         }
     }, []);
 
     // Fetch Articles Logic
     const fetchArticles = useCallback(async (
         queryValue: string, 
-        queryType: 'tag' | 'search', 
+        queryType: 'tag' | 'search' | 'all', 
         page: number = 1
     ) => {
         setIsLoading(true);
@@ -66,7 +71,13 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
             if (queryType === 'search') {
                 // General search
                 response = await searchArticlesFiltered({ 
-                    keyword: queryValue, // Assuming keyword param support in searchArticlesFiltered or mapped inside
+                    keyword: queryValue, 
+                    page, 
+                    limit 
+                });
+            } else if (queryType === 'all') {
+                 // Fetch all articles without filters
+                 response = await searchArticlesFiltered({ 
                     page, 
                     limit 
                 });
@@ -99,15 +110,21 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
     // Effect to trigger search when query changes
     useEffect(() => {
-        if (activeQuery.value) {
-            fetchArticles(activeQuery.value, activeQuery.type, 1);
+        // Trigger fetch if type is 'all' OR if there is a value for other types
+        if (activeQuery.type === 'all' || activeQuery.value) {
+            fetchArticles(activeQuery.value, activeQuery.type as any, 1);
         }
     }, [activeQuery, fetchArticles]);
 
     // Handlers
     const handleNavChange = (value: string, label: string) => {
-        // When clicking nav items, we treat the label as the tag
-        setActiveQuery({ type: 'tag', value: label, label: label });
+        // When clicking nav items
+        if (value === '全部') {
+             setActiveQuery({ type: 'all', value: '', label: '全部情报' });
+        } else {
+             // For other categories, treat label as the tag
+             setActiveQuery({ type: 'tag', value: label, label: label });
+        }
         setSelectedArticle(null);
         setMobileTab('list');
     };
@@ -126,7 +143,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
 
     const handlePageChange = (newPage: number) => {
         if (newPage > 0 && newPage <= pagination.totalPages) {
-            fetchArticles(activeQuery.value, activeQuery.type, newPage);
+            fetchArticles(activeQuery.value, activeQuery.type as any, newPage);
         }
     };
 
@@ -167,7 +184,7 @@ export const StrategicCockpit: React.FC<StrategicCockpitProps> = ({ subscription
                         selectedSubLook={selectedSubLook}
                         setSelectedSubLook={setSelectedSubLook}
                         onSubCategoryClick={(value, label) => handleNavChange(value, label)}
-                        activeQuery={activeQuery}
+                        activeQuery={activeQuery as { type: string; value: string }}
                     />
                 </div>
 

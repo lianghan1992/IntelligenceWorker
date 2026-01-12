@@ -1,5 +1,5 @@
 
-import { ChipIcon, TrendingUpIcon, ShieldCheckIcon, GlobeIcon, UsersIcon } from '../icons';
+import { ChipIcon, TrendingUpIcon, ShieldCheckIcon, GlobeIcon, UsersIcon, ViewGridIcon } from '../icons';
 
 export interface SubCategory {
     key: string;
@@ -18,6 +18,14 @@ export interface Category {
 }
 
 export const lookCategories: Category[] = [
+    {
+        key: 'all',
+        label: '全部',
+        icon: ViewGridIcon,
+        description: '全网情报聚合，实时更新',
+        hasSettings: false,
+        children: []
+    },
     { 
         key: 'new_tech', 
         label: '新技术', 
