@@ -5,7 +5,7 @@ import {
     CheckIcon, CloseIcon, CubeIcon, DocumentTextIcon, 
     PhotoIcon, ViewGridIcon, PencilIcon, DownloadIcon
 } from '../../../../components/icons';
-import { generatePdf } from '../../api/stratify';
+import { generatePdf } from '../../../../api/stratify';
 
 export interface VisualCanvasProps {
     initialHtml: string;
@@ -119,6 +119,24 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                         </div>
                         <div className="w-12 pt-5">
                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-[34px] border rounded-md flex items-center justify-center font-bold ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600'}`}>B</button>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">大小 (px)</label>
+                            <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐</label>
+                            <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
+                                {['left', 'center', 'right'].map((align) => (
+                                    <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                                        {align === 'left' && <AlignLeftIcon className="w-4 h-4"/>}
+                                        {align === 'center' && <AlignCenterIcon className="w-4 h-4"/>}
+                                        {align === 'right' && <AlignRightIcon className="w-4 h-4"/>}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
