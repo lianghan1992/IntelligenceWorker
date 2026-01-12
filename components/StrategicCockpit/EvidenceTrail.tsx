@@ -97,19 +97,36 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         if (htmlContent) {
             let finalHtml = htmlContent;
 
-            // --- 修复 1: 注入 CSS 确保容器可见 ---
+            // --- 智能修复 1: 自动提取图表容器 ID 并强制设置高度 ---
+            // 很多时候 Tailwind 加载慢导致 height:0，导致图表不显示。我们强制给容器加 min-height。
+            let chartIdStyle = '';
+            // 正则匹配 new ApexCharts(document.querySelector("#chartId"), ...)
+            const apexMatch = finalHtml.match(/new\s+ApexCharts\s*\(\s*document\.querySelector\s*\(\s*["']#([\w-]+)["']\s*\)/i);
+            if (apexMatch && apexMatch[1]) {
+                const chartId = apexMatch[1];
+                chartIdStyle = `#${chartId} { min-height: 350px !important; width: 100% !important; display: block; }`;
+            }
+            
+            // 尝试匹配 ECharts 容器 (document.getElementById('main'))
+            const echartsMatch = finalHtml.match(/document\.getElementById\s*\(\s*["']([\w-]+)["']\s*\)/i);
+            if (echartsMatch && echartsMatch[1]) {
+                 const eId = echartsMatch[1];
+                 chartIdStyle += ` #${eId} { min-height: 350px !important; width: 100% !important; display: block; }`;
+            }
+
             const stylePatch = `
                 <style>
                     /* 基础重置 */
                     html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
-                    /* 确保图表容器不仅有高度，且在 iframe 中可见 */
+                    /* 针对提取到的图表 ID 强制样式 */
+                    ${chartIdStyle}
+                    /* 通用兜底 */
                     .apexcharts-canvas { margin: 0 auto; }
                 </style>
             `;
 
-            // --- 修复 2: 注入脚本加载拦截器 (关键修复) ---
+            // --- 智能修复 2: 注入脚本加载拦截器 (关键修复) ---
             // 查找包含 new ApexCharts 的脚本块，并将其包裹在重试逻辑中
-            // 解决 iframe 加载时，库文件尚未下载完成导致 'ApexCharts is not defined' 的问题
             const chartScriptRegex = /<script>([\s\S]*?new ApexCharts[\s\S]*?)<\/script>/gi;
             
             finalHtml = finalHtml.replace(chartScriptRegex, (match, content) => {
@@ -117,18 +134,24 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                 return `<script>
                     (function() {
                         var attempts = 0;
-                        var maxAttempts = 50; // 10 seconds timeout
+                        var maxAttempts = 100; // 20 seconds timeout
                         
                         var initChart = function() {
                             // 检查库是否已加载
                             if (typeof ApexCharts !== 'undefined') {
                                 try {
-                                    console.log("AutoInsight: Initializing Chart...");
+                                    console.log("AutoInsight: ApexCharts loaded. Initializing...");
                                     ${content}
                                     // 强制触发一次 resize 确保图表适配容器
                                     setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
                                 } catch (e) {
                                     console.error("AutoInsight Chart Render Error:", e);
+                                    // 在页面显示错误，方便调试
+                                    var errDiv = document.createElement('div');
+                                    errDiv.style.color = 'red';
+                                    errDiv.style.padding = '20px';
+                                    errDiv.innerText = '图表渲染错误: ' + e.message;
+                                    document.body.prepend(errDiv);
                                 }
                             } else {
                                 attempts++;
@@ -136,7 +159,12 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                                     // 库未就绪，200ms 后重试
                                     setTimeout(initChart, 200);
                                 } else {
-                                    console.error("AutoInsight: ApexCharts library failed to load in time.");
+                                    console.error("AutoInsight: ApexCharts library failed to load.");
+                                    var errDiv = document.createElement('div');
+                                    errDiv.style.color = 'red';
+                                    errDiv.style.padding = '20px';
+                                    errDiv.innerText = '图表组件加载超时，请检查网络。';
+                                    document.body.prepend(errDiv);
                                 }
                             }
                         };
