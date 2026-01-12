@@ -1,31 +1,31 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { VisualCanvas } from './VisualCanvas';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { VisualCanvas, VisualCanvasHandle } from './VisualCanvas';
 import { 
     CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon,
-    ArrowLeftIcon, PencilIcon
+    ArrowLeftIcon, PencilIcon, PhotoIcon, LinkIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 
-// Simple Undo/Redo Icon Components
+// --- Local Icons ---
 const UndoIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z" transform="scale(-1, 1) translate(-24, 0)"/>
-    </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z" transform="scale(-1, 1) translate(-24, 0)"/></svg>
 );
-
 const RedoIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/>
-    </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/></svg>
 );
-
-// 简单的剪贴板图标
 const ClipboardIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path fillRule="evenodd" d="M10.5 3A1.501 1.501 0 009 4.5h6A1.5 1.5 0 0013.5 3h-3zm-2.693.178A3 3 0 0110.5 1.5h3a3 3 0 012.694 1.678c.497.042.992.092 1.486.15 1.495.173 2.57 1.46 2.57 2.929V19.5a3 3 0 01-3 3H6.75a3 3 0 01-3-3V6.257c0-1.47 1.075-2.756 2.57-2.93.493-.057.989-.107 1.487-.15z" clipRule="evenodd" />
-    </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path fillRule="evenodd" d="M10.5 3A1.501 1.501 0 009 4.5h6A1.5 1.5 0 0013.5 3h-3zm-2.693.178A3 3 0 0110.5 1.5h3a3 3 0 012.694 1.678c.497.042.992.092 1.486.15 1.495.173 2.57 1.46 2.57 2.929V19.5a3 3 0 01-3 3H6.75a3 3 0 01-3-3V6.257c0-1.47 1.075-2.756 2.57-2.93.493-.057.989-.107 1.487-.15z" clipRule="evenodd" /></svg>
 );
+const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
+const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
+const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
+const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
+const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
+const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
+const TrashIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>;
+const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
+const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
@@ -128,71 +128,58 @@ interface HtmlVisualEditorProps {
 
 const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo } = useHistory(DEFAULT_TEMPLATE);
-    
     const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
-    const [copyStatus, setCopyStatus] = useState('复制代码');
-    const [pasteStatus, setPasteStatus] = useState('剪贴板导入');
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-    
-    // Canvas Scale State
     const [scale, setScale] = useState(0.8);
+    const [selection, setSelection] = useState<any>(null);
+    const editorRef = useRef<VisualCanvasHandle>(null);
 
     // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                 e.preventDefault();
-                if (e.shiftKey) {
-                    redo();
-                } else {
-                    undo();
-                }
+                if (e.shiftKey) redo(); else undo();
             } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
                 e.preventDefault();
                 redo();
+            } else if (e.key === 'Delete' && selection) {
+                editorRef.current?.deleteElement();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo]);
+    }, [undo, redo, selection]);
 
     const handleSyncCode = (newHtml: string) => {
         setHtmlContent(newHtml);
     };
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(htmlContent);
-        setCopyStatus('已复制!');
-        setTimeout(() => setCopyStatus('复制代码'), 2000);
-    };
-
-    const handlePaste = async () => {
-        try {
-            const text = await navigator.clipboard.readText();
-            if (text) {
-                setHtmlContent(text);
-                setViewMode('visual'); 
-                setPasteStatus('导入成功');
-                setTimeout(() => setPasteStatus('剪贴板导入'), 2000);
-            } else {
-                alert('剪贴板为空');
-            }
-        } catch (err) {
-            console.error('Failed to read clipboard', err);
-            alert('无法访问剪贴板，请检查浏览器权限。');
+    const handleInsertImage = () => {
+        const url = prompt("请输入新图片 URL:");
+        if (url) {
+            editorRef.current?.insertElement('img', url);
         }
     };
-
-    const handleDownloadHtml = () => {
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `design_${new Date().toISOString().slice(0,10)}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+    
+    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    editorRef.current?.insertElement('img', event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleImageChange = () => {
+        const url = prompt("请输入图片 URL:", selection.src || "");
+        if (url !== null) {
+            editorRef.current?.updateAttribute('src', url);
+        }
     };
 
     const handleDownloadPdf = async () => {
@@ -215,11 +202,104 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
         }
     };
 
+    const isText = selection && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selection.tagName));
+    const isImg = selection && selection.tagName === 'IMG';
+    const isBold = selection && (selection.fontWeight === 'bold' || parseInt(selection.fontWeight) >= 700);
+    const isItalic = selection && selection.fontStyle === 'italic';
+    const align = selection?.textAlign || 'left';
+
+    // Toolbar Component
+    const Toolbar = () => (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            {/* Common Actions */}
+            {selection ? (
+                <>
+                    {/* Typography */}
+                    {isText && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                             <div className="flex items-center bg-white border border-slate-200 rounded px-1">
+                                <input 
+                                    type="number" 
+                                    value={parseInt(selection.fontSize)||16} 
+                                    onChange={(e) => editorRef.current?.updateStyle('fontSize', `${e.target.value}px`)}
+                                    className="w-8 text-xs outline-none text-center py-1"
+                                />
+                                <span className="text-[10px] text-slate-400 mr-1">px</span>
+                            </div>
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                            <button onClick={() => editorRef.current?.updateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1.5 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => editorRef.current?.updateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1.5 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
+                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
+                                <button onClick={() => editorRef.current?.updateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
+                                <button onClick={() => editorRef.current?.updateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
+                                <button onClick={() => editorRef.current?.updateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
+                            </div>
+                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden" title="文字颜色">
+                                 <div className="absolute inset-0" style={{backgroundColor: selection.color || '#000'}}></div>
+                                 <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('color', e.target.value)} />
+                             </div>
+                        </div>
+                    )}
+                    
+                    {/* Image */}
+                    {isImg && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm">
+                                <RefreshIcon className="w-3 h-3"/> 换图
+                             </button>
+                        </div>
+                    )}
+
+                    {/* Colors & Layout */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                         <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden" title="背景颜色">
+                             <div className="absolute inset-0" style={{backgroundColor: selection.backgroundColor || 'transparent'}}></div>
+                             <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => editorRef.current?.updateStyle('backgroundColor', e.target.value)} />
+                         </div>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                         <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => editorRef.current?.duplicate()} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => editorRef.current?.deleteElement()} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+                    </div>
+
+                    {/* Transform Nudge */}
+                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <button onClick={() => editorRef.current?.updateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
+                        <div className="flex flex-col gap-0.5">
+                             <button onClick={() => editorRef.current?.updateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
+                             <button onClick={() => editorRef.current?.updateTransform(0, 10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                        </div>
+                        <button onClick={() => editorRef.current?.updateTransform(10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
+                    </div>
+                </>
+            ) : (
+                /* No Selection - Insert Tools */
+                <div className="flex items-center gap-2">
+                     <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
+                     <div className="relative group">
+                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
+                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
+                         </button>
+                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
+                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
+                                 <PhotoIcon className="w-3 h-3"/> 本地上传
+                                 <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
+                             </label>
+                         </div>
+                     </div>
+                </div>
+            )}
+        </div>
+    );
+
     return (
         <div className="flex flex-col h-full bg-slate-50">
             {/* Merged Header & Toolbar */}
             <div className="h-16 px-4 border-b border-slate-200 bg-white/95 backdrop-blur-sm flex items-center justify-between shadow-sm z-20 flex-shrink-0">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
                     {/* Back Button */}
                     <button 
                         onClick={onBack}
@@ -230,75 +310,59 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                     </button>
                     
                     {/* Title */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mr-4">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
                             <PencilIcon className="w-4 h-4" />
                         </div>
-                        <h1 className="text-base font-bold text-slate-800 hidden md:block">HTML 视觉设计工坊</h1>
+                        <h1 className="text-base font-bold text-slate-800 hidden lg:block">HTML 视觉设计</h1>
                     </div>
 
                     <div className="h-6 w-px bg-slate-200 mx-1"></div>
 
-                    {/* Editor Controls */}
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                    {/* View Mode */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg flex-shrink-0">
                         <button 
                             onClick={() => setViewMode('visual')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`p-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            title="可视化"
                         >
-                            <EyeIcon className="w-3.5 h-3.5" /> <span className="hidden sm:inline">可视化</span>
+                            <EyeIcon className="w-4 h-4" />
                         </button>
                         <button 
                             onClick={() => setViewMode('code')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`p-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            title="源码"
                         >
-                            <CodeIcon className="w-3.5 h-3.5" /> <span className="hidden sm:inline">源码</span>
+                            <CodeIcon className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                        <button onClick={undo} disabled={!canUndo} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="撤回 (Ctrl+Z)">
-                            <UndoIcon className="w-4 h-4" />
-                        </button>
-                        <button onClick={redo} disabled={!canRedo} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="重做 (Ctrl+Y)">
-                            <RedoIcon className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {/* Toolbar (Only in Visual Mode) */}
+                    {viewMode === 'visual' && (
+                        <div className="flex-1 ml-4 overflow-hidden">
+                            <Toolbar />
+                        </div>
+                    )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                    {/* Zoom Control */}
-                    <div className="hidden lg:flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
-                         <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-lg leading-none">-</button>
-                         <span className="text-xs font-bold text-slate-600 w-10 text-center select-none">{Math.round(scale * 100)}%</span>
-                         <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-lg leading-none">+</button>
+                <div className="flex items-center gap-3 pl-4 border-l border-slate-100 ml-2">
+                    {/* Zoom & Undo/Redo Group */}
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+                         <button onClick={undo} disabled={!canUndo} className="p-1.5 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 transition-all"><UndoIcon className="w-3.5 h-3.5" /></button>
+                         <button onClick={redo} disabled={!canRedo} className="p-1.5 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 transition-all"><RedoIcon className="w-3.5 h-3.5" /></button>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-sm font-bold">-</button>
+                         <span className="text-xs font-bold text-slate-600 w-8 text-center select-none">{Math.round(scale * 100)}%</span>
+                         <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-sm font-bold">+</button>
                     </div>
 
-                    <button onClick={handlePaste} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
-                        <ClipboardIcon className="w-3.5 h-3.5"/> <span>{pasteStatus}</span>
-                    </button>
-                    
-                    <button onClick={handleCopy} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
-                        {copyStatus === '已复制!' ? <CheckIcon className="w-3.5 h-3.5"/> : <CodeIcon className="w-3.5 h-3.5"/>}
-                        {copyStatus}
-                    </button>
-
-                    <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
-
-                    <button 
-                        onClick={handleDownloadHtml}
-                        className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all shadow-sm"
-                        title="下载 .html"
-                    >
-                        HTML
-                    </button>
                     <button 
                         onClick={handleDownloadPdf}
                         disabled={isDownloadingPdf}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-                        title="导出 PDF"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-indigo-600 rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
                     >
-                        {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
-                        导出 PDF
+                        {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
+                        <span className="hidden sm:inline">导出 PDF</span>
                     </button>
                 </div>
             </div>
@@ -307,11 +371,13 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
             <div className="flex-1 overflow-hidden relative">
                 {viewMode === 'visual' ? (
                     <VisualCanvas 
+                        ref={editorRef}
                         initialHtml={htmlContent} 
                         onSave={handleSyncCode}
                         onContentChange={handleSyncCode}
                         scale={scale}
                         onScaleChange={setScale}
+                        onSelectionChange={setSelection}
                     />
                 ) : (
                     <div className="w-full h-full bg-[#1e1e1e] flex flex-col">
