@@ -2,7 +2,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { VisualCanvas } from './VisualCanvas';
 import { 
-    CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon
+    CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon,
+    ArrowLeftIcon, PencilIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 
@@ -94,24 +95,15 @@ function useHistory<T>(initialState: T) {
     const pushState = useCallback((newState: T) => {
         setHistory(prev => {
             const newHistory = prev.slice(0, currentIndex + 1);
-            // Deduplicate consecutive identical states to save memory/avoid noisy undo
             if (newHistory[newHistory.length - 1] === newState) return prev;
-            
-            // Limit history stack size (e.g., 50)
             if (newHistory.length > 50) newHistory.shift();
-            
             return [...newHistory, newState];
         });
         setCurrentIndex(prev => {
-            const newHistoryLength = Math.min(prev + 2, 51); // index + 1 (new item)
-            // Recalculate index based on sliced array logic above is simpler:
-            // Just return history.length after update.
-            // But due to React batching, we assume:
-            return history.length >= 50 ? 49 : prev + 1; // Approximate logic, refined in effect below
+            return history.length >= 50 ? 49 : prev + 1; 
         });
     }, [currentIndex, history.length]);
     
-    // Fix index sync
     useEffect(() => {
         setCurrentIndex(history.length - 1);
     }, [history.length]);
@@ -130,16 +122,22 @@ function useHistory<T>(initialState: T) {
     return { state, pushState, undo, redo, canUndo, canRedo };
 }
 
-const HtmlVisualEditor: React.FC = () => {
-    // Replace simple useState with useHistory
+interface HtmlVisualEditorProps {
+    onBack?: () => void;
+}
+
+const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo } = useHistory(DEFAULT_TEMPLATE);
     
     const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
     const [copyStatus, setCopyStatus] = useState('复制代码');
-    const [pasteStatus, setPasteStatus] = useState('从剪贴板导入');
+    const [pasteStatus, setPasteStatus] = useState('剪贴板导入');
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    
+    // Canvas Scale State
+    const [scale, setScale] = useState(0.8);
 
-    // Keyboard Shortcuts for Undo/Redo
+    // Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -173,15 +171,15 @@ const HtmlVisualEditor: React.FC = () => {
             const text = await navigator.clipboard.readText();
             if (text) {
                 setHtmlContent(text);
-                setViewMode('visual'); // Switch to visual mode to see changes
-                setPasteStatus('导入成功!');
-                setTimeout(() => setPasteStatus('从剪贴板导入'), 2000);
+                setViewMode('visual'); 
+                setPasteStatus('导入成功');
+                setTimeout(() => setPasteStatus('剪贴板导入'), 2000);
             } else {
                 alert('剪贴板为空');
             }
         } catch (err) {
             console.error('Failed to read clipboard', err);
-            alert('无法访问剪贴板，请检查浏览器权限或手动粘贴到源码模式。');
+            alert('无法访问剪贴板，请检查浏览器权限。');
         }
     };
 
@@ -219,79 +217,85 @@ const HtmlVisualEditor: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
-            {/* Toolbar */}
-            <div className="px-6 py-3 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+            {/* Merged Header & Toolbar */}
+            <div className="h-16 px-4 border-b border-slate-200 bg-white/95 backdrop-blur-sm flex items-center justify-between shadow-sm z-20 flex-shrink-0">
                 <div className="flex items-center gap-4">
-                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                    {/* Back Button */}
+                    <button 
+                        onClick={onBack}
+                        className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-full transition-colors group"
+                        title="返回集市"
+                    >
+                        <ArrowLeftIcon className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
+                    
+                    {/* Title */}
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                            <PencilIcon className="w-4 h-4" />
+                        </div>
+                        <h1 className="text-base font-bold text-slate-800 hidden md:block">HTML 视觉设计工坊</h1>
+                    </div>
+
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
+                    {/* Editor Controls */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
                         <button 
                             onClick={() => setViewMode('visual')}
-                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
-                            <EyeIcon className="w-4 h-4" /> 可视化编辑
+                            <EyeIcon className="w-3.5 h-3.5" /> <span className="hidden sm:inline">可视化</span>
                         </button>
                         <button 
                             onClick={() => setViewMode('code')}
-                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
-                            <CodeIcon className="w-4 h-4" /> 源码模式
+                            <CodeIcon className="w-3.5 h-3.5" /> <span className="hidden sm:inline">源码</span>
                         </button>
                     </div>
 
-                    <div className="h-6 w-px bg-slate-200"></div>
-
-                    {/* Undo / Redo Buttons */}
                     <div className="flex items-center gap-1">
-                        <button 
-                            onClick={undo}
-                            disabled={!canUndo}
-                            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-                            title="撤回 (Ctrl+Z)"
-                        >
-                            <UndoIcon className="w-5 h-5" />
+                        <button onClick={undo} disabled={!canUndo} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="撤回 (Ctrl+Z)">
+                            <UndoIcon className="w-4 h-4" />
                         </button>
-                        <button 
-                            onClick={redo}
-                            disabled={!canRedo}
-                            className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all"
-                            title="重做 (Ctrl+Y)"
-                        >
-                            <RedoIcon className="w-5 h-5" />
+                        <button onClick={redo} disabled={!canRedo} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent transition-all" title="重做 (Ctrl+Y)">
+                            <RedoIcon className="w-4 h-4" />
                         </button>
                     </div>
-
-                    <div className="h-6 w-px bg-slate-200"></div>
-
-                    <button 
-                        onClick={handlePaste}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-all border border-blue-100"
-                        title="将剪贴板的HTML代码直接导入编辑器"
-                    >
-                        {pasteStatus === '导入成功!' ? <CheckIcon className="w-4 h-4"/> : <ClipboardIcon className="w-4 h-4"/>}
-                        {pasteStatus}
-                    </button>
                 </div>
 
-                <div className="flex gap-3">
-                    <button 
-                        onClick={handleCopy}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50 hover:text-indigo-600 transition-colors shadow-sm"
-                    >
+                <div className="flex items-center gap-3">
+                    {/* Zoom Control */}
+                    <div className="hidden lg:flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm">
+                         <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-lg leading-none">-</button>
+                         <span className="text-xs font-bold text-slate-600 w-10 text-center select-none">{Math.round(scale * 100)}%</span>
+                         <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-lg leading-none">+</button>
+                    </div>
+
+                    <button onClick={handlePaste} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
+                        <ClipboardIcon className="w-3.5 h-3.5"/> <span>{pasteStatus}</span>
+                    </button>
+                    
+                    <button onClick={handleCopy} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all shadow-sm">
                         {copyStatus === '已复制!' ? <CheckIcon className="w-3.5 h-3.5"/> : <CodeIcon className="w-3.5 h-3.5"/>}
                         {copyStatus}
                     </button>
+
+                    <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
+
                     <button 
                         onClick={handleDownloadHtml}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all shadow-sm"
-                        title="下载 .html 文件"
+                        className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all shadow-sm"
+                        title="下载 .html"
                     >
-                        <DownloadIcon className="w-3.5 h-3.5"/>
                         HTML
                     </button>
                     <button 
                         onClick={handleDownloadPdf}
                         disabled={isDownloadingPdf}
                         className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
-                        title="导出为 PDF 文件"
+                        title="导出 PDF"
                     >
                         {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
                         导出 PDF
@@ -305,7 +309,9 @@ const HtmlVisualEditor: React.FC = () => {
                     <VisualCanvas 
                         initialHtml={htmlContent} 
                         onSave={handleSyncCode}
-                        onContentChange={handleSyncCode} // Triggered by internal iframe events (drag end, delete, etc.)
+                        onContentChange={handleSyncCode}
+                        scale={scale}
+                        onScaleChange={setScale}
                     />
                 ) : (
                     <div className="w-full h-full bg-[#1e1e1e] flex flex-col">

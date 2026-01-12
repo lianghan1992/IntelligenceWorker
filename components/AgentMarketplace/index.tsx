@@ -13,6 +13,21 @@ const AgentMarketplace: React.FC = () => {
 
     if (activeAgent) {
         const AgentComponent = activeAgent.component;
+        
+        // For HTML Visual Editor, we bypass the default AgentLayout to allow custom merging of the header and toolbar
+        if (activeAgentId === 'html-visual-editor') {
+            return (
+                <Suspense fallback={
+                    <div className="flex items-center justify-center h-full">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+                    </div>
+                }>
+                    {/* Pass onBack to the component so it can implement its own header with back button */}
+                    <AgentComponent onBack={() => setActiveAgentId(null)} />
+                </Suspense>
+            );
+        }
+
         return (
             <AgentLayout 
                 title={activeAgent.name} 
