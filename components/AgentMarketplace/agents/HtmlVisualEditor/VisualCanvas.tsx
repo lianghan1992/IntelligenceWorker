@@ -9,7 +9,7 @@ interface VisualCanvasProps {
     onSave: (newHtml: string) => void;
 }
 
-// Injected Script logic
+// 注入到 iframe 内部的编辑器引擎脚本
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -299,22 +299,51 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
     }, []);
 
     // Load Content
-    // Using document.write ensures we can render any HTML fragment without CORS issues (unlike srcDoc sometimes)
-    // and guarantees we can inject our script.
+    // Improved injection logic to prevent blank screens
     useEffect(() => {
-        if (iframeRef.current) {
-            const doc = iframeRef.current.contentDocument;
+        const iframe = iframeRef.current;
+        if (iframe) {
+            const doc = iframe.contentDocument;
             if (doc) {
-                doc.open();
-                // Ensure there is at least a minimal structure if the pasted HTML is partial
-                let safeHtml = initialHtml;
-                if (!safeHtml.includes('<html')) {
-                    safeHtml = `<!DOCTYPE html><html><body>${safeHtml}</body></html>`;
-                }
+                // Prepare content
+                let content = initialHtml || '';
                 
-                // Inject logic script at the end
-                doc.write(safeHtml + EDITOR_SCRIPT);
-                doc.close();
+                // 1. Basic Structure Check
+                // If it looks like a fragment (no <html> tag), wrap it
+                if (!content.toLowerCase().includes('<html')) {
+                     content = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body { min-height: 100vh; margin: 0; background: white; }
+    </style>
+</head>
+<body>
+    ${content}
+</body>
+</html>`;
+                }
+
+                // 2. Inject Editor Script
+                // Place it right before the closing body tag for best execution timing
+                if (content.toLowerCase().includes('</body>')) {
+                    content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
+                } else if (content.toLowerCase().includes('</html>')) {
+                     content = content.replace(/<\/html>/i, `${EDITOR_SCRIPT}</html>`);
+                } else {
+                     content += EDITOR_SCRIPT;
+                }
+
+                try {
+                    doc.open();
+                    doc.write(content);
+                    doc.close();
+                } catch (err) {
+                    console.error("VisualEditor: Failed to render content", err);
+                }
             }
         }
     }, [initialHtml]);
@@ -476,7 +505,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                     ref={iframeRef}
                     className="w-full h-full border-none bg-white"
                     title="Visual Editor"
-                    sandbox="allow-scripts" // Remove allow-same-origin if not needed for safety, but doc.write usually implies same origin
+                    sandbox="allow-scripts allow-same-origin allow-popups allow-forms" // Remove allow-same-origin if not needed for safety, but doc.write usually implies same origin
                 />
             </div>
             
