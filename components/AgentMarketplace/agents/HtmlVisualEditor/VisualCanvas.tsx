@@ -44,6 +44,7 @@ const DuplicateIcon = ({className}:{className?:string}) => <svg className={class
 const CornerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M21 15h-2v2c0 1.65-1.35 3-3 3H8v2h8c2.76 0 5-2.24 5-5v-2zM3 15h2v2c0 1.65 1.35 3 3 3h4v2H8c-2.76 0-5-2.24-5-5v-2zM3 9h2V7c0-1.65 1.35-3 3-3h4V2H8c-2.76 0-5 2.24-5 5v2zM21 9h-2V7c0-1.65-1.35-3-3-3h-4V2h4c2.76 0 5 2.24 5 5v2z"/></svg>;
 const ShadowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v18H3V3zm2 16h14V5H5v14z M8 8h8v8H8V8z" opacity="0.5"/><path d="M22 22H2V2h20v20zM4 20h16V4H4v16z"/></svg>;
 const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
+const UploadIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>;
 
 // --- 历史记录 Hook ---
 function useHistory<T>(initialState: T) {
@@ -230,12 +231,13 @@ interface FloatingToolbarProps {
     onUpdateStyle: (key: string, value: string) => void;
     onUpdateTransform: (deltaX: number, deltaY: number, scale?: number) => void;
     onUpdateAttribute: (key: string, value: string) => void;
+    onInsertElement: (type: 'img', value: string) => void; // New prop for inserting elements
     onLayerChange: (direction: 'up' | 'down') => void;
     onDuplicate: () => void;
     onDelete: () => void;
 }
 
-const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyle, onUpdateTransform, onUpdateAttribute, onLayerChange, onDuplicate, onDelete }) => {
+const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyle, onUpdateTransform, onUpdateAttribute, onInsertElement, onLayerChange, onDuplicate, onDelete }) => {
     const tagName = element.tagName;
     const isText = tagName === 'P' || tagName === 'SPAN' || tagName === 'H1' || tagName === 'H2' || tagName === 'H3' || tagName === 'H4' || tagName === 'H5' || tagName === 'H6' || (tagName === 'DIV' && element.content?.trim().length > 0);
     const isImg = tagName === 'IMG';
@@ -250,7 +252,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
     const hasShadow = element.boxShadow && element.boxShadow !== 'none';
 
     // Dragging Logic
-    const [position, setPosition] = useState({ x: 0, y: -60 }); // Relative to initial centered position
+    const [position, setPosition] = useState({ x: 0, y: -80 }); // Increased offset for bigger toolbar
     const [isDragging, setIsDragging] = useState(false);
     const dragStartRef = useRef<{x: number, y: number} | null>(null);
 
@@ -289,6 +291,26 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
             onUpdateAttribute('src', url);
         }
     };
+
+    const handleInsertImage = () => {
+        const url = prompt("请输入新图片 URL:");
+        if (url) {
+            onInsertElement('img', url);
+        }
+    };
+    
+    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    onInsertElement('img', event.target.result as string);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    };
     
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -307,7 +329,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
     const ToolBtn = ({ onClick, active, children, title, className }: any) => (
         <button 
             onClick={onClick}
-            className={`p-2.5 rounded-lg transition-all ${
+            className={`p-2.5 rounded-xl transition-all ${
                 active 
                     ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100' 
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -318,7 +340,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
         </button>
     );
 
-    const Separator = () => <div className="w-px h-6 bg-slate-200 mx-1.5"></div>;
+    const Separator = () => <div className="w-px h-8 bg-slate-200 mx-2"></div>;
 
     return (
         <div 
@@ -329,11 +351,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                 cursor: isDragging ? 'grabbing' : 'default'
             }}
         >
-            <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/80 p-2.5 flex items-center gap-1.5 animate-in fade-in slide-in-from-top-2 min-w-max ring-1 ring-black/5">
+            <div className="bg-white/95 backdrop-blur-2xl rounded-2xl shadow-2xl border border-slate-200/80 p-3 flex items-center gap-1 animate-in fade-in slide-in-from-top-2 min-w-max ring-1 ring-black/5">
                 
                 {/* Drag Handle */}
                 <div 
-                    className="p-1.5 mr-1 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 rounded hover:bg-slate-50 transition-colors"
+                    className="p-2 mr-2 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
                     onMouseDown={handleMouseDown}
                     title="按住拖动工具条"
                 >
@@ -341,7 +363,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                 </div>
 
                 {/* 1. Element Tag Badge */}
-                 <div className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-500 uppercase tracking-widest mr-1">
+                 <div className="px-3 py-1.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-500 uppercase tracking-widest mr-2 border border-slate-200">
                     {tagName}
                 </div>
 
@@ -350,12 +372,12 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                 {/* 2. Quick Styles */}
                 <div className="flex items-center gap-1">
                     {/* Colors */}
-                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-lg cursor-pointer" title="文字颜色">
-                         <div className="w-5 h-5 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: element.color || '#000' }}></div>
+                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-xl cursor-pointer" title="文字颜色">
+                         <div className="w-5 h-5 rounded-full border-2 border-slate-200 shadow-sm" style={{ backgroundColor: element.color || '#000' }}></div>
                          <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('color', e.target.value)} />
                     </div>
-                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-lg cursor-pointer" title="背景颜色">
-                         <div className="w-5 h-5 rounded-sm border border-slate-300 shadow-sm" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
+                    <div className="relative group p-2.5 hover:bg-slate-100 rounded-xl cursor-pointer" title="背景颜色">
+                         <div className="w-5 h-5 rounded-md border-2 border-slate-200 shadow-sm" style={{ backgroundColor: element.backgroundColor || 'transparent' }}></div>
                          <input type="color" className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} />
                     </div>
 
@@ -366,31 +388,31 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                         <>
                             <ToolBtn active={isBold} onClick={() => onUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} title="加粗"><BoldIcon className="w-5 h-5" /></ToolBtn>
                             <ToolBtn active={isItalic} onClick={() => onUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} title="斜体"><ItalicIcon className="w-5 h-5" /></ToolBtn>
-                            <div className="flex bg-slate-50 rounded-lg p-0.5 border border-slate-100 ml-1">
-                                <button onClick={() => onUpdateStyle('textAlign', 'left')} className={`p-2 rounded-md transition-all ${align==='left'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignLeftIcon className="w-4 h-4"/></button>
-                                <button onClick={() => onUpdateStyle('textAlign', 'center')} className={`p-2 rounded-md transition-all ${align==='center'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignCenterIcon className="w-4 h-4"/></button>
-                                <button onClick={() => onUpdateStyle('textAlign', 'right')} className={`p-2 rounded-md transition-all ${align==='right'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignRightIcon className="w-4 h-4"/></button>
+                            <div className="flex bg-slate-50 rounded-xl p-1 border border-slate-100 ml-2">
+                                <button onClick={() => onUpdateStyle('textAlign', 'left')} className={`p-2 rounded-lg transition-all ${align==='left'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignLeftIcon className="w-4 h-4"/></button>
+                                <button onClick={() => onUpdateStyle('textAlign', 'center')} className={`p-2 rounded-lg transition-all ${align==='center'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignCenterIcon className="w-4 h-4"/></button>
+                                <button onClick={() => onUpdateStyle('textAlign', 'right')} className={`p-2 rounded-lg transition-all ${align==='right'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><AlignRightIcon className="w-4 h-4"/></button>
                             </div>
                             <Separator />
                         </>
                     )}
 
-                     {/* Image Options */}
+                     {/* Image Options (Replace) */}
                      {isImg && (
                         <>
                             <div className="relative group">
-                                <ToolBtn className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold flex items-center gap-1.5 px-3">
-                                    <LinkIcon className="w-4 h-4" /> 换图
+                                <ToolBtn className="text-indigo-600 bg-indigo-50 hover:bg-indigo-100 font-bold flex items-center gap-1.5 px-4" title="更换当前图片">
+                                    <RefreshIcon className="w-4 h-4" /> 换图
                                 </ToolBtn>
-                                {/* Dropdown for Image Options */}
-                                <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
+                                {/* Dropdown */}
+                                <div className="absolute top-full left-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-slate-100 p-1.5 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1">
                                     <button 
                                         onClick={handleImageChange}
-                                        className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-md"
+                                        className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg hover:text-indigo-600 transition-colors"
                                     >
                                         输入 URL
                                     </button>
-                                    <label className="w-full text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-md cursor-pointer block">
+                                    <label className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer block hover:text-indigo-600 transition-colors">
                                         本地上传
                                         <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                                     </label>
@@ -400,6 +422,27 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                         </>
                     )}
 
+                    {/* New: Insert Image (Add New) */}
+                    <div className="relative group">
+                         <ToolBtn className="text-emerald-600 bg-emerald-50 hover:bg-emerald-100 font-bold flex items-center gap-1.5 px-4" title="插入新图片">
+                             <PlusIcon className="w-4 h-4" /> 插入
+                         </ToolBtn>
+                         <div className="absolute top-full left-0 mt-2 w-36 bg-white rounded-xl shadow-xl border border-slate-100 p-1.5 hidden group-hover:block z-50 animate-in fade-in slide-in-from-top-1">
+                             <button 
+                                 onClick={handleInsertImage}
+                                 className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg hover:text-emerald-600 transition-colors flex items-center gap-2"
+                             >
+                                 <LinkIcon className="w-3.5 h-3.5"/> 网络图片
+                             </button>
+                             <label className="w-full text-left px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 rounded-lg cursor-pointer flex items-center gap-2 hover:text-emerald-600 transition-colors">
+                                 <PhotoIcon className="w-3.5 h-3.5"/> 本地图片
+                                 <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
+                             </label>
+                         </div>
+                    </div>
+                    
+                    <Separator />
+
                     {/* Box Styles */}
                     <ToolBtn active={hasRadius} onClick={() => onUpdateStyle('borderRadius', hasRadius ? '0' : '16px')} title="圆角"><CornerIcon className="w-5 h-5" /></ToolBtn>
                     <ToolBtn active={hasShadow} onClick={() => onUpdateStyle('boxShadow', hasShadow ? 'none' : '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)')} title="阴影"><ShadowIcon className="w-5 h-5" /></ToolBtn>
@@ -408,20 +451,20 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyl
                 <Separator />
 
                 {/* 3. Transform & Scale */}
-                <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-lg mx-1 p-0.5">
-                    <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-sm font-mono">-</button>
+                <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-100 rounded-xl mx-1 p-1">
+                    <button onClick={() => onUpdateTransform(0, 0, Math.max(0.2, currentScale - 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg transition-colors text-sm font-mono">-</button>
                     <span className="text-xs text-slate-600 w-10 text-center font-mono font-bold select-none">{Math.round(currentScale * 100)}%</span>
-                    <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md transition-colors text-sm font-mono">+</button>
+                    <button onClick={() => onUpdateTransform(0, 0, Math.min(5, currentScale + 0.1))} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg transition-colors text-sm font-mono">+</button>
                 </div>
                 
                 {/* Nudge Arrows */}
-                <div className="flex items-center gap-0.5 p-0.5 bg-slate-50 rounded-lg border border-slate-100 ml-1">
-                    <button onClick={() => onUpdateTransform(-10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                <div className="flex items-center gap-0.5 p-1 bg-slate-50 rounded-xl border border-slate-100 ml-1">
+                    <button onClick={() => onUpdateTransform(-10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg"><ArrowRightIcon className="w-3.5 h-3.5 rotate-180"/></button>
                     <div className="flex flex-col gap-0.5">
-                         <button onClick={() => onUpdateTransform(0, -10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-sm"><ArrowRightIcon className="w-3 h-3 -rotate-90"/></button>
-                         <button onClick={() => onUpdateTransform(0, 10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-sm"><ArrowRightIcon className="w-3 h-3 rotate-90"/></button>
+                         <button onClick={() => onUpdateTransform(0, -10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3 h-3 -rotate-90"/></button>
+                         <button onClick={() => onUpdateTransform(0, 10)} className="p-0.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3 h-3 rotate-90"/></button>
                     </div>
-                    <button onClick={() => onUpdateTransform(10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-md"><ArrowRightIcon className="w-3.5 h-3.5"/></button>
+                    <button onClick={() => onUpdateTransform(10, 0)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-white rounded-lg"><ArrowRightIcon className="w-3.5 h-3.5"/></button>
                 </div>
 
                 <Separator />
@@ -452,7 +495,7 @@ const EDITOR_SCRIPT = `
 
   const style = document.createElement('style');
   style.innerHTML = \`
-    html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
+    html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; overflow: auto !important; }
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 1px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
@@ -618,6 +661,32 @@ const EDITOR_SCRIPT = `
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
         return;
     }
+    
+    // --- New Insert Logic ---
+    if (action === 'INSERT_ELEMENT') {
+        if (value.type === 'img') {
+             const img = document.createElement('img');
+             img.src = value.src;
+             img.style.width = '300px'; // Default reasonable size
+             img.style.height = 'auto';
+             img.style.display = 'block';
+             img.style.position = 'relative'; // Let user drag it to absolute later if needed via existing tools, or default
+             
+             // Insert after selected element or append to canvas/body
+             if (selectedEl && selectedEl.parentNode) {
+                 selectedEl.parentNode.insertBefore(img, selectedEl.nextSibling);
+             } else {
+                 // Try to find the canvas div first
+                 const canvas = document.getElementById('canvas');
+                 if (canvas) canvas.appendChild(img);
+                 else document.body.appendChild(img);
+             }
+             selectElement(img);
+             pushHistory();
+        }
+        return;
+    }
+    
     if (!selectedEl) return;
     
     if (action === 'UPDATE_CONTENT') { 
@@ -780,9 +849,11 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
             if (doc) {
                 doc.open();
                 let content = initialHtml || '';
+                // Fix: Ensure we don't double wrap if already has HTML structure, but DO ensure basic structure exists
                 if (!content.toLowerCase().includes('<html')) {
-                     content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
+                     content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; overflow: auto; }</style></head><body>${content}</body></html>`;
                 }
+                // Inject Editor Script before closing body
                 content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
                 doc.write(content);
                 doc.close();
@@ -831,6 +902,10 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
     const handleUpdateAttribute = (key: string, value: string) => {
         sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
+    };
+
+    const handleInsertElement = (type: 'img', value: string) => {
+        sendCommand('INSERT_ELEMENT', { type, src: value });
     };
     
     // Handle Scale/Translate from Floating Toolbar
@@ -883,6 +958,10 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
             {/* Main Area */}
             <div className="flex-1 relative overflow-hidden flex">
                 <div className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden">
+                     {/* 
+                        Container wrapper allowing scroll if content is larger than viewport.
+                        We keep the 1600x900 as the "Canvas Size" but allow iframe content to flow if needed.
+                     */}
                      <div 
                         style={{ 
                             width: '1600px', height: '900px', 
@@ -901,6 +980,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
                             onUpdateStyle={handleUpdateStyle}
                             onUpdateAttribute={handleUpdateAttribute}
                             onUpdateTransform={handleUpdateTransform}
+                            onInsertElement={handleInsertElement}
                             onLayerChange={(dir) => sendCommand('LAYER', dir)}
                             onDuplicate={() => sendCommand('DUPLICATE')}
                             onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
