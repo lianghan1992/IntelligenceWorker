@@ -38,6 +38,9 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     const [isHtmlLoading, setIsHtmlLoading] = useState(false);
     const [isContentLoading, setIsContentLoading] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    
+    // Blob URL for iframe
+    const [iframeSrc, setIframeSrc] = useState<string | null>(null);
 
     // Fetch Content logic
     useEffect(() => {
@@ -88,6 +91,18 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
 
         return () => { active = false; };
     }, [selectedArticle]);
+    
+    // Manage Blob URL for HTML content to support complex scripts (charts) better than srcDoc
+    useEffect(() => {
+        if (htmlContent) {
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            setIframeSrc(url);
+            return () => URL.revokeObjectURL(url);
+        } else {
+            setIframeSrc(null);
+        }
+    }, [htmlContent]);
 
     const handleDownloadPdf = async () => {
         if (!selectedArticle) return;
@@ -208,13 +223,13 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
                         <p className="text-sm font-medium animate-pulse">正在加载深度内容...</p>
                     </div>
-                ) : htmlContent ? (
+                ) : iframeSrc ? (
                     <div className="h-full w-full bg-slate-50">
                         <iframe 
-                            srcDoc={htmlContent} 
+                            src={iframeSrc}
                             className="w-full h-full border-none" 
                             title="Article Content"
-                            sandbox="allow-scripts allow-same-origin"
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                         />
                     </div>
                 ) : (
