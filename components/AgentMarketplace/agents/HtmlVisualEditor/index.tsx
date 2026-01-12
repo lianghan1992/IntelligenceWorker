@@ -2,8 +2,15 @@
 import React, { useState } from 'react';
 import { VisualCanvas } from './VisualCanvas';
 import { 
-    CodeIcon, EyeIcon, DownloadIcon, CheckIcon
+    CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon
 } from '../../../../components/icons';
+
+// 简单的剪贴板图标
+const ClipboardIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path fillRule="evenodd" d="M10.5 3A1.501 1.501 0 009 4.5h6A1.5 1.5 0 0013.5 3h-3zm-2.693.178A3 3 0 0110.5 1.5h3a3 3 0 012.694 1.678c.497.042.992.092 1.486.15 1.495.173 2.57 1.46 2.57 2.929V19.5a3 3 0 01-3 3H6.75a3 3 0 01-3-3V6.257c0-1.47 1.075-2.756 2.57-2.93.493-.057.989-.107 1.487-.15z" clipRule="evenodd" />
+    </svg>
+);
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
 <html lang="en">
@@ -67,16 +74,33 @@ const HtmlVisualEditor: React.FC = () => {
     const [htmlContent, setHtmlContent] = useState(DEFAULT_TEMPLATE);
     const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
     const [copyStatus, setCopyStatus] = useState('复制代码');
+    const [pasteStatus, setPasteStatus] = useState('从剪贴板导入');
 
     const handleSyncCode = (newHtml: string) => {
         setHtmlContent(newHtml);
-        // Optional: Show a toast here
     };
 
     const handleCopy = () => {
         navigator.clipboard.writeText(htmlContent);
         setCopyStatus('已复制!');
         setTimeout(() => setCopyStatus('复制代码'), 2000);
+    };
+
+    const handlePaste = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                setHtmlContent(text);
+                setViewMode('visual'); // Switch to visual mode to see changes
+                setPasteStatus('导入成功!');
+                setTimeout(() => setPasteStatus('从剪贴板导入'), 2000);
+            } else {
+                alert('剪贴板为空');
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard', err);
+            alert('无法访问剪贴板，请检查浏览器权限或手动粘贴到源码模式。');
+        }
     };
 
     const handleDownload = () => {
@@ -95,18 +119,31 @@ const HtmlVisualEditor: React.FC = () => {
         <div className="flex flex-col h-full bg-slate-50">
             {/* Toolbar */}
             <div className="px-6 py-3 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
-                <div className="flex bg-slate-100 p-1 rounded-lg">
+                <div className="flex items-center gap-4">
+                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setViewMode('visual')}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <EyeIcon className="w-4 h-4" /> 可视化编辑
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('code')}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            <CodeIcon className="w-4 h-4" /> 源码模式
+                        </button>
+                    </div>
+
+                    <div className="h-6 w-px bg-slate-200"></div>
+
                     <button 
-                        onClick={() => setViewMode('visual')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'visual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        onClick={handlePaste}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-bold hover:bg-blue-100 transition-all border border-blue-100"
+                        title="将剪贴板的HTML代码直接导入编辑器"
                     >
-                        <EyeIcon className="w-4 h-4" /> 可视化编辑
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('code')}
-                        className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-bold transition-all ${viewMode === 'code' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        <CodeIcon className="w-4 h-4" /> 源码模式
+                        {pasteStatus === '导入成功!' ? <CheckIcon className="w-4 h-4"/> : <ClipboardIcon className="w-4 h-4"/>}
+                        {pasteStatus}
                     </button>
                 </div>
 
@@ -142,6 +179,7 @@ const HtmlVisualEditor: React.FC = () => {
                             onChange={(e) => setHtmlContent(e.target.value)}
                             className="flex-1 w-full bg-transparent text-gray-300 font-mono text-sm p-6 resize-none focus:outline-none custom-scrollbar-dark leading-relaxed"
                             spellCheck={false}
+                            placeholder="在此粘贴 HTML 代码..."
                         />
                     </div>
                 )}

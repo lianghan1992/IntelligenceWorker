@@ -23,6 +23,13 @@ const EDITOR_SCRIPT = `
   // 1. Inject Editor Styles
   const style = document.createElement('style');
   style.innerHTML = \`
+    /* Force full height and white bg to prevent 'blank' look */
+    html, body {
+        min-height: 100vh !important;
+        margin: 0;
+        background-color: #ffffff;
+    }
+    
     .ai-editor-selected { 
       outline: 2px solid #3b82f6 !important; 
       outline-offset: 2px;
@@ -40,7 +47,7 @@ const EDITOR_SCRIPT = `
       box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
     }
     /* Prevent selection of root containers */
-    body, html, #canvas {
+    #canvas {
         min-height: 100%;
     }
   \`;
@@ -58,7 +65,7 @@ const EDITOR_SCRIPT = `
     }
 
     const target = e.target;
-    // Block selection of root nodes
+    // Block selection of root nodes to avoid breaking layout
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect();
         return;
@@ -175,7 +182,7 @@ const EDITOR_SCRIPT = `
     else if (action === 'UPDATE_TRANSFORM') {
         const currentTransform = selectedEl.style.transform || '';
         let translatePart = 'translate(0px, 0px)';
-        const translateMatch = currentTransform.match(/translate\\([^)]+\\)/);
+        const translateMatch = currentTransform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
         if (translateMatch) translatePart = translateMatch[0];
         selectedEl.style.transform = \`\${translatePart} scale(\${value})\`;
     }
@@ -276,7 +283,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 
                 setScale(newScale);
 
-                // Safe Cross-Origin Communication for Scale
+                // Update scale inside iframe for drag calculations
                 if (iframeRef.current && iframeRef.current.contentWindow) {
                     iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: newScale }, '*');
                 }
@@ -292,12 +299,21 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
     }, []);
 
     // Load Content
+    // Using document.write ensures we can render any HTML fragment without CORS issues (unlike srcDoc sometimes)
+    // and guarantees we can inject our script.
     useEffect(() => {
         if (iframeRef.current) {
             const doc = iframeRef.current.contentDocument;
             if (doc) {
                 doc.open();
-                doc.write(initialHtml + EDITOR_SCRIPT);
+                // Ensure there is at least a minimal structure if the pasted HTML is partial
+                let safeHtml = initialHtml;
+                if (!safeHtml.includes('<html')) {
+                    safeHtml = `<!DOCTYPE html><html><body>${safeHtml}</body></html>`;
+                }
+                
+                // Inject logic script at the end
+                doc.write(safeHtml + EDITOR_SCRIPT);
                 doc.close();
             }
         }
@@ -460,7 +476,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                     ref={iframeRef}
                     className="w-full h-full border-none bg-white"
                     title="Visual Editor"
-                    sandbox="allow-scripts"
+                    sandbox="allow-scripts" // Remove allow-same-origin if not needed for safety, but doc.write usually implies same origin
                 />
             </div>
             
