@@ -5,14 +5,7 @@ import { searchSemanticSegments } from '../../api/intelligence';
 import { SparklesIcon, ArrowRightIcon, BrainIcon, ChevronDownIcon, UserIcon, RefreshIcon, CheckCircleIcon, DatabaseIcon } from '../icons';
 import { InfoItem } from '../../types';
 import { AGENTS } from '../../agentConfig';
-
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 interface Message {
     id: string;
@@ -405,15 +398,16 @@ export const AIChatPanel: React.FC<{
         const userProseClass = "prose prose-sm max-w-none text-white break-words prose-p:text-white prose-headings:text-white prose-strong:text-white prose-ul:text-white prose-ol:text-white prose-li:text-white prose-a:text-indigo-200 hover:prose-a:text-white prose-code:text-white prose-blockquote:text-white/80";
         const aiProseClass = "prose prose-sm max-w-none text-slate-700 break-words prose-p:text-slate-700 prose-headings:text-slate-900 prose-strong:text-indigo-700 prose-a:text-indigo-600 prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:bg-indigo-50 prose-blockquote:px-3 prose-blockquote:py-1";
 
-        if (window.marked && typeof window.marked.parse === 'function') {
+        try {
             return (
                 <div 
                     className={isUser ? userProseClass : aiProseClass}
-                    dangerouslySetInnerHTML={{ __html: window.marked.parse(content) }} 
+                    dangerouslySetInnerHTML={{ __html: marked.parse(content) as string }} 
                 />
             );
+        } catch (e) {
+             return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
         }
-        return <div className={`whitespace-pre-wrap text-sm leading-relaxed break-words ${isUser ? 'text-white' : 'text-slate-700'}`}>{content}</div>;
     };
 
     return (

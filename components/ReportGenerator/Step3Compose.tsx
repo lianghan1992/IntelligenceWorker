@@ -10,15 +10,7 @@ import {
 import { Step2Outline } from './Step2Outline';
 import { tryParsePartialJson } from './Step1Collect'; 
 import { KnowledgeTools } from './KnowledgeTools';
-
-// Add marked for markdown rendering
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 interface MainCanvasProps {
     stage: PPTStage;

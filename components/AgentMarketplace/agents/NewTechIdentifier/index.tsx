@@ -6,15 +6,7 @@ import { generatePdf } from '../../utils/services';
 import { PROMPT_IDENTIFICATION, PROMPT_DEEP_DIVE, PROMPT_HTML_GEN } from './prompts';
 import { createSession } from '../../../../api/stratify';
 import { AGENTS } from '../../../../agentConfig';
-
-// Add markdown parser support
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 // Updated model with 'openrouter@' prefix for the new gateway
 const MODEL_NAME = "openrouter@xiaomi/mimo-v2-flash:free";
@@ -93,10 +85,11 @@ const ScaledSlide: React.FC<{ html: string }> = ({ html }) => {
 // Helper for Markdown rendering
 const MarkdownPreview: React.FC<{ content: string }> = ({ content }) => {
     const html = useMemo(() => {
-        if (window.marked) {
-            return window.marked.parse(content);
+        try {
+            return marked.parse(content) as string;
+        } catch (e) {
+            return `<pre class="whitespace-pre-wrap">${content}</pre>`;
         }
-        return `<pre class="whitespace-pre-wrap">${content}</pre>`;
     }, [content]);
 
     return (

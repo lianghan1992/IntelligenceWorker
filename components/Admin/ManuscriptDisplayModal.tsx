@@ -1,15 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { CloseIcon } from '../icons';
 import { getTaskManuscript } from '../../api';
-
-// Add type declaration for marked
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 interface ManuscriptDisplayModalProps {
   taskId: string;
@@ -53,19 +46,17 @@ export const ManuscriptDisplayModal: React.FC<ManuscriptDisplayModalProps> = ({ 
             return '';
         }
 
-        if (window.marked && typeof window.marked.parse === 'function') {
+        try {
             // The raw manuscript looks like structured text, wrapping in a code block is best
             const wrappedContent = '```\n' + content + '\n```';
-            return window.marked.parse(wrappedContent);
+            return marked.parse(wrappedContent) as string;
+        } catch (e) {
+             const escapedContent = content
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+             return `<pre style="white-space: pre-wrap; word-wrap: break-word;">${escapedContent}</pre>`;
         }
-        
-        // Fallback to a simple pre-formatted block if marked.js is not available
-        console.error("marked.js is not loaded or is not a function. Falling back to pre-formatted text.");
-        const escapedContent = content
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-        return `<pre style="white-space: pre-wrap; word-wrap: break-word;">${escapedContent}</pre>`;
     }, [content, isLoading, error]);
 
     return (

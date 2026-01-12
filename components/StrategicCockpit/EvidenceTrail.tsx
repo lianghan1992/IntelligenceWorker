@@ -3,15 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { InfoItem } from '../../types';
 import { DocumentTextIcon, ArrowRightIcon, DownloadIcon, SparklesIcon, ExternalLinkIcon, ClockIcon } from '../icons';
 import { getArticleHtml, generateArticleHtml, downloadArticlePdf, getSpiderArticleDetail } from '../../api/intelligence';
-
-// 为从CDN加载的 `marked` 库提供类型声明
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 interface EvidenceTrailProps {
     selectedArticle: InfoItem | null;
@@ -219,20 +211,19 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
         // Unescape potential unicode escape sequences first
         const decodedContent = unescapeUnicode(fullContent);
 
-        if (window.marked && typeof window.marked.parse === 'function') {
+        try {
             const markdownWithStyledImages = decodedContent.replace(
                 /!\[(.*?)\]\((.*?)\)/g,
                 '<figure class="my-8"><img src="$2" alt="$1" class="rounded-xl w-full object-cover shadow-md border border-slate-100"><figcaption class="text-center text-xs text-slate-400 mt-2 italic">$1</figcaption></figure>'
             );
-            return window.marked.parse(markdownWithStyledImages);
+            return marked.parse(markdownWithStyledImages) as string;
+        } catch (e) {
+             const escapedContent = decodedContent
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            return escapedContent.split('\n').map(p => `<p>${p}</p>`).join('');
         }
-
-        const escapedContent = decodedContent
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-        return escapedContent.split('\n').map(p => `<p>${p}</p>`).join('');
-
     }, [fullContent]);
 
     if (!selectedArticle) {

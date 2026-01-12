@@ -7,6 +7,7 @@ import {
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
+import { marked } from 'marked';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -87,10 +88,11 @@ const parseThinkTag = (text: string) => {
 // --- Helper: Markdown Renderer ---
 const MarkdownContent: React.FC<{ content: string; className?: string }> = ({ content, className }) => {
     const html = React.useMemo(() => {
-        if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(content);
+        try {
+            return marked.parse(content) as string;
+        } catch (e) {
+            return content.replace(/\n/g, '<br/>'); // Fallback
         }
-        return content.replace(/\n/g, '<br/>'); // Fallback
     }, [content]);
 
     return (

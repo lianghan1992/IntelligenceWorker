@@ -2,41 +2,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <script type="importmap">
-{
-  "imports": {
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.0.4",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "cors": "https://aistudiocdn.com/cors@^2.8.5",
-    "http": "https://aistudiocdn.com/http@^0.0.1-security",
-    "express": "https://aistudiocdn.com/express@^5.1.0",
-    "vite": "https://aistudiocdn.com/vite@^7.1.9",
-    "url": "https://aistudiocdn.com/url@^0.11.4",
-    "fs": "https://aistudiocdn.com/fs@^0.0.1-security",
-    "path": "https://aistudiocdn.com/path@^0.12.7",
-    "http-proxy-middleware": "https://aistudiocdn.com/http-proxy-middleware@^3.0.5",
-    "socket.io-client": "https://aistudiocdn.com/socket.io-client@^4.8.1",
-    "https": "https://aistudiocdn.com/https@^1.0.0",
-    "socket.io": "https://aistudiocdn.com/socket.io@^4.8.1",
-    "uuid": "https://esm.sh/uuid@^13.0.0"
-  }
-}
-</script>
   <meta charset="UTF-8" />
-  
-  <!-- 性能优化：提前建立连接 -->
-  <link rel="preconnect" href="https://cdn.bootcdn.net" />
-  <link rel="preconnect" href="https://aistudiocdn.com" />
-  
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
   <title>Auto Insight - 智能汽车情报平台</title>
-  
-  <!-- 性能优化：添加 defer 属性，防止脚本阻塞页面渲染 -->
-  <script src="https://cdn.bootcdn.net/ajax/libs/marked/13.0.1/marked.min.js" defer></script>
   
   <style>
     /* 字体定义 */
@@ -131,6 +101,27 @@
       }
     }
   </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "http": "https://esm.sh/http@^0.0.1-security",
+    "url": "https://esm.sh/url@^0.11.4",
+    "express": "https://esm.sh/express@^5.2.1",
+    "path": "https://esm.sh/path@^0.12.7",
+    "fs": "https://esm.sh/fs@^0.0.1-security",
+    "marked": "https://esm.sh/marked@^17.0.1",
+    "cors": "https://esm.sh/cors@^2.8.5",
+    "socket.io": "https://esm.sh/socket.io@^4.8.3",
+    "https": "https://esm.sh/https@^1.0.0",
+    "http-proxy-middleware": "https://esm.sh/http-proxy-middleware@^3.0.5"
+  }
+}
+</script>
 </head>
 <body>
   <div id="root"></div>

@@ -3,19 +3,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { SpiderArticle } from '../../../types';
 import { getSpiderArticleDetail } from '../../../api/intelligence';
 import { CloseIcon, ExternalLinkIcon, ClockIcon } from '../../icons';
+import { marked } from 'marked';
 
 interface ArticleDetailModalProps {
     articleUuid: string;
     onClose: () => void;
-}
-
-// Add type declaration for marked
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
 }
 
 const formatBeijingTime = (dateStr: string | undefined) => {
@@ -56,10 +48,11 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ articleU
         
         const decodedContent = unescapeUnicode(article.content);
         
-        if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(decodedContent);
+        try {
+            return marked.parse(decodedContent) as string;
+        } catch (e) {
+            return `<pre class="whitespace-pre-wrap font-sans text-gray-700">${decodedContent}</pre>`;
         }
-        return `<pre class="whitespace-pre-wrap font-sans text-gray-700">${decodedContent}</pre>`;
     }, [article]);
 
     const renderContent = () => {

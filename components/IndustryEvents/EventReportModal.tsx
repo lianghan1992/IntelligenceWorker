@@ -3,15 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { LivestreamTask } from '../../types';
 import { CloseIcon, DocumentTextIcon } from '../icons';
 import { getTaskSummary } from '../../api';
-
-// 为从CDN加载的 `marked` 库提供类型声明
-declare global {
-  interface Window {
-    marked?: {
-      parse(markdownString: string): string;
-    };
-  }
-}
+import { marked } from 'marked';
 
 interface EventReportModalProps {
     event: LivestreamTask;
@@ -56,19 +48,18 @@ export const EventReportModal: React.FC<EventReportModalProps> = ({ event, onClo
 
         const decodedContent = unescapeUnicode(reportContent);
     
-        if (window.marked && typeof window.marked.parse === 'function') {
-            return window.marked.parse(decodedContent);
+        try {
+            return marked.parse(decodedContent) as string;
+        } catch (e) {
+            console.error("Markdown parse error:", e);
+            const escapedContent = decodedContent
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+            return `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 1rem;">${escapedContent}</pre>`;
         }
-        
-        console.error("marked.js is not loaded or is not a function. Falling back to pre-formatted text.");
-        const escapedContent = decodedContent
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-            
-        return `<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit; font-size: 1rem;">${escapedContent}</pre>`;
     }, [reportContent, isLoading, error]);
 
     const formattedDate = new Date(event.start_time).toLocaleString('zh-CN', {
