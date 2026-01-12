@@ -9,15 +9,18 @@ interface VisualCanvasProps {
     onSave: (newHtml: string) => void;
 }
 
-// 注入到 iframe 内部的编辑器引擎脚本 (独立副本)
+// Injected Script logic
 const EDITOR_SCRIPT = `
 <script>
 (function() {
   let selectedEl = null;
   let isDragging = false;
   let startX, startY, initialTransformX, initialTransformY;
+  
+  // Initialize scale
+  window.visualEditorScale = 1;
 
-  // 1. 注入编辑器样式
+  // 1. Inject Editor Styles
   const style = document.createElement('style');
   style.innerHTML = \`
     .ai-editor-selected { 
@@ -36,14 +39,14 @@ const EDITOR_SCRIPT = `
       outline: 2px solid #10b981 !important;
       box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
     }
-    /* 禁止选中根容器 */
+    /* Prevent selection of root containers */
     body, html, #canvas {
         min-height: 100%;
     }
   \`;
   document.head.appendChild(style);
 
-  // 2. 交互逻辑: 点击选择
+  // 2. Interaction: Click to Select
   document.body.addEventListener('click', (e) => {
     if (e.target.isContentEditable) return;
     
@@ -55,7 +58,7 @@ const EDITOR_SCRIPT = `
     }
 
     const target = e.target;
-    // 禁止选中根节点
+    // Block selection of root nodes
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect();
         return;
@@ -64,7 +67,7 @@ const EDITOR_SCRIPT = `
     selectElement(target);
   }, true);
 
-  // Hover 效果
+  // Hover Effects
   document.body.addEventListener('mouseover', (e) => {
       if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas') return;
       if (e.target === selectedEl) return;
@@ -75,7 +78,7 @@ const EDITOR_SCRIPT = `
       e.target.classList.remove('ai-editor-hover');
   });
 
-  // 3. 交互逻辑: 双击编辑文字
+  // 3. Interaction: Double Click to Edit Text
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault();
      e.stopPropagation();
@@ -90,23 +93,20 @@ const EDITOR_SCRIPT = `
      }
   });
   
-  // 键盘快捷键监听
+  // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
       if (!selectedEl) return;
-      // Delete 键删除
       if (e.key === 'Delete' || e.key === 'Backspace') {
           if (!selectedEl.isContentEditable) {
               selectedEl.remove();
               deselect();
           }
       }
-      // Esc 键取消选中
       if (e.key === 'Escape') {
           deselect();
       }
   });
 
-  // 辅助函数: 选中元素
   function selectElement(el) {
       if (selectedEl) deselect();
       
@@ -114,7 +114,6 @@ const EDITOR_SCRIPT = `
       selectedEl.classList.remove('ai-editor-hover');
       selectedEl.classList.add('ai-editor-selected');
       
-      // 解析当前 transform 中的 scale
       const transform = selectedEl.style.transform || '';
       let currentScale = 1;
       const scaleMatch = transform.match(/scale\\(([^)]+)\\)/);
@@ -122,7 +121,6 @@ const EDITOR_SCRIPT = `
           currentScale = parseFloat(scaleMatch[1]);
       }
 
-      // 获取样式发送给父组件
       const comp = window.getComputedStyle(selectedEl);
       window.parent.postMessage({ 
           type: 'SELECTED', 
@@ -148,10 +146,16 @@ const EDITOR_SCRIPT = `
       }
   }
 
-  // 4. 消息监听: 接收父组件指令
+  // 4. Message Listener (Parent -> Iframe)
   window.addEventListener('message', (event) => {
     const { action, value } = event.data;
     
+    // --- Scale Update Fix ---
+    if (action === 'UPDATE_SCALE') {
+        window.visualEditorScale = value;
+        return;
+    }
+
     if (action === 'GET_HTML') {
         const wasSelected = selectedEl;
         if (selectedEl) selectedEl.classList.remove('ai-editor-selected');
@@ -196,7 +200,7 @@ const EDITOR_SCRIPT = `
     }
   });
 
-  // 5. 拖拽逻辑
+  // 5. Drag Logic
   document.body.addEventListener('mousedown', (e) => {
     if (!selectedEl || e.target !== selectedEl) return;
     if (selectedEl.isContentEditable) return; 
@@ -219,7 +223,9 @@ const EDITOR_SCRIPT = `
   window.addEventListener('mousemove', (e) => {
     if (!isDragging || !selectedEl) return;
     e.preventDefault();
-    const scale = window.parent.visualEditorScale || 1; 
+    
+    // Use local scale variable safely
+    const scale = window.visualEditorScale || 1; 
     
     const dx = (e.clientX - startX) / scale; 
     const dy = (e.clientY - startY) / scale;
@@ -256,34 +262,36 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
         letterSpacing: string;
     } | null>(null);
 
-    // Auto fit scale
+    // Auto fit scale logic
     useEffect(() => {
         const updateScale = () => {
             if (containerRef.current) {
                 const { clientWidth, clientHeight } = containerRef.current;
                 const baseWidth = 1600;
                 const baseHeight = 900;
-                const wRatio = (clientWidth - 40) / baseWidth; 
-                const hRatio = (clientHeight - 40) / baseHeight;
+                // Leave some padding
+                const wRatio = (clientWidth - 60) / baseWidth; 
+                const hRatio = (clientHeight - 60) / baseHeight;
                 const newScale = Math.min(wRatio, hRatio);
+                
                 setScale(newScale);
 
-                // Pass scale to iframe for drag calculation
+                // Safe Cross-Origin Communication for Scale
                 if (iframeRef.current && iframeRef.current.contentWindow) {
-                    // @ts-ignore
-                    iframeRef.current.contentWindow.visualEditorScale = newScale;
+                    iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: newScale }, '*');
                 }
             }
         };
         
         window.addEventListener('resize', updateScale);
-        updateScale();
-        // Delay to handle layout settle
+        // Initial delays to handle layout shifts
         setTimeout(updateScale, 100);
+        setTimeout(updateScale, 500);
+        
         return () => window.removeEventListener('resize', updateScale);
     }, []);
 
-    // Initialize content
+    // Load Content
     useEffect(() => {
         if (iframeRef.current) {
             const doc = iframeRef.current.contentDocument;
@@ -295,7 +303,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
         }
     }, [initialHtml]);
 
-    // Message handler
+    // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
             if (e.data.type === 'SELECTED') {
@@ -328,7 +336,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
         }
     };
 
-    // Actions
+    // --- Toolbar Actions ---
     const handleColor = (color: string) => sendCommand('UPDATE_STYLE', { color });
     const handleFontSize = (delta: number) => {
         if (!selectedElement) return;
@@ -363,15 +371,10 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
     const handleLayer = (dir: 'up' | 'down') => sendCommand('LAYER', dir);
     const handleReset = () => sendCommand('RESET_STYLE');
 
-    // Expose save trigger via ref or prop if needed, currently onSave is just a callback
-    // But we need a trigger from parent. 
-    // For this standalone component, we can add a save button INSIDE or expose a method.
-    // To keep it clean, we'll listen for a specific prop change or just add a floating save button here.
-    
     return (
         <div ref={containerRef} className="w-full h-full flex flex-col items-center justify-center relative bg-slate-200 overflow-hidden">
             
-            {/* Floating Toolbar */}
+            {/* Floating Toolbar (HUD) */}
             {selectedElement && (
                 <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-slate-200 p-2 flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-4 select-none ring-1 ring-black/5 overflow-x-auto max-w-[95vw] custom-scrollbar">
                     
@@ -442,7 +445,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave 
                 </div>
             )}
 
-            {/* Iframe Canvas */}
+            {/* Iframe Canvas Container */}
             <div 
                 style={{ 
                     width: '1600px', 
