@@ -17,6 +17,7 @@ interface CompetitivenessMatrixProps {
     dimensions: CompetitivenessDimension[];
     onItemClick: (item: TechItem) => void;
     isLoading: boolean;
+    loadingBrands?: Set<string>;
 }
 
 // --- Visual Helpers ---
@@ -53,12 +54,22 @@ const getDimensionColor = (index: number) => {
     return colors[index % colors.length];
 };
 
+const BrandSkeleton: React.FC = () => (
+    <div className="space-y-4 animate-pulse p-1">
+        <div className="h-32 bg-slate-200/50 rounded-xl border border-slate-100"></div>
+        <div className="h-24 bg-slate-200/50 rounded-xl border border-slate-100"></div>
+        <div className="h-40 bg-slate-200/50 rounded-xl border border-slate-100"></div>
+        <div className="h-24 bg-slate-200/50 rounded-xl border border-slate-100"></div>
+    </div>
+);
+
 export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({ 
     items, 
     brands, 
     dimensions, 
     onItemClick,
-    isLoading
+    isLoading,
+    loadingBrands
 }) => {
     // View State
     const [hoveredTechName, setHoveredTechName] = useState<string | null>(null);
@@ -134,11 +145,12 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
         return { matrixMap: map, brandCounts: counts, maxCount: max };
     }, [items, dimensions, brands]);
 
-    if (isLoading) {
+    // Only show full loading if explicitly requested (e.g. metadata load)
+    if (isLoading && (!brands || brands.length === 0)) {
         return (
             <div className="flex flex-col items-center justify-center h-full bg-white">
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-600 mb-4"></div>
-                <p className="text-slate-400 text-sm font-medium tracking-wide">正在构建竞争力全景...</p>
+                <p className="text-slate-400 text-sm font-medium tracking-wide">正在初始化...</p>
             </div>
         );
     }
@@ -199,12 +211,13 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                     {brands.map((brand, colIndex) => {
                         const count = brandCounts.get(brand) || 0;
                         const brandData = matrixMap.get(brand);
+                        const isBrandLoading = loadingBrands?.has(brand);
 
                         return (
                             <div 
                                 key={brand} 
                                 className="flex-shrink-0 w-[85vw] sm:w-[320px] md:w-[360px] h-full snap-center flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-lg transition-shadow duration-300 animate-slide-up"
-                                style={{ animationDelay: `${colIndex * 100}ms` }}
+                                style={{ animationDelay: `${colIndex * 50}ms` }}
                             >
                                 {/* Brand Header */}
                                 <div className="p-5 border-b border-slate-100 bg-white sticky top-0 z-20 backdrop-blur-md flex-shrink-0">
@@ -230,98 +243,105 @@ export const CompetitivenessMatrix: React.FC<CompetitivenessMatrixProps> = ({
                                 </div>
 
                                 {/* Tech Specs Body */}
-                                <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6">
-                                    {dimensions.map((dim, dimIndex) => {
-                                        // Retrieve by Name (dim.name), aligning with the map building logic
-                                        const brandDimMap = brandData?.get(dim.name); 
-                                        
-                                        // Dynamic Sub-dimensions: Merge metadata definitions with actual data found
-                                        // This ensures items with sub-dimensions not in metadata still show up
-                                        const definedSubDims = dim.sub_dimensions || [];
-                                        const dataSubDims = brandDimMap ? Array.from(brandDimMap.keys()) : [];
-                                        const allRelevantSubDims = Array.from(new Set([...definedSubDims, ...dataSubDims]));
+                                <div className="flex-1 p-3 space-y-4 bg-slate-50/50 overflow-y-auto custom-scrollbar pb-6 relative">
+                                    {isBrandLoading ? (
+                                        <div className="absolute inset-0 p-4">
+                                            <BrandSkeleton />
+                                            <div className="text-center mt-4 text-xs text-slate-400 font-medium">数据动态加载中...</div>
+                                        </div>
+                                    ) : (
+                                        dimensions.map((dim, dimIndex) => {
+                                            // Retrieve by Name (dim.name), aligning with the map building logic
+                                            const brandDimMap = brandData?.get(dim.name); 
+                                            
+                                            // Dynamic Sub-dimensions: Merge metadata definitions with actual data found
+                                            // This ensures items with sub-dimensions not in metadata still show up
+                                            const definedSubDims = dim.sub_dimensions || [];
+                                            const dataSubDims = brandDimMap ? Array.from(brandDimMap.keys()) : [];
+                                            const allRelevantSubDims = Array.from(new Set([...definedSubDims, ...dataSubDims]));
 
-                                        // Filter: Only show sub-dims that actually have data for this brand
-                                        const activeSubDimsForBrand = allRelevantSubDims.filter(sub => brandDimMap?.has(sub));
-                                        
-                                        // If no data for this dimension for this brand, hide the block
-                                        if (activeSubDimsForBrand.length === 0) return null;
+                                            // Filter: Only show sub-dims that actually have data for this brand
+                                            const activeSubDimsForBrand = allRelevantSubDims.filter(sub => brandDimMap?.has(sub));
+                                            
+                                            // If no data for this dimension for this brand, hide the block
+                                            if (activeSubDimsForBrand.length === 0) return null;
 
-                                        const dimIconColor = getDimensionColor(dimIndex);
-                                        const DimIcon = getDimensionIcon(dim.name);
-                                        const itemCount = activeSubDimsForBrand.length;
+                                            const dimIconColor = getDimensionColor(dimIndex);
+                                            const DimIcon = getDimensionIcon(dim.name);
+                                            const itemCount = activeSubDimsForBrand.length;
 
-                                        return (
-                                            <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300 flex-shrink-0">
-                                                {/* Primary Dimension Header */}
-                                                <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
-                                                    <div className="flex items-center gap-2">
-                                                        <DimIcon className="w-4 h-4 opacity-80" />
-                                                        <span className="text-sm font-bold tracking-wide">{dim.name}</span>
+                                            return (
+                                                <div key={dim.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] animate-in fade-in zoom-in-95 duration-300 flex-shrink-0">
+                                                    {/* Primary Dimension Header */}
+                                                    <div className={`px-4 py-2.5 flex items-center justify-between border-b ${dimIconColor}`}>
+                                                        <div className="flex items-center gap-2">
+                                                            <DimIcon className="w-4 h-4 opacity-80" />
+                                                            <span className="text-sm font-bold tracking-wide">{dim.name}</span>
+                                                        </div>
+                                                        <span className="text-[10px] bg-white/40 backdrop-blur-md px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                                            {itemCount}
+                                                        </span>
                                                     </div>
-                                                    <span className="text-[10px] bg-white/40 backdrop-blur-md px-2 py-0.5 rounded-full font-bold shadow-sm">
-                                                        {itemCount}
-                                                    </span>
-                                                </div>
 
-                                                <div className="divide-y divide-slate-50">
-                                                    {activeSubDimsForBrand.map(sub => {
-                                                        const item = brandDimMap?.get(sub);
-                                                        if (!item) return null;
+                                                    <div className="divide-y divide-slate-50">
+                                                        {activeSubDimsForBrand.map(sub => {
+                                                            const item = brandDimMap?.get(sub);
+                                                            if (!item) return null;
 
-                                                        const conf = getReliabilityConfig(item.reliability);
-                                                        const Icon = conf.icon;
-                                                        
-                                                        const isMatch = hoveredTechName && item.name === hoveredTechName;
-                                                        const isDimmed = hoveredTechName && item.name !== hoveredTechName;
+                                                            const conf = getReliabilityConfig(item.reliability);
+                                                            const Icon = conf.icon;
+                                                            
+                                                            const isMatch = hoveredTechName && item.name === hoveredTechName;
+                                                            const isDimmed = hoveredTechName && item.name !== hoveredTechName;
 
-                                                        return (
-                                                            <div 
-                                                                key={sub} 
-                                                                className={`
-                                                                    p-4 transition-all duration-300 relative group cursor-pointer bg-white hover:bg-slate-50 hover-shine
-                                                                    ${isMatch ? 'bg-indigo-50 z-10 scale-[1.02] shadow-md ring-1 ring-indigo-100' : ''}
-                                                                    ${isDimmed ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}
-                                                                `}
-                                                                onClick={() => onItemClick(item)}
-                                                                onMouseEnter={() => setHoveredTechName(item.name)}
-                                                                onMouseLeave={() => setHoveredTechName(null)}
-                                                            >
-                                                                {/* Secondary Dimension Label */}
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-1.5 py-0.5 rounded-sm">
-                                                                        {sub}
-                                                                    </span>
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <span className={`text-[9px] text-slate-400 font-mono`}>
-                                                                            {new Date(item.updated_at).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}
+                                                            return (
+                                                                <div 
+                                                                    key={sub} 
+                                                                    className={`
+                                                                        p-4 transition-all duration-300 relative group cursor-pointer bg-white hover:bg-slate-50 hover-shine
+                                                                        ${isMatch ? 'bg-indigo-50 z-10 scale-[1.02] shadow-md ring-1 ring-indigo-100' : ''}
+                                                                        ${isDimmed ? 'opacity-40 grayscale-[0.5]' : 'opacity-100'}
+                                                                    `}
+                                                                    onClick={() => onItemClick(item)}
+                                                                    onMouseEnter={() => setHoveredTechName(item.name)}
+                                                                    onMouseLeave={() => setHoveredTechName(null)}
+                                                                >
+                                                                    {/* Secondary Dimension Label */}
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-1.5 py-0.5 rounded-sm">
+                                                                            {sub}
                                                                         </span>
-                                                                        <span className={`w-2 h-2 rounded-full ${conf.bar}`}></span>
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className={`text-[9px] text-slate-400 font-mono`}>
+                                                                                {new Date(item.updated_at).toLocaleDateString(undefined, {month:'numeric', day:'numeric'})}
+                                                                            </span>
+                                                                            <span className={`w-2 h-2 rounded-full ${conf.bar}`}></span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="font-bold text-slate-800 text-sm leading-snug mb-1.5 group-hover:text-indigo-700 transition-colors">
+                                                                        {item.name}
+                                                                    </div>
+                                                                    
+                                                                    <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${conf.bg} ${conf.color} ${conf.border} mb-1.5`}>
+                                                                        <Icon className="w-3 h-3" />
+                                                                        {conf.label}
+                                                                    </div>
+
+                                                                    <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                                        {item.description}
                                                                     </div>
                                                                 </div>
-
-                                                                <div className="font-bold text-slate-800 text-sm leading-snug mb-1.5 group-hover:text-indigo-700 transition-colors">
-                                                                    {item.name}
-                                                                </div>
-                                                                
-                                                                <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${conf.bg} ${conf.color} ${conf.border} mb-1.5`}>
-                                                                    <Icon className="w-3 h-3" />
-                                                                    {conf.label}
-                                                                </div>
-
-                                                                <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                                                    {item.description}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })
+                                    )}
                                     
                                     {/* Fallback */}
-                                    {dimensions.every(dim => {
+                                    {!isBrandLoading && dimensions.every(dim => {
                                         const brandDimMap = brandData?.get(dim.name);
                                         return !brandDimMap || brandDimMap.size === 0;
                                     }) && (

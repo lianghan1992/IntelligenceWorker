@@ -222,6 +222,7 @@ export const CompetitivenessDashboard: React.FC = () => {
     const [dimensions, setDimensions] = useState<CompetitivenessDimension[]>([]);
     const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadingBrands, setLoadingBrands] = useState<Set<string>>(new Set());
 
     // Load Metadata and set defaults
     useEffect(() => {
@@ -244,29 +245,45 @@ export const CompetitivenessDashboard: React.FC = () => {
         });
     }, []);
 
-    // Load Matrix Data
+    // Load Matrix Data (Dynamic/Concurrent Fetch)
     useEffect(() => {
         if (selectedBrands.length === 0) {
             setItems([]);
+            setLoadingBrands(new Set());
+            setIsLoading(false);
             return;
         }
         
-        const loadData = async () => {
-            setIsLoading(true);
+        let active = true;
+        setItems([]); // Clear previous data
+        setIsLoading(false); // Disable global loading to show grid immediately
+        setLoadingBrands(new Set(selectedBrands)); // Mark all as loading
+
+        const fetchBrandData = async (brand: string) => {
             try {
-                // Fetch all items for selected brands (pagination logic might be needed for large datasets)
-                // Use limit=1000 to ensure we get a comprehensive set of items for the dashboard.
-                // Backend supports overriding size with limit for legacy compat.
-                const data = await getTechItems({ limit: 1000 });
-                // Filter locally for now or update API to accept multiple brands
-                setItems(data.items.filter(i => selectedBrands.includes(i.vehicle_brand) || selectedBrands.some(b => i.vehicle_brand.includes(b))));
+                // Fetch all items for this brand (use limit to ensure comprehensive set)
+                // Assuming 150 items covers most cases for dashboard view
+                const data = await getTechItems({ vehicle_brand: brand, limit: 150 });
+                if (active) {
+                    setItems(prev => [...prev, ...data.items]);
+                }
             } catch (error) {
-                console.error("Failed to load matrix data", error);
+                console.error(`Failed to load matrix data for ${brand}`, error);
             } finally {
-                setIsLoading(false);
+                if (active) {
+                    setLoadingBrands(prev => {
+                        const next = new Set(prev);
+                        next.delete(brand);
+                        return next;
+                    });
+                }
             }
         };
-        loadData();
+
+        // Trigger fetches in parallel
+        selectedBrands.forEach(brand => fetchBrandData(brand));
+
+        return () => { active = false; };
     }, [selectedBrands]);
 
     const handleItemClick = async (item: TechItem) => {
@@ -349,6 +366,7 @@ export const CompetitivenessDashboard: React.FC = () => {
                         dimensions={dimensions}
                         onItemClick={handleItemClick}
                         isLoading={isLoading}
+                        loadingBrands={loadingBrands}
                     />
                 ) : (
                     <div className="h-full flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-200">
