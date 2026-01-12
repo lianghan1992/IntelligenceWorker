@@ -4,7 +4,7 @@ import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
-    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary
+    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary, ModelPricing
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -150,3 +150,16 @@ export const getAdminUserBillSummary = async (params: any): Promise<PaginatedRes
 export const getUserBillsAdmin = (userId: string, params: any): Promise<PaginatedResponse<BillItem>> => {
     return getAdminBills({ ...params, user_id: userId });
 };
+
+// --- Model Pricing Management (Admin) ---
+export const getModelPricings = (): Promise<ModelPricing[]> => 
+    apiFetch<ModelPricing[]>(`${USER_SERVICE_PATH}/admin/model-pricing`);
+
+export const createModelPricing = (data: Partial<ModelPricing>): Promise<ModelPricing> => 
+    apiFetch<ModelPricing>(`${USER_SERVICE_PATH}/admin/model-pricing`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+
+export const deleteModelPricing = (id: string | number): Promise<void> => 
+    apiFetch<void>(`${USER_SERVICE_PATH}/admin/model-pricing/${id}`, { method: 'DELETE' });

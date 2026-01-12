@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createQuotaConfig, getQuotaConfigs, deleteQuotaConfig } from '../../../api/user';
 import { QuotaConfig } from '../../../types';
-import { CloseIcon, PlusIcon, RefreshIcon, CheckIcon, TrashIcon, LightningBoltIcon, ShieldCheckIcon, QuestionMarkCircleIcon, DocumentTextIcon, ClockIcon } from '../../icons';
+import { CloseIcon, PlusIcon, RefreshIcon, CheckIcon, TrashIcon, LightningBoltIcon, ShieldCheckIcon, QuestionMarkCircleIcon, ClockIcon } from '../../icons';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>;
 
@@ -77,7 +77,8 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                 limit_value: finalLimit,
                 period: form.period as any,
                 allow_overage: form.allow_overage,
-                overage_unit_price: form.allow_overage ? form.overage_unit_price : 0,
+                // Only send price if unit_price strategy is selected
+                overage_unit_price: (form.allow_overage && form.overage_strategy === 'unit_price') ? form.overage_unit_price : 0,
                 overage_strategy: form.allow_overage ? form.overage_strategy : undefined,
                 remark: form.remark
             });
@@ -214,20 +215,20 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                                     <div className="flex gap-2 bg-white p-1 rounded-lg border border-slate-200">
                                         <button 
                                             onClick={() => setForm({...form, overage_strategy: 'unit_price'})}
-                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'unit_price' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'unit_price' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                                         >
                                             固定单价
                                         </button>
                                         <button 
                                             onClick={() => setForm({...form, overage_strategy: 'external_pricing'})}
-                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'external_pricing' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'}`}
+                                            className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${form.overage_strategy === 'external_pricing' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
                                         >
                                             模型定价
                                         </button>
                                     </div>
                                     
                                     {form.overage_strategy === 'unit_price' ? (
-                                        <div>
+                                        <div className="animate-in fade-in">
                                             <label className="block text-[10px] text-slate-400 font-bold mb-1">超额单价 (CNY)</label>
                                             <div className="relative">
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
@@ -242,10 +243,10 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                                                 />
                                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">/ 单位</span>
                                             </div>
-                                            <p className="text-[10px] text-slate-400 mt-1">当额度用尽时，将从用户余额扣除费用。例如 Token 计费可设为 0.0001</p>
+                                            <p className="text-[10px] text-slate-400 mt-1">例如 Token 计费可设为 0.0001</p>
                                         </div>
                                     ) : (
-                                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 leading-relaxed">
+                                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 leading-relaxed animate-in fade-in">
                                             此模式下，实际扣费金额由调用方（如 StratifyAI）根据模型倍率动态计算，此处无需配置单价。
                                         </div>
                                     )}
@@ -441,7 +442,9 @@ export const QuotaManager: React.FC = () => {
                                                         <CheckIcon className="w-3 h-3"/> 允许
                                                     </div>
                                                     <span className="text-[10px] text-slate-500 font-mono mt-1">
-                                                        {config.overage_strategy === 'external_pricing' ? '模型定价' : `¥${config.overage_unit_price}/次`}
+                                                        {config.overage_strategy === 'external_pricing' 
+                                                            ? '模型定价' 
+                                                            : `¥${config.overage_unit_price}/次`}
                                                     </span>
                                                 </div>
                                             ) : (
