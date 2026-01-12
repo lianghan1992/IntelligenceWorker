@@ -25,10 +25,11 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      // Remove external config for best-effort-json-parser
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
+          'vendor-socket': ['socket.io-client'],
+          'vendor-ui': ['/components/icons.tsx'], // Split large icons file if possible (heuristic)
         },
       },
     },
