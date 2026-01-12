@@ -41,13 +41,14 @@ export interface QuotaItem {
 }
 
 export interface QuotaConfig {
-    id?: string; // Optional if backend generates it and doesn't return immediately in list (though usually it does)
+    id?: string;
     plan_type: string;
     resource_key: string;
     limit_value: number;
-    period: 'monthly' | 'daily' | 'total'; // 'total' implies lifetime or one-time
+    period: 'monthly' | 'daily' | 'total';
     allow_overage: boolean;
     overage_unit_price: number;
+    remark?: string; // Operational note
 }
 
 export interface WalletBalance {

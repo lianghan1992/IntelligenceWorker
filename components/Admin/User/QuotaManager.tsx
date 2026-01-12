@@ -76,7 +76,6 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                 period: form.period as any,
                 allow_overage: form.allow_overage,
                 overage_unit_price: form.allow_overage ? form.overage_unit_price : 0,
-                // @ts-ignore: Assuming remark is added to type or will be passed through
                 remark: form.remark
             });
             onSuccess();
@@ -214,15 +213,16 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">¥</span>
                                         <input 
                                             type="number" 
-                                            step="0.01"
+                                            step="0.000001"
                                             min="0"
                                             value={form.overage_unit_price}
                                             onChange={e => setForm({...form, overage_unit_price: parseFloat(e.target.value)})}
                                             className="w-full bg-white border border-slate-300 rounded-lg pl-7 pr-3 py-2 text-sm font-mono font-bold text-slate-800 outline-none focus:border-indigo-500"
+                                            placeholder="0.0001"
                                         />
                                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">/ 单位</span>
                                     </div>
-                                    <p className="text-[10px] text-slate-400">当额度用尽时，将从用户余额扣除费用。</p>
+                                    <p className="text-[10px] text-slate-400">当额度用尽时，将从用户余额扣除费用。例如 Token 计费可设为 0.0001</p>
                                 </div>
                             ) : (
                                 <p className="text-xs text-slate-400 italic">
@@ -239,7 +239,7 @@ const CreateQuotaModal: React.FC<CreateQuotaModalProps> = ({ isOpen, onClose, on
                             value={form.remark}
                             onChange={e => setForm({...form, remark: e.target.value})}
                             className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-20"
-                            placeholder="例如：2024 新年活动调整..."
+                            placeholder="例如：2024 新年活动调整，Token 单价 5 折..."
                         />
                     </div>
 
@@ -390,10 +390,8 @@ export const QuotaManager: React.FC = () => {
                                                 <span className="text-slate-300">|</span>
                                                 <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3"/> {config.period}</span>
                                             </div>
-                                            {/* @ts-ignore: Assuming remark exists */}
                                             {config.remark && (
                                                 <p className="text-xs text-slate-400 mt-2 italic border-l-2 border-slate-200 pl-2">
-                                                    {/* @ts-ignore */}
                                                     {config.remark}
                                                 </p>
                                             )}

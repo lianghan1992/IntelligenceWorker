@@ -374,11 +374,13 @@ curl -X GET http://127.0.0.1:7657/api/user/plans
 
 **请求体 (JSON)**
 
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `user_id` | string | 用户ID |
-| `resource_key` | string | 资源标识 |
-| `count` | integer | 消耗数量 |
+| 字段 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `user_id` | string | 是 | 用户ID |
+| `resource_key` | string | 是 | 资源标识 |
+| `count` | integer | 否 | 消耗数量 (默认1) |
+| `billing_count` | number | 否 | 计费数量 (可选，用于混合计费模式) |
+| `check_only` | boolean | 否 | 是否仅检查不扣费 (默认 false) |
 
 ### 6.7 支付回调 (Payment Callback)
 
