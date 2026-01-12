@@ -2,8 +2,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { VisualCanvas } from './VisualCanvas';
 import { 
-    CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon
+    CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon
 } from '../../../../components/icons';
+import { generatePdf } from '../../utils/services';
 
 // Simple Undo/Redo Icon Components
 const UndoIcon = ({ className }: { className?: string }) => (
@@ -136,6 +137,7 @@ const HtmlVisualEditor: React.FC = () => {
     const [viewMode, setViewMode] = useState<'visual' | 'code'>('visual');
     const [copyStatus, setCopyStatus] = useState('复制代码');
     const [pasteStatus, setPasteStatus] = useState('从剪贴板导入');
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
     // Keyboard Shortcuts for Undo/Redo
     useEffect(() => {
@@ -183,7 +185,7 @@ const HtmlVisualEditor: React.FC = () => {
         }
     };
 
-    const handleDownload = () => {
+    const handleDownloadHtml = () => {
         const blob = new Blob([htmlContent], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -193,6 +195,26 @@ const HtmlVisualEditor: React.FC = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadPdf = async () => {
+        setIsDownloadingPdf(true);
+        try {
+            const blob = await generatePdf(htmlContent, `design_${new Date().toISOString().slice(0,10)}`);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `design_${new Date().toISOString().slice(0,10)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(e);
+            alert('PDF 生成失败，请重试。');
+        } finally {
+            setIsDownloadingPdf(false);
+        }
     };
 
     return (
@@ -258,11 +280,21 @@ const HtmlVisualEditor: React.FC = () => {
                         {copyStatus}
                     </button>
                     <button 
-                        onClick={handleDownload}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95"
+                        onClick={handleDownloadHtml}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all shadow-sm"
+                        title="下载 .html 文件"
                     >
                         <DownloadIcon className="w-3.5 h-3.5"/>
-                        下载 HTML
+                        HTML
+                    </button>
+                    <button 
+                        onClick={handleDownloadPdf}
+                        disabled={isDownloadingPdf}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                        title="导出为 PDF 文件"
+                    >
+                        {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5"/>}
+                        导出 PDF
                     </button>
                 </div>
             </div>

@@ -1,9 +1,9 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
-    TrashIcon, PencilIcon, CheckIcon, PlusIcon, 
-    ArrowRightIcon, ChevronDownIcon, ChevronRightIcon,
-    RefreshIcon, ViewGridIcon
+    TrashIcon, ArrowRightIcon, PlusIcon, RefreshIcon, 
+    CheckIcon, CloseIcon, CubeIcon, DocumentTextIcon, 
+    PhotoIcon, ViewGridIcon, PencilIcon
 } from '../icons';
 
 interface VisualEditorProps {
@@ -12,233 +12,507 @@ interface VisualEditorProps {
     scale?: number;
 }
 
-// 注入到 iframe 内部的编辑器引擎脚本
+// --- Icons ---
+const UndoIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z" transform="scale(-1, 1) translate(-24, 0)"/>
+    </svg>
+);
+
+const RedoIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/>
+    </svg>
+);
+
+const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
+const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
+const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
+
+// --- Custom Hook for History ---
+function useHistory<T>(initialState: T) {
+    const [history, setHistory] = useState<T[]>([initialState]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    const state = history[currentIndex];
+
+    const pushState = useCallback((newState: T) => {
+        setHistory(prev => {
+            const newHistory = prev.slice(0, currentIndex + 1);
+            // Deduplicate consecutive identical states
+            if (newHistory[newHistory.length - 1] === newState) return prev;
+            if (newHistory.length > 50) newHistory.shift();
+            return [...newHistory, newState];
+        });
+        setCurrentIndex(prev => {
+            // Logic to update index to the latest item
+            const nextIndex = prev + 1;
+            // Since setHistory updates asynchronously, we rely on the effect below to clamp index if needed,
+            // but for immediate calculation based on slice:
+            return nextIndex > 49 ? 49 : nextIndex; 
+        });
+    }, [currentIndex]);
+    
+    // Sync index to end when history grows (simple version)
+    useEffect(() => {
+        setCurrentIndex(history.length - 1);
+    }, [history.length]);
+
+    const undo = useCallback(() => {
+        setCurrentIndex(prev => Math.max(0, prev - 1));
+    }, []);
+
+    const redo = useCallback(() => {
+        setCurrentIndex(prev => Math.min(history.length - 1, prev + 1));
+    }, [history.length]);
+
+    const canUndo = currentIndex > 0;
+    const canRedo = currentIndex < history.length - 1;
+
+    // Reset history when initial state drastically changes (e.g. new slide)
+    const reset = useCallback((newState: T) => {
+        setHistory([newState]);
+        setCurrentIndex(0);
+    }, []);
+
+    return { state, pushState, undo, redo, canUndo, canRedo, reset };
+}
+
+// --- Properties Panel ---
+interface PropertiesPanelProps {
+    element: any;
+    onUpdateStyle: (key: string, value: string) => void;
+    onUpdateContent: (text: string) => void;
+    onDelete: () => void;
+    onClose: () => void;
+}
+
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onDelete, onClose }) => {
+    if (!element) return null;
+    const parseVal = (val: string) => parseInt(val) || 0;
+
+    return (
+        <div className="w-80 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300 absolute right-0 top-0 bottom-0">
+            <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">
+                        {element.tagName}
+                    </span>
+                    <span className="text-sm font-bold text-slate-700">属性编辑</span>
+                </div>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                    <CloseIcon className="w-4 h-4" />
+                </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
+                {(element.tagName !== 'IMG' && element.tagName !== 'HR' && element.tagName !== 'BR') && (
+                    <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                            <DocumentTextIcon className="w-3.5 h-3.5" /> 文本内容
+                        </h4>
+                        <textarea 
+                            value={element.content || ''}
+                            onChange={(e) => onUpdateContent(e.target.value)}
+                            className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-slate-50 resize-y min-h-[80px]"
+                            placeholder="输入文本内容..."
+                        />
+                    </div>
+                )}
+                
+                <div className="h-px bg-slate-100"></div>
+
+                {/* 布局 */}
+                <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <ViewGridIcon className="w-3.5 h-3.5" /> 布局与尺寸
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽度 (W)</label>
+                            <input 
+                                type="number" 
+                                value={parseVal(element.width)} 
+                                onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)}
+                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高度 (H)</label>
+                            <input 
+                                type="number" 
+                                value={parseVal(element.height)} 
+                                onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)}
+                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                         <label className="text-[10px] text-slate-500 font-medium mb-1 block">Display</label>
+                         <select 
+                            value={element.display || 'block'} 
+                            onChange={(e) => onUpdateStyle('display', e.target.value)}
+                            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-indigo-500 outline-none"
+                         >
+                             <option value="block">Block (块级)</option>
+                             <option value="inline-block">Inline Block</option>
+                             <option value="flex">Flex (弹性布局)</option>
+                             <option value="grid">Grid (网格)</option>
+                             <option value="inline">Inline (行内)</option>
+                         </select>
+                    </div>
+                </div>
+
+                <div className="h-px bg-slate-100"></div>
+
+                {/* 字体 */}
+                <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <PencilIcon className="w-3.5 h-3.5" /> 字体排版
+                    </h4>
+                    <div className="flex gap-2">
+                         <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">颜色</label>
+                            <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
+                                <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.color}}></div>
+                                <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-full text-xs outline-none uppercase font-mono text-slate-600"/>
+                            </div>
+                         </div>
+                         <div className="w-12 pt-5">
+                            <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-[34px] border rounded-md flex items-center justify-center font-bold font-serif transition-colors ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600'}`}>B</button>
+                         </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">大小 (px)</label>
+                             <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐</label>
+                            <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
+                                {['left', 'center', 'right'].map((align) => (
+                                    <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white transition-colors ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                                        {align === 'left' && <AlignLeftIcon className="w-4 h-4"/>}
+                                        {align === 'center' && <AlignCenterIcon className="w-4 h-4"/>}
+                                        {align === 'right' && <AlignRightIcon className="w-4 h-4"/>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="h-px bg-slate-100"></div>
+
+                {/* 外观 */}
+                <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <CubeIcon className="w-3.5 h-3.5" /> 外观样式
+                    </h4>
+                    <div>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">背景颜色</label>
+                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
+                            <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.backgroundColor}}></div>
+                            <input type="text" value={element.backgroundColor} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="w-full text-xs outline-none uppercase font-mono text-slate-600" placeholder="TRANSPARENT"/>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">圆角</label>
+                            <input type="number" value={parseVal(element.borderRadius)} onChange={(e) => onUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">内边距</label>
+                            <input type="number" value={parseVal(element.padding)} onChange={(e) => onUpdateStyle('padding', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                        </div>
+                    </div>
+                    <div>
+                         <label className="text-[10px] text-slate-500 font-medium mb-1 block">边框 (Border)</label>
+                         <div className="flex gap-2">
+                             <div className="w-16 relative">
+                                <input 
+                                    type="number" 
+                                    value={parseVal(element.borderWidth)} 
+                                    onChange={(e) => onUpdateStyle('borderWidth', `${e.target.value}px`)}
+                                    className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"
+                                />
+                                <span className="absolute right-1 top-1.5 text-xs text-slate-400">px</span>
+                             </div>
+                             <div className="flex-1 border border-slate-200 rounded-md bg-white flex items-center px-2">
+                                <div className="w-3 h-3 rounded-full border border-slate-300 mr-2" style={{backgroundColor: element.borderColor}}></div>
+                                <input 
+                                    type="text" 
+                                    value={element.borderColor} 
+                                    onChange={(e) => onUpdateStyle('borderColor', e.target.value)}
+                                    className="w-full text-xs outline-none font-mono text-slate-600"
+                                    placeholder="Color"
+                                />
+                             </div>
+                             <select 
+                                value={element.borderStyle || 'solid'}
+                                onChange={(e) => onUpdateStyle('borderStyle', e.target.value)}
+                                className="w-20 border border-slate-200 rounded-md text-xs bg-white focus:border-indigo-500 outline-none"
+                             >
+                                 <option value="solid">Solid</option>
+                                 <option value="dashed">Dashed</option>
+                                 <option value="dotted">Dotted</option>
+                                 <option value="none">None</option>
+                             </select>
+                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50">
+                <button onClick={onDelete} className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors font-bold text-sm">
+                    <TrashIcon className="w-4 h-4" /> 删除元素
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- Editor Script (Enhanced) ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
   let selectedEl = null;
   let isDragging = false;
-  let startX, startY, initialTransformX, initialTransformY;
+  let isResizing = false;
+  let resizeHandle = null;
+  let startX, startY;
+  let initialTransformX = 0, initialTransformY = 0;
+  let initialWidth = 0, initialHeight = 0;
+  
+  window.visualEditorScale = 1;
 
-  // 1. 注入编辑器样式
   const style = document.createElement('style');
   style.innerHTML = \`
-    .ai-editor-selected { 
-      outline: 2px solid #3b82f6 !important; 
-      outline-offset: 2px;
-      cursor: move !important; 
-      z-index: 9999;
-      box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.3);
-    }
-    .ai-editor-hover:not(.ai-editor-selected) {
-      outline: 1px dashed #93c5fd !important;
-      cursor: pointer !important;
-    }
-    *[contenteditable="true"] {
-      cursor: text !important;
-      outline: 2px solid #10b981 !important;
-      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
-    }
+    html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
+    .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+    .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
+    *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
+    .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; }
+    .ai-resizer:hover { background: #3b82f6; }
+    .ai-r-nw { top: -4px; left: -4px; cursor: nw-resize; }
+    .ai-r-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
+    .ai-r-ne { top: -4px; right: -4px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -4px; margin-top: -4px; cursor: e-resize; }
+    .ai-r-se { bottom: -4px; right: -4px; cursor: se-resize; }
+    .ai-r-s  { bottom: -4px; left: 50%; margin-left: -4px; cursor: s-resize; }
+    .ai-r-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -4px; margin-top: -4px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
-  // 2. 交互逻辑: 点击选择
+  function pushHistory() {
+      setTimeout(() => {
+        if (!selectedEl) return;
+        const wasSelected = selectedEl;
+        deselect(true);
+        const cleanHtml = document.documentElement.outerHTML;
+        selectElement(wasSelected);
+        window.parent.postMessage({ type: 'HISTORY_UPDATE', html: cleanHtml }, '*');
+      }, 50);
+  }
+
+  function createResizers(el) {
+      removeResizers();
+      const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+      handles.forEach(h => {
+          const div = document.createElement('div');
+          div.className = 'ai-resizer ai-r-' + h;
+          div.dataset.handle = h;
+          el.appendChild(div);
+      });
+  }
+
+  function removeResizers() {
+      document.querySelectorAll('.ai-resizer').forEach(r => r.remove());
+  }
+
   document.body.addEventListener('click', (e) => {
+    if (e.target.classList.contains('ai-resizer')) return;
     if (e.target.isContentEditable) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    
-    if (selectedEl && selectedEl !== e.target) {
-       deselect();
-    }
-
+    e.preventDefault(); e.stopPropagation();
+    if (selectedEl === e.target) return;
+    if (selectedEl && selectedEl !== e.target) deselect();
     const target = e.target;
-    // 禁止选中根节点
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
-        deselect();
-        return;
+        deselect(); return;
     }
-
     selectElement(target);
   }, true);
 
-  // Hover 效果
   document.body.addEventListener('mouseover', (e) => {
-      if (e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas') return;
-      if (e.target === selectedEl) return;
+      if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
       e.target.classList.add('ai-editor-hover');
   });
+  document.body.addEventListener('mouseout', (e) => { e.target.classList.remove('ai-editor-hover'); });
 
-  document.body.addEventListener('mouseout', (e) => {
-      e.target.classList.remove('ai-editor-hover');
-  });
-
-  // 3. 交互逻辑: 双击编辑文字
   document.body.addEventListener('dblclick', (e) => {
-     e.preventDefault();
-     e.stopPropagation();
-     if (selectedEl) {
+     e.preventDefault(); e.stopPropagation();
+     if (selectedEl && !e.target.classList.contains('ai-resizer')) {
+         removeResizers();
          selectedEl.contentEditable = 'true';
          selectedEl.focus();
          const onBlur = () => {
              selectedEl.contentEditable = 'false';
              selectedEl.removeEventListener('blur', onBlur);
+             createResizers(selectedEl);
+             pushHistory(); 
          };
          selectedEl.addEventListener('blur', onBlur);
      }
   });
-  
-  // 键盘快捷键监听
+
   document.addEventListener('keydown', (e) => {
       if (!selectedEl) return;
-      // Delete 键删除
       if (e.key === 'Delete' || e.key === 'Backspace') {
           if (!selectedEl.isContentEditable) {
               selectedEl.remove();
-              deselect();
+              selectedEl = null;
+              window.parent.postMessage({ type: 'DESELECT' }, '*');
+              pushHistory(); 
           }
       }
-      // Esc 键取消选中
-      if (e.key === 'Escape') {
-          deselect();
-      }
+      if (e.key === 'Escape') deselect();
   });
 
-  // 辅助函数: 选中元素
   function selectElement(el) {
-      if (selectedEl) deselect();
-      
+      if (selectedEl && selectedEl !== el) deselect();
       selectedEl = el;
       selectedEl.classList.remove('ai-editor-hover');
       selectedEl.classList.add('ai-editor-selected');
+      createResizers(selectedEl);
       
-      // 解析当前 transform 中的 scale
       const transform = selectedEl.style.transform || '';
       let currentScale = 1;
       const scaleMatch = transform.match(/scale\\(([^)]+)\\)/);
-      if (scaleMatch) {
-          currentScale = parseFloat(scaleMatch[1]);
-      }
+      if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
 
-      // 获取样式发送给父组件
       const comp = window.getComputedStyle(selectedEl);
       window.parent.postMessage({ 
           type: 'SELECTED', 
           tagName: selectedEl.tagName,
+          content: selectedEl.innerText,
           color: comp.color,
           fontSize: comp.fontSize,
-          zIndex: comp.zIndex,
-          textAlign: comp.textAlign,
           fontWeight: comp.fontWeight,
-          scale: currentScale,
+          textAlign: comp.textAlign,
+          letterSpacing: comp.letterSpacing,
           width: comp.width,
           height: comp.height,
-          letterSpacing: comp.letterSpacing
+          display: comp.display,
+          backgroundColor: comp.backgroundColor,
+          borderRadius: comp.borderRadius,
+          padding: comp.padding,
+          borderWidth: comp.borderWidth,
+          borderColor: comp.borderColor,
+          borderStyle: comp.borderStyle,
+          zIndex: comp.zIndex,
+          scale: currentScale,
       }, '*');
   }
 
-  function deselect() {
+  function deselect(temporary = false) {
       if (selectedEl) {
          selectedEl.classList.remove('ai-editor-selected');
          selectedEl.contentEditable = 'false';
-         selectedEl = null;
-         window.parent.postMessage({ type: 'DESELECT' }, '*');
+         removeResizers();
+         if (!temporary) {
+             selectedEl = null;
+             window.parent.postMessage({ type: 'DESELECT' }, '*');
+         }
       }
   }
 
-  // 4. 消息监听: 接收父组件指令
   window.addEventListener('message', (event) => {
     const { action, value } = event.data;
-    
+    if (action === 'UPDATE_SCALE') { window.visualEditorScale = value; return; }
     if (action === 'GET_HTML') {
         const wasSelected = selectedEl;
-        if (selectedEl) selectedEl.classList.remove('ai-editor-selected');
+        if (selectedEl) deselect(true);
         const editables = document.querySelectorAll('*[contenteditable]');
         editables.forEach(el => el.removeAttribute('contenteditable'));
+        removeResizers();
         const cleanHtml = document.documentElement.outerHTML;
-        if (wasSelected) wasSelected.classList.add('ai-editor-selected');
+        if (wasSelected) selectElement(wasSelected);
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
         return;
     }
-
     if (!selectedEl) return;
-
-    if (action === 'UPDATE_STYLE') {
-        Object.assign(selectedEl.style, value);
-    } 
-    else if (action === 'UPDATE_TRANSFORM') {
-        // 专门处理 transform，因为拖拽和缩放共享这个属性
-        const currentTransform = selectedEl.style.transform || '';
-        // 提取现有的 translate
-        let translatePart = 'translate(0px, 0px)';
-        const translateMatch = currentTransform.match(/translate\\([^)]+\\)/);
-        if (translateMatch) translatePart = translateMatch[0];
-        
-        // 组合新的 scale
-        selectedEl.style.transform = \`\${translatePart} scale(\${value})\`;
-    }
-    else if (action === 'RESET_STYLE') {
-        selectedEl.style.transform = '';
-        selectedEl.style.color = '';
-        selectedEl.style.fontSize = '';
-        selectedEl.style.fontWeight = '';
-        selectedEl.style.textAlign = '';
-        selectedEl.style.width = '';
-        selectedEl.style.height = '';
-        selectedEl.style.letterSpacing = '';
-    }
-    else if (action === 'DELETE') {
-        selectedEl.remove();
-        deselect();
-    } 
+    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
+    if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
+    else if (action === 'RESET_STYLE') { selectedEl.style = ''; createResizers(selectedEl); pushHistory(); }
+    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
         selectedEl.style.position = 'relative'; 
+        pushHistory();
     }
   });
 
-  // 5. 拖拽逻辑 (只处理 Translate)
   document.body.addEventListener('mousedown', (e) => {
+    if (e.target.classList.contains('ai-resizer')) {
+        if (!selectedEl) return;
+        isResizing = true;
+        resizeHandle = e.target.dataset.handle;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
+        initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
+        e.stopPropagation(); e.preventDefault();
+        return;
+    }
     if (!selectedEl || e.target !== selectedEl) return;
     if (selectedEl.isContentEditable) return; 
-
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
-    
-    // 解析当前的 translate
     const transform = selectedEl.style.transform || '';
     const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
     if (match) {
-        initialTransformX = parseFloat(match[1]);
-        initialTransformY = parseFloat(match[2]);
+        window.initialTransformX = parseFloat(match[1]);
+        window.initialTransformY = parseFloat(match[2]);
     } else {
-        initialTransformX = 0;
-        initialTransformY = 0;
+        window.initialTransformX = 0;
+        window.initialTransformY = 0;
     }
   });
 
   window.addEventListener('mousemove', (e) => {
+    const scale = window.visualEditorScale || 1; 
+    if (isResizing && selectedEl) {
+        e.preventDefault();
+        const dx = (e.clientX - startX) / scale;
+        const dy = (e.clientY - startY) / scale;
+        let newWidth = initialWidth;
+        let newHeight = initialHeight;
+        if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
+        if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
+        if (resizeHandle.includes('w')) newWidth = initialWidth - dx; 
+        if (resizeHandle.includes('n')) newHeight = initialHeight - dy;
+        if (newWidth > 10) selectedEl.style.width = \`\${newWidth}px\`;
+        if (newHeight > 10) selectedEl.style.height = \`\${newHeight}px\`;
+        return;
+    }
     if (!isDragging || !selectedEl) return;
     e.preventDefault();
-    const scale = window.parent.visualEditorScale || 1; 
-    
-    const dx = (e.clientX - startX) / scale; // 修正外部缩放带来的位移偏差
+    const dx = (e.clientX - startX) / scale; 
     const dy = (e.clientY - startY) / scale;
-    
-    // 保持当前的 scale 不变
     const currentTransform = selectedEl.style.transform || '';
     let scalePart = '';
     const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
     if (scaleMatch) scalePart = scaleMatch[0];
-
-    selectedEl.style.transform = \`translate(\${initialTransformX + dx}px, \${initialTransformY + dy}px) \${scalePart}\`;
+    selectedEl.style.transform = \`translate(\${(window.initialTransformX || 0) + dx}px, \${(window.initialTransformY || 0) + dy}px) \${scalePart}\`;
   });
 
   window.addEventListener('mouseup', () => {
-    isDragging = false;
+    if (isDragging || isResizing) {
+        isDragging = false; isResizing = false; pushHistory();
+    }
   });
 
 })();
@@ -247,61 +521,87 @@ const EDITOR_SCRIPT = `
 
 export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale = 1 }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const [selectedElement, setSelectedElement] = useState<{
-        tagName: string;
-        color: string;
-        fontSize: string;
-        scale: number;
-        textAlign: string;
-        fontWeight: string;
-        width: string;
-        height: string;
-        letterSpacing: string;
-    } | null>(null);
+    
+    // History Management
+    const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo, reset } = useHistory(initialHtml);
+    
+    // Prevent recursive updates from internal events
+    const isInternalUpdate = useRef(false);
+    
+    // UI State
+    const [selectedElement, setSelectedElement] = useState<any>(null);
 
+    // Initial Load & External Updates
+    useEffect(() => {
+        // If update is internal, don't reload iframe (flicker)
+        if (isInternalUpdate.current) {
+            isInternalUpdate.current = false;
+            return;
+        }
+        
+        // If initialHtml prop changes drastically (e.g. page change), reset history
+        if (htmlContent !== initialHtml && !isInternalUpdate.current) {
+             reset(initialHtml);
+        }
+
+        const iframe = iframeRef.current;
+        if (iframe) {
+            const doc = iframe.contentDocument;
+            if (doc) {
+                doc.open();
+                let content = initialHtml || '';
+                if (!content.toLowerCase().includes('<html')) {
+                     content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
+                }
+                if (content.toLowerCase().includes('</body>')) {
+                    content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
+                } else {
+                     content += EDITOR_SCRIPT;
+                }
+                try {
+                    doc.write(content);
+                    doc.close();
+                } catch (err) {
+                    console.error("VisualEditor: Failed to render content", err);
+                }
+            }
+        }
+    }, [initialHtml]); // Only reload if parent passes new HTML string
+
+    // Update scale
     useEffect(() => {
         if (iframeRef.current && iframeRef.current.contentWindow) {
-            // @ts-ignore
-            iframeRef.current.contentWindow.visualEditorScale = scale;
+            iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
     }, [scale]);
 
-    useEffect(() => {
-        if (iframeRef.current) {
-            const doc = iframeRef.current.contentDocument;
-            if (doc) {
-                doc.open();
-                doc.write(initialHtml + EDITOR_SCRIPT);
-                doc.close();
-            }
-        }
-    }, [initialHtml]);
-
+    // Handle Iframe Messages
     useEffect(() => {
         const handler = (e: MessageEvent) => {
             if (e.data.type === 'SELECTED') {
-                setSelectedElement({
-                    tagName: e.data.tagName,
-                    color: e.data.color,
-                    fontSize: e.data.fontSize,
-                    scale: e.data.scale || 1,
-                    textAlign: e.data.textAlign,
-                    fontWeight: e.data.fontWeight,
-                    width: e.data.width,
-                    height: e.data.height,
-                    letterSpacing: e.data.letterSpacing || '0px'
-                });
+                setSelectedElement(e.data);
             } else if (e.data.type === 'DESELECT') {
                 setSelectedElement(null);
             } else if (e.data.type === 'HTML_RESULT') {
+                // Manual save trigger
                 let cleanHtml = e.data.html;
                 cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
+                onSave(cleanHtml);
+            } else if (e.data.type === 'HISTORY_UPDATE') {
+                // Internal update from drag/drop/resize
+                isInternalUpdate.current = true;
+                let cleanHtml = e.data.html;
+                cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
+                
+                // Push to local history
+                setHtmlContent(cleanHtml);
+                // Also notify parent to save persistence (debounce this in parent if needed)
                 onSave(cleanHtml);
             }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
-    }, [onSave]);
+    }, [onSave, setHtmlContent]);
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -309,219 +609,139 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         }
     };
 
-    const requestSave = () => sendCommand('GET_HTML');
-
-    // Actions
-    const handleColor = (color: string) => sendCommand('UPDATE_STYLE', { color });
-    
-    const handleFontSize = (delta: number) => {
-        if (!selectedElement) return;
-        const current = parseInt(selectedElement.fontSize) || 16;
-        const newVal = `${current + delta}px`;
-        sendCommand('UPDATE_STYLE', { fontSize: newVal });
-        setSelectedElement({ ...selectedElement, fontSize: newVal });
+    // --- Panel Handlers ---
+    const handleUpdateStyle = (key: string, value: string | number) => {
+        sendCommand('UPDATE_STYLE', { [key]: value });
+        setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
     };
 
-    const handleScale = (delta: number) => {
-        if (!selectedElement) return;
-        const current = selectedElement.scale || 1;
-        const newVal = Math.max(0.2, Math.min(3.0, parseFloat((current + delta).toFixed(1)))); 
-        sendCommand('UPDATE_TRANSFORM', newVal);
-        setSelectedElement({ ...selectedElement, scale: newVal });
-    };
-
-    const handleDimension = (prop: 'width' | 'height', delta: number) => {
-        if (!selectedElement) return;
-        const current = parseInt(selectedElement[prop]) || 0;
-        const newVal = `${Math.max(1, current + delta)}px`;
-        sendCommand('UPDATE_STYLE', { [prop]: newVal });
-        setSelectedElement({ ...selectedElement, [prop]: newVal });
-    };
-
-    const handleLetterSpacing = (delta: number) => {
-        if (!selectedElement) return;
-        const current = parseFloat(selectedElement.letterSpacing) || 0;
-        const newVal = `${(current + delta).toFixed(1)}px`;
-        sendCommand('UPDATE_STYLE', { letterSpacing: newVal });
-        setSelectedElement({ ...selectedElement, letterSpacing: newVal });
-    };
-
-    const handleAlign = (align: 'left' | 'center' | 'right') => {
-        sendCommand('UPDATE_STYLE', { textAlign: align });
-        if(selectedElement) setSelectedElement({ ...selectedElement, textAlign: align });
-    };
-
-    const handleBold = () => {
-        if (!selectedElement) return;
-        const isBold = selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700;
-        const newVal = isBold ? 'normal' : 'bold';
-        sendCommand('UPDATE_STYLE', { fontWeight: newVal });
-        setSelectedElement({ ...selectedElement, fontWeight: newVal });
-    };
-
-    const handleReset = () => {
-        sendCommand('RESET_STYLE');
-        if(selectedElement) setSelectedElement({ 
-            ...selectedElement, 
-            scale: 1, 
-            fontSize: '', 
-            fontWeight: 'normal', 
-            textAlign: 'left',
-            width: '',
-            height: '',
-            letterSpacing: '0px'
-        });
+    const handleUpdateContent = (text: string) => {
+        sendCommand('UPDATE_CONTENT', text);
+        setSelectedElement((prev: any) => ({ ...prev, content: text }));
     };
 
     const handleDelete = () => {
         sendCommand('DELETE');
         setSelectedElement(null);
     };
+    
+    // --- Undo/Redo Handlers ---
+    const handleUndo = () => {
+        if (canUndo) {
+            undo();
+        }
+    };
+    
+    const handleRedo = () => {
+        if (canRedo) redo();
+    };
+    
+    // Sync History State to Iframe
+    useEffect(() => {
+        // Skip if this update came from the iframe itself
+        if (isInternalUpdate.current) {
+            return;
+        }
+        // If history changed (via undo/redo), reload iframe
+        const iframe = iframeRef.current;
+        if (iframe && htmlContent) {
+             const doc = iframe.contentDocument;
+            if (doc) {
+                doc.open();
+                let content = htmlContent;
+                 if (!content.toLowerCase().includes('<html')) {
+                     content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
+                }
+                if (content.toLowerCase().includes('</body>')) {
+                    content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
+                } else {
+                     content += EDITOR_SCRIPT;
+                }
+                doc.write(content);
+                doc.close();
+                // Notify parent of the revert
+                onSave(htmlContent);
+            }
+        }
+    }, [htmlContent]);
 
-    const handleLayer = (dir: 'up' | 'down') => sendCommand('LAYER', dir);
 
     return (
-        <div className="relative w-full h-full flex flex-col">
+        <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
             
-            {/* Extended Floating Toolbar */}
-            {selectedElement && (
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-slate-200 p-2 flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-4 select-none ring-1 ring-black/5 overflow-x-auto max-w-[95vw] custom-scrollbar">
-                    
-                    {/* 1. Meta Info */}
-                    <div className="flex items-center gap-2 pr-2 border-r border-slate-200 flex-shrink-0">
-                        <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2 py-1 rounded uppercase tracking-wider">{selectedElement.tagName}</span>
-                    </div>
-
-                    {/* 2. Text Style Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
-                        {/* Font Size */}
-                        <div className="flex items-center">
-                            <button onClick={() => handleFontSize(-2)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-[10px]">A-</button>
-                            <span className="text-[9px] w-5 text-center font-mono text-slate-400">{parseInt(selectedElement.fontSize)}</span>
-                            <button onClick={() => handleFontSize(2)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold hover:shadow-sm text-[10px]">A+</button>
-                        </div>
-                        
-                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-                        
-                        {/* Bold */}
-                        <button 
-                            onClick={handleBold} 
-                            className={`w-6 h-6 flex items-center justify-center rounded font-serif font-bold text-[10px] transition-colors ${selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700 ? 'bg-indigo-100 text-indigo-700' : 'hover:bg-white text-slate-500'}`}
-                        >
-                            B
-                        </button>
-
-                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-                        
-                        {/* Letter Spacing */}
-                        <div className="flex items-center" title="字间距">
-                             <button onClick={() => handleLetterSpacing(-0.5)} className="w-5 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold text-[9px] tracking-tighter">AV</button>
-                             <button onClick={() => handleLetterSpacing(0.5)} className="w-5 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 font-bold text-[9px] tracking-widest">AV</button>
-                        </div>
-
-                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-
-                        {/* Align */}
-                        <div className="flex items-center gap-0.5">
-                            <button onClick={() => handleAlign('left')} className={`w-5 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'left' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>
-                            </button>
-                            <button onClick={() => handleAlign('center')} className={`w-5 h-6 flex items-center justify-center rounded hover:bg-white text-slate-400 ${selectedElement.textAlign === 'center' ? 'text-indigo-600 bg-white shadow-sm' : ''}`}>
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 3. Scale Group */}
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
-                        <button onClick={() => handleScale(-0.1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="缩小">
-                            <div className="w-2 h-0.5 bg-current"></div>
-                        </button>
-                        <span className="text-[9px] w-7 text-center font-mono text-slate-400">{Math.round(selectedElement.scale * 100)}%</span>
-                        <button onClick={() => handleScale(0.1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded text-slate-500 hover:shadow-sm" title="放大">
-                            <PlusIcon className="w-3 h-3" />
-                        </button>
-                    </div>
-
-                    {/* 4. Dimension Group (W/H) */}
-                    <div className="flex items-center gap-1 bg-slate-50 rounded-lg border border-slate-100 p-0.5 flex-shrink-0">
-                        <div className="flex items-center">
-                            <span className="text-[8px] font-bold text-slate-400 px-1">W</span>
-                            <button onClick={() => handleDimension('width', -10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">-</button>
-                            <button onClick={() => handleDimension('width', 10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">+</button>
-                        </div>
-                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-                        <div className="flex items-center">
-                            <span className="text-[8px] font-bold text-slate-400 px-1">H</span>
-                            <button onClick={() => handleDimension('height', -10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">-</button>
-                            <button onClick={() => handleDimension('height', 10)} className="w-5 h-6 hover:bg-white rounded text-slate-500 text-[10px]">+</button>
-                        </div>
-                    </div>
-
-                    {/* 5. Color Group */}
-                    <div className="flex items-center gap-1 px-1 flex-shrink-0">
-                        {['#000000', '#2563EB', '#DC2626', '#F59E0B', '#10B981', '#FFFFFF'].map(c => (
-                            <button
-                                key={c}
-                                onClick={() => handleColor(c)}
-                                className={`w-4 h-4 rounded-full border border-black/10 hover:scale-110 transition-transform shadow-sm ${c === '#FFFFFF' ? 'ring-1 ring-slate-200' : ''}`}
-                                style={{ backgroundColor: c }}
-                            />
-                        ))}
-                    </div>
-
-                    <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
-
-                    {/* 6. Actions Group */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                        <button onClick={() => handleLayer('up')} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="上移一层">
-                            <ArrowRightIcon className="w-3 h-3 -rotate-90" />
-                        </button>
-                        <button onClick={() => handleLayer('down')} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="下移一层">
-                             <ArrowRightIcon className="w-3 h-3 rotate-90" />
-                        </button>
-                         <button onClick={handleReset} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-600" title="重置样式">
-                            <RefreshIcon className="w-3 h-3" />
-                        </button>
-                    </div>
-
-                    <div className="w-px h-6 bg-slate-200 mx-1 flex-shrink-0"></div>
-
-                    <button onClick={handleDelete} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors flex-shrink-0" title="删除元素 (Del)">
-                        <TrashIcon className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-            )}
-
-            {/* Canvas Container */}
-            <div className="flex-1 relative overflow-hidden bg-slate-200 flex items-center justify-center">
-                 <div 
-                    style={{ 
-                        width: '1600px', 
-                        height: '900px', 
-                        transform: `scale(${scale})`, 
-                        transformOrigin: 'center center',
-                        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
-                    }}
-                    className="bg-white"
-                >
-                    <iframe 
-                        ref={iframeRef}
-                        className="w-full h-full border-none bg-white"
-                        title="Visual Editor"
-                        sandbox="allow-scripts"
-                    />
-                </div>
-                
-                {/* Save Prompt (Bottom Right) */}
-                <div className="absolute bottom-8 right-8 z-50">
+            {/* Top Toolbar */}
+            <div className="h-10 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10">
+                <div className="flex items-center gap-2">
                     <button 
-                        onClick={requestSave}
-                        className="flex items-center gap-2 px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow-2xl shadow-indigo-500/30 transition-all hover:scale-105 active:scale-95 ring-4 ring-white/20"
+                        onClick={handleUndo} 
+                        disabled={!canUndo}
+                        className="p-1.5 hover:bg-slate-100 rounded text-slate-500 disabled:opacity-30 transition-colors"
+                        title="撤销 (Undo)"
                     >
-                        <CheckIcon className="w-5 h-5" /> 确认修改
+                        <UndoIcon className="w-4 h-4" />
                     </button>
+                    <button 
+                        onClick={handleRedo} 
+                        disabled={!canRedo}
+                        className="p-1.5 hover:bg-slate-100 rounded text-slate-500 disabled:opacity-30 transition-colors"
+                        title="重做 (Redo)"
+                    >
+                        <RedoIcon className="w-4 h-4" />
+                    </button>
+                    <div className="h-4 w-px bg-slate-200 mx-2"></div>
+                    <span className="text-xs text-slate-400">视觉精修模式</span>
                 </div>
+            </div>
+
+            {/* Main Area */}
+            <div className="flex-1 relative overflow-hidden flex">
+                
+                {/* Canvas */}
+                <div className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden">
+                     {/* Scale Container */}
+                     <div 
+                        style={{ 
+                            width: '1600px', 
+                            height: '900px', 
+                            transform: `scale(${scale})`, 
+                            transformOrigin: 'center center',
+                            boxShadow: '0 20px 50px rgba(0,0,0,0.1)'
+                        }}
+                        className="bg-white"
+                    >
+                        <iframe 
+                            ref={iframeRef}
+                            className="w-full h-full border-none bg-white"
+                            title="Visual Editor"
+                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                        />
+                    </div>
+                    
+                    {/* Floating HUD inside Canvas Area */}
+                    {selectedElement && (
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-full shadow-lg border border-slate-200 px-3 py-1.5 flex items-center gap-3 z-40 animate-in fade-in slide-in-from-top-2 select-none">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase">{selectedElement.tagName}</span>
+                             <div className="h-3 w-px bg-slate-200"></div>
+                             <button onClick={handleDelete} className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50" title="删除">
+                                 <TrashIcon className="w-3.5 h-3.5"/>
+                             </button>
+                             <div className="h-3 w-px bg-slate-200"></div>
+                             <button onClick={() => sendCommand('LAYER', 'up')} className="text-slate-400 hover:text-indigo-600 text-[10px] font-bold px-1" title="上移">↑</button>
+                             <button onClick={() => sendCommand('LAYER', 'down')} className="text-slate-400 hover:text-indigo-600 text-[10px] font-bold px-1" title="下移">↓</button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Properties Panel */}
+                {selectedElement && (
+                    <PropertiesPanel 
+                        element={selectedElement}
+                        onUpdateStyle={handleUpdateStyle}
+                        onUpdateContent={handleUpdateContent}
+                        onDelete={handleDelete}
+                        onClose={() => { sendCommand('DESELECT'); setSelectedElement(null); }}
+                    />
+                )}
             </div>
         </div>
     );
