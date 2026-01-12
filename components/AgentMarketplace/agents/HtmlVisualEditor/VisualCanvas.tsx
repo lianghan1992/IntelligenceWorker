@@ -162,9 +162,6 @@ interface FloatingToolbarProps {
 
 const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ element, onUpdateStyle, onUpdateTransform, onLayerChange, onDelete }) => {
     // 简单的位置计算，在选区上方
-    // 注意：这里的 element.rect 是相对于 iframe viewport 的，需要结合外层 scale 计算
-    // 但为了简化，我们暂时使用绝对定位居中或固定位置
-    
     const isText = element.tagName !== 'IMG' && element.tagName !== 'DIV';
     const currentScale = element.scale || 1;
 
@@ -607,7 +604,7 @@ export const VisualCanvas: React.FC<VisualCanvasProps> = ({ initialHtml, onSave,
         setSelectedElement((prev: any) => ({ ...prev, content: text }));
     };
     
-    // New: Handle Scale/Translate from Floating Toolbar
+    // Handle Scale/Translate from Floating Toolbar
     const handleUpdateTransform = (deltaX: number, deltaY: number, scaleVal?: number) => {
         sendCommand('UPDATE_TRANSFORM', { dx: deltaX, dy: deltaY, scale: scaleVal });
     };
