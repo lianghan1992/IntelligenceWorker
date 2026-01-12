@@ -32,7 +32,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
     // Recharge State
     const [showRecharge, setShowRecharge] = useState(false);
-    const [rechargeAmount, setRechargeAmount] = useState<string>('49'); // Default to Pro plan price
+    // Default to Pro plan price 49
+    const [rechargeAmount, setRechargeAmount] = useState<string>('49');
     const [isSubmittingRecharge, setIsSubmittingRecharge] = useState(false);
     const [rechargeResult, setRechargeResult] = useState<RechargeResponse | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | null>(null);
