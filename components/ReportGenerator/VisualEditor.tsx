@@ -3,8 +3,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
     TrashIcon, ArrowRightIcon, PlusIcon, RefreshIcon, 
     CheckIcon, CloseIcon, CubeIcon, DocumentTextIcon, 
-    PhotoIcon, ViewGridIcon, PencilIcon
+    PhotoIcon, ViewGridIcon, PencilIcon, DownloadIcon
 } from '../icons';
+import { generatePdf } from '../../api/stratify';
 
 interface VisualEditorProps {
     initialHtml: string;
@@ -29,56 +30,32 @@ const AlignLeftIcon = ({className}:{className?:string}) => <svg className={class
 const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
 
-// --- Custom Hook for History ---
+// --- 历史记录 Hook ---
 function useHistory<T>(initialState: T) {
     const [history, setHistory] = useState<T[]>([initialState]);
     const [currentIndex, setCurrentIndex] = useState(0);
-
     const state = history[currentIndex];
 
     const pushState = useCallback((newState: T) => {
         setHistory(prev => {
             const newHistory = prev.slice(0, currentIndex + 1);
-            // Deduplicate consecutive identical states
             if (newHistory[newHistory.length - 1] === newState) return prev;
             if (newHistory.length > 50) newHistory.shift();
             return [...newHistory, newState];
         });
-        setCurrentIndex(prev => {
-            // Logic to update index to the latest item
-            const nextIndex = prev + 1;
-            // Since setHistory updates asynchronously, we rely on the effect below to clamp index if needed,
-            // but for immediate calculation based on slice:
-            return nextIndex > 49 ? 49 : nextIndex; 
-        });
+        setCurrentIndex(prev => prev + 1 >= 50 ? 49 : prev + 1);
     }, [currentIndex]);
     
-    // Sync index to end when history grows (simple version)
-    useEffect(() => {
-        setCurrentIndex(history.length - 1);
-    }, [history.length]);
+    useEffect(() => { setCurrentIndex(history.length - 1); }, [history.length]);
 
-    const undo = useCallback(() => {
-        setCurrentIndex(prev => Math.max(0, prev - 1));
-    }, []);
+    const undo = useCallback(() => setCurrentIndex(prev => Math.max(0, prev - 1)), []);
+    const redo = useCallback(() => setCurrentIndex(prev => Math.min(history.length - 1, prev + 1)), [history.length]);
+    const reset = useCallback((newState: T) => { setHistory([newState]); setCurrentIndex(0); }, []);
 
-    const redo = useCallback(() => {
-        setCurrentIndex(prev => Math.min(history.length - 1, prev + 1));
-    }, [history.length]);
-
-    const canUndo = currentIndex > 0;
-    const canRedo = currentIndex < history.length - 1;
-
-    // Reset history when initial state drastically changes (e.g. new slide)
-    const reset = useCallback((newState: T) => {
-        setHistory([newState]);
-        setCurrentIndex(0);
-    }, []);
-
-    return { state, pushState, undo, redo, canUndo, canRedo, reset };
+    return { state, pushState, undo, redo, canUndo: currentIndex > 0, canRedo: currentIndex < history.length - 1, reset };
 }
 
-// --- Properties Panel ---
+// --- 属性编辑面板 ---
 interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -92,106 +69,65 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     const parseVal = (val: string) => parseInt(val) || 0;
 
     return (
-        <div className="w-80 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300 absolute right-0 top-0 bottom-0">
+        <div className="w-80 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">
-                        {element.tagName}
-                    </span>
+                    <span className="text-xs font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{element.tagName}</span>
                     <span className="text-sm font-bold text-slate-700">属性编辑</span>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                    <CloseIcon className="w-4 h-4" />
-                </button>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-4 h-4" /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
                 {(element.tagName !== 'IMG' && element.tagName !== 'HR' && element.tagName !== 'BR') && (
                     <div className="space-y-3">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                            <DocumentTextIcon className="w-3.5 h-3.5" /> 文本内容
-                        </h4>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><DocumentTextIcon className="w-3.5 h-3.5" /> 文本内容</h4>
                         <textarea 
                             value={element.content || ''}
                             onChange={(e) => onUpdateContent(e.target.value)}
-                            className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-slate-50 resize-y min-h-[80px]"
-                            placeholder="输入文本内容..."
+                            className="w-full text-sm border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 resize-y min-h-[80px]"
                         />
                     </div>
                 )}
-                
                 <div className="h-px bg-slate-100"></div>
-
-                {/* 布局 */}
                 <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <ViewGridIcon className="w-3.5 h-3.5" /> 布局与尺寸
-                    </h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><ViewGridIcon className="w-3.5 h-3.5" /> 布局与尺寸</h4>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽度 (W)</label>
-                            <input 
-                                type="number" 
-                                value={parseVal(element.width)} 
-                                onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)}
-                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"
-                            />
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">宽度</label>
+                            <input type="number" value={parseVal(element.width)} onChange={(e) => onUpdateStyle('width', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"/>
                         </div>
                         <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高度 (H)</label>
-                            <input 
-                                type="number" 
-                                value={parseVal(element.height)} 
-                                onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)}
-                                className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"
-                            />
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">高度</label>
+                            <input type="number" value={parseVal(element.height)} onChange={(e) => onUpdateStyle('height', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none pl-2"/>
                         </div>
                     </div>
-                    <div>
-                         <label className="text-[10px] text-slate-500 font-medium mb-1 block">Display</label>
-                         <select 
-                            value={element.display || 'block'} 
-                            onChange={(e) => onUpdateStyle('display', e.target.value)}
-                            className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-indigo-500 outline-none"
-                         >
-                             <option value="block">Block (块级)</option>
-                             <option value="inline-block">Inline Block</option>
-                             <option value="flex">Flex (弹性布局)</option>
-                             <option value="grid">Grid (网格)</option>
-                             <option value="inline">Inline (行内)</option>
-                         </select>
-                    </div>
                 </div>
-
                 <div className="h-px bg-slate-100"></div>
-
-                {/* 字体 */}
                 <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <PencilIcon className="w-3.5 h-3.5" /> 字体排版
-                    </h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PencilIcon className="w-3.5 h-3.5" /> 字体排版</h4>
                     <div className="flex gap-2">
-                         <div className="flex-1">
+                        <div className="flex-1">
                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">颜色</label>
                             <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
-                                <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.color}}></div>
+                                <div className="w-4 h-4 rounded border" style={{backgroundColor: element.color}}></div>
                                 <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-full text-xs outline-none uppercase font-mono text-slate-600"/>
                             </div>
-                         </div>
-                         <div className="w-12 pt-5">
-                            <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-[34px] border rounded-md flex items-center justify-center font-bold font-serif transition-colors ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600'}`}>B</button>
-                         </div>
+                        </div>
+                        <div className="w-12 pt-5">
+                            <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-[34px] border rounded-md flex items-center justify-center font-bold ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-600'}`}>B</button>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="flex-1">
-                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">大小 (px)</label>
-                             <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">大小 (px)</label>
+                            <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
                         </div>
                         <div className="flex-1">
                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐</label>
                             <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
                                 {['left', 'center', 'right'].map((align) => (
-                                    <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white transition-colors ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
+                                    <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
                                         {align === 'left' && <AlignLeftIcon className="w-4 h-4"/>}
                                         {align === 'center' && <AlignCenterIcon className="w-4 h-4"/>}
                                         {align === 'right' && <AlignRightIcon className="w-4 h-4"/>}
@@ -199,66 +135,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                                 ))}
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <div className="h-px bg-slate-100"></div>
-
-                {/* 外观 */}
-                <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <CubeIcon className="w-3.5 h-3.5" /> 外观样式
-                    </h4>
-                    <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">背景颜色</label>
-                        <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
-                            <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.backgroundColor}}></div>
-                            <input type="text" value={element.backgroundColor} onChange={(e) => onUpdateStyle('backgroundColor', e.target.value)} className="w-full text-xs outline-none uppercase font-mono text-slate-600" placeholder="TRANSPARENT"/>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">圆角</label>
-                            <input type="number" value={parseVal(element.borderRadius)} onChange={(e) => onUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">内边距</label>
-                            <input type="number" value={parseVal(element.padding)} onChange={(e) => onUpdateStyle('padding', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"/>
-                        </div>
-                    </div>
-                    <div>
-                         <label className="text-[10px] text-slate-500 font-medium mb-1 block">边框 (Border)</label>
-                         <div className="flex gap-2">
-                             <div className="w-16 relative">
-                                <input 
-                                    type="number" 
-                                    value={parseVal(element.borderWidth)} 
-                                    onChange={(e) => onUpdateStyle('borderWidth', `${e.target.value}px`)}
-                                    className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm focus:border-indigo-500 outline-none"
-                                />
-                                <span className="absolute right-1 top-1.5 text-xs text-slate-400">px</span>
-                             </div>
-                             <div className="flex-1 border border-slate-200 rounded-md bg-white flex items-center px-2">
-                                <div className="w-3 h-3 rounded-full border border-slate-300 mr-2" style={{backgroundColor: element.borderColor}}></div>
-                                <input 
-                                    type="text" 
-                                    value={element.borderColor} 
-                                    onChange={(e) => onUpdateStyle('borderColor', e.target.value)}
-                                    className="w-full text-xs outline-none font-mono text-slate-600"
-                                    placeholder="Color"
-                                />
-                             </div>
-                             <select 
-                                value={element.borderStyle || 'solid'}
-                                onChange={(e) => onUpdateStyle('borderStyle', e.target.value)}
-                                className="w-20 border border-slate-200 rounded-md text-xs bg-white focus:border-indigo-500 outline-none"
-                             >
-                                 <option value="solid">Solid</option>
-                                 <option value="dashed">Dashed</option>
-                                 <option value="dotted">Dotted</option>
-                                 <option value="none">None</option>
-                             </select>
-                         </div>
                     </div>
                 </div>
             </div>
@@ -272,7 +148,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
-// --- Editor Script (Enhanced) ---
+// --- 编辑器交互脚本 (支持 Resize) ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -293,7 +169,6 @@ const EDITOR_SCRIPT = `
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
     .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; }
-    .ai-resizer:hover { background: #3b82f6; }
     .ai-r-nw { top: -4px; left: -4px; cursor: nw-resize; }
     .ai-r-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
     .ai-r-ne { top: -4px; right: -4px; cursor: ne-resize; }
@@ -366,19 +241,6 @@ const EDITOR_SCRIPT = `
      }
   });
 
-  document.addEventListener('keydown', (e) => {
-      if (!selectedEl) return;
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (!selectedEl.isContentEditable) {
-              selectedEl.remove();
-              selectedEl = null;
-              window.parent.postMessage({ type: 'DESELECT' }, '*');
-              pushHistory(); 
-          }
-      }
-      if (e.key === 'Escape') deselect();
-  });
-
   function selectElement(el) {
       if (selectedEl && selectedEl !== el) deselect();
       selectedEl = el;
@@ -400,18 +262,11 @@ const EDITOR_SCRIPT = `
           fontSize: comp.fontSize,
           fontWeight: comp.fontWeight,
           textAlign: comp.textAlign,
-          letterSpacing: comp.letterSpacing,
           width: comp.width,
           height: comp.height,
           display: comp.display,
           backgroundColor: comp.backgroundColor,
           borderRadius: comp.borderRadius,
-          padding: comp.padding,
-          borderWidth: comp.borderWidth,
-          borderColor: comp.borderColor,
-          borderStyle: comp.borderStyle,
-          zIndex: comp.zIndex,
-          scale: currentScale,
       }, '*');
   }
 
@@ -444,7 +299,6 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
     if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
-    else if (action === 'RESET_STYLE') { selectedEl.style = ''; createResizers(selectedEl); pushHistory(); }
     else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
@@ -521,28 +375,15 @@ const EDITOR_SCRIPT = `
 
 export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale = 1 }) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    
-    // History Management
     const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo, reset } = useHistory(initialHtml);
-    
-    // Prevent recursive updates from internal events
     const isInternalUpdate = useRef(false);
-    
-    // UI State
     const [selectedElement, setSelectedElement] = useState<any>(null);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     // Initial Load & External Updates
     useEffect(() => {
-        // If update is internal, don't reload iframe (flicker)
-        if (isInternalUpdate.current) {
-            isInternalUpdate.current = false;
-            return;
-        }
-        
-        // If initialHtml prop changes drastically (e.g. page change), reset history
-        if (htmlContent !== initialHtml && !isInternalUpdate.current) {
-             reset(initialHtml);
-        }
+        if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
+        if (htmlContent !== initialHtml) { reset(initialHtml); }
 
         const iframe = iframeRef.current;
         if (iframe) {
@@ -553,49 +394,22 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                 if (!content.toLowerCase().includes('<html')) {
                      content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
                 }
-                if (content.toLowerCase().includes('</body>')) {
-                    content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
-                } else {
-                     content += EDITOR_SCRIPT;
-                }
-                try {
-                    doc.write(content);
-                    doc.close();
-                } catch (err) {
-                    console.error("VisualEditor: Failed to render content", err);
-                }
+                content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
+                doc.write(content);
+                doc.close();
             }
         }
-    }, [initialHtml]); // Only reload if parent passes new HTML string
+    }, [initialHtml]);
 
-    // Update scale
-    useEffect(() => {
-        if (iframeRef.current && iframeRef.current.contentWindow) {
-            iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
-        }
-    }, [scale]);
-
-    // Handle Iframe Messages
+    // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
-            if (e.data.type === 'SELECTED') {
-                setSelectedElement(e.data);
-            } else if (e.data.type === 'DESELECT') {
-                setSelectedElement(null);
-            } else if (e.data.type === 'HTML_RESULT') {
-                // Manual save trigger
-                let cleanHtml = e.data.html;
-                cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
-                onSave(cleanHtml);
-            } else if (e.data.type === 'HISTORY_UPDATE') {
-                // Internal update from drag/drop/resize
+            if (e.data.type === 'SELECTED') setSelectedElement(e.data);
+            else if (e.data.type === 'DESELECT') setSelectedElement(null);
+            else if (e.data.type === 'HISTORY_UPDATE') {
                 isInternalUpdate.current = true;
-                let cleanHtml = e.data.html;
-                cleanHtml = cleanHtml.replace(EDITOR_SCRIPT.trim(), '');
-                
-                // Push to local history
+                let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
                 setHtmlContent(cleanHtml);
-                // Also notify parent to save persistence (debounce this in parent if needed)
                 onSave(cleanHtml);
             }
         };
@@ -603,131 +417,84 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         return () => window.removeEventListener('message', handler);
     }, [onSave, setHtmlContent]);
 
-    const sendCommand = (action: string, value?: any) => {
-        if (iframeRef.current && iframeRef.current.contentWindow) {
-            iframeRef.current.contentWindow.postMessage({ action, value }, '*');
-        }
-    };
-
-    // --- Panel Handlers ---
-    const handleUpdateStyle = (key: string, value: string | number) => {
-        sendCommand('UPDATE_STYLE', { [key]: value });
-        setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
-    };
-
-    const handleUpdateContent = (text: string) => {
-        sendCommand('UPDATE_CONTENT', text);
-        setSelectedElement((prev: any) => ({ ...prev, content: text }));
-    };
-
-    const handleDelete = () => {
-        sendCommand('DELETE');
-        setSelectedElement(null);
-    };
-    
-    // --- Undo/Redo Handlers ---
-    const handleUndo = () => {
-        if (canUndo) {
-            undo();
-        }
-    };
-    
-    const handleRedo = () => {
-        if (canRedo) redo();
-    };
-    
-    // Sync History State to Iframe
+    // Update Scale inside iframe
     useEffect(() => {
-        // Skip if this update came from the iframe itself
-        if (isInternalUpdate.current) {
-            return;
+        if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
-        // If history changed (via undo/redo), reload iframe
-        const iframe = iframeRef.current;
-        if (iframe && htmlContent) {
-             const doc = iframe.contentDocument;
-            if (doc) {
-                doc.open();
-                let content = htmlContent;
-                 if (!content.toLowerCase().includes('<html')) {
-                     content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
-                }
-                if (content.toLowerCase().includes('</body>')) {
-                    content = content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`);
-                } else {
-                     content += EDITOR_SCRIPT;
-                }
-                doc.write(content);
-                doc.close();
-                // Notify parent of the revert
-                onSave(htmlContent);
-            }
-        }
-    }, [htmlContent]);
+    }, [scale]);
 
+    const sendCommand = (action: string, value?: any) => {
+        if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
+    };
+
+    const handleExportPagePdf = async () => {
+        setIsExportingPdf(true);
+        try {
+            const blob = await generatePdf(htmlContent, 'slide_export');
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `page_export_${new Date().getTime()}.pdf`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (e) { alert('PDF 导出失败'); }
+        finally { setIsExportingPdf(false); }
+    };
 
     return (
         <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
             
             {/* Top Toolbar */}
-            <div className="h-10 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10">
+            <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm">
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={handleUndo} 
-                        disabled={!canUndo}
-                        className="p-1.5 hover:bg-slate-100 rounded text-slate-500 disabled:opacity-30 transition-colors"
-                        title="撤销 (Undo)"
-                    >
-                        <UndoIcon className="w-4 h-4" />
-                    </button>
-                    <button 
-                        onClick={handleRedo} 
-                        disabled={!canRedo}
-                        className="p-1.5 hover:bg-slate-100 rounded text-slate-500 disabled:opacity-30 transition-colors"
-                        title="重做 (Redo)"
-                    >
-                        <RedoIcon className="w-4 h-4" />
-                    </button>
-                    <div className="h-4 w-px bg-slate-200 mx-2"></div>
-                    <span className="text-xs text-slate-400">视觉精修模式</span>
+                    <div className="flex bg-slate-100 p-1 rounded-lg mr-2">
+                        <button onClick={undo} disabled={!canUndo} className="p-1.5 hover:bg-white rounded text-slate-500 disabled:opacity-30 transition-all shadow-none hover:shadow-sm" title="撤销 (Ctrl+Z)"><UndoIcon className="w-4 h-4" /></button>
+                        <button onClick={redo} disabled={!canRedo} className="p-1.5 hover:bg-white rounded text-slate-500 disabled:opacity-30 transition-all shadow-none hover:shadow-sm" title="重做 (Ctrl+Y)"><RedoIcon className="w-4 h-4" /></button>
+                    </div>
+                    <div className="h-4 w-px bg-slate-200 mx-1"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
+                        Zoom: {Math.round(scale * 100)}%
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-3">
+                     <button 
+                        onClick={handleExportPagePdf}
+                        disabled={isExportingPdf}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                     >
+                         {isExportingPdf ? <RefreshIcon className="w-3 h-3 animate-spin"/> : <DownloadIcon className="w-3 h-3" />}
+                         导出本页 PDF
+                     </button>
                 </div>
             </div>
 
             {/* Main Area */}
             <div className="flex-1 relative overflow-hidden flex">
-                
-                {/* Canvas */}
                 <div className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden">
-                     {/* Scale Container */}
                      <div 
                         style={{ 
-                            width: '1600px', 
-                            height: '900px', 
-                            transform: `scale(${scale})`, 
-                            transformOrigin: 'center center',
+                            width: '1600px', height: '900px', 
+                            transform: `scale(${scale})`, transformOrigin: 'center center',
                             boxShadow: '0 20px 50px rgba(0,0,0,0.1)'
                         }}
                         className="bg-white"
                     >
-                        <iframe 
-                            ref={iframeRef}
-                            className="w-full h-full border-none bg-white"
-                            title="Visual Editor"
-                            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-                        />
+                        <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
                     </div>
                     
-                    {/* Floating HUD inside Canvas Area */}
+                    {/* Floating HUD */}
                     {selectedElement && (
-                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-full shadow-lg border border-slate-200 px-3 py-1.5 flex items-center gap-3 z-40 animate-in fade-in slide-in-from-top-2 select-none">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase">{selectedElement.tagName}</span>
-                             <div className="h-3 w-px bg-slate-200"></div>
-                             <button onClick={handleDelete} className="text-red-500 hover:text-red-600 p-1 rounded hover:bg-red-50" title="删除">
-                                 <TrashIcon className="w-3.5 h-3.5"/>
-                             </button>
-                             <div className="h-3 w-px bg-slate-200"></div>
-                             <button onClick={() => sendCommand('LAYER', 'up')} className="text-slate-400 hover:text-indigo-600 text-[10px] font-bold px-1" title="上移">↑</button>
-                             <button onClick={() => sendCommand('LAYER', 'down')} className="text-slate-400 hover:text-indigo-600 text-[10px] font-bold px-1" title="下移">↓</button>
+                        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur text-white rounded-full shadow-2xl border border-white/10 px-4 py-2 flex items-center gap-4 z-40 animate-in fade-in slide-in-from-top-2 select-none">
+                             <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">{selectedElement.tagName}</span>
+                             <div className="h-4 w-px bg-white/10"></div>
+                             <div className="flex gap-2">
+                                 <button onClick={() => sendCommand('LAYER', 'up')} className="p-1 hover:text-indigo-400 transition-colors" title="上移一层">↑</button>
+                                 <button onClick={() => sendCommand('LAYER', 'down')} className="p-1 hover:text-indigo-400 transition-colors" title="下移一层">↓</button>
+                             </div>
+                             <div className="h-4 w-px bg-white/10"></div>
+                             <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="p-1 text-red-400 hover:text-red-300 transition-colors" title="删除元素"><TrashIcon className="w-4 h-4"/></button>
                         </div>
                     )}
                 </div>
@@ -736,10 +503,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                 {selectedElement && (
                     <PropertiesPanel 
                         element={selectedElement}
-                        onUpdateStyle={handleUpdateStyle}
-                        onUpdateContent={handleUpdateContent}
-                        onDelete={handleDelete}
-                        onClose={() => { sendCommand('DESELECT'); setSelectedElement(null); }}
+                        onUpdateStyle={(k, v) => { sendCommand('UPDATE_STYLE', { [k]: v }); setSelectedElement((prev:any) => ({ ...prev, [k]: v })); }}
+                        onUpdateContent={(t) => { sendCommand('UPDATE_CONTENT', t); setSelectedElement((prev:any) => ({ ...prev, content: t })); }}
+                        onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
+                        onClose={() => setSelectedElement(null)}
                     />
                 )}
             </div>
