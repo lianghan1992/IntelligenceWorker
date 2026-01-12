@@ -95,7 +95,63 @@ export const EvidenceTrail: React.FC<EvidenceTrailProps> = ({ selectedArticle })
     // Manage Blob URL for HTML content to support complex scripts (charts) better than srcDoc
     useEffect(() => {
         if (htmlContent) {
-            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            let finalHtml = htmlContent;
+
+            // 1. 定义强制补丁：包含全屏样式 + 自动 Resize 脚本
+            // 这能解决 99% 的 ECharts/ChartJS 在 iframe 中高度塌陷或不渲染的问题
+            const patchCode = `
+                <style>
+                    html, body {
+                        width: 100%;
+                        height: 100%;
+                        margin: 0;
+                        padding: 0;
+                        overflow-x: hidden;
+                    }
+                    /* 强制图表容器具有高度，防止塌陷 */
+                    #main, #container, .chart-container, .echarts, [id^="chart"] {
+                        width: 100% !important;
+                        min-height: 400px; /* 兜底高度 */
+                        display: block;
+                    }
+                </style>
+                <script>
+                    // 强制触发一次 resize，确保图表库重新计算尺寸
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                        }, 200);
+                        setTimeout(function() {
+                            window.dispatchEvent(new Event('resize'));
+                        }, 1000);
+                    };
+                </script>
+            `;
+
+            // 2. 智能注入补丁
+            // 无论 HTML 是否完整，都强制插入我们的补丁
+            if (finalHtml.includes('</head>')) {
+                finalHtml = finalHtml.replace('</head>', patchCode + '</head>');
+            } else if (finalHtml.includes('<body')) {
+                finalHtml = finalHtml.replace('<body', '<head>' + patchCode + '</head><body');
+            } else {
+                // 如果是非常简陋的片段，则包裹完整的结构
+                finalHtml = `
+                    <!DOCTYPE html>
+                    <html lang="zh-CN" style="height:100%">
+                    <head>
+                        <meta charset="utf-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        ${patchCode}
+                    </head>
+                    <body style="height:100%;margin:0;">
+                        ${finalHtml}
+                    </body>
+                    </html>
+                `;
+            }
+
+            const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             setIframeSrc(url);
             return () => URL.revokeObjectURL(url);
