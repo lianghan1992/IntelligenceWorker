@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getUsageStats, getUsageSummary } from '../../api/stratify';
 import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus } from '../../api/user';
@@ -33,8 +32,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
     // Recharge State
     const [showRecharge, setShowRecharge] = useState(false);
-    const [rechargeAmount, setRechargeAmount] = useState<number>(100);
-    const [paymentMethod, setPaymentMethod] = useState<'alipay' | 'manual'>('alipay');
+    // Allow undefined or string initially to let user type freely, parse on submit
+    const [rechargeAmount, setRechargeAmount] = useState<string>('100');
+    // Removed explicit payment method state as per request (defaulting to manual/single interface)
     const [isSubmittingRecharge, setIsSubmittingRecharge] = useState(false);
     const [rechargeResult, setRechargeResult] = useState<RechargeResponse | null>(null);
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | null>(null);
@@ -144,11 +144,18 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     };
 
     const handleRecharge = async () => {
+        const amount = parseFloat(rechargeAmount);
+        if (isNaN(amount) || amount <= 0) {
+            alert("请输入有效的充值金额");
+            return;
+        }
+
         setIsSubmittingRecharge(true);
         setRechargeResult(null);
         setPaymentStatus('pending');
         try {
-            const res = await rechargeWallet(rechargeAmount, paymentMethod);
+            // Defaulting to 'manual' as the single interface backend handler
+            const res = await rechargeWallet(amount, 'manual');
             setRechargeResult(res);
         } catch (e: any) {
             alert('充值请求失败: ' + e.message);
@@ -400,9 +407,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                             {[50, 100, 200, 500, 1000].map(amt => (
                                                 <button
                                                     key={amt}
-                                                    onClick={() => setRechargeAmount(amt)}
+                                                    onClick={() => setRechargeAmount(amt.toString())}
                                                     className={`py-3 rounded-xl border font-bold text-sm transition-all ${
-                                                        rechargeAmount === amt 
+                                                        rechargeAmount === amt.toString()
                                                             ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm' 
                                                             : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
                                                     }`}
@@ -414,10 +421,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
                                                 <input 
                                                     type="number" 
+                                                    step="0.01"
+                                                    min="0.01"
                                                     value={rechargeAmount}
-                                                    onChange={e => setRechargeAmount(Math.max(1, Number(e.target.value)))}
+                                                    onChange={e => setRechargeAmount(e.target.value)}
                                                     className={`w-full py-3 pl-6 pr-3 rounded-xl border font-bold text-sm outline-none transition-all text-center focus:ring-2 focus:ring-indigo-500 ${
-                                                        ![50, 100, 200, 500, 1000].includes(rechargeAmount) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'
+                                                        ![50, 100, 200, 500, 1000].map(String).includes(rechargeAmount) ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600'
                                                     }`}
                                                     placeholder="自定义"
                                                 />
@@ -425,30 +434,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         </div>
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <label className="text-sm font-bold text-slate-700 block">支付方式</label>
-                                        <div className="flex flex-col gap-3">
-                                            <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'alipay' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                <input type="radio" name="payment" className="hidden" checked={paymentMethod === 'alipay'} onChange={() => setPaymentMethod('alipay')} />
-                                                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-sm">支</div>
-                                                <div className="flex-1">
-                                                    <div className="font-bold text-slate-800">支付宝</div>
-                                                    <div className="text-xs text-slate-400">推荐使用</div>
-                                                </div>
-                                                {paymentMethod === 'alipay' && <CheckCircleIcon className="w-5 h-5 text-blue-500" />}
-                                            </label>
-                                            
-                                            <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'manual' ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-slate-200 hover:bg-slate-50'}`}>
-                                                <input type="radio" name="payment" className="hidden" checked={paymentMethod === 'manual'} onChange={() => setPaymentMethod('manual')} />
-                                                <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">M</div>
-                                                <div className="flex-1">
-                                                    <div className="font-bold text-slate-800">人工转账 / 测试</div>
-                                                    <div className="text-xs text-slate-400">联系客服确认入账</div>
-                                                </div>
-                                                {paymentMethod === 'manual' && <CheckCircleIcon className="w-5 h-5 text-indigo-500" />}
-                                            </label>
-                                        </div>
-                                    </div>
+                                    {/* Payment Method Selector Removed - Defaulting to single interface */}
 
                                     <button 
                                         onClick={handleRecharge}
@@ -456,7 +442,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                     >
                                         {isSubmittingRecharge && <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>}
-                                        确认支付 ¥{rechargeAmount.toFixed(2)}
+                                        确认支付 ¥{parseFloat(rechargeAmount || '0').toFixed(2)}
                                     </button>
                                 </div>
                             ) : (
