@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { SpiderArticle, SpiderSource, SpiderPoint } from '../../../types';
 import { 
@@ -16,9 +15,10 @@ import {
     getSpiderSources, 
     getSpiderPoints,
     exportArticles,
-    batchDeleteArticles
+    batchDeleteArticles,
+    startBackgroundBatchHtmlGeneration // New import
 } from '../../../api/intelligence';
-import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon } from '../../icons';
+import { RefreshIcon, DocumentTextIcon, SparklesIcon, EyeIcon, CloseIcon, TrashIcon, ClockIcon, PlayIcon, StopIcon, LightningBoltIcon, FilterIcon, DownloadIcon, CalendarIcon, ServerIcon, CheckCircleIcon } from '../../icons';
 import { ArticleDetailModal } from './ArticleDetailModal';
 import { ConfirmationModal } from '../ConfirmationModal';
 import { BatchSearchExportModal } from './BatchSearchExportModal';
@@ -162,6 +162,103 @@ const ExportOptionsModal: React.FC<{
     );
 };
 
+// --- Generation Config Modal ---
+const GenerationConfigModal: React.FC<{
+    isOpen: boolean;
+    mode: 'single' | 'batch_selected' | 'background_fill';
+    onClose: () => void;
+    onConfirm: (config: { provider: string; force?: boolean; limit?: number }) => void;
+    selectedCount?: number;
+}> = ({ isOpen, mode, onClose, onConfirm, selectedCount }) => {
+    const [provider, setProvider] = useState('gemini');
+    const [force, setForce] = useState(false);
+    const [limit, setLimit] = useState(50);
+    const [isLoading, setIsLoading] = useState(false);
+
+    if (!isOpen) return null;
+
+    const handleConfirm = () => {
+        setIsLoading(true);
+        // Small delay to show spinner then call parent
+        setTimeout(() => {
+            onConfirm({ provider, force, limit });
+            setIsLoading(false);
+        }, 100);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl p-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <SparklesIcon className="w-5 h-5 text-indigo-600" />
+                    {mode === 'single' ? '单篇生成 HTML' : mode === 'batch_selected' ? `批量生成 (${selectedCount} 篇)` : '后台补全 HTML'}
+                </h3>
+                
+                <div className="space-y-4 mb-6">
+                    {mode !== 'background_fill' && (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">模型提供商 (Provider)</label>
+                            <select 
+                                value={provider}
+                                onChange={e => setProvider(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            >
+                                <option value="gemini">Google Gemini (Default)</option>
+                                <option value="zhipuai">ZhipuAI (ChatGLM)</option>
+                                <option value="deepseek">DeepSeek</option>
+                            </select>
+                        </div>
+                    )}
+                    
+                    {mode === 'background_fill' && (
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">批量处理上限 (Limit)</label>
+                            <input 
+                                type="number"
+                                value={limit}
+                                onChange={e => setLimit(parseInt(e.target.value))}
+                                min={1}
+                                max={500}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                        </div>
+                    )}
+
+                    {(mode === 'background_fill' || mode === 'batch_selected') && (
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input 
+                                type="checkbox" 
+                                checked={force} 
+                                onChange={e => setForce(e.target.checked)}
+                                className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-slate-300"
+                            />
+                            <span className="text-sm text-slate-700">强制重新生成 (覆盖现有)</span>
+                        </label>
+                    )}
+                    
+                    {mode === 'background_fill' && (
+                        <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded border border-orange-100">
+                            后台任务将自动扫描未生成 HTML 的文章进行处理。
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button onClick={onClose} disabled={isLoading} className="px-4 py-2 text-slate-600 font-bold text-sm hover:bg-slate-100 rounded-lg transition-colors">取消</button>
+                    <button 
+                        onClick={handleConfirm}
+                        disabled={isLoading}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm hover:bg-indigo-700 transition-colors shadow-md flex items-center gap-2"
+                    >
+                        {isLoading ? <WhiteSpinner /> : <PlayIcon className="w-4 h-4" />}
+                        {mode === 'background_fill' ? '启动后台任务' : '开始生成'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const ArticleList: React.FC = () => {
     const [articles, setArticles] = useState<SpiderArticle[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -181,7 +278,6 @@ export const ArticleList: React.FC = () => {
     const [filterAtomized, setFilterAtomized] = useState(''); // '' | 'true' | 'false'
     const [filterDateStart, setFilterDateStart] = useState('');
     const [filterDateEnd, setFilterDateEnd] = useState('');
-    const [isFiltersVisible, setIsFiltersVisible] = useState(false);
     
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -194,6 +290,9 @@ export const ArticleList: React.FC = () => {
     const [isBatchExportModalOpen, setIsBatchExportModalOpen] = useState(false);
     // Export Options Modal
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+    // Generation Modal
+    const [genModalState, setGenModalState] = useState<{ isOpen: boolean; mode: 'single' | 'batch_selected' | 'background_fill'; article?: SpiderArticle }>({ isOpen: false, mode: 'single' });
 
     // HTML Generation State
     const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -298,7 +397,7 @@ export const ArticleList: React.FC = () => {
         try {
             const res = await getSpiderArticles({ 
                 page, 
-                size: 20, // Updated parameter name mapping logic handled in api
+                size: 20, 
                 source_id: filterSource || undefined,
                 point_id: filterPoint || undefined,
                 is_atomized: filterAtomized === '' ? undefined : (filterAtomized === 'true'),
@@ -357,35 +456,59 @@ export const ArticleList: React.FC = () => {
         }
     };
 
-    const handleGenerateHtml = async (article: SpiderArticle) => {
-        if (generatingId || !article.id) return;
-        setGeneratingId(article.id);
-        try {
-            await generateArticleHtml(article.id);
-            setArticles(prev => prev.map(a => a.id === article.id ? { ...a, is_atomized: true } : a));
-            alert('HTML 生成任务已触发');
-        } catch (e: any) {
-            const msg = e.message || String(e);
-            alert(msg);
-        } finally {
-            setGeneratingId(null);
-        }
+    // --- New Generation Handlers ---
+
+    const openGenModal = (mode: 'single' | 'batch_selected' | 'background_fill', article?: SpiderArticle) => {
+        setGenModalState({ isOpen: true, mode, article });
     };
 
-    const handleBatchGenerate = async () => {
-        if (selectedIds.size === 0) return;
-        setIsBatchGenerating(true);
-        try {
-            const ids = Array.from(selectedIds) as string[];
-            const promises = ids.map(id => generateArticleHtml(id));
-            await Promise.all(promises);
-            setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
-            alert(`已触发 ${ids.length} 篇文章的原子化任务`);
-            setSelectedIds(new Set());
-        } catch (e: any) {
-            alert('批量触发失败，部分任务可能未启动');
-        } finally {
-            setIsBatchGenerating(false);
+    const confirmGeneration = async (config: { provider: string; force?: boolean; limit?: number }) => {
+        setGenModalState({ ...genModalState, isOpen: false });
+
+        if (genModalState.mode === 'single' && genModalState.article?.id) {
+            // Single Generation
+            setGeneratingId(genModalState.article.id);
+            try {
+                await generateArticleHtml(genModalState.article.id, config.provider);
+                setArticles(prev => prev.map(a => a.id === genModalState.article!.id ? { ...a, is_atomized: true } : a));
+            } catch (e: any) {
+                alert(`生成失败: ${e.message}`);
+            } finally {
+                setGeneratingId(null);
+            }
+        } 
+        else if (genModalState.mode === 'batch_selected') {
+            // Batch Selected (Loop)
+            if (selectedIds.size === 0) return;
+            setIsBatchGenerating(true);
+            try {
+                const ids = Array.from(selectedIds) as string[];
+                // Use Promise.all to run concurrently (or sequential if preferred for rate limiting)
+                // Here we run parallel, assuming backend handles queue/concurrency
+                const promises = ids.map(id => generateArticleHtml(id, config.provider));
+                await Promise.all(promises);
+                
+                setArticles(prev => prev.map(a => selectedIds.has(a.id) ? { ...a, is_atomized: true } : a));
+                alert(`已触发 ${ids.length} 篇文章的原子化任务`);
+                setSelectedIds(new Set());
+            } catch (e: any) {
+                alert('批量触发失败，部分任务可能未启动');
+            } finally {
+                setIsBatchGenerating(false);
+            }
+        }
+        else if (genModalState.mode === 'background_fill') {
+            // Background Batch API
+            try {
+                await startBackgroundBatchHtmlGeneration({
+                    limit: config.limit || 50,
+                    force_regenerate: config.force || false,
+                    point_id: filterPoint || undefined // Optional context
+                });
+                alert('后台补全任务已启动');
+            } catch (e: any) {
+                alert(`启动失败: ${e.message}`);
+            }
         }
     };
 
@@ -455,7 +578,7 @@ export const ArticleList: React.FC = () => {
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full overflow-hidden shadow-sm">
-            {/* Filter Panel (Collapsible or always visible) */}
+            {/* Filter Panel */}
             <div className="border-b border-gray-100 bg-gray-50/80 p-4">
                 <div className="flex flex-col gap-4">
                     {/* Top Row: Filters */}
@@ -518,6 +641,14 @@ export const ArticleList: React.FC = () => {
                         <div className="flex-1"></div>
                         
                         <button 
+                            onClick={() => openGenModal('background_fill')}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-bold hover:bg-green-100 transition-all shadow-sm"
+                        >
+                            <ServerIcon className="w-3.5 h-3.5" />
+                            后台补全 HTML
+                        </button>
+
+                        <button 
                             onClick={() => setIsBatchExportModalOpen(true)}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-all shadow-sm"
                         >
@@ -547,7 +678,7 @@ export const ArticleList: React.FC = () => {
                         <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
                             <span className="text-xs text-gray-500 font-medium bg-slate-50 px-2 py-1 rounded border border-slate-200">已选 {selectedIds.size} 项</span>
                             <button 
-                                onClick={handleBatchGenerate}
+                                onClick={() => openGenModal('batch_selected')}
                                 disabled={isBatchGenerating}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors shadow-sm disabled:opacity-70"
                             >
@@ -628,7 +759,7 @@ export const ArticleList: React.FC = () => {
                                                 </button>
                                             ) : (
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); handleGenerateHtml(article); }}
+                                                    onClick={(e) => { e.stopPropagation(); openGenModal('single', article); }}
                                                     className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
                                                     title="生成 HTML"
                                                 >
@@ -721,7 +852,7 @@ export const ArticleList: React.FC = () => {
                                             </button>
                                         ) : (
                                             <button 
-                                                onClick={() => handleGenerateHtml(article)}
+                                                onClick={() => openGenModal('single', article)}
                                                 disabled={generatingId === article.id}
                                                 className="p-1.5 rounded-lg text-slate-400 bg-slate-50 hover:text-purple-600 hover:bg-purple-50"
                                                 title="生成 HTML"
@@ -805,6 +936,14 @@ export const ArticleList: React.FC = () => {
                     isExporting={isExporting}
                 />
             )}
+
+            <GenerationConfigModal 
+                isOpen={genModalState.isOpen}
+                mode={genModalState.mode}
+                onClose={() => setGenModalState({...genModalState, isOpen: false})}
+                onConfirm={confirmGeneration}
+                selectedCount={selectedIds.size}
+            />
 
             {deleteId && (
                 <ConfirmationModal
