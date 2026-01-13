@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats } from '../../api/user';
 import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction } from '../../types';
 import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon } from '../icons';
+import { AGENT_NAMES } from '../../agentConfig';
 
 interface BillingModalProps {
     user: User;
@@ -14,7 +15,7 @@ const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-2
 // 解析 meta_data 的辅助函数
 const parseMeta = (metaStr: string | null) => {
     try {
-        if (!metaStr) return { model: '-', tokens: '-' };
+        if (!metaStr) return { model: '-', tokens: '-', app_id: '' };
         const meta = JSON.parse(metaStr);
         // Calculate total tokens if input/output available, else just tokens
         const total = (meta.input_tokens || 0) + (meta.output_tokens || 0);
@@ -27,16 +28,18 @@ const parseMeta = (metaStr: string | null) => {
 
         return {
             model: displayModel,
-            tokens: total || meta.tokens || '-'
+            tokens: total || meta.tokens || '-',
+            app_id: meta.app_id || ''
         };
     } catch (e) {
-        return { model: '-', tokens: '-' };
+        return { model: '-', tokens: '-', app_id: '' };
     }
 };
 
 const getTransactionTypeLabel = (type: string) => {
     switch (type) {
         case 'ai_consumption': return '模型调用';
+        case 'pdf_download': return 'PDF下载';
         case 'recharge': return '账户充值';
         case 'gift': return '系统赠送';
         case 'refund': return '退款';
@@ -324,6 +327,16 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         const meta = parseMeta(record.meta_data);
                                         const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
                                         
+                                        // 智能解析应用名称：如果有 app_id，尝试从全局配置 AGENT_NAMES 映射中文名，否则显示 app_id。
+                                        // 如果没有 app_id，则显示 record.description。
+                                        const typeLabel = getTransactionTypeLabel(record.transaction_type);
+                                        let displayTitle = `${typeLabel}: ${record.description || '无描述'}`;
+                                        
+                                        if (meta.app_id) {
+                                            const appName = AGENT_NAMES[meta.app_id as keyof typeof AGENT_NAMES] || meta.app_id;
+                                            displayTitle = `${typeLabel}: ${appName}`;
+                                        }
+
                                         return (
                                             <div key={record.id || idx} className="group bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
                                                 <div className="flex items-start gap-4 flex-1 min-w-0">
@@ -332,7 +345,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                     </div>
                                                     <div className="min-w-0 flex-1 space-y-2">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-slate-800 text-sm truncate">{getTransactionTypeLabel(record.transaction_type)}: {record.description || '无描述'}</span>
+                                                            <span className="font-bold text-slate-800 text-sm truncate" title={displayTitle}>{displayTitle}</span>
                                                             {meta.model !== '-' && (
                                                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 uppercase">{meta.model}</span>
                                                             )}

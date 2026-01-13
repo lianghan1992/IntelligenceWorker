@@ -1,8 +1,29 @@
-# 用户服务 (User Service) API 文档
+# User Service API Documentation
 
-提供管理用户、认证、订阅计划和钱包支付的全部功能。所有接口均以 `/api/user` 为前缀。
+## 1. 概述
 
-## 1. 认证 (Authentication)
+User Service 负责用户身份认证、账户管理、钱包与支付、订阅管理以及用户活动追踪。
+
+### 1.1 基础URL
+所有API的基础路径为 `/api/user`。
+
+### 1.2 认证方式
+大多数接口需要 Bearer Token 认证。在 Header 中添加：
+`Authorization: Bearer <access_token>`
+
+### 1.3 交易类型说明 (Transaction Types)
+
+钱包流水中的 `transaction_type` 字段可能包含以下值：
+
+| 类型代码 (transaction_type) | 说明 | 备注 |
+| :--- | :--- | :--- |
+| `ai_consumption` | AI 模型调用消耗 | 调用 StratifyAI 生成内容时的扣费 |
+| `recharge` | 用户充值 | 用户通过支付网关充值 |
+| `gift` | 系统赠送 | 注册奖励、活动赠送等 |
+| `refund` | 退款 | 失败任务或其他原因的退款 |
+| `pdf_download` | PDF 下载消耗 | 下载付费研报 PDF 时的扣费 |
+
+## 2. 身份认证与账户 (Auth & Account)
 
 管理用户的注册、登录和会话。
 
@@ -370,35 +391,51 @@
 
 ### 5.2 获取钱包流水
 
-获取当前用户的充值与消费记录。
+获取当前用户的充值与消费记录。支持分页与筛选。
 
 -   **路径:** `/api/user/wallet/transactions`
 -   **方法:** `GET`
 -   **认证:** 需要Bearer Token
 
+**查询参数 (Query Parameters)**
+
+| 参数名 | 类型 | 是否必须 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | 否 | 页码 (默认 1) |
+| `limit` | integer | 否 | 每页数量 (默认 20) |
+| `app_id` | string | 否 | 根据 App ID (Scenario ID) 筛选 |
+| `start_date` | string | 否 | 开始日期 (YYYY-MM-DD) |
+| `end_date` | string | 否 | 结束日期 (YYYY-MM-DD) |
+
 **返回示例**
 
 ```json
-[
-  {
-    "id": "uuid...",
-    "amount": -0.05,
-    "balance_after": 0.95,
-    "transaction_type": "ai_consumption",
-    "description": "AI Usage: openrouter/gpt-4",
-    "created_at": "2025-01-01T12:00:00Z",
-    "meta_data": "{\"channel\": \"openrouter\", \"model\": \"gpt-4\", \"app_id\": \"chat-app\", \"input_tokens\": 100, \"output_tokens\": 50}"
-  },
-  {
-    "id": "uuid...",
-    "amount": 1.00,
-    "balance_after": 1.00,
-    "transaction_type": "gift",
-    "description": "New user registration gift",
-    "created_at": "2025-01-01T10:00:00Z",
-    "meta_data": null
-  }
-]
+{
+  "total": 100,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 5,
+  "items": [
+    {
+      "id": "uuid...",
+      "amount": -0.05,
+      "balance_after": 0.95,
+      "transaction_type": "ai_consumption",
+      "description": "AI Usage: openrouter/gpt-4",
+      "created_at": "2025-01-01T12:00:00Z",
+      "meta_data": "{\"channel\": \"openrouter\", \"model\": \"gpt-4\", \"app_id\": \"研报生成助手\", \"input_tokens\": 100, \"output_tokens\": 50}"
+    },
+    {
+      "id": "uuid...",
+      "amount": 1.00,
+      "balance_after": 1.00,
+      "transaction_type": "gift",
+      "description": "New user registration gift",
+      "created_at": "2025-01-01T10:00:00Z",
+      "meta_data": null
+    }
+  ]
+}
 ```
 
 ### 5.3 充值
