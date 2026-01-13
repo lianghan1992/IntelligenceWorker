@@ -4,7 +4,7 @@ import {
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
     PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary, ModelPricing,
-    WalletTransaction // Imported new type
+    WalletTransaction, AdminTransaction, PaymentOrder // Imported new types
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -155,6 +155,47 @@ export const deleteQuotaConfig = (id: string): Promise<void> =>
     apiFetch<void>(`${USER_SERVICE_PATH}/quotas/${id}`, { method: 'DELETE' });
 
 // --- Admin Billing & Finance ---
+
+/**
+ * Admin Get All Transactions (Detailed)
+ */
+export const getAdminTransactions = async (params: any): Promise<PaginatedResponse<AdminTransaction>> => {
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/transactions${query}`);
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size,
+        totalPages: response.total_pages
+    };
+};
+
+/**
+ * Admin Get All Orders
+ */
+export const getAdminOrders = async (params: any): Promise<PaginatedResponse<PaymentOrder>> => {
+    const apiParams = { ...params };
+    if (apiParams.limit) {
+        apiParams.size = apiParams.limit;
+        delete apiParams.limit;
+    }
+    const query = createApiQuery(apiParams);
+    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/orders${query}`);
+    return {
+        items: response.items,
+        total: response.total,
+        page: response.page,
+        limit: response.size,
+        totalPages: response.total_pages
+    };
+};
+
 export const getAdminBills = async (params: any): Promise<PaginatedResponse<BillItem>> => {
     const apiParams = { ...params };
     if (apiParams.limit) {

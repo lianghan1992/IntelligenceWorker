@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { BillItem, BillStats, UserBillSummary } from '../../../types';
-import { getAdminBills, getAdminBillStats, getAdminUserBillSummary } from '../../../api/user';
-import { ChartIcon, RefreshIcon, SearchIcon, CalendarIcon, UsersIcon, CheckCircleIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
+import { BillStats, UserBillSummary, AdminTransaction, PaymentOrder } from '../../../types';
+import { getAdminTransactions, getAdminOrders, getAdminBillStats, getAdminUserBillSummary } from '../../../api/user';
+import { ChartIcon, RefreshIcon, SearchIcon, CalendarIcon, CheckCircleIcon, CloseIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon, ServerIcon, ClockIcon, ChipIcon } from '../../icons';
+import { AGENT_NAMES } from '../../../agentConfig';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
 
@@ -21,25 +22,52 @@ const getStatusBadge = (status: string) => {
     }
 };
 
-const getTypeLabel = (type: string) => {
+const getTransactionTypeLabel = (type: string) => {
     switch (type) {
-        case 'recharge': return '充值';
-        case 'consumption': return '消费';
+        case 'recharge': return '账户充值';
+        case 'ai_consumption': return '模型消耗';
+        case 'pdf_download': return 'PDF下载';
         case 'subscription': return '订阅';
+        case 'gift': return '系统赠送';
         case 'refund': return '退款';
         default: return type;
     }
 };
 
+// 解析 meta_data 的辅助函数 (Same as BillingModal)
+const parseMeta = (metaStr: string | null) => {
+    try {
+        if (!metaStr) return { model: '-', tokens: '-', app_id: '' };
+        const meta = JSON.parse(metaStr);
+        // Calculate total tokens if input/output available, else just tokens
+        const total = (meta.input_tokens || 0) + (meta.output_tokens || 0);
+        
+        let displayModel = meta.model || '-';
+        // 规则优化：如果 channel 是 openrouter 且模型后缀是 :free，则不显示 :free
+        if (meta.channel === 'openrouter' && displayModel.endsWith(':free')) {
+            displayModel = displayModel.replace(':free', '');
+        }
+
+        return {
+            model: displayModel,
+            tokens: total || meta.tokens || '-',
+            app_id: meta.app_id || ''
+        };
+    } catch (e) {
+        return { model: '-', tokens: '-', app_id: '' };
+    }
+};
+
 export const FinanceManager: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'transactions' | 'users'>('transactions');
+    const [activeTab, setActiveTab] = useState<'transactions' | 'orders' | 'users'>('transactions');
     const [isLoading, setIsLoading] = useState(false);
     
     // Stats
     const [stats, setStats] = useState<BillStats | null>(null);
 
-    // Lists
-    const [bills, setBills] = useState<BillItem[]>([]);
+    // Lists Data
+    const [transactions, setTransactions] = useState<AdminTransaction[]>([]);
+    const [orders, setOrders] = useState<PaymentOrder[]>([]);
     const [userSummaries, setUserSummaries] = useState<UserBillSummary[]>([]);
     
     // Pagination
@@ -50,37 +78,44 @@ export const FinanceManager: React.FC = () => {
     // Filters
     const [dateStart, setDateStart] = useState('');
     const [dateEnd, setDateEnd] = useState('');
-    const [keyword, setKeyword] = useState('');
-    const [billType, setBillType] = useState('');
-    const [status, setStatus] = useState('');
+    const [userId, setUserId] = useState(''); // Specific User ID filter
+    const [status, setStatus] = useState(''); // For Orders
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
-            const params = {
+            const commonParams = {
                 start_at: dateStart ? new Date(dateStart).toISOString() : undefined,
                 end_at: dateEnd ? new Date(dateEnd).toISOString() : undefined,
+                user_id: userId || undefined,
             };
 
-            // Fetch Stats once per filter change (independent of pagination)
-            const statsData = await getAdminBillStats(params);
+            // Fetch Stats once per filter change (independent of pagination logic for lists, usually)
+            // Note: Stats API might accept user_id too if updated on backend, currently we pass commonParams.
+            const statsData = await getAdminBillStats(commonParams);
             setStats(statsData);
 
             // Fetch List based on tab
             if (activeTab === 'transactions') {
-                const res = await getAdminBills({
-                    ...params,
-                    keyword: keyword || undefined,
-                    bill_type: billType || undefined,
+                const res = await getAdminTransactions({
+                    ...commonParams,
+                    page,
+                    limit
+                });
+                setTransactions(res.items);
+                setTotal(res.total);
+            } else if (activeTab === 'orders') {
+                const res = await getAdminOrders({
+                    ...commonParams,
                     status: status || undefined,
                     page,
                     limit
                 });
-                setBills(res.items);
+                setOrders(res.items);
                 setTotal(res.total);
             } else {
                 const res = await getAdminUserBillSummary({
-                    ...params,
+                    ...commonParams,
                     page,
                     limit
                 });
@@ -92,7 +127,7 @@ export const FinanceManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [activeTab, page, dateStart, dateEnd, keyword, billType, status]);
+    }, [activeTab, page, dateStart, dateEnd, userId, status]);
 
     useEffect(() => {
         fetchData();
@@ -122,6 +157,12 @@ export const FinanceManager: React.FC = () => {
                             className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'transactions' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                         >
                             交易流水
+                        </button>
+                        <button 
+                            onClick={() => { setActiveTab('orders'); setPage(1); }}
+                            className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeTab === 'orders' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            充值订单
                         </button>
                         <button 
                             onClick={() => { setActiveTab('users'); setPage(1); }}
@@ -168,42 +209,32 @@ export const FinanceManager: React.FC = () => {
                     <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} className="bg-transparent text-xs outline-none w-24 text-slate-600" />
                 </div>
 
-                {activeTab === 'transactions' && (
-                    <>
-                        <select 
-                            value={billType} 
-                            onChange={e => setBillType(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-2 outline-none"
-                        >
-                            <option value="">所有类型</option>
-                            <option value="recharge">充值</option>
-                            <option value="consumption">消费</option>
-                            <option value="subscription">订阅</option>
-                        </select>
-                        <select 
-                            value={status} 
-                            onChange={e => setStatus(e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-2 outline-none"
-                        >
-                            <option value="">所有状态</option>
-                            <option value="paid">已支付</option>
-                            <option value="pending">待支付</option>
-                            <option value="failed">失败</option>
-                        </select>
-                         <div className="relative flex-1 min-w-[200px]">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input 
-                                type="text" 
-                                placeholder="搜索订单号、描述..." 
-                                value={keyword}
-                                onChange={e => setKeyword(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
-                        </div>
-                    </>
+                <div className="relative min-w-[200px]">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder="搜索用户ID..." 
+                        value={userId}
+                        onChange={e => setUserId(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                </div>
+
+                {activeTab === 'orders' && (
+                    <select 
+                        value={status} 
+                        onChange={e => setStatus(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg p-1.5 outline-none"
+                    >
+                        <option value="">所有状态</option>
+                        <option value="paid">已支付</option>
+                        <option value="pending">待支付</option>
+                        <option value="failed">失败</option>
+                        <option value="cancelled">已取消</option>
+                    </select>
                 )}
 
-                <button onClick={handleSearch} className="p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-colors">
+                <button onClick={handleSearch} className="p-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-sm transition-colors ml-auto">
                     {isLoading ? <Spinner /> : <RefreshIcon className="w-4 h-4" />}
                 </button>
             </div>
@@ -211,61 +242,132 @@ export const FinanceManager: React.FC = () => {
             {/* Content Table */}
             <div className="flex-1 overflow-auto px-6 py-4 custom-scrollbar">
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    {activeTab === 'transactions' ? (
+                    {activeTab === 'transactions' && (
                         <table className="w-full text-sm text-left text-slate-600">
                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b font-bold">
                                 <tr>
-                                    <th className="px-6 py-4">订单号/时间</th>
+                                    <th className="px-6 py-4">时间 / ID</th>
                                     <th className="px-6 py-4">用户</th>
                                     <th className="px-6 py-4">类型</th>
-                                    <th className="px-6 py-4">渠道/网关</th>
-                                    <th className="px-6 py-4">描述</th>
+                                    <th className="px-6 py-4">描述 / Agent</th>
+                                    <th className="px-6 py-4">模型 & 消耗</th>
                                     <th className="px-6 py-4 text-right">金额</th>
-                                    <th className="px-6 py-4 text-center">状态</th>
+                                    <th className="px-6 py-4 text-right">余额变动</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {bills.map(bill => (
-                                    <tr key={bill.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="font-mono text-xs font-bold text-slate-700">{bill.order_no}</div>
-                                            <div className="text-xs text-slate-400 mt-1">{new Date(bill.created_at).toLocaleString()}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="text-xs font-bold text-slate-700">{bill.username || 'Unknown'}</div>
-                                            <div className="text-[10px] text-slate-400">{bill.user_id.slice(0, 8)}</div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`text-xs px-2 py-0.5 rounded border ${
-                                                bill.bill_type === 'recharge' ? 'bg-green-50 text-green-700 border-green-100' :
-                                                bill.bill_type === 'consumption' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                                                'bg-slate-50 text-slate-600 border-slate-100'
+                                {transactions.map(tx => {
+                                    const meta = parseMeta(tx.meta_data);
+                                    const isRecharge = tx.transaction_type === 'recharge' || tx.transaction_type === 'gift';
+                                    
+                                    // Parse Agent Name
+                                    const typeLabel = getTransactionTypeLabel(tx.transaction_type);
+                                    let appName = '系统';
+                                    if (meta.app_id) {
+                                        appName = AGENT_NAMES[meta.app_id as keyof typeof AGENT_NAMES] || '未知应用';
+                                    }
+
+                                    return (
+                                        <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs text-slate-700 font-medium">{new Date(tx.created_at).toLocaleString()}</div>
+                                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{tx.id.slice(0, 8)}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs font-bold text-slate-700">{tx.username || 'Unknown'}</div>
+                                                <div className="text-[10px] text-slate-400">{tx.email || tx.user_id.slice(0, 8)}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`text-[10px] px-2 py-0.5 rounded border uppercase ${
+                                                    isRecharge ? 'bg-green-50 text-green-700 border-green-100' :
+                                                    'bg-orange-50 text-orange-700 border-orange-100'
+                                                }`}>
+                                                    {typeLabel}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs text-slate-700 font-bold truncate max-w-[150px]" title={tx.description}>{tx.description}</div>
+                                                {meta.app_id && <div className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded w-fit mt-1">{appName}</div>}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {meta.model !== '-' ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 uppercase w-fit">{meta.model}</span>
+                                                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                            <ChipIcon className="w-3 h-3"/> {Number(meta.tokens).toLocaleString()} Tokens
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                            </td>
+                                            <td className={`px-6 py-4 text-right font-mono font-bold ${
+                                                isRecharge ? 'text-green-600' : 'text-orange-600'
                                             }`}>
-                                                {getTypeLabel(bill.bill_type)}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-xs text-slate-500">
-                                            {bill.channel} / {bill.gateway}
-                                        </td>
-                                        <td className="px-6 py-4 text-xs text-slate-500 max-w-xs truncate" title={bill.description}>
-                                            {bill.description}
-                                        </td>
-                                        <td className={`px-6 py-4 text-right font-mono font-bold ${
-                                            bill.bill_type === 'recharge' ? 'text-green-600' : 'text-orange-600'
-                                        }`}>
-                                            {bill.bill_type === 'recharge' ? '+' : '-'}{formatCurrency(bill.amount)}
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            {getStatusBadge(bill.status)}
-                                        </td>
-                                    </tr>
-                                ))}
-                                {bills.length === 0 && !isLoading && (
+                                                {isRecharge ? '+' : ''}{formatCurrency(tx.amount)}
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-mono text-xs text-slate-500">
+                                                {formatCurrency(tx.balance_after)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {transactions.length === 0 && !isLoading && (
                                     <tr><td colSpan={7} className="text-center py-20 text-slate-400 italic">暂无交易记录</td></tr>
                                 )}
                             </tbody>
                         </table>
-                    ) : (
+                    )}
+                    
+                    {activeTab === 'orders' && (
+                        <table className="w-full text-sm text-left text-slate-600">
+                            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b font-bold">
+                                <tr>
+                                    <th className="px-6 py-4">订单号</th>
+                                    <th className="px-6 py-4">创建时间</th>
+                                    <th className="px-6 py-4">用户</th>
+                                    <th className="px-6 py-4">支付渠道</th>
+                                    <th className="px-6 py-4 text-right">金额</th>
+                                    <th className="px-6 py-4 text-center">状态</th>
+                                    <th className="px-6 py-4">外部单号/支付时间</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {orders.map(order => (
+                                    <tr key={order.order_no} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-6 py-4 font-mono text-xs font-bold text-slate-700">
+                                            {order.order_no}
+                                        </td>
+                                        <td className="px-6 py-4 text-xs text-slate-500">
+                                            {new Date(order.created_at).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-xs font-bold text-slate-700">{order.username || 'Unknown'}</div>
+                                            <div className="text-[10px] text-slate-400">{order.user_id.slice(0, 8)}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs text-slate-500 uppercase">
+                                            {order.gateway}
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-mono font-bold text-slate-800">
+                                            {formatCurrency(order.amount)}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {getStatusBadge(order.status)}
+                                        </td>
+                                        <td className="px-6 py-4 text-xs text-slate-400">
+                                            {order.external_order_no && <div className="font-mono">{order.external_order_no}</div>}
+                                            {order.paid_at && <div className="mt-1">{new Date(order.paid_at).toLocaleString()}</div>}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {orders.length === 0 && !isLoading && (
+                                    <tr><td colSpan={7} className="text-center py-20 text-slate-400 italic">暂无订单记录</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )}
+
+                    {activeTab === 'users' && (
                         <table className="w-full text-sm text-left text-slate-600">
                             <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b font-bold">
                                 <tr>

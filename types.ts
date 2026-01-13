@@ -70,6 +70,26 @@ export interface WalletTransaction {
     meta_data: string | null; // JSON string containing details like model, tokens, etc.
 }
 
+// Admin view of transaction extends basic transaction with user info
+export interface AdminTransaction extends WalletTransaction {
+    user_id: string;
+    username?: string; // Optional enriched data
+    email?: string;
+}
+
+export interface PaymentOrder {
+    order_no: string;
+    amount: number;
+    gateway: string;
+    status: 'paid' | 'pending' | 'failed' | 'cancelled';
+    external_order_no?: string;
+    qr_code_url?: string;
+    user_id: string;
+    username?: string; // Optional enriched data
+    created_at: string;
+    paid_at?: string;
+}
+
 export interface RechargeResponse {
     order_no: string;
     pay_url?: string;
