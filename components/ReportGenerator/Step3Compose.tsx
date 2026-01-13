@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData } from './types';
 import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { searchSemanticSegments } from '../../api/intelligence';
 import { 
     SparklesIcon, DownloadIcon, RefreshIcon, ViewGridIcon, 
     PencilIcon, CheckIcon, DocumentTextIcon, ChevronRightIcon, CodeIcon,
@@ -20,7 +21,8 @@ interface MainCanvasProps {
     isLlmActive: boolean;
     setStage?: (stage: PPTStage) => void; 
     setData?: React.Dispatch<React.SetStateAction<PPTData>>;
-    sessionId?: string; // Added sessionId
+    sessionId?: string; 
+    onRefreshSession?: () => void; // Add refresh session prop
 }
 
 // --- Helper: Simple HTML Syntax Highlighter ---
@@ -123,8 +125,36 @@ const ScaledSlide: React.FC<{ html: string; width: number; height: number }> = (
     );
 };
 
+// --- Helper: Strict HTML Extractor ---
+const extractCleanHtml = (text: string) => {
+    let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    const codeBlockMatch = cleanText.match(/```html\s*/i);
+    if (codeBlockMatch && codeBlockMatch.index !== undefined) {
+        let clean = cleanText.substring(codeBlockMatch.index + codeBlockMatch[0].length);
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
+    }
+    const rawStart = cleanText.search(/<!DOCTYPE|<html|<div|<section|<head|<body/i);
+    if (rawStart !== -1) {
+        let clean = cleanText.substring(rawStart);
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
+    }
+    return '';
+};
+
+// Config Constants
+const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
+const HTML_GENERATION_MODEL = "google/gemini-3-flash-preview";
+
 export const MainCanvas: React.FC<MainCanvasProps> = ({ 
-    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId
+    stage, data, activePageIndex, setActivePageIndex, isLlmActive, setStage, setData, sessionId, onRefreshSession
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const activePage = data.pages[activePageIndex];

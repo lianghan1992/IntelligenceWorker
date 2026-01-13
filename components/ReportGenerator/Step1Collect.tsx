@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     SparklesIcon, ArrowRightIcon, RefreshIcon, BrainIcon, ChevronDownIcon, 
-    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon
+    CheckCircleIcon, PlayIcon, DocumentTextIcon, ServerIcon, PencilIcon, ClockIcon, PlusIcon,
+    DatabaseIcon
 } from '../icons';
 import { getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { searchSemanticSegments } from '../../api/intelligence';
 import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
 import { marked } from 'marked';
@@ -155,14 +157,11 @@ interface CopilotSidebarProps {
     onReset: () => void;
     sessionId?: string; 
     statusBar?: React.ReactNode; 
-    // New props for session management
     sessionTitle?: string;
     onTitleChange?: (newTitle: string) => void;
     onSwitchSession?: (sessionId: string) => void;
-    // Callback to ensure session exists before generation
     onEnsureSession?: () => Promise<string>;
     onToggleHistory?: () => void;
-    // Refresh Billing
     onRefreshSession?: () => void;
 }
 
@@ -197,14 +196,13 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             const scrollHeight = textareaRef.current.scrollHeight;
-            textareaRef.current.style.height = Math.min(Math.max(scrollHeight, 44), 100) + 'px'; // Min 44px (1 line), Max ~4 lines
+            textareaRef.current.style.height = Math.min(Math.max(scrollHeight, 44), 100) + 'px'; 
         }
     }, [input]);
 
     // --- Guidance State ---
     const [activeGuide, setActiveGuide] = useState<'outline' | 'compose' | null>(null);
 
-    // Determine if guidance is needed based on stage and localStorage
     useEffect(() => {
         if (stage === 'outline' && !localStorage.getItem('ai_guide_outline')) {
             setActiveGuide('outline');
@@ -220,41 +218,116 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         setActiveGuide(null);
     };
 
-    // Initial Greeting with Date
+    // Initial Greeting
     useEffect(() => {
         if (history.length === 0) {
             const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
             setHistory([{ 
                 role: 'assistant', 
-                content: `你好！我是您的研报助手。\n📅 今天是 **${today}**。\n\n请告诉我您想要研究的主题，我将为您构建分析框架。` 
+                content: `你好！我是您的研报助手。\n📅 今天是 **${today}**。\n\n请告诉我您想要研究的主题，我会自动检索知识库并为您构建分析框架。` 
             }]);
         }
     }, []);
 
-    // Auto-scroll chat
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, [history, stage, isLlmActive]);
 
+    // --- Knowledge Base Retrieval Agent (Pre-Outline) ---
+    const performResearch = async (topic: string, activeSessionId?: string) => {
+        try {
+            setHistory(prev => [...prev, { role: 'assistant', content: `🔍 正在检索知识库："${topic}"...` }]);
+            
+            // 1. Generate Search Query (Optional: optimize query)
+            const searchQuery = topic; // For now use topic directly, or use LLM to extract keywords
+            
+            // 2. Execute Vector Search
+            const res = await searchSemanticSegments({
+                query_text: searchQuery,
+                page: 1,
+                page_size: 5,
+                similarity_threshold: 0.35
+            });
+
+            const items = res.items || [];
+            
+            if (items.length > 0) {
+                const knowledgeText = items.map((item, i) => `[参考资料${i+1}] ${item.title}: ${item.content}`).join('\n\n');
+                
+                // Update global data context
+                setData(prev => ({
+                    ...prev,
+                    referenceMaterials: (prev.referenceMaterials || '') + "\n\n" + knowledgeText
+                }));
+
+                setHistory(prev => {
+                    const newHistory = [...prev];
+                    // Replace the "Searching..." message with success
+                    newHistory[newHistory.length - 1] = { 
+                        role: 'assistant', 
+                        content: `✅ 已找到 ${items.length} 篇相关资料，正在基于最新情报构建大纲...`
+                    };
+                    return newHistory;
+                });
+                
+                return knowledgeText;
+            } else {
+                setHistory(prev => {
+                    const newHistory = [...prev];
+                    newHistory[newHistory.length - 1] = { role: 'assistant', content: `⚠️ 知识库暂无强相关内容，将基于通用知识构建大纲...` };
+                    return newHistory;
+                });
+                return "";
+            }
+        } catch (e) {
+            console.error("Research failed", e);
+            return "";
+        }
+    };
+
     // --- Core Logic: Generate Outline ---
     const runOutlineGeneration = async (userPromptText: string, isRefinement: boolean) => {
         setIsLlmActive(true);
-        const contextMessages = isRefinement ? history.map(m => ({ role: m.role, content: m.content })) : []; 
         
+        // Lazy Creation Trigger
+        let activeSessionId = sessionId;
+        if (!activeSessionId && onEnsureSession) {
+            activeSessionId = await onEnsureSession();
+        }
+
+        // --- Step 1: Research (Only if not refinement or explicitly requested) ---
+        let researchContext = "";
+        if (!isRefinement) {
+             researchContext = await performResearch(userPromptText, activeSessionId);
+        }
+
+        // --- Step 2: Generate Outline ---
+        const contextMessages = isRefinement ? history.map(m => ({ role: m.role, content: m.content })) : []; 
         const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 
         let finalPrompt = userPromptText;
-        if (data.referenceMaterials && data.referenceMaterials.length > 0) {
-            finalPrompt = `【参考背景资料】\n${data.referenceMaterials}\n\n【用户指令】\n${userPromptText}`;
+        // Combine existing references and new research
+        const allReferences = (data.referenceMaterials || '') + (researchContext ? `\n${researchContext}` : '');
+        
+        if (allReferences.trim().length > 0) {
+            finalPrompt = `【参考背景资料(基于向量检索)】\n${allReferences}\n\n【用户指令】\n${userPromptText}`;
         }
         
+        // **Critical**: Use the ORIGINAL System Prompt to ensure quality
+        let systemPrompt = `You are an expert presentation outline generator. Current Date: ${currentDate}. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }`;
+        
+        try {
+            // Try to fetch polished prompt from backend if available, otherwise use default
+            const promptDetail = await getPromptDetail("generate_outline").catch(() => null);
+            if (promptDetail) systemPrompt = promptDetail.content;
+        } catch(e) {}
+
         const apiMessages = [
-            { role: 'system', content: `You are an expert presentation outline generator. Current Date: ${currentDate}. Output STRICT JSON: { "title": "...", "pages": [ { "title": "...", "content": "Brief summary..." }, ... ] }` },
+            { role: 'system', content: systemPrompt },
             ...contextMessages,
             { role: 'user', content: finalPrompt }
         ];
 
-        // 大纲生成使用稳定模型
         const modelToUse = DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: '', reasoning: '', model: modelToUse }]);
@@ -262,12 +335,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         let accumulatedReasoning = '';
 
         try {
-            // Lazy Creation Trigger: Ensure we have a session ID before calling LLM
-            let activeSessionId = sessionId;
-            if (!activeSessionId && onEnsureSession) {
-                activeSessionId = await onEnsureSession();
-            }
-
             await streamChatCompletions({
                 model: modelToUse, 
                 messages: apiMessages,
@@ -288,24 +355,20 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 });
                 
                 const partialOutline = tryParsePartialJson(accumulatedContent);
-                // 只要检测到包含 pages 的结构，就开始同步数据并准备切换状态
                 if (partialOutline && partialOutline.pages && partialOutline.pages.length > 0) {
                     setData(prev => ({ 
                         ...prev, 
                         topic: partialOutline.title || prev.topic, 
                         outline: partialOutline 
                     }));
-                    // 如果当前是收集阶段，检测到大纲后立即进入大纲预览阶段
                     if (!isRefinement) {
                         setStage('outline');
                     }
                 }
             }, () => {
-                // onDone: Refresh session cost
                 if (onRefreshSession) onRefreshSession();
-            }, undefined, activeSessionId); // Pass active session ID
+            }, undefined, activeSessionId); 
             
-            // 最终确认一次解析，即便存在尾部引文也要能正确提取 JSON
             const finalOutline = tryParsePartialJson(accumulatedContent);
             if (finalOutline && finalOutline.pages) {
                 setData(prev => ({ ...prev, topic: finalOutline.title || prev.topic, outline: finalOutline }));
@@ -319,12 +382,21 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }
     };
 
+    // ... (Serial Generation & Modification Logic remains mostly same, moved logic to Step3Compose for content gen) ...
+    // Note: The original Step1Collect contained the compose logic too? 
+    // Checking previous file content... Yes, CopilotSidebar contains logic for all stages.
+    // I need to update the compose logic here too if it resides here.
+
     // --- Core Logic: Serial Generation (Text or HTML) ---
     useEffect(() => {
         if (stage !== 'compose' || isLlmActive || !autoGenMode) return;
+        // The actual generation logic is now driven by MainCanvas in Step3Compose for rendering,
+        // BUT the LLM control loop seems to be here in CopilotSidebar in the previous file.
+        // Let's check where `processQueue` was.
+        // It was in CopilotSidebar in the provided file content.
+        // I will update it here to include RAG for content generation.
 
         const processQueue = async () => {
-            // Lazy Creation Trigger if we somehow got here without a session (unlikely but safe)
             let activeSessionId = sessionId;
             if (!activeSessionId && onEnsureSession) {
                 activeSessionId = await onEnsureSession();
@@ -355,16 +427,43 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
             
             const currentPage = pages[targetIdx];
             const taskName = autoGenMode === 'text' ? '撰写内容' : '渲染页面';
-            
-            // 核心修改：根据生成类型切换模型
             const modelStr = autoGenMode === 'html' ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
-            setHistory(prev => [...prev, { 
-                role: 'assistant', 
-                content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
-                reasoning: '',
-                model: modelStr
-            }]);
+            // --- RAG Step for Text Generation ---
+            let pageSpecificContext = "";
+            if (autoGenMode === 'text') {
+                setHistory(prev => [...prev, { 
+                    role: 'assistant', 
+                    content: `🔍 [${targetIdx+1}/${pages.length}] 正在检索知识库：${currentPage.title}...`, 
+                }]);
+
+                try {
+                    // Quick keyword extraction or just use title
+                    const query = `${currentPage.title} ${currentPage.summary.slice(0, 20)}`;
+                    const res = await searchSemanticSegments({
+                        query_text: query,
+                        page: 1,
+                        page_size: 3,
+                        similarity_threshold: 0.35
+                    });
+                    if (res.items && res.items.length > 0) {
+                         pageSpecificContext = res.items.map(i => i.content).join('\n');
+                    }
+                } catch (e) {
+                    console.warn("Page search failed", e);
+                }
+            }
+
+            setHistory(prev => {
+                // Remove the "Searching" message if it exists (last one)
+                const newHistory = autoGenMode === 'text' ? prev.slice(0, -1) : [...prev];
+                return [...newHistory, { 
+                    role: 'assistant', 
+                    content: `正在${taskName} (第 ${targetIdx + 1}/${pages.length} 页)：**${currentPage.title}**...`, 
+                    reasoning: '',
+                    model: modelStr
+                }];
+            });
 
             setData(prev => {
                 const newPages = [...prev.pages];
@@ -374,28 +473,36 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
             try {
                 let messages: any[] = [];
-                let systemPromptContent = '';
-
+                
                 if (autoGenMode === 'text') {
                     const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
                     
+                    // Original Prompt Retrieval
+                    let contentTemplate = "";
                     try {
                         const promptDetail = await getPromptDetail("c56f00b8-4c7d-4c80-b3da-f43fe5bd17b2");
-                        const content = promptDetail.content
-                            .replace('{{ page_index }}', String(targetIdx + 1))
-                            .replace('{{ page_title }}', currentPage.title)
-                            .replace('{{ page_summary }}', currentPage.summary);
-                        
-                        let finalContent = `Current Date: ${currentDate}\n\n${content}`;
-                        if (data.referenceMaterials) {
-                            finalContent = `Current Date: ${currentDate}\nReference Materials:\n${data.referenceMaterials}\n\n${content}`;
-                        }
-                        
-                        messages = [{ role: 'user', content: finalContent }];
+                        contentTemplate = promptDetail.content;
                     } catch(e) {
-                         messages = [{ role: 'user', content: `Current Date: ${currentDate}. Write detailed slide content for slide ${targetIdx+1}: "${currentPage.title}". Summary: ${currentPage.summary}. Output Markdown.` }];
+                         contentTemplate = `Write detailed slide content. Title: {{ page_title }}. Summary: {{ page_summary }}.`;
                     }
+                    
+                    const content = contentTemplate
+                        .replace('{{ page_index }}', String(targetIdx + 1))
+                        .replace('{{ page_title }}', currentPage.title)
+                        .replace('{{ page_summary }}', currentPage.summary);
+                    
+                    // Inject Context
+                    let finalContent = `Current Date: ${currentDate}\n\n${content}`;
+                    const combinedRefs = (data.referenceMaterials || '') + (pageSpecificContext ? `\n\n[本页专属参考资料]\n${pageSpecificContext}` : '');
+                    
+                    if (combinedRefs) {
+                        finalContent = `Current Date: ${currentDate}\n【参考资料库】\n${combinedRefs}\n\n${content}`;
+                    }
+                    
+                    messages = [{ role: 'user', content: finalContent }];
                 } else {
+                     // HTML Generation (No changes needed for RAG here usually, it uses the generated text)
+                    let systemPromptContent = '';
                     try {
                         const promptDetail = await getPromptDetail("14920b9c-604f-4066-bb80-da7a47b65572");
                         systemPromptContent = promptDetail.content;
@@ -406,7 +513,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         { role: 'system', content: systemPromptContent }, 
                         { role: 'user', content: `Title: ${currentPage.title}\nContent:\n${currentPage.content}` }
                     ];
-
+                    
+                    // Update chat history for this page to allow context-aware edits later
                     setData(prev => {
                         const newPages = [...prev.pages];
                         newPages[targetIdx].chatHistory = messages as ChatMessage[];
@@ -453,21 +561,18 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         return { ...prev, pages: newPages };
                     });
                 }, () => {
-                    // onDone
                     if (onRefreshSession) onRefreshSession();
-                }, undefined, activeSessionId); // Pass active session ID
+                }, undefined, activeSessionId); 
 
                 setData(prev => {
                     const newPages = [...prev.pages];
                     newPages[targetIdx].isGenerating = false;
-                    
                     if (autoGenMode === 'html') {
                          const cleanHtml = extractCleanHtml(accContent);
                          const currentHistory = newPages[targetIdx].chatHistory || [];
                          newPages[targetIdx].chatHistory = [...currentHistory, { role: 'assistant', content: cleanHtml }];
                          newPages[targetIdx].html = cleanHtml;
                     }
-                    
                     return { ...prev, pages: newPages };
                 });
 
@@ -483,8 +588,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                  setData(prev => {
                     const newPages = [...prev.pages];
                     newPages[targetIdx].isGenerating = false;
-                    if (autoGenMode === 'text') newPages[targetIdx].content = '生成失败';
-                    else newPages[targetIdx].html = '<div>生成失败</div>';
                     return { ...prev, pages: newPages };
                 });
             } finally {
@@ -495,11 +598,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         processQueue();
     }, [stage, isLlmActive, autoGenMode, data.pages]);
 
-    // --- Logic: Modification (Context-Aware) ---
+    // ... (Modification Logic and Render Return remain largely same, just updated import usage)
+
     const handleModification = async (instruction: string) => {
         setIsLlmActive(true);
-
-        // Lazy Creation Trigger
         let activeSessionId = sessionId;
         if (!activeSessionId && onEnsureSession) {
             activeSessionId = await onEnsureSession();
@@ -508,8 +610,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         const targetIdx = activePageIndex;
         const page = data.pages[targetIdx];
         const isHtmlMode = !!page.html;
-        
-        // 核心修改：根据修改内容类型切换模型
         const modelStr = isHtmlMode ? HTML_GENERATION_MODEL : DEFAULT_STABLE_MODEL;
 
         setHistory(prev => [...prev, { role: 'assistant', content: `收到。正在调整第 ${targetIdx + 1} 页...`, reasoning: '', model: modelStr }]);
@@ -540,6 +640,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
              } else {
                  const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+                 
+                 // RAG for Modification? Maybe useful if user asks to "Add sales data for BYD".
+                 // For now, keep simple unless user asks for external info.
+                 
                  const userMsg = `Previous Content: ${page.content}\nUser Feedback: ${instruction}\n\nPlease rewrite the slide content for "${page.title}" incorporating the feedback. Output straight Markdown content.`;
                  
                  messages = [
@@ -576,34 +680,28 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     const newPages = [...prev.pages];
                     if (isHtmlMode) {
                         const cleanHtml = extractCleanHtml(accContent);
-                        if (cleanHtml) {
-                             newPages[targetIdx].html = cleanHtml;
-                        }
+                        if (cleanHtml) newPages[targetIdx].html = cleanHtml;
                     } else {
                         let displayContent = accContent;
                         const partial = tryParsePartialJson(accContent);
-                        if (partial && partial.content) {
-                            displayContent = partial.content;
-                        }
+                        if (partial && partial.content) displayContent = partial.content;
                         newPages[targetIdx].content = displayContent;
                     }
                     return { ...prev, pages: newPages };
                 });
             }, () => {
                 if (onRefreshSession) onRefreshSession();
-            }, undefined, activeSessionId); // Pass active session ID
+            }, undefined, activeSessionId); 
 
             setData(prev => {
                 const newPages = [...prev.pages];
                 newPages[targetIdx].isGenerating = false;
-                
                 if (isHtmlMode) {
                      const cleanHtml = extractCleanHtml(accContent);
                      const updatedHistory = [...messages, { role: 'assistant', content: cleanHtml } as ChatMessage];
                      newPages[targetIdx].chatHistory = updatedHistory;
                      newPages[targetIdx].html = cleanHtml;
                 }
-                
                 return { ...prev, pages: newPages };
             });
             
@@ -625,10 +723,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         }
     };
 
-    // --- Handlers ---
     const handleSend = async (val?: string) => {
         if (activeGuide) dismissGuide(activeGuide);
-
         const text = val || input;
         if (!text.trim() || isLlmActive) return;
         
@@ -650,7 +746,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const allTextReady = data.pages.length > 0 && data.pages.every(p => !!p.content);
     const hasHtml = data.pages.some(p => !!p.html);
-    
     const isEditMode = stage === 'compose' && !autoGenMode;
     const activePage = data.pages[activePageIndex];
     const isHtmlEdit = !!activePage?.html;
@@ -663,7 +758,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
     const renderChatBubbles = () => (
         <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar" ref={scrollRef}>
-             {/* Styles for Markdown */}
              <style>{`
                 .markdown-body p { margin-bottom: 0.5rem; }
                 .markdown-body ul, .markdown-body ol { margin-left: 1.25rem; list-style-type: disc; margin-bottom: 0.5rem; }
@@ -680,14 +774,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 const isLast = i === history.length - 1;
                 
                 let parsedContent = { reasoning: msg.reasoning || '', content: msg.content };
-                
                 if (!parsedContent.reasoning && parsedContent.content) {
                      const split = parseThinkTag(parsedContent.content);
-                     if (split.reasoning) {
-                         parsedContent = split;
-                     }
+                     if (split.reasoning) parsedContent = split;
                 }
-                
                 if (msg.reasoning) {
                     parsedContent.reasoning = msg.reasoning + (parsedContent.reasoning ? '\n' + parsedContent.reasoning : '');
                 }
@@ -704,17 +794,11 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 let statusTitle = "处理完成";
                 let statusDesc = "已同步至右侧画布";
 
-                if (isHtml) {
-                    statusTitle = isLlmActive && isLast ? "正在绘制幻灯片..." : "幻灯片渲染完成";
-                } else if (isJsonOutline) {
-                    statusTitle = isLlmActive && isLast ? "正在构建大纲..." : "大纲构建完成";
-                } else if (isJsonContent) {
-                    statusTitle = isLlmActive && isLast ? "正在撰写内容..." : "内容撰写完成";
-                }
+                if (isHtml) statusTitle = isLlmActive && isLast ? "正在绘制幻灯片..." : "幻灯片渲染完成";
+                else if (isJsonOutline) statusTitle = isLlmActive && isLast ? "正在构建大纲..." : "大纲构建完成";
+                else if (isJsonContent) statusTitle = isLlmActive && isLast ? "正在撰写内容..." : "内容撰写完成";
 
-                if (isLlmActive && isLast) {
-                    statusDesc = "AI 正在实时输出至右侧画布...";
-                }
+                if (isLlmActive && isLast) statusDesc = "AI 正在实时输出至右侧画布...";
 
                 return (
                     <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -760,12 +844,8 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                                         )}
                                     </div>
                                     <div>
-                                        <div className="text-xs font-bold text-slate-800">
-                                            {statusTitle}
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                                             {statusDesc}
-                                        </div>
+                                        <div className="text-xs font-bold text-slate-800">{statusTitle}</div>
+                                        <div className="text-[10px] text-slate-400 mt-0.5 font-medium">{statusDesc}</div>
                                     </div>
                                 </div>
                             ) : (
@@ -785,7 +865,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     </div>
                     <h3 className="font-bold text-slate-700 mb-2">AI 研报助手</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                        请输入您的研报主题，我将为您进行深度思考，并构建专业的分析框架。
+                        请输入您的研报主题，AI 将自动检索最新情报并为您构建专业分析框架。
                     </p>
                 </div>
             )}
@@ -807,14 +887,10 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
         <div className="flex flex-col h-full bg-[#f8fafc] border-r border-slate-200">
             {/* Header */}
             <div className="h-16 px-5 border-b border-slate-200 bg-white/80 backdrop-blur-sm flex items-center justify-between shadow-sm z-10 flex-shrink-0">
-                
-                {/* Left: Status Bar */}
                 <div className="flex items-center gap-4 flex-1 overflow-hidden mr-2">
                      <div className="flex-shrink-0">
                         {statusBar}
                      </div>
-                     
-                     {/* Title Editor */}
                      <div className="flex items-center gap-2 min-w-0 flex-1">
                          <div className="h-4 w-px bg-slate-200"></div>
                          {isEditingTitle ? (
@@ -844,8 +920,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                          )}
                      </div>
                 </div>
-
-                {/* Right: Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                      <button 
                         onClick={onToggleHistory} 
@@ -870,8 +944,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
 
                 {/* Input Area */}
                 <div className="p-4 bg-white border-t border-slate-200 z-20 flex-shrink-0 relative">
-                    
-                    {/* --- 上下文锚点 --- */}
                     <ContextAnchor 
                         stage={stage}
                         pageIndex={activePageIndex}
@@ -879,7 +951,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                         isVisualMode={isHtmlEdit}
                     />
 
-                    {/* --- 引导气泡逻辑 --- */}
                     {activeGuide === 'outline' && (
                         <GuidanceBubble 
                             message="对大纲结构不满意？直接输入“修改第二章为...”或“增加关于xxx的章节”，AI 将为您即时调整。" 
@@ -946,8 +1017,6 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     )}
                 </div>
             </div>
-            
-            {/* Modal removed here, now handled by index via prop if needed, or we just rely on parent */}
         </div>
     );
 };
