@@ -1,11 +1,87 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { UserListItem, UserForAdminUpdate } from '../../../types';
-import { getUsers, updateUser, deleteUser } from '../../../api/user';
+import { UserListItem, UserForAdminUpdate, UserProfileDetails } from '../../../types';
+import { getUsers, updateUser, deleteUser, getUserProfileDetails } from '../../../api/user';
 import { CloseIcon, PencilIcon, TrashIcon, SearchIcon, FilterIcon, RefreshIcon } from '../../icons';
 import { ConfirmationModal } from '../ConfirmationModal';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
+
+// --- UserDetailsModal ---
+const UserDetailsModal: React.FC<{ user: UserListItem; type: 'sources' | 'pois'; onClose: () => void }> = ({ user, type, onClose }) => {
+    const [details, setDetails] = useState<UserProfileDetails | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        const fetchDetails = async () => {
+            setIsLoading(true);
+            setError('');
+            try {
+                const data = await getUserProfileDetails(user.id);
+                setDetails(data);
+            } catch (err: any) {
+                setError(err.message || '加载详情失败');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [user.id]);
+
+    const renderContent = () => {
+        if (isLoading) return <div className="text-center p-8 text-gray-500">加载中...</div>;
+        if (error) return <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg">{error}</div>;
+        if (!details) return <div className="text-center p-8 text-gray-500">没有找到数据。</div>;
+
+        if (type === 'sources') {
+            const sources = details.intelligence_sources.items;
+            return sources.length > 0 ? (
+                <ul className="space-y-2">
+                    {sources.map(source => (
+                        <li key={source.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">{source.source_name || source.name}</span>
+                            <span className="text-xs text-gray-400 font-mono bg-white px-2 py-0.5 rounded border border-gray-100">ID: {source.id.slice(0,6)}</span>
+                        </li>
+                    ))}
+                </ul>
+            ) : <div className="text-center p-6 text-gray-500 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">该用户没有订阅任何情报源。</div>;
+        }
+
+        if (type === 'pois') {
+            const pois = details.points_of_interest.items;
+            return pois.length > 0 ? (
+                 <ul className="space-y-3">
+                    {pois.map(poi => (
+                        <li key={poi.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                            <p className="font-semibold text-gray-800 text-sm">{poi.content}</p>
+                            {poi.keywords && <p className="text-xs text-gray-500 mt-1">关键词: {poi.keywords}</p>}
+                        </li>
+                    ))}
+                </ul>
+            ) : <div className="text-center p-6 text-gray-500 text-sm bg-gray-50 rounded-lg border border-dashed border-gray-200">该用户没有设置任何关注点。</div>;
+        }
+        
+        return null;
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-in fade-in zoom-in-95">
+            <div className="bg-white rounded-2xl w-full max-w-lg relative shadow-xl transform transition-all flex flex-col max-h-[70vh]">
+                <div className="p-5 border-b flex justify-between items-center bg-gray-50/50 rounded-t-2xl">
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-800">{type === 'sources' ? '订阅情报源' : '关注点 (POIs)'}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">用户: {user.username}</p>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors"><CloseIcon className="w-5 h-5" /></button>
+                </div>
+                <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                    {renderContent()}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- EditUserModal ---
 const EditUserModal: React.FC<{ user: UserListItem; onClose: () => void; onSave: () => void; }> = ({ user, onClose, onSave }) => {
@@ -94,7 +170,7 @@ export const UserList: React.FC = () => {
         status: ''
     });
 
-    const [modalState, setModalState] = useState<{ type: 'edit' | 'delete', user: UserListItem | null }>({ type: 'edit', user: null });
+    const [modalState, setModalState] = useState<{ type: 'edit' | 'delete' | 'details_sources' | 'details_pois', user: UserListItem | null }>({ type: 'edit', user: null });
 
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
@@ -200,17 +276,18 @@ export const UserList: React.FC = () => {
                                 <th className="px-6 py-4">邮箱</th>
                                 <th className="px-6 py-4">订阅计划</th>
                                 <th className="px-6 py-4">状态</th>
+                                <th className="px-6 py-4">资源统计</th>
                                 <th className="px-6 py-4">注册时间</th>
                                 <th className="px-6 py-4 text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading && users.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-20"><div className="flex justify-center"><Spinner /></div></td></tr>
+                                <tr><td colSpan={7} className="text-center py-20"><div className="flex justify-center"><Spinner /></div></td></tr>
                             ) : users.length === 0 ? (
-                                <tr><td colSpan={6} className="text-center py-20 text-gray-400">暂无用户数据</td></tr>
+                                <tr><td colSpan={7} className="text-center py-20 text-gray-400">暂无用户数据</td></tr>
                             ) : users.map(user => (
-                                <tr key={user.id} className="hover:bg-slate-50 transition-colors">
+                                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="font-bold text-gray-900">{user.username}</div>
                                         <div className="font-mono text-xs text-gray-400 mt-0.5">{user.id.slice(0, 8)}...</div>
@@ -230,6 +307,24 @@ export const UserList: React.FC = () => {
                                             <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></span>
                                             {user.status}
                                         </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex gap-3 text-xs">
+                                            <button 
+                                                onClick={() => setModalState({ type: 'details_sources', user })} 
+                                                className="px-2 py-1 rounded bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 transition-colors"
+                                                title="查看订阅源"
+                                            >
+                                                Sources: <b>{user.source_subscription_count}</b>
+                                            </button>
+                                            <button 
+                                                onClick={() => setModalState({ type: 'details_pois', user })} 
+                                                className="px-2 py-1 rounded bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 transition-colors"
+                                                title="查看关注点"
+                                            >
+                                                POIs: <b>{user.poi_count}</b>
+                                            </button>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-xs font-mono text-gray-500">{new Date(user.created_at).toLocaleString()}</td>
                                     <td className="px-6 py-4 text-center">
@@ -257,6 +352,8 @@ export const UserList: React.FC = () => {
 
             {modalState.user && modalState.type === 'edit' && <EditUserModal user={modalState.user} onClose={() => setModalState({type: 'edit', user: null})} onSave={fetchUsers} />}
             {modalState.user && modalState.type === 'delete' && <ConfirmationModal title="确认删除用户" message={`您确定要删除用户 "${modalState.user.username}" 吗？此操作不可撤销，并将清除该用户的所有关联数据。`} onConfirm={handleDeleteUser} onCancel={() => setModalState({type: 'delete', user: null})} variant="destructive" />}
+            {modalState.user && modalState.type === 'details_sources' && <UserDetailsModal user={modalState.user} type="sources" onClose={() => setModalState({type: 'details_sources', user: null})} />}
+            {modalState.user && modalState.type === 'details_pois' && <UserDetailsModal user={modalState.user} type="pois" onClose={() => setModalState({type: 'details_pois', user: null})} />}
         </div>
     );
 };

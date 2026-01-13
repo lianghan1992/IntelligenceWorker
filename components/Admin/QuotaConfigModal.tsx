@@ -1,14 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { createQuotaConfig, getQuotaConfigs, deleteUser } from '../../api/user'; // Note: deleteUser is wrong import for delete quota, need to fix api/user.ts likely or use generic fetch if deleteQuota not exported
-// Actually I need to add deleteQuotaConfig to api/user.ts first, assuming it exists based on doc.
-// Since I cannot change api/user.ts in this step without the user asking (I can, but the prompt implies I should modify the app), I will verify if I can export it. 
-// Looking at previous context, api/user.ts was modified to add getQuotaConfigs and createQuotaConfig. It did NOT have deleteQuotaConfig. 
-// I must add deleteQuotaConfig to api/user.ts.
-import { apiFetch } from '../../api/helper'; // Import helper to define delete locally if needed or add to api file
-import { USER_SERVICE_PATH } from '../../config';
+import { createQuotaConfig, getQuotaConfigs, deleteQuotaConfig } from '../../api/user';
 import { QuotaConfig } from '../../types';
-import { CloseIcon, PlusIcon, RefreshIcon, CheckIcon, TrashIcon, ChartIcon, LightningBoltIcon, ShieldCheckIcon } from '../icons';
+import { CloseIcon, PlusIcon, RefreshIcon, CheckIcon, TrashIcon, ChartIcon, LightningBoltIcon, ShieldCheckIcon, QuestionMarkCircleIcon, ClockIcon } from '../icons';
 
 interface QuotaConfigModalProps {
     isOpen: boolean;
@@ -16,10 +10,6 @@ interface QuotaConfigModalProps {
 }
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>;
-
-// Local definition until added to api/user.ts
-const deleteQuotaConfig = (id: string) => 
-    apiFetch<void>(`${USER_SERVICE_PATH}/quotas/${id}`, { method: 'DELETE' });
 
 const PLAN_TYPES = ['free', 'pro', 'enterprise'];
 
@@ -45,22 +35,25 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
         resource_key: string;
         limit_type: 'limited' | 'unlimited' | 'forbidden';
         limit_val: number;
+        period: string;
         allow_overage: boolean;
-        overage_price: number;
+        overage_unit_price: number;
+        overage_strategy: 'unit_price' | 'external_pricing';
+        remark: string;
     }>({
         resource_key: 'ppt_pages',
         limit_type: 'limited',
         limit_val: 10,
+        period: 'monthly',
         allow_overage: false,
-        overage_price: 1.0
+        overage_unit_price: 1.0,
+        overage_strategy: 'unit_price',
+        remark: ''
     });
 
     const fetchConfigs = async () => {
         setIsLoading(true);
         try {
-            // Re-importing getQuotaConfigs from api/user might fail if not exported, using local fetch for safety if needed, 
-            // but relying on the fact that I added it in previous turn.
-            const { getQuotaConfigs } = await import('../../api/user');
             const res = await getQuotaConfigs();
             setConfigs(res || []);
         } catch (e) {
@@ -107,14 +100,16 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
             if (newItem.limit_type === 'unlimited') finalLimit = -1;
             if (newItem.limit_type === 'forbidden') finalLimit = 0;
 
-            const { createQuotaConfig } = await import('../../api/user');
             await createQuotaConfig({
                 plan_type: activeTab,
                 resource_key: newItem.resource_key,
                 limit_value: finalLimit,
-                period: 'monthly', // Default strictly to monthly for now
+                period: newItem.period as any,
                 allow_overage: newItem.allow_overage,
-                overage_unit_price: newItem.allow_overage ? newItem.overage_price : 0
+                // Only send price if unit_price strategy is selected
+                overage_unit_price: (newItem.allow_overage && newItem.overage_strategy === 'unit_price') ? newItem.overage_unit_price : 0,
+                overage_strategy: newItem.allow_overage ? newItem.overage_strategy : undefined,
+                remark: newItem.remark
             });
             
             await fetchConfigs();
@@ -124,8 +119,11 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                 resource_key: 'ppt_pages',
                 limit_type: 'limited',
                 limit_val: 10,
+                period: 'monthly',
                 allow_overage: false,
-                overage_price: 1.0
+                overage_unit_price: 1.0,
+                overage_strategy: 'unit_price',
+                remark: ''
             });
         } catch (e: any) {
             setFormError(e.message || '创建失败');
@@ -261,7 +259,7 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                                                     <button
                                                         key={type}
                                                         onClick={() => setNewItem({...newItem, limit_type: type})}
-                                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
                                                             newItem.limit_type === type 
                                                                 ? 'bg-indigo-600 text-white shadow-sm' 
                                                                 : 'text-slate-500 hover:bg-slate-50'
@@ -298,23 +296,58 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                                             </label>
 
                                             {newItem.allow_overage && (
-                                                <div className="flex items-center gap-3 pl-6 animate-in fade-in">
-                                                    <span className="text-xs text-slate-500 font-bold uppercase">超额单价:</span>
-                                                    <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">¥</span>
-                                                        <input 
-                                                            type="number" 
-                                                            step="0.01"
-                                                            min="0"
-                                                            value={newItem.overage_price}
-                                                            onChange={e => setNewItem({...newItem, overage_price: parseFloat(e.target.value)})}
-                                                            className="w-32 bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-1.5 text-sm font-mono font-bold text-slate-700 outline-none focus:border-indigo-500"
-                                                        />
+                                                <div className="animate-in fade-in space-y-3 pl-6">
+                                                    <div className="flex gap-2 bg-white p-1 rounded-lg border border-slate-200 w-fit">
+                                                        <button 
+                                                            onClick={() => setNewItem({...newItem, overage_strategy: 'unit_price'})}
+                                                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${newItem.overage_strategy === 'unit_price' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                        >
+                                                            固定单价
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => setNewItem({...newItem, overage_strategy: 'external_pricing'})}
+                                                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${newItem.overage_strategy === 'external_pricing' ? 'bg-indigo-50 text-indigo-600 shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+                                                        >
+                                                            模型定价
+                                                        </button>
                                                     </div>
-                                                    <span className="text-xs text-slate-400">/ 单位</span>
+                                                    
+                                                    {newItem.overage_strategy === 'unit_price' ? (
+                                                        <div className="flex items-center gap-3 animate-in fade-in">
+                                                            <span className="text-xs text-slate-500 font-bold uppercase">超额单价:</span>
+                                                            <div className="relative">
+                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">¥</span>
+                                                                <input 
+                                                                    type="number" 
+                                                                    step="0.000001"
+                                                                    min="0"
+                                                                    value={newItem.overage_unit_price}
+                                                                    onChange={e => setNewItem({...newItem, overage_unit_price: parseFloat(e.target.value)})}
+                                                                    className="w-32 bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-1.5 text-sm font-mono font-bold text-slate-700 outline-none focus:border-indigo-500"
+                                                                    placeholder="0.0001"
+                                                                />
+                                                            </div>
+                                                            <span className="text-xs text-slate-400">/ 单位</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 leading-relaxed animate-in fade-in max-w-md">
+                                                            此模式下，实际扣费金额由调用方（如 StratifyAI）根据模型倍率动态计算，此处无需配置单价。
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* Remark */}
+                                    <div className="mt-4">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">运营备注 (Remark)</label>
+                                        <textarea 
+                                            value={newItem.remark}
+                                            onChange={e => setNewItem({...newItem, remark: e.target.value})}
+                                            className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none h-16"
+                                            placeholder="例如：2024 新年活动调整..."
+                                        />
                                     </div>
 
                                     {formError && (
@@ -352,7 +385,8 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                                 <div className="space-y-3">
                                     {activeConfigs.map(config => (
                                         <div key={config.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between group hover:border-indigo-200 hover:shadow-md transition-all">
-                                            <div className="flex items-center gap-4 flex-1">
+                                            {/* Left: Info */}
+                                            <div className="flex gap-4 flex-1">
                                                 <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs uppercase">
                                                     {config.resource_key.slice(0, 2)}
                                                 </div>
@@ -366,6 +400,7 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                                                 </div>
                                             </div>
 
+                                            {/* Right: Limits & Actions */}
                                             <div className="flex items-center gap-8 mr-8">
                                                 <div className="text-center min-w-[80px]">
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">额度</div>
@@ -377,13 +412,19 @@ export const QuotaConfigModal: React.FC<QuotaConfigModalProps> = ({ isOpen, onCl
                                                 <div className="text-center min-w-[100px]">
                                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">超额策略</div>
                                                     {config.allow_overage ? (
-                                                        <div className="text-sm font-bold text-green-600 flex items-center justify-center gap-1">
-                                                            <CheckIcon className="w-3 h-3"/> 允许
-                                                            <span className="text-xs text-slate-500 font-normal ml-1">¥{config.overage_unit_price}/次</span>
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-green-100">
+                                                                <CheckIcon className="w-3 h-3"/> 允许
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500 font-mono mt-1">
+                                                                {config.overage_strategy === 'external_pricing' 
+                                                                    ? '模型定价' 
+                                                                    : `¥${config.overage_unit_price}/次`}
+                                                            </span>
                                                         </div>
                                                     ) : (
                                                         <div className="text-sm font-bold text-slate-400 flex items-center justify-center gap-1">
-                                                            <CloseIcon className="w-3 h-3"/> 禁止超额
+                                                            <CloseIcon className="w-3 h-3"/> 禁止
                                                         </div>
                                                     )}
                                                 </div>

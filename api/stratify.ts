@@ -37,13 +37,15 @@ export interface ChatCompletionRequest {
  * 核心修改：
  * 1. URL 修正为 StratifyAI 标准网关路径 /v1/chat/completions
  * 2. 强制传递 X-Session-ID 以确保计费准确
+ * 3. 支持 X-App-ID 用于应用级计费追踪
  */
 export const streamChatCompletions = async (
     params: ChatCompletionRequest,
     onData: (data: { content?: string; reasoning?: string; tool_calls?: any[] }) => void,
     onDone?: () => void,
     onError?: (err: any) => void,
-    sessionId?: string // Added sessionId support
+    sessionId?: string, // Added sessionId support
+    appId?: string      // Added appId support for X-App-ID
 ) => {
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -60,6 +62,11 @@ export const streamChatCompletions = async (
         headers['X-Session-ID'] = sessionId;
     } else {
         console.warn("streamChatCompletions called without sessionId. Billing may not be tracked.");
+    }
+
+    if (appId) {
+        // @ts-ignore
+        headers['X-App-ID'] = appId;
     }
 
     try {

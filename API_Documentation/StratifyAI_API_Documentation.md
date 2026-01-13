@@ -15,7 +15,8 @@ StratifyAI 服务提供智能体场景管理、提示词管理、任务执行以
 - **Headers**:
   - `Authorization`: `Bearer <user_token>` (使用平台用户 Token)
   - `Content-Type`: `application/json`
-  - `X-Session-ID`: `<session_uuid>` (**必须**: 用于关联任务和计费统计，若不传则无法更新任务消耗)
+  - `X-Session-ID`: `<session_uuid>` (**可选**: 用于关联任务和计费统计，若不传则无法更新任务消耗)
+  - `X-App-ID`: `<app_id>` (**新增**: 用于标识调用来源的前端应用ID，如 "chat-web", "mobile-app", "analysis-tool")
 - **Request Body**: (Standard OpenAI Format)
 ```json
 {
@@ -104,14 +105,59 @@ StratifyAI 服务提供智能体场景管理、提示词管理、任务执行以
 }
 ```
 
-## 8. 计费逻辑说明 (Billing Logic)
+## 8. 模型定价管理 (LLM Pricing)
+
+管理各渠道模型的定价策略。
+
+**Base URL**: `/stratifyai/pricing`
+
+### 8.1 获取模型定价列表
+- **URL**: `GET /stratifyai/pricing`
+- **Response**:
+```json
+[
+  {
+    "id": "uuid...",
+    "channel_code": "openrouter",
+    "model": "gpt-4",
+    "input_price": 60.0,
+    "output_price": 120.0,
+    "multiplier": 1.0,
+    "is_active": true
+  }
+]
+```
+
+### 8.2 创建模型定价
+- **URL**: `POST /stratifyai/pricing`
+- **Request**:
+```json
+{
+  "channel_code": "openrouter",
+  "model": "gpt-4",
+  "input_price": 60.0,
+  "output_price": 120.0,
+  "multiplier": 1.0
+}
+```
+
+### 8.3 更新模型定价
+- **URL**: `PUT /stratifyai/pricing/{id}`
+
+### 8.4 删除模型定价
+- **URL**: `DELETE /stratifyai/pricing/{id}`
+
+## 9. 计费逻辑说明 (Billing Logic)
 
 StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算由 User Service 统一管理**。
 
 ### 8.1 计费流程
-- **余额检查**: 用户调用 `/chat/completions` 前会检查余额。允许最大透支额度为 -1.0 CNY。
+- **余额检查**: 用户调用 `/chat/completions` 前会检查余额。**余额必须大于 0 才能发起调用** (哪怕仅剩 0.01 CNY)。
 - **扣费**: 每次对话结束后（流式传输结束时），网关会将消耗的 Token 数量上报给 User Service。
+- **透支**: 允许单次调用导致余额变负（例如余额 1 元，调用消耗 2 元，最终余额 -1 元）。余额为负时将无法发起新的调用，直至充值。
 - **计算**: User Service 根据配置的 `UserModelPricing` (模型单价及倍率) 计算费用并扣除余额。
+  - `UserModelPricing` 表已拆分为 `channel` 和 `model` 两个字段，支持不同渠道同一模型不同定价。
+- **应用追踪**: 通过 Header 中的 `X-App-ID` 字段，可以在 User Service 的账单中区分不同前端应用的消耗。
 - **定价管理**: 请参考 `User Service API` 文档中的定价管理部分。
 
 ## 9. 提示词管理 (Prompt Management)
@@ -141,13 +187,13 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
   - `model_id`: (新增) 该提示词绑定的默认模型ID (如 `gpt-4o`, `glm-4`)。**注意**: 请勿在此字段中包含渠道前缀 (例如不要写 `openrouter@gpt-4`，只需写 `gpt-4`)，前端调用时会自动组合。
 - **Response**: `Prompt` 对象
 
-### 8.2 获取提示词列表
+### 10.2 获取提示词列表
 - **URL**: `GET /stratifyai/prompts`
 - **Query Params**:
   - `scenario_id`: (可选) 按场景筛选，获取该场景下的所有提示词。
 - **Response**: `[Prompt, ...]`
 
-### 8.3 更新提示词
+### 10.3 更新提示词
 - **URL**: `PUT /stratifyai/prompts/{id}`
 - **Request Body**: (支持部分更新)
 ```json
@@ -158,17 +204,17 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 }
 ```
 
-### 8.4 删除提示词
+### 10.4 删除提示词
 - **URL**: `DELETE /stratifyai/prompts/{id}`
 
 
-## 10. 场景资源 (Scenario Resources)
+## 11. 场景资源 (Scenario Resources)
 
 提供简单的场景元数据存储，供前端组织提示词。
 
 **Base URL**: `/stratifyai/scenarios`
 
-### 9.1 创建场景
+### 11.1 创建场景
 - **URL**: `POST /stratifyai/scenarios`
 - **Request**:
 ```json
@@ -183,24 +229,24 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
   - `title`: 前端展示的标题。
   - `channel_code` & `model_id`: 场景级别的默认模型配置。**注意**: `model_id` 不应包含渠道前缀。
 
-### 9.2 获取场景列表
+### 11.2 获取场景列表
 - **URL**: `GET /stratifyai/scenarios`
 
-### 9.3 更新场景
+### 11.3 更新场景
 - **URL**: `PUT /stratifyai/scenarios/{id}`
 
-### 9.4 删除场景
+### 11.4 删除场景
 - **URL**: `DELETE /stratifyai/scenarios/{id}`
 
 
 
-## 11. Gemini Cookie 接口 (Gemini Cookie API)
+## 12. Gemini Cookie 接口 (Gemini Cookie API)
 
 提供基于 Cookie 的 Google Gemini 对话能力 (无需 API Key，使用后端持久化的 Session)。
 
 **Base URL**: `/stratifyai/v1/gemini`
 
-### 10.1 Gemini 对话 (Chat)
+### 12.1 Gemini 对话 (Chat)
 - **URL**: `POST /stratifyai/v1/gemini/chat`
 - **Method**: `POST`
 - **Content-Type**: `application/json`
@@ -220,7 +266,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
   - 格式: `data: {"content": "Chunk text", "reasoning": "Optional reasoning"}\n\n`
   - 结束标志: `data: [DONE]\n\n`
 
-### 10.2 Gemini Cookie 状态检查 (Status Check)
+### 12.2 Gemini Cookie 状态检查 (Status Check)
 - **URL**: `GET /stratifyai/v1/gemini/status`
 - **Method**: `GET`
 - **Response**:
@@ -232,13 +278,13 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 }
 ```
 
-## 12. 文件资源服务 (File Resources)
+## 13. 文件资源服务 (File Resources)
 
 提供简单的文件上传和托管服务，用于多模态对话或临时文件存储。
 
 **Base URL**: `/stratifyai/files`
 
-### 12.1 上传文件
+### 13.1 上传文件
 - **URL**: `POST /stratifyai/files`
 - **Content-Type**: `multipart/form-data`
 - **Request**:
@@ -251,18 +297,18 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 }
 ```
 
-### 12.2 获取文件
+### 13.2 获取文件
 - **URL**: `GET /stratifyai/files/{filename}`
 - **Response**: 文件流 (Binary)
 
 
-## 13. PDF 生成服务 (PDF Generation Service)
+## 14. PDF 生成服务 (PDF Generation Service)
 
 提供HTML转PDF以及批量合并功能。
 
 **Base URL**: `/stratifyai`
 
-### 12.1 单个HTML转PDF
+### 14.1 单个HTML转PDF
 - **接口介绍**: 将单个HTML字符串转换为PDF文件。
 - **接口方法**: `POST /generate/pdf`
 - **Request Body**:
@@ -274,7 +320,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 ```
 - **Response**: 返回二进制PDF文件流。
 
-### 12.2 批量HTML转PDF并合并
+### 14.2 批量HTML转PDF并合并
 - **接口介绍**: 将多个HTML文件转换为独立PDF后合并为一个PDF文件。
 - **接口方法**: `POST /v1/pdf/batch`
 - **Request Body**:
@@ -300,7 +346,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 
 **Base URL**: `/stratifyai/v1`
 
-### 14.1 创建任务会话
+### 15.1 创建任务会话
 - **URL**: `POST /stratifyai/v1/sessions`
 - **Request**:
 ```json
@@ -311,7 +357,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 ```
 - **Response**: `AgentSession` 对象
 
-### 14.2 获取任务列表
+### 15.2 获取任务列表
 - **URL**: `GET /stratifyai/v1/sessions`
 - **Query Params**:
   - `skip`: 分页跳过数量 (默认 0)
@@ -338,7 +384,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 ### 14.5 删除任务
 - **URL**: `DELETE /stratifyai/v1/sessions/{id}`
 
-### 14.6 创建快照 (存档)
+### 15.6 创建快照 (存档)
 - **URL**: `POST /stratifyai/v1/sessions/{id}/snapshots`
 - **Request**:
 ```json
@@ -349,11 +395,11 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 ```
 - **Response**: `SessionSnapshot` 对象
 
-### 14.7 获取快照列表
+### 15.7 获取快照列表
 - **URL**: `GET /stratifyai/v1/sessions/{id}/snapshots`
 - **Response**: `[SessionSnapshot, ...]`
 
-### 14.8 回滚/恢复快照
+### 15.8 回滚/恢复快照
 - **URL**: `POST /stratifyai/v1/sessions/{id}/restore`
 - **Request**:
 ```json
@@ -398,7 +444,7 @@ StratifyAI 网关集成了实时计费功能，但**定价策略与计费结算�
 ]
 ```
 
-### 15.2 获取总用量汇总
+### 16.2 获取总用量汇总
 - **URL**: `GET /stratifyai/v1/stats/summary`
 - **功能**: 获取符合筛选条件的所有任务的总计消耗统计。
 - **Query Params**:

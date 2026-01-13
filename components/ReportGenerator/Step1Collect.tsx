@@ -11,6 +11,7 @@ import { PPTStage, ChatMessage, PPTData, PPTPageData } from './types';
 import { ContextAnchor, GuidanceBubble } from './Guidance';
 import { InfoItem } from '../../types';
 import { marked } from 'marked';
+import { AGENTS } from '../../agentConfig';
 
 // --- 统一模型配置 ---
 const DEFAULT_STABLE_MODEL = "xiaomi/mimo-v2-flash:free";
@@ -508,7 +509,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                 }
             }, () => {
                 if (onRefreshSession) onRefreshSession();
-            }, undefined, activeSessionId); 
+            }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
             
             const finalOutline = tryParsePartialJson(accumulatedContent);
             if (finalOutline && finalOutline.pages) {
@@ -679,7 +680,7 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     });
                 }, () => {
                     if (onRefreshSession) onRefreshSession();
-                }, undefined, activeSessionId); 
+                }, undefined, activeSessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
 
                 setData(prev => {
                     const newPages = [...prev.pages];
@@ -1007,40 +1008,40 @@ export const CopilotSidebar: React.FC<CopilotSidebarProps> = ({
                     )}
                     
                     <div className={`relative shadow-sm rounded-xl transition-all duration-300 bg-white ${isEditMode ? 'ring-2 ring-indigo-100 border-indigo-200' : 'border-slate-200 border'}`}>
-                        <textarea 
+                        <textarea
                             ref={textareaRef}
                             value={input}
-                            onChange={e => setInput(e.target.value)}
-                            placeholder={
-                                stage === 'collect' ? "输入研报主题..." : 
-                                (autoGenMode ? "正在生成中..." : 
-                                (isEditMode ? "输入修改指令..." : "输入内容..."))
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                }
+                            }}
+                            placeholder={isEditMode 
+                                ? (isHtmlEdit ? "输入调整指令（如：换个更现代的字体...）" : "输入内容修改指令...")
+                                : (stage === 'collect' ? "输入研报主题..." : "输入修改建议...")
                             }
-                            className="w-full bg-transparent text-slate-800 placeholder:text-slate-400 border-none rounded-xl pl-4 pr-12 py-3 text-sm focus:ring-0 resize-none overflow-y-auto min-h-[44px]"
+                            className="w-full bg-transparent px-4 py-3 text-sm focus:outline-none resize-none max-h-32 min-h-[44px] custom-scrollbar placeholder:text-slate-400"
                             disabled={isLlmActive}
                             rows={1}
                         />
                         <button 
                             onClick={() => handleSend()}
                             disabled={!input.trim() || isLlmActive}
-                            className={`absolute right-2 bottom-2 p-1.5 text-white rounded-lg transition-all shadow-sm ${
-                                isEditMode && input.trim() ? 'bg-green-600 hover:bg-green-700' : 'bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300'
+                            className={`absolute bottom-2 right-2 p-1.5 rounded-lg transition-all ${
+                                input.trim() && !isLlmActive 
+                                    ? 'bg-indigo-600 text-white shadow-md hover:bg-indigo-700' 
+                                    : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                             }`}
                         >
                             {isLlmActive ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <ArrowRightIcon className="w-4 h-4" />}
                         </button>
                     </div>
-                    
-                    {stage === 'compose' && !autoGenMode && (
-                        <p className="text-[10px] text-center text-slate-400 mt-2 flex items-center justify-center gap-1">
-                           <span className={`w-1.5 h-1.5 rounded-full ${isEditMode ? 'bg-green-400' : 'bg-slate-300'}`}></span>
-                           {isEditMode ? '输入指令即可实时更新当前幻灯片' : '点击 "开始设计幻灯片" 启动渲染'}
-                        </p>
-                    )}
                 </div>
             </div>
 
-            {/* Reference Viewer Modal */}
+            {/* Modals */}
             {viewingItem && (
                 <ReferenceReaderModal 
                     item={viewingItem} 

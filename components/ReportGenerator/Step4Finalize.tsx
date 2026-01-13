@@ -8,6 +8,7 @@ import {
     PlayIcon, LightningBoltIcon
 } from '../icons';
 import { VisualEditor } from './VisualEditor';
+import { AGENTS } from '../../agentConfig'; // Import AGENTS
 
 interface Step4FinalizeProps {
     topic: string;
@@ -141,7 +142,7 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 if (onRefreshSession) onRefreshSession();
             }, (err) => {
                 onLlmStatusChange?.(false);
-            }, sessionId); // Pass sessionId
+            }, sessionId, AGENTS.REPORT_GENERATOR); // Added AGENTS.REPORT_GENERATOR
         } catch (e) {
             onLlmStatusChange?.(false);
         }
