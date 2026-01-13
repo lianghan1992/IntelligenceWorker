@@ -1,11 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getUsageSummary } from '../../api/stratify';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions } from '../../api/user';
-import { UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction } from '../../types';
-// 修复：添加缺失的图标组件导入
-import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon } from '../icons';
-import { AGENT_NAMES } from '../../agentConfig';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions, getUserUsageStats } from '../../api/user';
+import { User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction } from '../../types';
+import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon } from '../icons';
 
 interface BillingModalProps {
     user: User;
@@ -21,8 +18,15 @@ const parseMeta = (metaStr: string | null) => {
         const meta = JSON.parse(metaStr);
         // Calculate total tokens if input/output available, else just tokens
         const total = (meta.input_tokens || 0) + (meta.output_tokens || 0);
+        
+        let displayModel = meta.model || '-';
+        // 规则优化：如果 channel 是 openrouter 且模型后缀是 :free，则不显示 :free
+        if (meta.channel === 'openrouter' && displayModel.endsWith(':free')) {
+            displayModel = displayModel.replace(':free', '');
+        }
+
         return {
-            model: meta.model || '-',
+            model: displayModel,
             tokens: total || meta.tokens || '-'
         };
     } catch (e) {
@@ -42,7 +46,7 @@ const getTransactionTypeLabel = (type: string) => {
 
 export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => {
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-    const [summary, setSummary] = useState<UsageSummary | null>(null);
+    const [stats, setStats] = useState<any>(null); // New Stats structure
     const [wallet, setWallet] = useState<WalletBalance | null>(null);
     const [quotas, setQuotas] = useState<QuotaItem[]>([]);
     
@@ -69,10 +73,15 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
         try {
-            // Note: getMyQuotaUsage might return empty array now, but we still call it just in case
-            const [w, q] = await Promise.all([getWalletBalance(), getMyQuotaUsage()]);
+            // Parallel fetch wallet, quota, and new usage stats
+            const [w, q, s] = await Promise.all([
+                getWalletBalance(), 
+                getMyQuotaUsage(),
+                getUserUsageStats() // New API call
+            ]);
             setWallet(w);
             setQuotas(q);
+            setStats(s);
         } catch (e) {
             console.error("Failed to fetch wallet info", e);
         } finally {
@@ -92,10 +101,6 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                 start_date: startDate || undefined,
                 end_date: endDate || undefined
             };
-
-            if (!isLoadMore) {
-                getUsageSummary({ user_id: user.id }).then(setSummary).catch(console.warn);
-            }
 
             const listData = await getWalletTransactions(params);
             
@@ -269,10 +274,10 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         {/* Data Overview Cards */}
                         <div className="p-8 pb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
-                                { label: '本期总消费', value: summary?.total_cost || 0, prefix: '¥', color: 'text-indigo-600', isCurrency: true },
-                                { label: 'Total Tokens', value: summary?.total_tokens || 0, color: 'text-slate-700' },
-                                { label: 'Input Tokens', value: summary?.total_input_tokens || 0, color: 'text-slate-500' },
-                                { label: 'Output Tokens', value: summary?.total_output_tokens || 0, color: 'text-slate-500' },
+                                { label: '本期总消费', value: stats?.total_consumption || 0, prefix: '¥', color: 'text-indigo-600', isCurrency: true },
+                                { label: 'Total Tokens', value: stats?.total_consumption_tokens || 0, color: 'text-slate-700' },
+                                { label: 'Input Tokens', value: stats?.total_input_tokens || 0, color: 'text-slate-500' },
+                                { label: 'Output Tokens', value: stats?.total_output_tokens || 0, color: 'text-slate-500' },
                             ].map((card, i) => (
                                 <div key={i} className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl hover:bg-white hover:shadow-md transition-all duration-300">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{card.label}</span>
@@ -302,7 +307,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
                         {/* Records List - Card Style */}
                         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
-                            <div className="space-y-3">
+                            <div className="space-y-4"> {/* Increased vertical spacing */}
                                 {isLoading && transactions.length === 0 ? (
                                     <div className="py-20 text-center"><Spinner /></div>
                                 ) : transactions.length === 0 ? (
@@ -316,35 +321,36 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     transactions.map((record, idx) => {
                                         const meta = parseMeta(record.meta_data);
                                         const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
-                                        const isNegative = record.amount < 0;
                                         
                                         return (
-                                            <div key={record.id || idx} className="group bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
-                                                <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isRecharge ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                                            <div key={record.id || idx} className="group bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
+                                                <div className="flex items-start gap-4 flex-1 min-w-0">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-1 ${isRecharge ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
                                                         {isRecharge ? <PlusIcon className="w-5 h-5" /> : <ServerIcon className="w-5 h-5" />}
                                                     </div>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1 space-y-2">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-bold text-slate-800 text-sm truncate">{getTransactionTypeLabel(record.transaction_type)}: {record.description || '无描述'}</span>
                                                             {meta.model !== '-' && (
-                                                                <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 uppercase">{meta.model}</span>
+                                                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 uppercase">{meta.model}</span>
                                                             )}
                                                         </div>
-                                                        <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 font-medium">
-                                                            <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {new Date(record.created_at).toLocaleString()}</span>
-                                                            {meta.tokens !== '-' && <span className="flex items-center gap-1"><ChipIcon className="w-3 h-3" /> {Number(meta.tokens).toLocaleString()} Tokens</span>}
-                                                            <span className="flex items-center gap-1 text-slate-300">
+                                                        <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">
+                                                            <span className="flex items-center gap-1"><ClockIcon className="w-3.5 h-3.5 text-slate-400" /> {new Date(record.created_at).toLocaleString()}</span>
+                                                            {meta.tokens !== '-' && (
+                                                                <span className="flex items-center gap-1"><ChipIcon className="w-3.5 h-3.5 text-slate-400" /> {Number(meta.tokens).toLocaleString()} Tokens</span>
+                                                            )}
+                                                            <span className="flex items-center gap-1 text-slate-400">
                                                                 余额: ¥{record.balance_after.toFixed(2)}
                                                             </span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col items-end shrink-0 pl-4">
-                                                    <div className={`text-base font-black font-mono ${isRecharge ? 'text-green-600' : 'text-slate-800'}`}>
+                                                <div className="flex flex-col items-end shrink-0 pl-6">
+                                                    <div className={`text-lg font-black font-mono ${isRecharge ? 'text-green-600' : 'text-slate-800'}`}>
                                                         {isRecharge ? '+' : ''}{record.amount.toFixed(4)}
                                                     </div>
-                                                    <span className="text-[10px] text-slate-300 uppercase font-black tracking-widest">CNY</span>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">CNY</span>
                                                 </div>
                                             </div>
                                         );

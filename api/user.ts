@@ -113,6 +113,13 @@ export const getWalletTransactions = (params: any = {}): Promise<WalletTransacti
 export const getWalletBalance = (): Promise<WalletBalance> => 
     apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/usage/quota`);
 
+/**
+ * 获取我的总消费统计
+ * 对接文档 2.4 节 /api/user/usage/stats
+ */
+export const getUserUsageStats = (): Promise<any> => 
+    apiFetch(`${USER_SERVICE_PATH}/usage/stats`);
+
 export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<RechargeResponse> => 
     apiFetch(`${USER_SERVICE_PATH}/wallet/recharge`, {
         method: 'POST',
