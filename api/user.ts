@@ -101,9 +101,21 @@ export const getPersonalUsageHistory = (params: any = {}): Promise<any[]> => {
  * 获取钱包流水 (新接口)
  * 对接文档 5.2 节 /api/user/wallet/transactions
  */
-export const getWalletTransactions = (params: any = {}): Promise<WalletTransaction[]> => {
+export const getWalletTransactions = (params: any = {}): Promise<{
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    items: WalletTransaction[];
+}> => {
     const query = createApiQuery(params);
-    return apiFetch<WalletTransaction[]>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
+    return apiFetch<{
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        items: WalletTransaction[];
+    }>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
 };
 
 /**

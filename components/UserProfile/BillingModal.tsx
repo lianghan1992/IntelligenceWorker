@@ -97,12 +97,14 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
         
         try {
             const params = {
+                page: currentPage,
                 limit: limit,
                 start_date: startDate || undefined,
                 end_date: endDate || undefined
             };
 
-            const listData = await getWalletTransactions(params);
+            const response = await getWalletTransactions(params);
+            const listData = response.items || [];
             
             if (isLoadMore) {
                 setTransactions(prev => [...prev, ...listData]);
@@ -111,7 +113,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                 setTransactions(listData);
                 setPage(1);
             }
-            setHasMore(listData.length >= limit);
+            setHasMore(currentPage < response.totalPages);
         } catch (e) {
             console.error("Failed to fetch wallet transactions", e);
         } finally {
