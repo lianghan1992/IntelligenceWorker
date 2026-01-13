@@ -166,13 +166,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     }
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white/90 backdrop-blur-xl w-full max-w-5xl h-[85vh] rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] flex flex-col overflow-hidden border border-white/40 relative">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 relative">
                 
                 {/* Header - Minimalist */}
-                <div className="px-8 py-6 flex justify-between items-center shrink-0">
+                <div className="px-8 py-6 flex justify-between items-center shrink-0 border-b border-slate-100">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-xl shadow-indigo-200">
+                        <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-100">
                             <ChartIcon className="w-6 h-6" />
                         </div>
                         <div>
@@ -185,14 +185,14 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                     </button>
                 </div>
 
-                <div className="flex-1 flex flex-col md:flex-row min-h-0 border-t border-slate-100">
+                <div className="flex-1 flex flex-col md:flex-row min-h-0">
                     
                     {/* Left Panel: Wallet & Quick Actions (Sticky-like) */}
-                    <div className="w-full md:w-80 flex-shrink-0 bg-slate-50/50 border-r border-slate-100 p-8 flex flex-col gap-8">
+                    <div className="w-full md:w-80 flex-shrink-0 bg-slate-50 border-r border-slate-200 p-8 flex flex-col gap-8">
                         
                         {/* Elegant Wallet Card */}
                         <div className="relative group perspective-1000">
-                            <div className="relative w-full h-48 bg-gradient-to-br from-slate-900 via-indigo-900 to-indigo-800 rounded-3xl p-6 shadow-2xl overflow-hidden transition-transform duration-500 group-hover:scale-[1.02] active:scale-95">
+                            <div className="relative w-full h-48 bg-gradient-to-br from-slate-900 via-indigo-900 to-indigo-800 rounded-xl p-6 shadow-xl overflow-hidden transition-transform duration-500 group-hover:scale-[1.02] active:scale-95">
                                 {/* Decorative elements */}
                                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                                 <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl"></div>
@@ -209,7 +209,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                 <span className="text-xs font-bold text-white/50 font-mono">CNY</span>
                                             </div>
                                         </div>
-                                        <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/20">
+                                        <div className="w-10 h-10 bg-white/10 backdrop-blur-md rounded-lg flex items-center justify-center border border-white/20">
                                             <SparklesIcon className="w-6 h-6 text-white" />
                                         </div>
                                     </div>
@@ -236,7 +236,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         {/* Quick Recharge Entry */}
                         <button 
                             onClick={() => setShowRecharge(true)}
-                            className="w-full py-4 bg-white border border-slate-200 rounded-2xl flex items-center justify-center gap-3 text-slate-700 font-black text-sm shadow-sm hover:border-indigo-500 hover:text-indigo-600 transition-all hover:shadow-lg active:scale-95 group"
+                            className="w-full py-4 bg-white border border-slate-200 rounded-xl flex items-center justify-center gap-3 text-slate-700 font-black text-sm shadow-sm hover:border-indigo-500 hover:text-indigo-600 transition-all hover:shadow-lg active:scale-95 group"
                         >
                             <PlusIcon className="w-5 h-5 text-indigo-500 group-hover:rotate-180 transition-transform duration-500" />
                             <span>立即充值余额</span>
@@ -248,7 +248,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">权益额度进度</h4>
                                 <div className="grid grid-cols-1 gap-3">
                                     {quotas.slice(0, 3).map(quota => (
-                                        <div key={quota.resource_key} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-indigo-200">
+                                        <div key={quota.resource_key} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-indigo-200">
                                             <div className="flex justify-between items-center mb-2">
                                                 <span className="text-xs font-bold text-slate-600 truncate mr-2">{quota.resource_key}</span>
                                                 <span className="text-xs font-mono font-bold text-indigo-600">
@@ -274,12 +274,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         {/* Data Overview Cards */}
                         <div className="p-8 pb-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
                             {[
-                                { label: '本期总消费', value: stats?.total_consumption || 0, prefix: '¥', color: 'text-indigo-600', isCurrency: true },
+                                { label: '总计消费', value: stats?.total_consumption || 0, prefix: '¥', color: 'text-indigo-600', isCurrency: true },
                                 { label: 'Total Tokens', value: stats?.total_consumption_tokens || 0, color: 'text-slate-700' },
                                 { label: 'Input Tokens', value: stats?.total_input_tokens || 0, color: 'text-slate-500' },
                                 { label: 'Output Tokens', value: stats?.total_output_tokens || 0, color: 'text-slate-500' },
                             ].map((card, i) => (
-                                <div key={i} className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl hover:bg-white hover:shadow-md transition-all duration-300">
+                                <div key={i} className="bg-slate-50 border border-slate-200 p-4 rounded-xl hover:bg-white hover:shadow-md transition-all duration-300">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{card.label}</span>
                                     <div className={`text-xl font-black truncate ${card.color}`}>
                                         {card.prefix}{card.isCurrency ? card.value.toFixed(4) : card.value.toLocaleString()}
@@ -296,7 +296,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     交易明细流水
                                 </h3>
                                 <div className="h-4 w-px bg-slate-200 mx-2"></div>
-                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
+                                <div className="flex items-center gap-2 bg-slate-50 px-3 py-1 rounded-full border border-slate-200">
                                     <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                                     <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent text-[10px] font-bold text-slate-600 outline-none w-20" />
                                     <span className="text-slate-300">-</span>
@@ -323,7 +323,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
                                         
                                         return (
-                                            <div key={record.id || idx} className="group bg-white p-5 rounded-2xl border border-slate-100 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
+                                            <div key={record.id || idx} className="group bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
                                                 <div className="flex items-start gap-4 flex-1 min-w-0">
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-1 ${isRecharge ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
                                                         {isRecharge ? <PlusIcon className="w-5 h-5" /> : <ServerIcon className="w-5 h-5" />}
@@ -368,8 +368,8 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
 
                 {/* --- RECHARGE OVERLAY --- */}
                 {showRecharge && (
-                    <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-3xl flex flex-col animate-in fade-in zoom-in-95 duration-300">
-                        <div className="px-8 py-6 flex justify-between items-center border-b border-slate-100 bg-white/50">
+                    <div className="absolute inset-0 z-50 bg-white flex flex-col animate-in fade-in zoom-in-95 duration-300">
+                        <div className="px-8 py-6 flex justify-between items-center border-b border-slate-100 bg-white">
                             <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
                                 <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><PlusIcon className="w-6 h-6"/></div>
                                 余额充值中心
@@ -410,7 +410,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                 <button
                                                     key={pkg.amount}
                                                     onClick={() => setRechargeAmount(pkg.amount)}
-                                                    className={`relative p-5 rounded-3xl border-2 text-left transition-all duration-300 group ${
+                                                    className={`relative p-5 rounded-xl border-2 text-left transition-all duration-300 group ${
                                                         rechargeAmount === pkg.amount 
                                                             ? 'border-indigo-600 bg-indigo-50/50 shadow-xl shadow-indigo-100 ring-4 ring-indigo-500/5' 
                                                             : 'border-slate-100 bg-white hover:border-slate-300 hover:shadow-md'
@@ -428,7 +428,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                             ))}
                                         </div>
 
-                                        <div className={`mt-4 relative p-6 rounded-3xl border-2 transition-all duration-300 ${
+                                        <div className={`mt-4 relative p-6 rounded-xl border-2 transition-all duration-300 ${
                                             !['10','49','99','299'].includes(rechargeAmount) 
                                                 ? 'border-indigo-600 bg-white shadow-xl shadow-indigo-100' 
                                                 : 'border-slate-100 bg-slate-50/30 opacity-60'
@@ -451,12 +451,12 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                     <button 
                                         onClick={handleRecharge}
                                         disabled={isSubmittingRecharge || !rechargeAmount}
-                                        className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg rounded-3xl shadow-2xl shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                                        className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg rounded-xl shadow-2xl shadow-indigo-200 transition-all transform active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
                                     >
                                         {isSubmittingRecharge ? <div className="animate-spin rounded-full h-6 w-6 border-4 border-white/20 border-t-white"></div> : <><CheckIcon className="w-6 h-6" /> 确认支付 ¥{rechargeAmount}</>}
                                     </button>
                                     
-                                    <div className="text-center p-4 bg-blue-50 text-blue-600 rounded-2xl border border-blue-100 text-[10px] font-bold leading-relaxed">
+                                    <div className="text-center p-4 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 text-[10px] font-bold leading-relaxed">
                                         支付即视为同意《Seres AI 软件服务协议》及《隐私政策》。系统将根据实际使用的 Token 数量扣费，余额永久有效且可随时在工单中申请退款。
                                     </div>
                                 </div>
