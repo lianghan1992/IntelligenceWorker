@@ -15,19 +15,18 @@ interface BillingModalProps {
 const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent"></div>;
 
 // 解析 meta_data 的辅助函数
-// New structure: {"channel": "openrouter", "model": "gpt-4", "app_id": "chat-app", "input_tokens": 100, "output_tokens": 50}
 const parseMeta = (metaStr: string | null) => {
     try {
-        if (!metaStr) return { model: '-', tokens: 0 };
+        if (!metaStr) return { model: '-', tokens: '-' };
         const meta = JSON.parse(metaStr);
-        // Calculate total tokens from input + output
-        const totalTokens = (meta.input_tokens || 0) + (meta.output_tokens || 0);
+        // Calculate total tokens if input/output available, else just tokens
+        const total = (meta.input_tokens || 0) + (meta.output_tokens || 0);
         return {
             model: meta.model || '-',
-            tokens: totalTokens
+            tokens: total || meta.tokens || '-'
         };
     } catch (e) {
-        return { model: '-', tokens: 0 };
+        return { model: '-', tokens: '-' };
     }
 };
 
@@ -70,6 +69,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
     const fetchWalletAndQuota = async () => {
         setIsRefreshingWallet(true);
         try {
+            // Note: getMyQuotaUsage might return empty array now, but we still call it just in case
             const [w, q] = await Promise.all([getWalletBalance(), getMyQuotaUsage()]);
             setWallet(w);
             setQuotas(q);
@@ -90,15 +90,13 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
             const params = {
                 limit: limit,
                 start_date: startDate || undefined,
-                end_date: endDate || undefined,
-                // Add page/offset logic if backend supports pagination for wallet transactions list
+                end_date: endDate || undefined
             };
 
             if (!isLoadMore) {
                 getUsageSummary({ user_id: user.id }).then(setSummary).catch(console.warn);
             }
 
-            // 对接 5.2 节获取钱包流水
             const listData = await getWalletTransactions(params);
             
             if (isLoadMore) {
@@ -211,12 +209,19 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         </div>
                                     </div>
                                     
-                                    <div className="text-4xl font-black text-white tracking-tighter flex items-baseline gap-1">
-                                        <span className="text-2xl font-light opacity-60">¥</span>
-                                        {wallet ? wallet.balance.toFixed(2) : '--'}
+                                    <div>
+                                        <div className="text-4xl font-black text-white tracking-tighter flex items-baseline gap-1">
+                                            <span className="text-2xl font-light opacity-60">¥</span>
+                                            {wallet ? wallet.balance.toFixed(2) : '--'}
+                                        </div>
+                                        {wallet && wallet.plan_name && (
+                                            <div className="inline-block mt-2 px-2 py-0.5 rounded bg-white/10 border border-white/10 text-[10px] text-white/80 font-bold uppercase tracking-wider">
+                                                {wallet.plan_name} Plan
+                                            </div>
+                                        )}
                                     </div>
                                     
-                                    <div className="text-[10px] font-mono text-white/40 tracking-wider truncate">
+                                    <div className="text-[10px] font-mono text-white/40 tracking-wider truncate mt-auto">
                                         Seres AI Intelligent Wallet Service
                                     </div>
                                 </div>
@@ -232,29 +237,30 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                             <span>立即充值余额</span>
                         </button>
 
-                        {/* Quota Highlights */}
-                        <div className="space-y-4">
-                            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">权益额度进度</h4>
-                            <div className="grid grid-cols-1 gap-3">
-                                {quotas.slice(0, 3).map(quota => (
-                                    <div key={quota.resource_key} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-indigo-200">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-xs font-bold text-slate-600 truncate mr-2">{quota.resource_key}</span>
-                                            <span className="text-xs font-mono font-bold text-indigo-600">
-                                                {quota.usage_count}/{quota.limit_value === -1 ? '∞' : quota.limit_value}
-                                            </span>
+                        {/* Quota Highlights - Only show if quotas exist */}
+                        {quotas.length > 0 && (
+                            <div className="space-y-4">
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">权益额度进度</h4>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {quotas.slice(0, 3).map(quota => (
+                                        <div key={quota.resource_key} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm transition-all hover:border-indigo-200">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-bold text-slate-600 truncate mr-2">{quota.resource_key}</span>
+                                                <span className="text-xs font-mono font-bold text-indigo-600">
+                                                    {quota.usage_count}/{quota.limit_value === -1 ? '∞' : quota.limit_value}
+                                                </span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full transition-all duration-1000 ease-out ${quota.usage_count >= quota.limit_value && quota.limit_value !== -1 ? 'bg-red-400' : 'bg-indigo-500'}`}
+                                                    style={{ width: quota.limit_value === -1 ? '100%' : `${Math.min(100, (quota.usage_count / quota.limit_value) * 100)}%` }}
+                                                ></div>
+                                            </div>
                                         </div>
-                                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                                            <div 
-                                                className={`h-full transition-all duration-1000 ease-out ${quota.usage_count >= quota.limit_value && quota.limit_value !== -1 ? 'bg-red-400' : 'bg-indigo-500'}`}
-                                                style={{ width: quota.limit_value === -1 ? '100%' : `${Math.min(100, (quota.usage_count / quota.limit_value) * 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {quotas.length === 0 && <p className="text-xs text-slate-400 italic px-1">暂无权益快照</p>}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Right Panel: Transaction History */}
@@ -327,7 +333,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                                         </div>
                                                         <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 font-medium">
                                                             <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {new Date(record.created_at).toLocaleString()}</span>
-                                                            {meta.tokens > 0 && <span className="flex items-center gap-1"><ChipIcon className="w-3 h-3" /> {meta.tokens.toLocaleString()} Tokens</span>}
+                                                            {meta.tokens !== '-' && <span className="flex items-center gap-1"><ChipIcon className="w-3 h-3" /> {Number(meta.tokens).toLocaleString()} Tokens</span>}
                                                             <span className="flex items-center gap-1 text-slate-300">
                                                                 余额: ¥{record.balance_after.toFixed(2)}
                                                             </span>

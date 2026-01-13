@@ -51,17 +51,10 @@ const ScenarioWorkstation: React.FC = () => {
             }
             setSessionCost(session.total_cost || 0);
             setSaveStatus('saved');
-            
-            // Update URL without reload
-            const newUrl = window.location.pathname + `?session_id=${sid}`;
-            window.history.pushState({ path: newUrl }, '', newUrl);
         } catch (e) {
             console.error("Failed to load session", e);
-            // Fail gracefully: Clear invalid session ID from URL and reset to draft state
-            // Do NOT alert, as this often happens on refresh if session was deleted or expired
+            // Fail gracefully: Reset to draft state if session is invalid
             setSessionId(null);
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
         }
     }, []);
     
@@ -88,10 +81,6 @@ const ScenarioWorkstation: React.FC = () => {
         setSessionId(null); // Clear ID, wait for user interaction to create
         setSessionCost(0);
         setSaveStatus('idle');
-
-        // Clear URL param
-        const newUrl = window.location.pathname;
-        window.history.pushState({ path: newUrl }, '', newUrl);
     }, []);
 
     // Helper: Ensure Session Exists (Lazy Creation Trigger)
@@ -107,10 +96,6 @@ const ScenarioWorkstation: React.FC = () => {
             setSessionId(newId);
             setSessionCost(0);
             setSaveStatus('saved'); // Initially saved state
-
-            // Update URL
-            const newUrl = window.location.pathname + `?session_id=${newId}`;
-            window.history.pushState({ path: newUrl }, '', newUrl);
             
             return newId;
         } catch (e) {
@@ -118,17 +103,6 @@ const ScenarioWorkstation: React.FC = () => {
             throw e;
         }
     };
-
-    // Initial Load
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const sid = params.get('session_id');
-        if (sid) {
-            loadSession(sid);
-        } else {
-            // Do nothing, we start in "Draft" mode (sessionId = null)
-        }
-    }, [loadSession]);
 
     // Auto Save (Only if sessionId exists)
     useEffect(() => {

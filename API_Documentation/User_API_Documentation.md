@@ -115,7 +115,46 @@
 ]
 ```
 
-### 2.2 获取我订阅的情报源
+### 2.3 获取我的配额信息 (Quota)
+
+获取当前用户的配额与余额信息。
+
+-   **路径:** `/api/user/usage/quota`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**返回示例**
+
+```json
+{
+  "balance": 1.00,
+  "plan_name": "free",
+  "remaining_balance": 1.00
+}
+```
+
+### 2.4 获取我的总消费统计
+
+获取用户的总充值、总消费及Token消耗统计。
+
+-   **路径:** `/api/user/usage/stats`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**返回示例**
+
+```json
+{
+  "total_recharge": 100.00,
+  "total_consumption": 50.50,
+  "total_consumption_tokens": 15000,
+  "total_input_tokens": 10000,
+  "total_output_tokens": 5000,
+  "total_api_calls": 120
+}
+```
+
+### 2.5 获取我订阅的情报源
 
 -   **路径:** `/api/user/me/sources`
 -   **方法:** `GET`
@@ -135,19 +174,39 @@
 ]
 ```
 
-### 2.3 订阅新的情报源
+### 2.3 获取我订阅的情报源
+
+-   **路径:** `/api/user/me/sources`
+-   **方法:** `GET`
+-   **认证:** 需要Bearer Token
+
+**返回示例**
+
+```json
+[
+  {
+    "uuid": "src-001",
+    "name": "Automotive News",
+    "base_url": "https://example.com",
+    "source_type": "news",
+    "status": "active"
+  }
+]
+```
+
+### 2.6 订阅新的情报源
 
 -   **路径:** `/api/user/me/sources/{source_id}`
 -   **方法:** `POST`
 -   **认证:** 需要Bearer Token
 
-### 2.4 取消情报源订阅
+### 2.7 取消情报源订阅
 
 -   **路径:** `/api/user/me/sources/{source_id}`
 -   **方法:** `DELETE`
 -   **认证:** 需要Bearer Token
 
-### 2.5 获取我的关注点 (POIs)
+### 2.8 获取我的关注点 (POIs)
 
 -   **路径:** `/api/user/me/pois`
 -   **方法:** `GET`
@@ -167,7 +226,7 @@
 ]
 ```
 
-### 2.6 添加新的关注点
+### 2.9 添加新的关注点
 
 -   **路径:** `/api/user/me/pois`
 -   **方法:** `POST`
@@ -180,7 +239,7 @@
 | `content` | string | 是 | 关注点描述 |
 | `keywords` | string | 是 | 关键词 (逗号分隔) |
 
-### 2.7 删除关注点
+### 2.10 删除关注点
 
 -   **路径:** `/api/user/me/pois/{poi_id}`
 -   **方法:** `DELETE`

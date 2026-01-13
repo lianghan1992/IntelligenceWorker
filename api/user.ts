@@ -72,9 +72,21 @@ export const deleteUserSourceSubscription = (sourceId: string): Promise<void> =>
 
 /**
  * 获取我的个人权益额度 (Used/Limit)
+ * 注意：由于后端 API 变更，/usage/quota 可能现在只返回余额信息对象，不再返回数组。
+ * 此处做兼容处理。
  */
-export const getMyQuotaUsage = (): Promise<QuotaItem[]> => 
-    apiFetch<QuotaItem[]>(`${USER_SERVICE_PATH}/usage/quota`); // 修正路径，避免与流水接口冲突
+export const getMyQuotaUsage = async (): Promise<QuotaItem[]> => {
+    try {
+        const res = await apiFetch<any>(`${USER_SERVICE_PATH}/usage/quota`);
+        if (Array.isArray(res)) return res;
+        // 如果返回的是对象且包含 quotas 数组，则返回 quotas
+        if (res && res.quotas && Array.isArray(res.quotas)) return res.quotas;
+        // 否则返回空数组，避免前端崩溃
+        return [];
+    } catch (e) {
+        return [];
+    }
+};
 
 /**
  * 获取我的个人 AI 使用历史记录 (消费流水)
@@ -96,10 +108,10 @@ export const getWalletTransactions = (params: any = {}): Promise<WalletTransacti
 
 /**
  * 获取钱包余额
- * 对接文档 5.1 节
+ * 更新：使用 /api/user/usage/quota 接口，该接口现在返回 { balance, plan_name, remaining_balance }
  */
 export const getWalletBalance = (): Promise<WalletBalance> => 
-    apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/wallet/balance`);
+    apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/usage/quota`);
 
 export const rechargeWallet = (amount: number, gateway: string = 'manual'): Promise<RechargeResponse> => 
     apiFetch(`${USER_SERVICE_PATH}/wallet/recharge`, {

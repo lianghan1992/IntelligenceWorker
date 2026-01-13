@@ -54,7 +54,9 @@ export interface QuotaConfig {
 
 export interface WalletBalance {
     balance: number;
-    currency?: string; // Made optional as API example doesn't explicitly show it
+    currency?: string; 
+    plan_name?: string;      // New from API update
+    remaining_balance?: number; // New from API update
 }
 
 // New Interface for Wallet Transactions based on documentation
