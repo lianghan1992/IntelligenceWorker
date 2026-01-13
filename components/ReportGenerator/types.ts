@@ -1,5 +1,5 @@
 
-import { StratifyOutline } from '../../types';
+import { StratifyOutline, InfoItem } from '../../types';
 
 export type PPTStage = 'collect' | 'outline' | 'compose' | 'finalize';
 
@@ -9,6 +9,11 @@ export interface ChatMessage {
     hidden?: boolean;
     reasoning?: string;
     model?: string; // Model used for generation
+    
+    // RAG Metadata
+    isRetrieving?: boolean; // Is currently searching?
+    searchQuery?: string;   // What was searched
+    retrievedItems?: InfoItem[]; // Results found
 }
 
 export interface PPTPageData {
