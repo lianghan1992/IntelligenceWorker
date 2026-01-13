@@ -3,7 +3,8 @@ import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
-    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary, ModelPricing
+    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary, ModelPricing,
+    WalletTransaction // Imported new type
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -77,13 +78,26 @@ export const getMyQuotaUsage = (): Promise<QuotaItem[]> =>
 
 /**
  * 获取我的个人 AI 使用历史记录 (消费流水)
- * 对接文档 2.1 节
+ * 兼容旧接口，建议迁移至 getWalletTransactions
  */
 export const getPersonalUsageHistory = (params: any = {}): Promise<any[]> => {
     const query = createApiQuery(params);
     return apiFetch<any[]>(`${USER_SERVICE_PATH}/usage/my${query}`);
 };
 
+/**
+ * 获取钱包流水 (新接口)
+ * 对接文档 5.2 节 /api/user/wallet/transactions
+ */
+export const getWalletTransactions = (params: any = {}): Promise<WalletTransaction[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<WalletTransaction[]>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
+};
+
+/**
+ * 获取钱包余额
+ * 对接文档 5.1 节
+ */
 export const getWalletBalance = (): Promise<WalletBalance> => 
     apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/wallet/balance`);
 

@@ -54,7 +54,18 @@ export interface QuotaConfig {
 
 export interface WalletBalance {
     balance: number;
-    currency: string;
+    currency?: string; // Made optional as API example doesn't explicitly show it
+}
+
+// New Interface for Wallet Transactions based on documentation
+export interface WalletTransaction {
+    id: string;
+    amount: number;
+    balance_after: number;
+    transaction_type: string; // e.g., 'ai_consumption', 'recharge', 'gift'
+    description: string;
+    created_at: string;
+    meta_data: string | null; // JSON string containing details like model, tokens, etc.
 }
 
 export interface RechargeResponse {

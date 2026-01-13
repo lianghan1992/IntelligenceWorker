@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getUsageSummary } from '../../api/stratify';
-import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getPersonalUsageHistory } from '../../api/user';
-import { UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse } from '../../types';
+import { getMyQuotaUsage, getWalletBalance, rechargeWallet, checkPaymentStatus, getWalletTransactions } from '../../api/user';
+import { UsageSummary, User, QuotaItem, WalletBalance, RechargeResponse, WalletTransaction } from '../../types';
 // 修复：添加缺失的图标组件导入
 import { CloseIcon, ChartIcon, CalendarIcon, RefreshIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, PlusIcon, SparklesIcon, ArrowRightIcon, DocumentTextIcon, ClockIcon, CheckIcon } from '../icons';
 import { AGENT_NAMES } from '../../agentConfig';
@@ -15,21 +15,34 @@ interface BillingModalProps {
 const Spinner = () => <div className="animate-spin rounded-full h-5 w-5 border-2 border-indigo-600 border-t-transparent"></div>;
 
 // 解析 meta_data 的辅助函数
-const parseMeta = (metaStr: string) => {
+// New structure: {"channel": "openrouter", "model": "gpt-4", "app_id": "chat-app", "input_tokens": 100, "output_tokens": 50}
+const parseMeta = (metaStr: string | null) => {
     try {
-        if (!metaStr) return { model: '-', tokens: '-' };
+        if (!metaStr) return { model: '-', tokens: 0 };
         const meta = JSON.parse(metaStr);
+        // Calculate total tokens from input + output
+        const totalTokens = (meta.input_tokens || 0) + (meta.output_tokens || 0);
         return {
             model: meta.model || '-',
-            tokens: meta.tokens || '-'
+            tokens: totalTokens
         };
     } catch (e) {
-        return { model: '-', tokens: '-' };
+        return { model: '-', tokens: 0 };
+    }
+};
+
+const getTransactionTypeLabel = (type: string) => {
+    switch (type) {
+        case 'ai_consumption': return '模型调用';
+        case 'recharge': return '账户充值';
+        case 'gift': return '系统赠送';
+        case 'refund': return '退款';
+        default: return type;
     }
 };
 
 export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => {
-    const [stats, setStats] = useState<any[]>([]);
+    const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [summary, setSummary] = useState<UsageSummary | null>(null);
     const [wallet, setWallet] = useState<WalletBalance | null>(null);
     const [quotas, setQuotas] = useState<QuotaItem[]>([]);
@@ -77,25 +90,27 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
             const params = {
                 limit: limit,
                 start_date: startDate || undefined,
-                end_date: endDate || undefined
+                end_date: endDate || undefined,
+                // Add page/offset logic if backend supports pagination for wallet transactions list
             };
 
             if (!isLoadMore) {
                 getUsageSummary({ user_id: user.id }).then(setSummary).catch(console.warn);
             }
 
-            const listData = await getPersonalUsageHistory(params);
+            // 对接 5.2 节获取钱包流水
+            const listData = await getWalletTransactions(params);
             
             if (isLoadMore) {
-                setStats(prev => [...prev, ...listData]);
+                setTransactions(prev => [...prev, ...listData]);
                 setPage(currentPage);
             } else {
-                setStats(listData);
+                setTransactions(listData);
                 setPage(1);
             }
             setHasMore(listData.length >= limit);
         } catch (e) {
-            console.error("Failed to fetch personal usage records", e);
+            console.error("Failed to fetch wallet transactions", e);
         } finally {
             setIsLoading(false);
         }
@@ -282,9 +297,9 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                         {/* Records List - Card Style */}
                         <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
                             <div className="space-y-3">
-                                {isLoading && stats.length === 0 ? (
+                                {isLoading && transactions.length === 0 ? (
                                     <div className="py-20 text-center"><Spinner /></div>
-                                ) : stats.length === 0 ? (
+                                ) : transactions.length === 0 ? (
                                     <div className="py-20 text-center flex flex-col items-center gap-3">
                                         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center">
                                             <DocumentTextIcon className="w-8 h-8 text-slate-200" />
@@ -292,29 +307,36 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         <span className="text-sm font-bold text-slate-400">暂无任何消费记录</span>
                                     </div>
                                 ) : (
-                                    stats.map((record, idx) => {
+                                    transactions.map((record, idx) => {
                                         const meta = parseMeta(record.meta_data);
+                                        const isRecharge = record.transaction_type === 'recharge' || record.transaction_type === 'gift';
                                         const isNegative = record.amount < 0;
+                                        
                                         return (
                                             <div key={record.id || idx} className="group bg-white p-4 rounded-2xl border border-slate-100 hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-900/5 transition-all duration-300 flex items-center justify-between">
                                                 <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isNegative ? 'bg-orange-50 text-orange-600' : 'bg-green-50 text-green-600'}`}>
-                                                        {isNegative ? <ServerIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isRecharge ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                        {isRecharge ? <PlusIcon className="w-5 h-5" /> : <ServerIcon className="w-5 h-5" />}
                                                     </div>
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="font-bold text-slate-800 text-sm truncate">{record.description || 'API 调用'}</span>
-                                                            <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 uppercase">{meta.model}</span>
+                                                            <span className="font-bold text-slate-800 text-sm truncate">{getTransactionTypeLabel(record.transaction_type)}: {record.description || '无描述'}</span>
+                                                            {meta.model !== '-' && (
+                                                                <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 uppercase">{meta.model}</span>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 font-medium">
                                                             <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" /> {new Date(record.created_at).toLocaleString()}</span>
-                                                            <span className="flex items-center gap-1"><ChipIcon className="w-3 h-3" /> {meta.tokens.toLocaleString()} Tokens</span>
+                                                            {meta.tokens > 0 && <span className="flex items-center gap-1"><ChipIcon className="w-3 h-3" /> {meta.tokens.toLocaleString()} Tokens</span>}
+                                                            <span className="flex items-center gap-1 text-slate-300">
+                                                                余额: ¥{record.balance_after.toFixed(2)}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col items-end shrink-0 pl-4">
-                                                    <div className={`text-base font-black font-mono ${isNegative ? 'text-slate-800' : 'text-green-600'}`}>
-                                                        {isNegative ? '' : '+'}{record.amount.toFixed(4)}
+                                                    <div className={`text-base font-black font-mono ${isRecharge ? 'text-green-600' : 'text-slate-800'}`}>
+                                                        {isRecharge ? '+' : ''}{record.amount.toFixed(4)}
                                                     </div>
                                                     <span className="text-[10px] text-slate-300 uppercase font-black tracking-widest">CNY</span>
                                                 </div>
@@ -322,7 +344,7 @@ export const BillingModal: React.FC<BillingModalProps> = ({ user, onClose }) => 
                                         );
                                     })
                                 )}
-                                {hasMore && !isLoading && stats.length > 0 && (
+                                {hasMore && !isLoading && transactions.length > 0 && (
                                     <button onClick={() => fetchUsageData(true)} className="w-full py-4 text-xs font-black text-slate-400 hover:text-indigo-600 transition-colors uppercase tracking-widest">
                                         Load More History ↓
                                     </button>
