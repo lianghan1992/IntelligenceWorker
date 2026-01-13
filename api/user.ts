@@ -1,5 +1,4 @@
 
-
 import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
@@ -10,24 +9,19 @@ import { apiFetch, createApiQuery } from './helper';
 
 // --- User Management API (Admin) ---
 export const getUsers = async (params: any): Promise<PaginatedResponse<UserListItem>> => {
-    // Map 'limit' to 'size' for the new API standard if present
     const apiParams = { ...params };
     if (apiParams.limit) {
         apiParams.size = apiParams.limit;
         delete apiParams.limit;
     }
-    
     const query = createApiQuery(apiParams);
-    // Updated endpoint: /api/user/users (was /user)
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/users${query}`);
-    
-    // Map response to frontend type
     return {
         items: response.items,
         total: response.total,
         page: response.page,
-        limit: response.size, // Map 'size' back to 'limit'
-        totalPages: response.total_pages // Map 'total_pages' back to 'totalPages'
+        limit: response.size,
+        totalPages: response.total_pages
     };
 }
 
@@ -74,8 +68,21 @@ export const deleteUserSourceSubscription = (sourceId: string): Promise<void> =>
     apiFetch<void>(`${USER_SERVICE_PATH}/me/sources/${sourceId}`, { method: 'DELETE' });
 
 // --- Quota & Wallet ---
+
+/**
+ * 获取我的个人权益额度 (Used/Limit)
+ */
 export const getMyQuotaUsage = (): Promise<QuotaItem[]> => 
-    apiFetch<QuotaItem[]>(`${USER_SERVICE_PATH}/usage/my`);
+    apiFetch<QuotaItem[]>(`${USER_SERVICE_PATH}/usage/quota`); // 修正路径，避免与流水接口冲突
+
+/**
+ * 获取我的个人 AI 使用历史记录 (消费流水)
+ * 对接文档 2.1 节
+ */
+export const getPersonalUsageHistory = (params: any = {}): Promise<any[]> => {
+    const query = createApiQuery(params);
+    return apiFetch<any[]>(`${USER_SERVICE_PATH}/usage/my${query}`);
+};
 
 export const getWalletBalance = (): Promise<WalletBalance> => 
     apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/wallet/balance`);
@@ -103,18 +110,14 @@ export const deleteQuotaConfig = (id: string): Promise<void> =>
     apiFetch<void>(`${USER_SERVICE_PATH}/quotas/${id}`, { method: 'DELETE' });
 
 // --- Admin Billing & Finance ---
-
 export const getAdminBills = async (params: any): Promise<PaginatedResponse<BillItem>> => {
-    // Map 'limit' to 'size' for the API standard
     const apiParams = { ...params };
     if (apiParams.limit) {
         apiParams.size = apiParams.limit;
         delete apiParams.limit;
     }
-    
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills${query}`);
-    
     return {
         items: response.items,
         total: response.total,
@@ -137,7 +140,6 @@ export const getAdminUserBillSummary = async (params: any): Promise<PaginatedRes
     }
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills/users/summary${query}`);
-
     return {
         items: response.items,
         total: response.total,
@@ -147,11 +149,6 @@ export const getAdminUserBillSummary = async (params: any): Promise<PaginatedRes
     };
 };
 
-export const getUserBillsAdmin = (userId: string, params: any): Promise<PaginatedResponse<BillItem>> => {
-    return getAdminBills({ ...params, user_id: userId });
-};
-
-// --- Model Pricing Management (Admin) ---
 export const getModelPricings = (): Promise<ModelPricing[]> => 
     apiFetch<ModelPricing[]>(`${USER_SERVICE_PATH}/admin/model-pricing`);
 
