@@ -1,15 +1,41 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { 
-    TrashIcon, CloseIcon, DocumentTextIcon, 
-    PhotoIcon, ViewGridIcon, PencilIcon, 
+    TrashIcon, CloseIcon,
+    PhotoIcon, PencilIcon, 
     LinkIcon, RefreshIcon,
 } from '../icons';
+
+export interface VisualCanvasHandle {
+    updateStyle: (key: string, value: string | number) => void;
+    updateContent: (text: string) => void;
+    updateAttribute: (key: string, value: string) => void;
+    insertElement: (type: 'img', value: string) => void;
+    updateTransform: (dx: number, dy: number, scale?: number) => void;
+    changeLayer: (direction: 'up' | 'down') => void;
+    duplicate: () => void;
+    deleteElement: () => void;
+    deselect: () => void;
+    getCanvasNode: () => HTMLElement | null;
+}
+
+export interface VisualCanvasProps {
+    initialHtml: string;
+    onSave: (newHtml: string) => void;
+    onContentChange?: (newHtml: string) => void;
+    scale: number;
+    onScaleChange?: (scale: number) => void;
+    onSelectionChange?: (element: any) => void;
+    canvasSize: { width: number; height: number };
+}
 
 interface VisualEditorProps {
     initialHtml: string;
     onSave: (newHtml: string) => void;
     scale?: number;
+    onScaleChange?: (scale: number) => void;
+    canvasSize?: { width: number; height: number };
+    hideToolbar?: boolean;
 }
 
 // --- Icons ---
@@ -39,30 +65,39 @@ const EDITOR_SCRIPT = `
   const style = document.createElement('style');
   style.innerHTML = \`
     html, body { min-height: 100vh !important; margin: 0; background-color: #ffffff; }
-    .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+    .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 2147483647 !important; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; }
-    .ai-r-nw { top: -4px; left: -4px; cursor: nw-resize; }
-    .ai-r-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
-    .ai-r-ne { top: -4px; right: -4px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -4px; margin-top: -4px; cursor: e-resize; }
-    .ai-r-se { bottom: -4px; right: -4px; cursor: se-resize; }
-    .ai-r-s  { bottom: -4px; left: 50%; margin-left: -4px; cursor: s-resize; }
-    .ai-r-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -4px; margin-top: -4px; cursor: w-resize; }
+    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 1px solid #3b82f6; z-index: 2147483647; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+    .ai-r-nw { top: -5px; left: -5px; cursor: nw-resize; }
+    .ai-r-n  { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
+    .ai-r-ne { top: -5px; right: -5px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -5px; margin-top: -5px; cursor: e-resize; }
+    .ai-r-se { bottom: -5px; right: -5px; cursor: se-resize; }
+    .ai-r-s  { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
+    .ai-r-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -5px; margin-top: -5px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
   function pushHistory() {
       setTimeout(() => {
-        if (!selectedEl) return;
+        if (selectedEl) {
+             const comp = window.getComputedStyle(selectedEl);
+             sendSelection(selectedEl, comp);
+        }
+        
+        // Save current selection to restore after getting HTML
         const wasSelected = selectedEl;
-        deselect(true);
+        deselect(true); // Temp deselect to clean HTML
+        
         const cleanHtml = document.documentElement.outerHTML;
-        selectElement(wasSelected);
+        
+        // Restore
+        if (wasSelected) selectElement(wasSelected);
+        
         window.parent.postMessage({ type: 'HISTORY_UPDATE', html: cleanHtml }, '*');
-      }, 50);
+      }, 20);
   }
 
   function createResizers(el) {
@@ -87,7 +122,9 @@ const EDITOR_SCRIPT = `
     
     if (selectedEl === e.target) return;
 
-    if (selectedEl && selectedEl !== e.target) deselect();
+    if (selectedEl && selectedEl !== e.target) {
+        deselect();
+    }
     
     let target = e.target;
     
@@ -105,10 +142,8 @@ const EDITOR_SCRIPT = `
              
              wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
              wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
-             wrapper.style.left = comp.left;
-             wrapper.style.top = comp.top;
-             wrapper.style.right = comp.right;
-             wrapper.style.bottom = comp.bottom;
+             wrapper.style.left = comp.left; wrapper.style.top = comp.top;
+             wrapper.style.right = comp.right; wrapper.style.bottom = comp.bottom;
              wrapper.style.margin = comp.margin;
              wrapper.style.transform = comp.transform;
              wrapper.style.zIndex = comp.zIndex;
@@ -129,9 +164,10 @@ const EDITOR_SCRIPT = `
              }
         }
     }
-
+    
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
-        deselect(); return;
+        deselect();
+        return;
     }
     selectElement(target);
   }, true);
@@ -168,35 +204,19 @@ const EDITOR_SCRIPT = `
          selectedEl.addEventListener('blur', onBlur);
      }
   });
-
-  function selectElement(el) {
-      if (selectedEl && selectedEl !== el) deselect();
-      selectedEl = el;
-      selectedEl.classList.remove('ai-editor-hover');
-      selectedEl.classList.add('ai-editor-selected');
-      createResizers(selectedEl);
-      
-      const transform = selectedEl.style.transform || '';
-      let currentScale = 1;
-      const scaleMatch = transform.match(/scale\\(([^)]+)\\)/);
-      if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
-
-      const comp = window.getComputedStyle(selectedEl);
-      
-      let imgSrc = selectedEl.getAttribute('src');
+  
+  function sendSelection(el, comp) {
+      let imgSrc = el.getAttribute('src');
       let hasImgChild = false;
-      if (selectedEl.classList.contains('ai-img-wrapper')) {
-          const img = selectedEl.querySelector('img');
+      if (el.classList.contains('ai-img-wrapper')) {
+          const img = el.querySelector('img');
           if (img) {
               imgSrc = img.getAttribute('src');
               hasImgChild = true;
           }
       }
       
-      let contentText = selectedEl.innerText;
-      if (!contentText || contentText.trim() === '') {
-         contentText = selectedEl.textContent;
-      }
+      let contentText = el.innerText;
 
       window.parent.postMessage({ 
           type: 'SELECTED', 
@@ -213,8 +233,20 @@ const EDITOR_SCRIPT = `
           borderRadius: comp.borderRadius,
           src: imgSrc,
           hasImgChild: hasImgChild,
-          opacity: comp.opacity
+          opacity: comp.opacity,
+          zIndex: comp.zIndex
       }, '*');
+  }
+
+  function selectElement(el) {
+      if (selectedEl && selectedEl !== el) deselect();
+      selectedEl = el;
+      selectedEl.classList.remove('ai-editor-hover');
+      selectedEl.classList.add('ai-editor-selected');
+      createResizers(selectedEl);
+      
+      const comp = window.getComputedStyle(selectedEl);
+      sendSelection(selectedEl, comp);
   }
 
   function deselect(temporary = false) {
@@ -232,6 +264,7 @@ const EDITOR_SCRIPT = `
   window.addEventListener('message', (event) => {
     const { action, value } = event.data;
     if (action === 'UPDATE_SCALE') { window.visualEditorScale = value; return; }
+    
     if (action === 'GET_HTML') {
         const wasSelected = selectedEl;
         if (selectedEl) deselect(true);
@@ -243,13 +276,14 @@ const EDITOR_SCRIPT = `
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
         return;
     }
+
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              wrapper.style.position = 'absolute';
-             wrapper.style.left = '50px';
-             wrapper.style.top = '50px';
+             wrapper.style.left = '100px';
+             wrapper.style.top = '100px';
              wrapper.style.zIndex = '50';
              
              const img = document.createElement('img');
@@ -273,15 +307,18 @@ const EDITOR_SCRIPT = `
                  selectElement(wrapper);
                  pushHistory();
              }
-             img.onerror = function() { console.error('Image failed to load'); }
              img.src = value.src;
         }
         return;
     }
     
     if (!selectedEl) return;
-    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
-    if (action === 'UPDATE_STYLE') { 
+    
+    if (action === 'UPDATE_CONTENT') { 
+        selectedEl.innerText = value; 
+        pushHistory(); 
+    }
+    else if (action === 'UPDATE_STYLE') { 
         Object.entries(value).forEach(([k, v]) => {
             const prop = k.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
             selectedEl.style.setProperty(prop, String(v), 'important');
@@ -297,7 +334,11 @@ const EDITOR_SCRIPT = `
         }
         pushHistory(); 
     }
-    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
+    else if (action === 'DELETE') { 
+        selectedEl.remove(); 
+        deselect(); 
+        pushHistory(); 
+    } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
         const currentTransform = clone.style.transform || '';
@@ -309,18 +350,22 @@ const EDITOR_SCRIPT = `
              const scalePart = scaleMatch ? \`scale(\${scaleMatch[1]})\` : '';
              clone.style.transform = \`translate(\${x}px, \${y}px) \${scalePart}\`;
         } else {
-             clone.style.transform = 'translate(20px, 20px)';
+             const top = parseFloat(clone.style.top) || 0;
+             const left = parseFloat(clone.style.left) || 0;
+             clone.style.top = (top + 20) + 'px';
+             clone.style.left = (left + 20) + 'px';
         }
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
         pushHistory();
     }
     else if (action === 'LAYER') {
-        const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
+        const style = window.getComputedStyle(selectedEl);
+        const currentZ = parseInt(style.zIndex) || 0;
         const newZ = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
         selectedEl.style.setProperty('z-index', newZ.toString(), 'important');
-        if (window.getComputedStyle(selectedEl).position === 'static') {
-             selectedEl.style.setProperty('position', 'relative', 'important'); 
+        if (style.position === 'static') {
+            selectedEl.style.setProperty('position', 'relative', 'important');
         }
         pushHistory();
     }
@@ -420,9 +465,6 @@ const EDITOR_SCRIPT = `
             selectedEl.style.setProperty('width', newWidth + 'px', 'important');
             selectedEl.style.setProperty('min-width', newWidth + 'px', 'important');
             selectedEl.style.setProperty('max-width', newWidth + 'px', 'important');
-            if (resizeHandle.includes('w')) {
-                 // Sync transform logic if needed
-            }
         }
         if (newHeight > 10) {
             selectedEl.style.setProperty('height', newHeight + 'px', 'important');
@@ -440,7 +482,6 @@ const EDITOR_SCRIPT = `
                  selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
             }
         }
-        
         return;
     }
     
@@ -464,23 +505,33 @@ const EDITOR_SCRIPT = `
 </script>
 `;
 
-export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale: externalScale = 1 }) => {
-    const [scale, setScale] = useState(externalScale);
-    const [selectedElement, setSelectedElement] = useState<any>(null);
+export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange, canvasSize }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    
-    const [htmlContent, setHtmlContent] = useState(initialHtml);
+    const containerRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
+    const [selectedElement, setSelectedElement] = useState<any>(null);
 
-    useEffect(() => {
-        setScale(externalScale);
-    }, [externalScale]);
+    // Expose methods to parent
+    useImperativeHandle(ref, () => ({
+        updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
+        updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
+        updateAttribute: (key, value) => sendCommand('UPDATE_ATTRIBUTE', { key, val: value }),
+        insertElement: (type, src) => sendCommand('INSERT_ELEMENT', { type, src }),
+        updateTransform: (dx, dy, scaleVal) => sendCommand('UPDATE_TRANSFORM', { dx, dy, scale: scaleVal }),
+        changeLayer: (direction) => sendCommand('LAYER', direction),
+        duplicate: () => sendCommand('DUPLICATE'),
+        deleteElement: () => sendCommand('DELETE'),
+        deselect: () => sendCommand('DESELECT_FORCE'),
+        getCanvasNode: () => {
+            const doc = iframeRef.current?.contentDocument;
+            if (!doc) return null;
+            return doc.getElementById('canvas') || doc.body;
+        }
+    }));
 
+    // Initial Load & External Updates
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
-        
-        setHtmlContent(initialHtml);
 
         const iframe = iframeRef.current;
         if (iframe) {
@@ -498,59 +549,134 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         }
     }, [initialHtml]);
 
+    // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
-            if (e.data.type === 'SELECTED') setSelectedElement(e.data);
-            else if (e.data.type === 'DESELECT') setSelectedElement(null);
+            if (e.data.type === 'SELECTED') {
+                setSelectedElement(e.data);
+                if (onSelectionChange) onSelectionChange(e.data);
+            }
+            else if (e.data.type === 'DESELECT') {
+                setSelectedElement(null);
+                if (onSelectionChange) onSelectionChange(null);
+            }
             else if (e.data.type === 'HISTORY_UPDATE') {
                 isInternalUpdate.current = true;
                 let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
-                setHtmlContent(cleanHtml);
                 onSave(cleanHtml);
             }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
-    }, [onSave, setHtmlContent]);
+    }, [onSave, onSelectionChange]);
 
+    // Update Scale inside iframe
     useEffect(() => {
         if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
         }
     }, [scale]);
 
-    const handleWheel = useCallback((e: React.WheelEvent) => {
-        if (e.altKey) {
-            e.preventDefault();
-            const delta = -e.deltaY * 0.001; 
-            const newScale = Math.min(Math.max(0.1, scale + delta), 3);
-            setScale(newScale);
+    // Update Canvas Size in Iframe
+    useEffect(() => {
+        const doc = iframeRef.current?.contentDocument;
+        if (doc) {
+            let style = doc.getElementById('dynamic-canvas-size');
+            if (!style) {
+                style = doc.createElement('style');
+                style.id = 'dynamic-canvas-size';
+                doc.head.appendChild(style);
+            }
+            style.innerHTML = `
+                #canvas { 
+                    width: ${canvasSize.width}px !important; 
+                    height: ${canvasSize.height}px !important;
+                    max-width: none !important;
+                    max-height: none !important;
+                }
+            `;
         }
-    }, [scale]);
+    }, [canvasSize]);
+
+    // --- Zoom Interaction ---
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        if (e.altKey && onScaleChange) {
+            e.preventDefault();
+            const delta = -e.deltaY * 0.001; // Scale factor
+            const newScale = Math.min(Math.max(0.1, scale + delta), 3);
+            onScaleChange(newScale);
+        }
+    }, [scale, onScaleChange]);
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
     };
 
-    const handleUpdateStyle = (key: string, value: string | number) => {
-        sendCommand('UPDATE_STYLE', { [key]: value });
-        setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
-    };
+    return (
+        <div className="flex w-full h-full bg-slate-200 overflow-hidden relative">
+            {/* Scrollable Canvas Wrapper */}
+            <div 
+                ref={containerRef}
+                className="flex-1 relative overflow-auto flex items-center justify-center p-10"
+                onWheel={handleWheel}
+            >
+                 <div 
+                    style={{ 
+                        width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, 
+                        transform: `scale(${scale})`, 
+                        transformOrigin: 'center center',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                        transition: 'transform 0.1s ease-out'
+                    }}
+                    className="bg-white flex-shrink-0"
+                >
+                    <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+                </div>
+            </div>
+        </div>
+    );
+});
+VisualCanvas.displayName = 'VisualCanvas';
+
+export const VisualEditor: React.FC<VisualEditorProps> = ({ 
+    initialHtml, 
+    onSave, 
+    scale: externalScale = 1,
+    onScaleChange,
+    canvasSize = { width: 1600, height: 900 },
+    hideToolbar = false
+}) => {
+    const [internalScale, setInternalScale] = useState(externalScale);
+    const [selectedElement, setSelectedElement] = useState<any>(null);
+    const editorRef = useRef<VisualCanvasHandle>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Determine which scale to use
+    const scale = onScaleChange ? externalScale : internalScale;
     
-    const handleUpdateContent = (text: string) => {
-        sendCommand('UPDATE_CONTENT', text);
-        setSelectedElement((prev: any) => ({ ...prev, content: text }));
+    const handleScaleChange = (newScale: number) => {
+        if (onScaleChange) {
+            onScaleChange(newScale);
+        } else {
+            setInternalScale(newScale);
+        }
     };
 
-    const handleUpdateAttribute = (key: string, value: string) => {
-        sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
-        setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
+    useEffect(() => {
+        // If not controlled, sync external prop to internal state on change
+        if (!onScaleChange) {
+            setInternalScale(externalScale);
+        }
+    }, [externalScale, onScaleChange]);
+
+    const handleUpdateStyle = (key: string, value: string | number) => {
+        editorRef.current?.updateStyle(key, value);
     };
-    
+
     const handleInsertImage = () => {
         const url = prompt("请输入图片 URL:");
         if (url) {
-            sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
+            editorRef.current?.insertElement('img', url);
         }
     };
 
@@ -560,7 +686,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
             const reader = new FileReader();
             reader.onload = (event) => {
                 if (event.target?.result) {
-                    sendCommand('INSERT_ELEMENT', { type: 'img', src: event.target.result as string });
+                    editorRef.current?.insertElement('img', event.target.result as string);
                 }
             };
             reader.readAsDataURL(file);
@@ -570,15 +696,14 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
 
     const handleImageChange = () => {
         const currentSrc = selectedElement?.src || "";
-        const url = prompt("请输入新图片 URL:", currentSrc);
+        const url = prompt("请输入图片 URL:", currentSrc);
         if (url !== null) {
-            handleUpdateAttribute('src', url);
+            editorRef.current?.updateAttribute('src', url);
         }
     };
 
-    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName)) && !selectedElement.hasImgChild;
+    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName));
     const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
-    
     const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
     const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
     const align = selectedElement?.textAlign || 'left';
@@ -587,27 +712,17 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     const parseFontSize = (val: string) => parseInt(val) || 16;
 
     const Toolbar = () => (
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 pr-4">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
             {selectedElement ? (
                 <>
-                   {/* 1. Type Badge */}
-                   <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
-                        {isImg ? 'IMG' : selectedElement.tagName}
-                   </span>
+                    {/* Element Type Badge */}
+                    <div className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[10px] font-bold uppercase border border-indigo-100 mr-2">
+                        {isImg ? 'IMAGE' : selectedElement.tagName}
+                    </div>
 
-                   <div className="h-4 w-px bg-slate-300 mx-1"></div>
-
-                   {/* 2. Dimensions (W/H) */}
-                   <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                        <span className="text-[9px] font-bold text-slate-400 pl-1">W</span>
-                        <input type="number" value={parseVal(selectedElement.width)} onChange={(e) => handleUpdateStyle('width', `${e.target.value}px`)} className="w-12 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center focus:border-indigo-500" />
-                        <span className="text-[9px] font-bold text-slate-400 pl-1">H</span>
-                        <input type="number" value={parseVal(selectedElement.height)} onChange={(e) => handleUpdateStyle('height', `${e.target.value}px`)} className="w-12 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center focus:border-indigo-500" />
-                   </div>
-
-                   {/* 3. Typography (Only if Text) */}
-                   {isText && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                    {/* Typography Group */}
+                    {isText && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
                              <div className="flex items-center bg-white border border-slate-200 rounded px-1 h-7">
                                 <button 
                                     onClick={() => handleUpdateStyle('fontSize', `${Math.max(1, parseFontSize(selectedElement.fontSize) - 2)}px`)}
@@ -624,6 +739,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                                     className="w-6 h-full flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 font-bold text-xs"
                                 >+</button>
                             </div>
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
                             <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
                             <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
                             
@@ -638,57 +754,63 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                                  <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('color', e.target.value)} />
                              </div>
                         </div>
-                   )}
-                   
-                   {/* 4. Appearance (Bg, Radius, Opacity) */}
-                   <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                        {/* Bg Color */}
-                         <div className="flex items-center gap-1" title="背景颜色">
-                             <div className="relative w-6 h-6 border border-slate-200 rounded overflow-hidden shadow-sm">
-                                 <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
-                                 <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('backgroundColor', e.target.value)} />
-                             </div>
-                         </div>
-                         
-                         {/* Radius */}
-                         <div className="flex items-center gap-1 ml-1" title="圆角">
-                            <span className="text-[9px] font-bold text-slate-400">R</span>
-                            <input type="number" value={parseVal(selectedElement.borderRadius)} onChange={(e) => handleUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center focus:border-indigo-500" />
-                         </div>
-
-                         {/* Opacity */}
-                         <div className="flex items-center gap-1 ml-1" title="不透明度">
-                            <span className="text-[9px] font-bold text-slate-400">O</span>
-                            <input type="number" min="0" max="1" step="0.1" value={selectedElement.opacity !== undefined ? selectedElement.opacity : 1} onChange={(e) => handleUpdateStyle('opacity', e.target.value)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center focus:border-indigo-500" />
-                         </div>
-                   </div>
-                   
-                   {/* 5. Image Source */}
-                   {isImg && (
-                       <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
+                    )}
+                    
+                    {/* Image Actions */}
+                    {isImg && (
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
                                 <RefreshIcon className="w-3 h-3"/> 换图
                              </button>
-                       </div>
-                   )}
-
-                   {/* 6. Layers & Actions */}
-                   <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                         <button onClick={() => sendCommand('LAYER', 'up')} className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
-                         <button onClick={() => sendCommand('LAYER', 'down')} className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
-                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => sendCommand('DUPLICATE')} className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
-                         <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="p-1 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
-                   </div>
-
-                   {/* 7. Transform Nudge */}
-                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: -10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
-                        <div className="flex flex-col gap-0.5">
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: -10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: 10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
                         </div>
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
+                    )}
+
+                    {/* Dimensions & Background Group */}
+                    <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">W</span>
+                            <input type="number" value={parseVal(selectedElement.width)} onChange={(e) => handleUpdateStyle('width', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">H</span>
+                            <input type="number" value={parseVal(selectedElement.height)} onChange={(e) => handleUpdateStyle('height', `${e.target.value}px`)} className="w-10 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                        </div>
+                        
+                        <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                        
+                        <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden shadow-sm" title="背景颜色">
+                             <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
+                             <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('backgroundColor', e.target.value)} />
+                         </div>
+                         <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-slate-400">R</span>
+                            <input type="number" value={parseVal(selectedElement.borderRadius)} onChange={(e) => handleUpdateStyle('borderRadius', `${e.target.value}px`)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                         </div>
+                         
+                         {/* Opacity */}
+                         <div className="flex items-center gap-1" title="不透明度">
+                            <span className="text-[9px] font-bold text-slate-400">O</span>
+                            <input type="number" min="0" max="1" step="0.1" value={selectedElement.opacity !== undefined ? selectedElement.opacity : 1} onChange={(e) => handleUpdateStyle('opacity', e.target.value)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                         </div>
+                    </div>
+
+                    {/* Actions Group */}
+                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                         <button onClick={() => editorRef.current?.changeLayer('up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
+                         <button onClick={() => editorRef.current?.changeLayer('down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
+                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                         <button onClick={() => editorRef.current?.duplicate()} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
+                         <button onClick={() => { editorRef.current?.deleteElement(); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
+                    </div>
+
+                    {/* Transform Nudge Group */}
+                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
+                        <button onClick={() => editorRef.current?.updateTransform(-10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
+                        <div className="flex flex-col gap-0.5">
+                             <button onClick={() => editorRef.current?.updateTransform(0, -10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
+                             <button onClick={() => editorRef.current?.updateTransform(0, 10)} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
+                        </div>
+                        <button onClick={() => editorRef.current?.updateTransform(10, 0)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
                     </div>
                 </>
             ) : (
@@ -719,43 +841,36 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     );
 
     return (
-        <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
-             {/* Toolbar */}
-             <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Toolbar />
-                </div>
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
-                        Zoom: {Math.round(scale * 100)}%
-                    </span>
-                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                        <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">-</button>
-                        <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">+</button>
+        <div className="flex flex-col w-full h-full bg-slate-50 relative">
+             {/* Toolbar - Only visible if not hidden */}
+             {!hideToolbar && (
+                 <div className="h-14 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+                        <Toolbar />
                     </div>
-                </div>
-             </div>
+                    {/* Zoom Controls */}
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
+                            Zoom: {Math.round(scale * 100)}%
+                        </span>
+                        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                            <button onClick={() => handleScaleChange(Math.max(0.1, scale - 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">-</button>
+                            <button onClick={() => handleScaleChange(Math.min(3, scale + 0.1))} className="w-7 h-7 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-sm transition-colors">+</button>
+                        </div>
+                    </div>
+                 </div>
+             )}
 
              <div className="flex-1 relative overflow-hidden flex">
-                {/* Canvas Area */}
-                <div 
-                    className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden"
-                    onWheel={handleWheel}
-                >
-                    <div 
-                        style={{ 
-                            width: '1600px', height: '900px', 
-                            transform: `scale(${scale})`, 
-                            transformOrigin: 'center center',
-                            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
-                            transition: 'transform 0.1s ease-out'
-                        }}
-                        className="bg-white flex-shrink-0"
-                    >
-                        <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
-                    </div>
-                </div>
+                <VisualCanvas 
+                    ref={editorRef}
+                    initialHtml={initialHtml}
+                    onSave={onSave}
+                    scale={scale}
+                    onScaleChange={handleScaleChange}
+                    onSelectionChange={setSelectedElement}
+                    canvasSize={canvasSize}
+                />
              </div>
         </div>
     );

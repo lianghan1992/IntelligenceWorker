@@ -9,6 +9,7 @@ import {
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
 import { chatGemini, searchSemanticSegments } from '../../../../api/intelligence';
+import { VisualEditor } from '../../../ReportGenerator/VisualEditor'; // Import VisualEditor
 
 interface AnalysisWorkspaceProps {
     articles: ArticlePublic[];
@@ -19,39 +20,17 @@ interface AnalysisWorkspaceProps {
     prompts?: StratifyPrompt[];
 }
 
-const MOCK_HTML = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-  <div id="canvas" class="w-[1600px] h-[900px] bg-white relative overflow-hidden shadow-2xl flex flex-col border-[12px] border-white box-border">
-    <!-- Header -->
-    <header class="h-[80px] w-full px-10 flex items-center border-b border-slate-100 bg-white z-10">
-        <div class="flex-shrink-0 w-2 h-10 bg-[#FF6B00] rounded-full mr-5"></div>
-        <h1 class="text-4xl font-bold text-slate-800 tracking-tight">分析报告生成中...</h1>
-    </header>
-    <main class="flex-1 w-full p-20 flex items-center justify-center">
-        <p class="text-2xl text-slate-400">请先完成左侧的内容生成步骤</p>
-    </main>
-  </div>
-</body>
-</html>`;
-
 // URL Cleaner Helper
 const cleanUrl = (url?: string) => {
     if (!url) return '';
     let clean = url.trim();
-    // Handle Markdown link [text](url)
     const mdMatch = clean.match(/\[.*?\]\((.*?)\)/);
     if (mdMatch) {
         clean = mdMatch[1];
     } else {
-        // Handle bare markdown url like <url> or just cleaning brackets if any (though regex above is robust)
         clean = clean.replace(/[<>\[\]\(\)]/g, '');
     }
     
-    // Ensure protocol for href (but keep display text clean if needed)
     if (clean && !clean.startsWith('http') && !clean.startsWith('//')) {
         return 'https://' + clean;
     }
@@ -61,34 +40,55 @@ const cleanUrl = (url?: string) => {
 // Helper: Try to parse JSON or fallback to raw string
 const parseReportResponse = (text: string): string => {
     try {
-        // 1. Try direct parse
         const json = JSON.parse(text);
         if (json.content) return json.content;
         
-        // 2. Try extracting from code block
         const codeBlockMatch = text.match(/```(?:json)?([\s\S]*?)```/);
         if (codeBlockMatch) {
             const innerJson = JSON.parse(codeBlockMatch[1]);
             if (innerJson.content) return innerJson.content;
         }
     } catch (e) {
-        // Ignore JSON errors and try fallback
+        // Ignore
     }
-
-    // 3. Fallback: If it looks like Markdown (starts with #), return as is
     if (text.trim().startsWith('#')) {
         return text;
     }
-
-    // 4. Fallback: Return raw text but warn
-    console.warn("Could not parse JSON report, returning raw text");
     return text;
+};
+
+// Helper: Extract clean HTML from LLM response
+const extractCleanHtml = (text: string) => {
+    let cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    const codeBlockMatch = cleanText.match(/```html\s*/i);
+    if (codeBlockMatch && codeBlockMatch.index !== undefined) {
+        let clean = cleanText.substring(codeBlockMatch.index + codeBlockMatch[0].length);
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
+    }
+    // Fallback: look for doctype or html tag
+    const rawStart = cleanText.search(/<!DOCTYPE|<html/i);
+    if (rawStart !== -1) {
+        let clean = cleanText.substring(rawStart);
+        const endFenceIndex = clean.indexOf('```');
+        if (endFenceIndex !== -1) {
+            clean = clean.substring(0, endFenceIndex);
+        }
+        return clean;
+    }
+    return '';
 };
 
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting, prompts }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [markdownInput, setMarkdownInput] = useState('');
     const [logs, setLogs] = useState<string[]>([]);
+    
+    // Scale for VisualEditor
+    const [scale, setScale] = useState(0.8);
     
     const activeItem = techList.find(t => t.id === activeTechId);
 
@@ -184,20 +184,53 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
         }
     };
 
-    // Generate HTML from Markdown
-    const generateHtml = (id: string) => {
+    // Generate HTML from Markdown (Real Implementation)
+    const generateHtml = async (id: string) => {
+        const item = techList.find(t => t.id === id);
+        // Use user-edited markdown if available, else original
+        const contentToConvert = markdownInput || item?.markdownContent || '';
+
+        if (!contentToConvert) {
+            alert('请先生成或输入分析内容');
+            return;
+        }
+
         setTechList(prev => prev.map(t => t.id === id ? { ...t, analysisState: 'generating_html' } : t));
         
-        // Mock latency for HTML generation (or implement real call if prompted later)
-        // Currently keeping mock to focus on the text generation part first as requested.
-        setTimeout(() => {
-            setTechList(prev => prev.map(t => t.id === id ? { 
-                ...t, 
-                analysisState: 'done',
-                htmlContent: MOCK_HTML, // In future steps, this will be real generation
-                markdownContent: markdownInput // Save user edits
-            } : t));
-        }, 2000);
+        try {
+            // 1. Get Prompt
+            const htmlPrompt = prompts?.find(p => p.name === '新技术四象限html生成');
+            if (!htmlPrompt) {
+                throw new Error("缺少 '新技术四象限html生成' 提示词配置");
+            }
+
+            // 2. Fill Placeholder
+            const finalPrompt = htmlPrompt.content.replace('{{ markdown_content }}', contentToConvert);
+
+            // 3. Call LLM
+            const response = await chatGemini([
+                { role: 'user', content: finalPrompt }
+            ]);
+
+            const rawHtml = response?.choices?.[0]?.message?.content;
+            if (rawHtml) {
+                const cleanHtml = extractCleanHtml(rawHtml);
+                setTechList(prev => prev.map(t => t.id === id ? { 
+                    ...t, 
+                    analysisState: 'done',
+                    htmlContent: cleanHtml,
+                    markdownContent: contentToConvert // Save the version that was used
+                } : t));
+            } else {
+                throw new Error("HTML 生成失败: 返回为空");
+            }
+
+        } catch (err: any) {
+            console.error("HTML generation failed", err);
+            alert(`生成 HTML 失败: ${err.message}`);
+            // Revert state to review so user can try again
+            setTechList(prev => prev.map(t => t.id === id ? { ...t, analysisState: 'review' } : t));
+        }
     };
 
     // Update HTML content from visual editor
@@ -211,7 +244,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
     const handleDownload = async () => {
          if (activeItem?.htmlContent) {
              try {
-                 const blob = await generatePdf(activeItem.htmlContent, activeItem.name);
+                 const blob = await generatePdf(activeItem.htmlContent, activeItem.name, { width: 1600, height: 900 });
                  const url = window.URL.createObjectURL(blob);
                  const a = document.createElement('a');
                  a.href = url;
@@ -438,38 +471,43 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                         <p className="font-mono text-lg animate-pulse">Generating HTML Structure...</p>
                                     </div>
                                 ) : (
-                                    <div className="flex-1 flex flex-col overflow-hidden">
+                                    <div className="flex-1 flex flex-col overflow-hidden relative">
                                         {/* Toolbar for Final State */}
-                                        <div className="h-14 px-6 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+                                        <div className="h-14 px-6 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20 absolute top-0 left-0 right-0">
                                             <div className="flex items-center gap-2 text-slate-800 font-bold">
                                                 <CheckCircleIcon className="w-5 h-5 text-green-500" />
                                                 分析完成
                                             </div>
-                                            <button 
-                                                onClick={handleDownload}
-                                                className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2"
-                                            >
-                                                <DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                                 {/* Scale Controls */}
+                                                <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                                                    <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="w-6 h-6 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-xs transition-colors">-</button>
+                                                    <span className="text-xs font-bold text-slate-600 w-8 text-center flex items-center justify-center select-none">{Math.round(scale * 100)}%</span>
+                                                    <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="w-6 h-6 flex items-center justify-center text-slate-500 font-bold hover:bg-white rounded text-xs transition-colors">+</button>
+                                                </div>
+
+                                                <button 
+                                                    onClick={handleDownload}
+                                                    className="px-4 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition-colors flex items-center gap-2"
+                                                >
+                                                    <DownloadIcon className="w-3.5 h-3.5" /> 导出 PDF
+                                                </button>
+                                            </div>
                                         </div>
                                         
-                                        {/* Reuse Visual Editor with Scaling */}
-                                        <div className="flex-1 relative overflow-hidden bg-slate-200">
-                                            {/* We use a wrapper to handle scaling nicely */}
-                                            <div className="absolute inset-0 flex items-center justify-center p-4">
-                                                <div className="w-full h-full max-w-[1600px] max-h-[900px] shadow-2xl relative">
-                                                    <iframe 
-                                                        srcDoc={activeItem.htmlContent}
-                                                        className="w-full h-full border-none bg-white"
-                                                        title="Preview"
-                                                        style={{ 
-                                                            transform: 'scale(1)', 
-                                                            transformOrigin: 'center',
-                                                            width: '100%', 
-                                                            height: '100%' 
-                                                        }}
+                                        {/* Replaced iframe with VisualEditor */}
+                                        <div className="flex-1 pt-14 bg-slate-200 relative overflow-hidden">
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                {activeItem.htmlContent && (
+                                                    <VisualEditor 
+                                                        initialHtml={activeItem.htmlContent}
+                                                        onSave={handleHtmlUpdate}
+                                                        scale={scale}
+                                                        onScaleChange={setScale}
+                                                        canvasSize={{ width: 1600, height: 900 }}
+                                                        hideToolbar={true}
                                                     />
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
