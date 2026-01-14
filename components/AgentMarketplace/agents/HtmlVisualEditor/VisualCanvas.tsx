@@ -11,6 +11,7 @@ export interface VisualCanvasHandle {
     duplicate: () => void;
     deleteElement: () => void;
     deselect: () => void;
+    getCanvasNode: () => HTMLElement | null;
 }
 
 export interface VisualCanvasProps {
@@ -20,6 +21,7 @@ export interface VisualCanvasProps {
     scale: number;
     onScaleChange?: (scale: number) => void;
     onSelectionChange?: (element: any) => void;
+    canvasSize: { width: number; height: number };
 }
 
 // --- Editor Interaction Script ---
@@ -377,90 +379,6 @@ const EDITOR_SCRIPT = `
     }
   });
 
-  document.body.addEventListener('mousedown', (e) => {
-    if (e.target.classList.contains('ai-resizer')) {
-        if (!selectedEl) return;
-        isResizing = true;
-        resizeHandle = e.target.dataset.handle;
-        startX = e.clientX;
-        startY = e.clientY;
-        const comp = window.getComputedStyle(selectedEl);
-        initialWidth = parseFloat(comp.width);
-        initialHeight = parseFloat(comp.height);
-        
-        const transform = selectedEl.style.transform || '';
-        const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-        if (match) {
-            window.initialTransformX = parseFloat(match[1]);
-            window.initialTransformY = parseFloat(match[2]);
-        } else {
-            window.initialTransformX = 0;
-            window.initialTransformY = 0;
-        }
-        
-        e.stopPropagation(); e.preventDefault();
-        return;
-    }
-    
-    if (!selectedEl) return;
-    const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
-    if (!isSelfOrChild && e.target !== selectedEl) return;
-    if (selectedEl.isContentEditable) return; 
-
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    
-    const transform = selectedEl.style.transform || '';
-    const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
-    if (match) {
-        window.initialTransformX = parseFloat(match[1]);
-        window.initialTransformY = parseFloat(match[2]);
-    } else {
-        window.initialTransformX = 0;
-        window.initialTransformY = 0;
-    }
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    const scale = window.visualEditorScale || 1; 
-    if (isResizing && selectedEl) {
-        e.preventDefault();
-        const dx = (e.clientX - startX) / scale;
-        const dy = (e.clientY - startY) / scale;
-        
-        let newWidth = initialWidth;
-        let newHeight = initialHeight;
-        
-        if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
-        if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
-        
-        // FIX: Force resize with !important to override utility classes
-        if (newWidth > 10) {
-            selectedEl.style.setProperty('width', newWidth + 'px', 'important');
-        }
-        if (newHeight > 10) {
-            selectedEl.style.setProperty('height', newHeight + 'px', 'important');
-        }
-        
-        // Simple visual feedback
-        pushHistory();
-        return;
-    }
-    
-    if (!isDragging || !selectedEl) return;
-    e.preventDefault();
-    const dx = (e.clientX - startX) / scale; 
-    const dy = (e.clientY - startY) / scale;
-    
-    const currentTransform = selectedEl.style.transform || '';
-    let scalePart = '';
-    const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
-    if (scaleMatch) scalePart = scaleMatch[0];
-    
-    selectedEl.style.transform = \`translate(\${(window.initialTransformX || 0) + dx}px, \${(window.initialTransformY || 0) + dy}px) \${scalePart}\`;
-  });
-
   window.addEventListener('mouseup', () => {
     if (isDragging || isResizing) {
         isDragging = false; isResizing = false; pushHistory();
@@ -470,7 +388,7 @@ const EDITOR_SCRIPT = `
 </script>
 `;
 
-export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange }, ref) => {
+export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange, canvasSize }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
@@ -486,7 +404,12 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         changeLayer: (direction) => sendCommand('LAYER', direction),
         duplicate: () => sendCommand('DUPLICATE'),
         deleteElement: () => sendCommand('DELETE'),
-        deselect: () => sendCommand('DESELECT_FORCE')
+        deselect: () => sendCommand('DESELECT_FORCE'),
+        getCanvasNode: () => {
+            const doc = iframeRef.current?.contentDocument;
+            if (!doc) return null;
+            return doc.getElementById('canvas') || doc.body;
+        }
     }));
 
     // Initial Load & External Updates
@@ -537,6 +460,27 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
         }
     }, [scale]);
 
+    // Update Canvas Size in Iframe
+    useEffect(() => {
+        const doc = iframeRef.current?.contentDocument;
+        if (doc) {
+            let style = doc.getElementById('dynamic-canvas-size');
+            if (!style) {
+                style = doc.createElement('style');
+                style.id = 'dynamic-canvas-size';
+                doc.head.appendChild(style);
+            }
+            style.innerHTML = `
+                #canvas { 
+                    width: ${canvasSize.width}px !important; 
+                    height: ${canvasSize.height}px !important;
+                    max-width: none !important;
+                    max-height: none !important;
+                }
+            `;
+        }
+    }, [canvasSize]);
+
     // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (e.altKey && onScaleChange) {
@@ -561,7 +505,7 @@ export const VisualCanvas = forwardRef<VisualCanvasHandle, VisualCanvasProps>(({
             >
                  <div 
                     style={{ 
-                        width: '1600px', height: '900px', 
+                        width: `${canvasSize.width}px`, height: `${canvasSize.height}px`, 
                         transform: `scale(${scale})`, 
                         transformOrigin: 'center center',
                         boxShadow: '0 20px 50px rgba(0,0,0,0.15)',

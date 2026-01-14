@@ -4,9 +4,10 @@ import { VisualCanvas, VisualCanvasHandle } from './VisualCanvas';
 import { 
     CodeIcon, EyeIcon, DownloadIcon, CheckIcon, PlusIcon, RefreshIcon,
     ArrowLeftIcon, PencilIcon, PhotoIcon, LinkIcon, ViewGridIcon, 
-    DocumentTextIcon, TrashIcon
+    DocumentTextIcon, TrashIcon, DuplicateIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
+import { toBlob } from 'html-to-image';
 
 // --- Local Icons ---
 const UndoIcon = ({ className }: { className?: string }) => (
@@ -21,7 +22,6 @@ const AlignLeftIcon = ({className}:{className?:string}) => <svg className={class
 const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
 const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
-const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
 const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
 
 const DEFAULT_TEMPLATE = `<!DOCTYPE html>
@@ -126,6 +126,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     const [scale, setScale] = useState(0.8);
     const [selection, setSelection] = useState<any>(null);
+    const [canvasSize, setCanvasSize] = useState({ width: 1600, height: 900 });
     const editorRef = useRef<VisualCanvasHandle>(null);
 
     // Keyboard Shortcuts
@@ -197,6 +198,54 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
         }
     };
 
+    // --- Image Export Logic ---
+    const handleDownloadImage = async () => {
+        const node = editorRef.current?.getCanvasNode();
+        if (!node) return;
+        
+        // Temporarily deselect to hide handlers
+        editorRef.current?.deselect();
+        // Give a small tick for UI update (remove handles)
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+            const blob = await toBlob(node, {
+                cacheBust: true,
+                style: { margin: '0' } // Ensure no extra margin
+            });
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `design_${new Date().toISOString().slice(0,10)}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch(e) {
+             console.error("Image generation failed", e);
+             alert('生成图片失败，请检查是否使用了跨域图片资源。');
+        }
+    };
+
+    const handleCopyImage = async () => {
+        const node = editorRef.current?.getCanvasNode();
+        if (!node) return;
+        
+        editorRef.current?.deselect();
+        await new Promise(r => setTimeout(r, 50));
+
+        try {
+            const blob = await toBlob(node, { cacheBust: true });
+            if (blob) {
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                alert('图片已复制到剪贴板');
+            }
+        } catch(e) {
+            console.error(e);
+            alert('复制失败，请检查跨域图片或浏览器权限。');
+        }
+    };
+
     // Helper data for toolbar state
     const isText = selection && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selection.tagName));
     const isImg = selection && (selection.tagName === 'IMG' || (selection.tagName === 'DIV' && selection.hasImgChild));
@@ -255,7 +304,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                     
                     {/* Image Actions */}
                     {isImg && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
                              <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm transition-colors">
                                 <RefreshIcon className="w-3 h-3"/> 换图
                              </button>
@@ -282,6 +331,12 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                          <div className="flex items-center gap-1">
                             <span className="text-[9px] font-bold text-slate-400">R</span>
                             <input type="number" value={parseVal(selection.borderRadius)} onChange={(e) => editorRef.current?.updateStyle('borderRadius', `${e.target.value}px`)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
+                         </div>
+                         
+                         {/* Opacity */}
+                         <div className="flex items-center gap-1" title="不透明度">
+                            <span className="text-[9px] font-bold text-slate-400">O</span>
+                            <input type="number" min="0" max="1" step="0.1" value={selection.opacity !== undefined ? selection.opacity : 1} onChange={(e) => editorRef.current?.updateStyle('opacity', e.target.value)} className="w-8 border border-slate-200 rounded px-1 py-0.5 text-xs outline-none text-center" />
                          </div>
                     </div>
 
@@ -381,6 +436,25 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                 </div>
 
                 <div className="flex items-center gap-3 pl-4 border-l border-slate-100 ml-2">
+                    {/* Canvas Size Inputs */}
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm mr-2">
+                        <input 
+                            type="number" 
+                            value={canvasSize.width} 
+                            onChange={e => setCanvasSize(p => ({...p, width: parseInt(e.target.value) || 100}))}
+                            className="w-10 text-xs font-mono text-center outline-none border-r border-slate-100"
+                            title="画布宽度"
+                        />
+                        <span className="text-[9px] text-slate-400">x</span>
+                        <input 
+                            type="number" 
+                            value={canvasSize.height} 
+                            onChange={e => setCanvasSize(p => ({...p, height: parseInt(e.target.value) || 100}))}
+                            className="w-10 text-xs font-mono text-center outline-none"
+                            title="画布高度"
+                        />
+                    </div>
+
                     {/* Zoom & Undo/Redo Group */}
                     <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
                          <button onClick={undo} disabled={!canUndo} className="p-1.5 hover:bg-slate-50 rounded text-slate-500 disabled:opacity-30 transition-all"><UndoIcon className="w-3.5 h-3.5" /></button>
@@ -391,14 +465,23 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                          <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="text-slate-400 hover:text-indigo-600 px-1 font-mono text-sm font-bold">+</button>
                     </div>
 
-                    <button 
-                        onClick={handleDownloadPdf}
-                        disabled={isDownloadingPdf}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-indigo-600 rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50"
-                    >
-                        {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
-                        <span className="hidden sm:inline">导出 PDF</span>
-                    </button>
+                    {/* Export Actions */}
+                    <div className="flex items-center gap-1">
+                        <button onClick={handleCopyImage} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="复制图片到剪贴板">
+                            <DuplicateIcon className="w-4 h-4"/>
+                        </button>
+                        <button onClick={handleDownloadImage} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="下载图片">
+                            <PhotoIcon className="w-4 h-4"/>
+                        </button>
+                        <button 
+                            onClick={handleDownloadPdf}
+                            disabled={isDownloadingPdf}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white hover:bg-indigo-600 rounded-lg text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-50 ml-1"
+                        >
+                            {isDownloadingPdf ? <RefreshIcon className="w-3.5 h-3.5 animate-spin"/> : <DownloadIcon className="w-3.5 h-3.5" />}
+                            <span className="hidden sm:inline">导出 PDF</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -413,6 +496,7 @@ const HtmlVisualEditor: React.FC<HtmlVisualEditorProps> = ({ onBack }) => {
                         scale={scale}
                         onScaleChange={setScale}
                         onSelectionChange={setSelection}
+                        canvasSize={canvasSize}
                     />
                 ) : (
                     <div className="w-full h-full bg-[#1e1e1e] flex flex-col">
