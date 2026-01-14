@@ -18,8 +18,8 @@ interface Message {
     timestamp?: number;
 }
 
-// Update model to Xiaomi (OpenRouter) as requested
-const MODEL_ID = "openrouter@xiaomi/mimo-v2-flash:free";
+// Update model to Zhipu GLM-4 Flash as requested
+const MODEL_ID = "zhipu@glm-4-flash";
 
 // --- 思考链组件 ---
 const ThinkingBlock: React.FC<{ content: string; isStreaming: boolean }> = ({ content, isStreaming }) => {
@@ -232,10 +232,8 @@ export const AIChatPanel: React.FC<{
 4. 严禁编造事实。`;
 
             // Prepare messages payload
-            // Note: We use previous history + current augmented prompt
-            // To save context window, we might usually truncate older search results from history context in a real app,
-            // but here we just append the new exchange.
-            const historyMessages = messages.slice(0, -2).map(m => ({ role: m.role, content: m.content }));
+            // Use current messages state directly (excluding the placeholders we just added)
+            const historyMessages = messages.map(m => ({ role: m.role, content: m.content }));
             const currentMessagePayload = `【参考资料】\n${contextText}\n\n【问题】\n${currentInput}`;
 
             await streamChatCompletions({
@@ -258,12 +256,19 @@ export const AIChatPanel: React.FC<{
                     ? { ...m, content: accumulatedContent, reasoning: accumulatedReasoning } 
                     : m
                 ));
-            }, undefined, undefined, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
+            }, undefined, (err) => {
+                // Handle API error during streaming
+                setMessages(prev => prev.map(m => 
+                    m.id === assistantMsgId 
+                    ? { ...m, content: accumulatedContent + `\n\n> *⚠️ 发生错误: ${err.message || '服务暂时不可用'}*` } 
+                    : m
+                ));
+            }, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
 
-        } catch (error) {
+        } catch (error: any) {
             setMessages(prev => prev.map(m => 
                 m.id === assistantMsgId 
-                ? { ...m, content: accumulatedContent + "\n\n> *⚠️ 网络连接或服务异常，请稍后重试。*" } 
+                ? { ...m, content: accumulatedContent + `\n\n> *⚠️ 初始化失败: ${error.message || '网络连接异常'}*` } 
                 : m
             ));
         } finally {
