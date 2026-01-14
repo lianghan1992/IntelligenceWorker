@@ -266,15 +266,15 @@ const EDITOR_SCRIPT = `
     .ai-editor-selected { outline: 2px solid #3b82f6 !important; outline-offset: 0px; cursor: move !important; z-index: 9999; position: relative; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
     .ai-editor-hover:not(.ai-editor-selected) { outline: 1px dashed #93c5fd !important; cursor: pointer !important; }
     *[contenteditable="true"] { cursor: text !important; outline: 2px solid #10b981 !important; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1); }
-    .ai-resizer { position: absolute; width: 10px; height: 10px; background: white; border: 2px solid #3b82f6; z-index: 10000; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    .ai-r-nw { top: -6px; left: -6px; cursor: nw-resize; }
-    .ai-r-n  { top: -6px; left: 50%; margin-left: -6px; cursor: n-resize; }
-    .ai-r-ne { top: -6px; right: -6px; cursor: ne-resize; }
-    .ai-r-e  { top: 50%; right: -6px; margin-top: -6px; cursor: e-resize; }
-    .ai-r-se { bottom: -6px; right: -6px; cursor: se-resize; }
-    .ai-r-s  { bottom: -6px; left: 50%; margin-left: -6px; cursor: s-resize; }
-    .ai-r-sw { bottom: -6px; left: -6px; cursor: sw-resize; }
-    .ai-r-w  { top: 50%; left: -6px; margin-top: -6px; cursor: w-resize; }
+    .ai-resizer { position: absolute; width: 8px; height: 8px; background: white; border: 1px solid #3b82f6; z-index: 10000; border-radius: 50%; }
+    .ai-r-nw { top: -4px; left: -4px; cursor: nw-resize; }
+    .ai-r-n  { top: -4px; left: 50%; margin-left: -4px; cursor: n-resize; }
+    .ai-r-ne { top: -4px; right: -4px; cursor: ne-resize; }
+    .ai-r-e  { top: 50%; right: -4px; margin-top: -4px; cursor: e-resize; }
+    .ai-r-se { bottom: -4px; right: -4px; cursor: se-resize; }
+    .ai-r-s  { bottom: -4px; left: 50%; margin-left: -4px; cursor: s-resize; }
+    .ai-r-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+    .ai-r-w  { top: 50%; left: -4px; margin-top: -4px; cursor: w-resize; }
   \`;
   document.head.appendChild(style);
 
@@ -309,8 +309,9 @@ const EDITOR_SCRIPT = `
     if (e.target.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
     
-    // Check if clicked element is part of current selection or its wrapper
-    if (selectedEl && (selectedEl === e.target || selectedEl.contains(e.target))) return;
+    // Allow drilling down into children. 
+    // Only return if clicking the exact same element that is already selected.
+    if (selectedEl === e.target) return;
 
     if (selectedEl && selectedEl !== e.target) deselect();
     
