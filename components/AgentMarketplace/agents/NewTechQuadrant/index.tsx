@@ -216,6 +216,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     setTechList={setTechList}
                     onBack={() => setStep('selection')}
                     isExtracting={isExtracting}
+                    prompts={prompts} // Pass prompts down
                 />
             )}
         </div>

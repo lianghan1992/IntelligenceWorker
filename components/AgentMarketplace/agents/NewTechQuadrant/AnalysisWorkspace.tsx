@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { TechItem } from './index';
-import { ArticlePublic } from '../../../../types';
+import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
     CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
     DownloadIcon, PencilIcon, LinkIcon, SparklesIcon, TrendingUpIcon
 } from '../../../../components/icons';
 import { generatePdf } from '../../utils/services';
+import { chatGemini, searchSemanticSegments } from '../../../../api/intelligence';
 
 interface AnalysisWorkspaceProps {
     articles: ArticlePublic[];
@@ -15,36 +16,8 @@ interface AnalysisWorkspaceProps {
     setTechList: React.Dispatch<React.SetStateAction<TechItem[]>>;
     onBack: () => void;
     isExtracting: boolean;
+    prompts?: StratifyPrompt[];
 }
-
-// 模拟 RAG 日志
-const MOCK_LOGS = [
-    "正在分析上下文语义...",
-    "调用向量数据库检索相关技术细节...",
-    "检索到 5 篇相关论文与报道...",
-    "正在生成四象限分析维度 (领先性, 可行性, 壁垒, 营销)...",
-    "草稿生成完毕，等待确认..."
-];
-
-const MOCK_MARKDOWN = `# 全固态硫化物电解质
-
-## 1. 领先性
-- **能量密度**: 突破 500Wh/kg，相比现有液态锂电池提升 40% 以上。
-- **安全性**: 彻底杜绝漏液、起火风险，通过针刺测试。
-- **充放电效率**: 支持 5C 以上快充，10分钟补能 80%。
-
-## 2. 可行性
-- **材料体系**: 硫化物电解质室温离子电导率已接近液态电解质。
-- **工艺路径**: 采用干法电极工艺，减少溶剂使用，降低成本。
-- **供应链**: 主要原材料锂、硫储量丰富，关键合成设备已国产化。
-
-## 3. 技术壁垒
-- **界面稳定性**: 通过界面修饰层技术，有效抑制副反应。
-- **专利布局**: 核心合成配方已申请 PCT 专利保护。
-
-## 4. 卖点营销
-- **"充电像加油一样快"**: 彻底解决续航焦虑。
-- **"不起火的电池"**: 给家人最极致的安全守护。`;
 
 const MOCK_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -56,75 +29,10 @@ const MOCK_HTML = `<!DOCTYPE html>
     <!-- Header -->
     <header class="h-[80px] w-full px-10 flex items-center border-b border-slate-100 bg-white z-10">
         <div class="flex-shrink-0 w-2 h-10 bg-[#FF6B00] rounded-full mr-5"></div>
-        <h1 class="text-4xl font-bold text-slate-800 tracking-tight">全固态硫化物电解质</h1>
+        <h1 class="text-4xl font-bold text-slate-800 tracking-tight">分析报告生成中...</h1>
     </header>
-
-    <!-- Main Grid -->
-    <main class="flex-1 w-full p-10 grid grid-cols-2 grid-rows-2 gap-8 bg-slate-50">
-        <!-- Q1 -->
-        <section class="bg-white rounded-3xl p-8 shadow-sm flex flex-col">
-            <div class="flex items-center gap-3 mb-6">
-                <div class="w-1.5 h-6 bg-[#007AFF] rounded-full"></div>
-                <h2 class="text-2xl font-bold text-slate-800">领先性 (Leadership)</h2>
-            </div>
-            <div class="flex-1 space-y-4">
-                <div class="flex items-center gap-4">
-                     <span class="text-3xl font-black text-[#FF6B00]">500<small class="text-lg text-gray-500 ml-1">Wh/kg</small></span>
-                     <p class="text-lg text-slate-600">能量密度提升 40%</p>
-                </div>
-                <div class="flex items-center gap-4">
-                     <span class="text-3xl font-black text-[#FF6B00]">5C<small class="text-lg text-gray-500 ml-1">快充</small></span>
-                     <p class="text-lg text-slate-600">10分钟补能 80%</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Q2 -->
-        <section class="bg-white rounded-3xl p-8 shadow-sm flex flex-col">
-             <div class="flex items-center gap-3 mb-6">
-                <div class="w-1.5 h-6 bg-[#007AFF] rounded-full"></div>
-                <h2 class="text-2xl font-bold text-slate-800">可行性 (Feasibility)</h2>
-            </div>
-            <p class="text-lg text-slate-600 leading-relaxed">
-                采用干法电极工艺，减少溶剂使用。核心原材料锂、硫储量丰富，关键合成设备已实现国产化，成本可控。
-            </p>
-        </section>
-
-        <!-- Q3 -->
-         <section class="bg-white rounded-3xl p-8 shadow-sm flex flex-col">
-             <div class="flex items-center gap-3 mb-6">
-                <div class="w-1.5 h-6 bg-[#007AFF] rounded-full"></div>
-                <h2 class="text-2xl font-bold text-slate-800">技术壁垒 (Barriers)</h2>
-            </div>
-            <ul class="space-y-3">
-                <li class="flex items-start gap-3">
-                    <span class="w-2 h-2 rounded-full bg-slate-300 mt-2.5"></span>
-                    <span class="text-lg text-slate-700">界面修饰层技术，抑制副反应</span>
-                </li>
-                 <li class="flex items-start gap-3">
-                    <span class="w-2 h-2 rounded-full bg-slate-300 mt-2.5"></span>
-                    <span class="text-lg text-slate-700">核心配方 PCT 专利保护</span>
-                </li>
-            </ul>
-        </section>
-
-        <!-- Q4 -->
-         <section class="bg-white rounded-3xl p-8 shadow-sm flex flex-col">
-             <div class="flex items-center gap-3 mb-6">
-                <div class="w-1.5 h-6 bg-[#007AFF] rounded-full"></div>
-                <h2 class="text-2xl font-bold text-slate-800">卖点营销 (Marketing)</h2>
-            </div>
-             <div class="grid grid-cols-2 gap-4">
-                 <div class="bg-orange-50 p-4 rounded-xl text-center">
-                     <div class="text-xl font-bold text-orange-600 mb-1">不起火</div>
-                     <div class="text-sm text-orange-400">极致安全守护</div>
-                 </div>
-                 <div class="bg-blue-50 p-4 rounded-xl text-center">
-                     <div class="text-xl font-bold text-blue-600 mb-1">像加油一样快</div>
-                     <div class="text-sm text-blue-400">告别里程焦虑</div>
-                 </div>
-             </div>
-        </section>
+    <main class="flex-1 w-full p-20 flex items-center justify-center">
+        <p class="text-2xl text-slate-400">请先完成左侧的内容生成步骤</p>
     </main>
   </div>
 </body>
@@ -150,7 +58,34 @@ const cleanUrl = (url?: string) => {
     return clean;
 };
 
-export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting }) => {
+// Helper: Try to parse JSON or fallback to raw string
+const parseReportResponse = (text: string): string => {
+    try {
+        // 1. Try direct parse
+        const json = JSON.parse(text);
+        if (json.content) return json.content;
+        
+        // 2. Try extracting from code block
+        const codeBlockMatch = text.match(/```(?:json)?([\s\S]*?)```/);
+        if (codeBlockMatch) {
+            const innerJson = JSON.parse(codeBlockMatch[1]);
+            if (innerJson.content) return innerJson.content;
+        }
+    } catch (e) {
+        // Ignore JSON errors and try fallback
+    }
+
+    // 3. Fallback: If it looks like Markdown (starts with #), return as is
+    if (text.trim().startsWith('#')) {
+        return text;
+    }
+
+    // 4. Fallback: Return raw text but warn
+    console.warn("Could not parse JSON report, returning raw text");
+    return text;
+};
+
+export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting, prompts }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [markdownInput, setMarkdownInput] = useState('');
     const [logs, setLogs] = useState<string[]>([]);
@@ -167,39 +102,99 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
         }
     }, [techList, activeTechId]);
 
-    // Mock Process: Start Analysis -> Logs -> Markdown
-    const startAnalysis = (id: string) => {
+    // Real Process: Keyword Gen -> Vector Search -> Report Gen
+    const startAnalysis = async (id: string) => {
+        const item = techList.find(t => t.id === id);
+        if (!item) return;
+
         setActiveTechId(id);
         setTechList(prev => prev.map(t => t.id === id ? { ...t, analysisState: 'analyzing' } : t));
-        setLogs([]);
+        setLogs(["准备开始深度分析..."]);
         
-        let step = 0;
-        const interval = setInterval(() => {
-            if (step < MOCK_LOGS.length) {
-                setLogs(prev => [...prev, MOCK_LOGS[step]]);
-                step++;
-            } else {
-                clearInterval(interval);
+        try {
+            // 0. Get Prompts
+            const reportPrompt = prompts?.find(p => p.name === '新技术四象限编写');
+            if (!reportPrompt) {
+                throw new Error("缺少 '新技术四象限编写' 提示词配置");
+            }
+
+            // --- Step 1: Generate Search Keywords ---
+            setLogs(prev => [...prev, "正在构建检索策略..."]);
+            const keywordGenPrompt = `为了深度分析新技术【${item.name}】，请生成3个最关键的搜索关键词，用于在向量数据库中检索相关技术细节、竞品对比和市场应用。仅返回关键词，用空格分隔，不要其他内容。`;
+            
+            const keywordRes = await chatGemini([{ role: 'user', content: keywordGenPrompt }]);
+            const keywords = keywordRes?.choices?.[0]?.message?.content || item.name;
+            setLogs(prev => [...prev, `生成检索词: ${keywords}`]);
+
+            // --- Step 2: Vector Search (RAG) ---
+            setLogs(prev => [...prev, "正在检索知识库 (RAG)..."]);
+            let retrievedContext = "暂无相关详细资料。";
+            try {
+                const searchRes = await searchSemanticSegments({
+                    query_text: keywords,
+                    page: 1,
+                    page_size: 5,
+                    similarity_threshold: 0.35
+                });
+                
+                if (searchRes.items && searchRes.items.length > 0) {
+                    retrievedContext = searchRes.items
+                        .map((resItem, idx) => `[资料${idx+1}] ${resItem.title}: ${resItem.content}`)
+                        .join('\n\n');
+                    setLogs(prev => [...prev, `检索到 ${searchRes.items.length} 条相关情报。`]);
+                } else {
+                    setLogs(prev => [...prev, "未检索到强相关资料，将基于通用知识生成。"]);
+                }
+            } catch (e) {
+                console.error("Vector search failed", e);
+                setLogs(prev => [...prev, "检索服务连接失败，跳过。"]);
+            }
+
+            // --- Step 3: Generate Report ---
+            setLogs(prev => [...prev, "AI 正在撰写深度分析报告..."]);
+            
+            let finalPrompt = reportPrompt.content;
+            finalPrompt = finalPrompt.replace('{{ tech_name }}', item.name);
+            finalPrompt = finalPrompt.replace('{{ tech_info }}', item.description);
+            finalPrompt = finalPrompt.replace('{{ retrieved_info }}', retrievedContext);
+
+            const reportRes = await chatGemini([{ role: 'user', content: finalPrompt }]);
+            const rawResponse = reportRes?.choices?.[0]?.message?.content;
+
+            if (rawResponse) {
+                const reportContent = parseReportResponse(rawResponse);
+                setLogs(prev => [...prev, "报告生成完毕，准备渲染编辑器..."]);
+                
+                // Update State
                 setTechList(prev => prev.map(t => t.id === id ? { 
                     ...t, 
                     analysisState: 'review',
-                    markdownContent: MOCK_MARKDOWN // Use mock markdown
+                    markdownContent: reportContent
                 } : t));
-                setMarkdownInput(MOCK_MARKDOWN);
+                setMarkdownInput(reportContent);
+            } else {
+                throw new Error("LLM 未返回有效内容");
             }
-        }, 800);
+
+        } catch (err: any) {
+            console.error("Deep analysis failed", err);
+            setLogs(prev => [...prev, `错误: ${err.message || "未知错误"}`]);
+            setTechList(prev => prev.map(t => t.id === id ? { ...t, analysisState: 'idle' } : t)); // Reset on fail
+            alert("分析失败，请重试");
+        }
     };
 
     // Generate HTML from Markdown
     const generateHtml = (id: string) => {
         setTechList(prev => prev.map(t => t.id === id ? { ...t, analysisState: 'generating_html' } : t));
         
-        // Mock latency
+        // Mock latency for HTML generation (or implement real call if prompted later)
+        // Currently keeping mock to focus on the text generation part first as requested.
         setTimeout(() => {
             setTechList(prev => prev.map(t => t.id === id ? { 
                 ...t, 
                 analysisState: 'done',
-                htmlContent: MOCK_HTML,
+                htmlContent: MOCK_HTML, // In future steps, this will be real generation
                 markdownContent: markdownInput // Save user edits
             } : t));
         }, 2000);
@@ -269,6 +264,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                 
                                 <div className="flex flex-wrap gap-2 mb-3">
                                     <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]">{item.field}</span>
+                                </div>
+
+                                {/* Status Section (Rich Text) */}
+                                <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+                                    <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1">
+                                        <TrendingUpIcon className="w-3 h-3"/> 行业应用现状
+                                    </div>
+                                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                                        {item.status || "正在检索行业应用数据..."}
+                                    </p>
                                 </div>
 
                                 <div className="text-xs text-slate-500 mb-2 line-clamp-2 leading-relaxed" title={item.description}>
