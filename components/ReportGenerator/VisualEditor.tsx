@@ -3,14 +3,20 @@ import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, f
 import { 
     TrashIcon, CloseIcon, DocumentTextIcon, 
     PhotoIcon, ViewGridIcon, PencilIcon, 
-    LinkIcon
+    LinkIcon, RefreshIcon, ArrowIcon
 } from '../icons';
 
-// --- Local Icons for Property Panel ---
+// --- Local Icons ---
+const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
+const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
 const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
 const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
+const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
+const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
+const SelectIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.6z"/></svg>;
 
+// --- Interfaces ---
 export interface VisualEditorHandle {
     updateStyle: (key: string, value: string | number) => void;
     updateContent: (text: string) => void;
@@ -31,6 +37,7 @@ export interface VisualEditorProps {
     onSelectionChange?: (element: any) => void;
 }
 
+// --- Properties Panel ---
 interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -41,16 +48,28 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
-    if (!element) return null;
+    // Empty State (Persistent Panel)
+    if (!element) {
+        return (
+            <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center z-20">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <SelectIcon className="w-6 h-6 opacity-30" />
+                </div>
+                <h3 className="font-bold text-slate-600 mb-1">未选择元素</h3>
+                <p className="text-xs">请在左侧画布点击选择一个元素以编辑属性</p>
+            </div>
+        );
+    }
+
     const parseVal = (val: string) => parseInt(val) || 0;
-    const isImg = element.tagName === 'IMG';
+    const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
-        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
+        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20">
             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{element.tagName}</span>
-                    <span className="text-xs font-bold text-slate-700">属性</span>
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{isImg ? 'IMAGE' : element.tagName}</span>
+                    <span className="text-xs font-bold text-slate-700">属性编辑</span>
                 </div>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-4 h-4" /></button>
             </div>
@@ -69,7 +88,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                 
                 {isImg && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 源</h4>
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 图片源</h4>
                         <div>
                              <label className="text-[10px] text-slate-500 font-medium mb-1 block">URL</label>
                              <input 
@@ -129,7 +148,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                                     {align === 'left' && <AlignLeftIcon className="w-3 h-3"/>}
                                     {align === 'center' && <AlignCenterIcon className="w-3 h-3"/>}
                                     {align === 'right' && <AlignRightIcon className="w-3 h-3"/>}
-                                    {align === 'justify' && <span className="text-[9px] font-bold">≡</span>}
                                 </button>
                             ))}
                         </div>
@@ -171,6 +189,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
+// --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -179,6 +198,8 @@ const EDITOR_SCRIPT = `
   let isResizing = false;
   let resizeHandle = null;
   let startX, startY;
+  let initialTransformX = 0, initialTransformY = 0;
+  let initialWidth = 0, initialHeight = 0;
   
   window.visualEditorScale = 1;
 
@@ -200,7 +221,8 @@ const EDITOR_SCRIPT = `
   \`;
   document.head.appendChild(style);
 
-  function pushHistory() {
+  function pushUpdate() {
+      // Small debounce to avoid flooding
       setTimeout(() => {
         if (!selectedEl) return;
         const wasSelected = selectedEl;
@@ -247,7 +269,6 @@ const EDITOR_SCRIPT = `
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              
-             // Copy computed positioning styles to wrapper
              const comp = window.getComputedStyle(target);
              const width = target.offsetWidth;
              const height = target.offsetHeight;
@@ -264,7 +285,6 @@ const EDITOR_SCRIPT = `
              wrapper.style.width = width + 'px';
              wrapper.style.height = height + 'px';
              
-             // Reset img to fill wrapper
              target.style.position = 'static';
              target.style.transform = 'none';
              target.style.width = '100%';
@@ -275,11 +295,10 @@ const EDITOR_SCRIPT = `
                  target.parentNode.insertBefore(wrapper, target);
                  wrapper.appendChild(target);
                  target = wrapper;
-                 pushHistory();
+                 pushUpdate();
              }
         }
     }
-    // ---------------------------------------
 
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect(); return;
@@ -289,7 +308,6 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('mouseover', (e) => {
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
-      // Hover effect on wrapper if hovering img inside
       let target = e.target;
       if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
            target = target.parentElement;
@@ -315,7 +333,7 @@ const EDITOR_SCRIPT = `
              selectedEl.contentEditable = 'false';
              selectedEl.removeEventListener('blur', onBlur);
              createResizers(selectedEl);
-             pushHistory(); 
+             pushUpdate(); 
          };
          selectedEl.addEventListener('blur', onBlur);
      }
@@ -335,7 +353,6 @@ const EDITOR_SCRIPT = `
 
       const comp = window.getComputedStyle(selectedEl);
       
-      // If wrapper, get img src
       let imgSrc = selectedEl.getAttribute('src');
       let hasImgChild = false;
       if (selectedEl.classList.contains('ai-img-wrapper')) {
@@ -393,7 +410,6 @@ const EDITOR_SCRIPT = `
     }
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
-             // Create Wrapper DIV instead of IMG directly
              const wrapper = document.createElement('div');
              wrapper.className = 'ai-img-wrapper';
              wrapper.style.position = 'absolute';
@@ -412,22 +428,15 @@ const EDITOR_SCRIPT = `
                  }
                  wrapper.style.width = w + 'px'; 
                  wrapper.style.height = h + 'px';
-                 
                  img.style.width = '100%';
                  img.style.height = '100%';
                  img.style.objectFit = 'cover';
                  img.style.display = 'block';
-                 
                  wrapper.appendChild(img);
-                 
                  const canvas = document.getElementById('canvas') || document.body;
                  canvas.appendChild(wrapper);
-                 
                  selectElement(wrapper);
-                 pushHistory();
-             }
-             img.onerror = function() {
-                 console.error('Image failed to load');
+                 pushUpdate();
              }
              img.src = value.src;
         }
@@ -435,8 +444,8 @@ const EDITOR_SCRIPT = `
     }
     
     if (!selectedEl) return;
-    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
-    if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
+    if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushUpdate(); return; }
+    if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushUpdate(); } 
     else if (action === 'UPDATE_ATTRIBUTE') { 
         if (value.key === 'src' && selectedEl.classList.contains('ai-img-wrapper')) {
             const img = selectedEl.querySelector('img');
@@ -444,9 +453,9 @@ const EDITOR_SCRIPT = `
         } else {
             selectedEl.setAttribute(value.key, value.val); 
         }
-        pushHistory(); 
+        pushUpdate(); 
     }
-    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
+    else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushUpdate(); } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
         const currentTransform = clone.style.transform || '';
@@ -462,7 +471,7 @@ const EDITOR_SCRIPT = `
         }
         selectedEl.parentNode.insertBefore(clone, selectedEl.nextSibling);
         selectElement(clone);
-        pushHistory();
+        pushUpdate();
     }
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
@@ -470,7 +479,7 @@ const EDITOR_SCRIPT = `
         if (window.getComputedStyle(selectedEl).position === 'static') {
              selectedEl.style.position = 'relative'; 
         }
-        pushHistory();
+        pushUpdate();
     }
     else if (action === 'UPDATE_TRANSFORM') {
         const currentTransform = selectedEl.style.transform || '';
@@ -489,7 +498,7 @@ const EDITOR_SCRIPT = `
         const newScale = value.scale !== undefined ? value.scale : currentScale;
         selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) scale(\${newScale})\`;
         selectElement(selectedEl);
-        pushHistory();
+        pushUpdate();
     }
     else if (action === 'DESELECT_FORCE') {
         deselect();
@@ -598,7 +607,7 @@ const EDITOR_SCRIPT = `
 
   window.addEventListener('mouseup', () => {
     if (isDragging || isResizing) {
-        isDragging = false; isResizing = false; pushHistory();
+        isDragging = false; isResizing = false; pushUpdate();
     }
   });
 })();
@@ -608,8 +617,8 @@ const EDITOR_SCRIPT = `
 export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const isInternalUpdate = useRef(false);
     const [selectedElement, setSelectedElement] = useState<any>(null);
+    const isInternalUpdate = useRef(false);
 
     // Expose methods to parent
     useImperativeHandle(ref, () => ({
@@ -624,7 +633,7 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
         deselect: () => sendCommand('DESELECT_FORCE')
     }));
 
-    // Initial Load & External Updates (e.g. from parent undo/redo)
+    // Handle initial load of HTML
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
         
@@ -648,7 +657,14 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
         }
     }, [initialHtml]);
 
-    // Initialize scale to fit screen
+    // Update Scale inside iframe
+    useEffect(() => {
+        if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
+        }
+    }, [scale]);
+    
+    // Auto-scale fit logic
     useEffect(() => {
         if (containerRef.current) {
             const { clientWidth, clientHeight } = containerRef.current;
@@ -658,7 +674,7 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
             const initialScale = Math.min(scaleX, scaleY, 1);
             if (onScaleChange) onScaleChange(Math.max(0.1, initialScale));
         }
-    }, []); // Run once on mount
+    }, []);
 
     // Handle Messages from Iframe
     useEffect(() => {
@@ -674,7 +690,6 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
             else if (e.data.type === 'HISTORY_UPDATE') {
                 isInternalUpdate.current = true;
                 let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
-                // notify parent to update its history without triggering a re-render cycle back to child immediately
                 onSave(cleanHtml);
             }
         };
@@ -682,18 +697,10 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
         return () => window.removeEventListener('message', handler);
     }, [onSave, onSelectionChange]);
 
-    // Update Scale inside iframe
-    useEffect(() => {
-        if (iframeRef.current?.contentWindow) {
-            iframeRef.current.contentWindow.postMessage({ action: 'UPDATE_SCALE', value: scale }, '*');
-        }
-    }, [scale]);
-
-    // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (e.altKey && onScaleChange) {
             e.preventDefault();
-            const delta = -e.deltaY * 0.001; // Scale factor
+            const delta = -e.deltaY * 0.001; 
             const newScale = Math.min(Math.max(0.1, scale + delta), 3);
             onScaleChange(newScale);
         }
@@ -701,6 +708,24 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
+    };
+    
+    const handleInsertImage = () => {
+        const url = prompt("请输入图片 URL:");
+        if (url) sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
+    };
+    
+    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    sendCommand('INSERT_ELEMENT', { type: 'img', src: event.target.result as string });
+                }
+            };
+            reader.readAsDataURL(file);
+        }
     };
     
     // --- Actions Handlers Wrappers for Property Panel ---
@@ -718,9 +743,32 @@ export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({
         sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
     };
+    
+    // --- Top Toolbar for Insert/Zoom (Since undo/redo removed) ---
+    const TopToolbar = () => (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-slate-200 shadow-lg rounded-full px-4 py-2 flex items-center gap-4 z-20 transition-all hover:scale-105">
+            <div className="flex items-center gap-2">
+                 <button onClick={handleInsertImage} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-colors">
+                     <LinkIcon className="w-3.5 h-3.5" /> 网络图片
+                 </button>
+                 <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                     <PhotoIcon className="w-3.5 h-3.5" /> 本地上传
+                     <input type="file" accept="image/*" onChange={handleInsertUpload} className="hidden" />
+                 </label>
+            </div>
+            <div className="w-px h-4 bg-slate-300"></div>
+            <div className="flex items-center gap-2 text-slate-500">
+                <button onClick={() => onScaleChange && onScaleChange(Math.max(0.1, scale - 0.1))} className="hover:text-indigo-600 text-lg font-bold px-1">-</button>
+                <span className="text-xs font-mono min-w-[3rem] text-center">{Math.round(scale * 100)}%</span>
+                <button onClick={() => onScaleChange && onScaleChange(Math.min(3, scale + 0.1))} className="hover:text-indigo-600 text-lg font-bold px-1">+</button>
+            </div>
+        </div>
+    );
 
     return (
         <div className="flex w-full h-full bg-slate-200 overflow-hidden relative">
+            <TopToolbar />
+            
             {/* Scrollable Canvas Wrapper */}
             <div 
                 ref={containerRef}
