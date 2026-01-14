@@ -275,7 +275,7 @@ export const AIChatPanel: React.FC<{
                 } else {
                      updateLastAssistantMessage(accumulatedContent, accumulatedReasoning);
                 }
-            }, undefined, undefined, activeSessionId || undefined);
+            }, undefined, undefined, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
 
             // --- Tool Execution Logic ---
             let finalToolQuery = '';
@@ -343,7 +343,7 @@ export const AIChatPanel: React.FC<{
                     if (chunk.reasoning) accumulatedReasoning += chunk.reasoning;
                     if (chunk.content) accumulatedContent += chunk.content;
                     updateLastAssistantMessage(accumulatedContent, accumulatedReasoning, finalToolQuery, citations);
-                }, undefined, undefined, activeSessionId || undefined);
+                }, undefined, undefined, activeSessionId || undefined, AGENTS.STRATEGIC_COPILOT);
             } else if (isToolCallDetected && !finalToolQuery) {
                  // Fallback if tool detected but no query parsed
                  updateLastAssistantMessage(accumulatedContent || "无法解析工具参数，请重试。", accumulatedReasoning);
