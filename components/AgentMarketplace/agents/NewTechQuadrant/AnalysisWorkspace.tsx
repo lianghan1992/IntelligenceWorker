@@ -1,14 +1,12 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { TechItem } from './index';
 import { ArticlePublic } from '../../../../types';
 import { 
     DatabaseIcon, BrainIcon, DocumentTextIcon, CodeIcon, PlayIcon, 
-    CheckCircleIcon, RefreshIcon, ChevronRightIcon, ArrowRightIcon,
-    DownloadIcon, ArrowLeftIcon, PencilIcon
+    CheckCircleIcon, RefreshIcon, CheckIcon, ExternalLinkIcon,
+    DownloadIcon, PencilIcon, LinkIcon
 } from '../../../../components/icons';
-// Reuse the robust VisualEditor from ReportGenerator
-import { VisualEditor } from '../../../ReportGenerator/VisualEditor'; 
 import { generatePdf } from '../../utils/services';
 
 interface AnalysisWorkspaceProps {
@@ -202,7 +200,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
     return (
         <div className="flex h-full overflow-hidden">
             {/* Left Sidebar: Tech List */}
-            <div className="w-80 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
+            <div className="w-96 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 z-10">
                 <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="font-bold text-slate-700">识别清单 ({techList.length})</h3>
                     <button onClick={onBack} className="text-xs text-slate-400 hover:text-slate-600">重选文章</button>
@@ -217,36 +215,49 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                         techList.map(item => (
                             <div 
                                 key={item.id}
-                                onClick={() => item.analysisState !== 'idle' && setActiveTechId(item.id)}
+                                onClick={() => setActiveTechId(item.id)}
                                 className={`p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group ${
                                     activeTechId === item.id 
-                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
-                                        : 'bg-white border-slate-200 hover:border-indigo-300 text-slate-700'
+                                        ? 'bg-white border-indigo-500 ring-1 ring-indigo-500/20 shadow-md' 
+                                        : 'bg-white border-slate-200 hover:border-indigo-300'
                                 }`}
                             >
                                 <div className="flex justify-between items-start mb-2">
-                                    <h4 className="font-bold text-sm truncate pr-2">{item.name}</h4>
-                                    {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-400 bg-white rounded-full" />}
+                                    <h4 className={`font-bold text-sm truncate pr-2 ${activeTechId === item.id ? 'text-indigo-700' : 'text-slate-800'}`}>{item.name}</h4>
+                                    {item.analysisState === 'done' && <CheckCircleIcon className="w-4 h-4 text-green-500" />}
                                 </div>
-                                <div className={`text-xs opacity-80 mb-3 line-clamp-2 ${activeTechId === item.id ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]">{item.field}</span>
+                                    <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 truncate max-w-[80px]">{item.status}</span>
+                                </div>
+
+                                <div className="text-xs text-slate-500 mb-3 line-clamp-2 leading-relaxed" title={item.description}>
                                     {item.description}
                                 </div>
                                 
-                                {item.analysisState === 'idle' ? (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); startAnalysis(item.id); }}
-                                        className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold rounded-lg transition-colors border border-indigo-100"
-                                    >
-                                        开始深度分析
-                                    </button>
-                                ) : (
-                                    <div className="flex items-center gap-2 text-[10px] font-mono opacity-80">
-                                        {item.analysisState === 'analyzing' && <><RefreshIcon className="w-3 h-3 animate-spin"/> RAG 检索中...</>}
-                                        {item.analysisState === 'review' && <><DocumentTextIcon className="w-3 h-3"/> 待确认内容</>}
-                                        {item.analysisState === 'generating_html' && <><CodeIcon className="w-3 h-3 animate-pulse"/> 生成代码...</>}
-                                        {item.analysisState === 'done' && <><CheckCircleIcon className="w-3 h-3"/> 已完成</>}
-                                    </div>
-                                )}
+                                <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-2">
+                                     {item.original_url ? (
+                                        <a 
+                                            href={item.original_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer" 
+                                            className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 hover:underline"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <LinkIcon className="w-3 h-3"/> 原文链接
+                                        </a>
+                                     ) : <span className="text-[10px] text-slate-300">-</span>}
+
+                                     {/* Status Text */}
+                                     <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                                        {item.analysisState === 'idle' && <span className="text-slate-400">待分析</span>}
+                                        {item.analysisState === 'analyzing' && <span className="text-indigo-500 font-bold flex items-center gap-1"><RefreshIcon className="w-3 h-3 animate-spin"/> 分析中</span>}
+                                        {item.analysisState === 'review' && <span className="text-orange-500 font-bold flex items-center gap-1">待确认</span>}
+                                        {item.analysisState === 'generating_html' && <span className="text-purple-500 font-bold flex items-center gap-1"><CodeIcon className="w-3 h-3 animate-pulse"/> 生成中</span>}
+                                        {item.analysisState === 'done' && <span className="text-green-600 font-bold flex items-center gap-1">已完成</span>}
+                                     </div>
+                                </div>
                             </div>
                         ))
                     )}
@@ -258,7 +269,62 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                 {!activeItem ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
                         <DatabaseIcon className="w-16 h-16 mb-4 text-slate-300" />
-                        <p>请在左侧选择一项技术开始分析</p>
+                        <p>请在左侧选择一项技术查看详情或开始分析</p>
+                    </div>
+                ) : activeItem.analysisState === 'idle' ? (
+                    // Idle State: Show Full Details & Start Button
+                    <div className="flex flex-col h-full p-8 overflow-y-auto custom-scrollbar">
+                        <div className="max-w-3xl mx-auto w-full space-y-6">
+                            <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                                        <DatabaseIcon className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-extrabold text-slate-800">{activeItem.name}</h2>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">{activeItem.field}</span>
+                                            <div className="h-3 w-px bg-slate-300"></div>
+                                            <span className="text-xs text-slate-500">{activeItem.status}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">技术描述</h4>
+                                        <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            {activeItem.description}
+                                        </p>
+                                    </div>
+
+                                    {activeItem.original_url && (
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">来源信息</h4>
+                                            <a 
+                                                href={activeItem.original_url} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer" 
+                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit"
+                                            >
+                                                <ExternalLinkIcon className="w-4 h-4" />
+                                                {activeItem.original_url}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-10 pt-8 border-t border-slate-100 flex justify-end">
+                                     <button 
+                                        onClick={() => startAnalysis(activeItem.id)}
+                                        className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 hover:shadow-indigo-200 hover:-translate-y-0.5 transition-all flex items-center gap-2"
+                                    >
+                                        <BrainIcon className="w-5 h-5" />
+                                        开始深度分析与报告生成
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -333,13 +399,24 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                             </button>
                                         </div>
                                         
-                                        {/* Reuse Visual Editor */}
-                                        <div className="flex-1 relative overflow-hidden">
-                                            <VisualEditor 
-                                                initialHtml={activeItem.htmlContent || ''}
-                                                onSave={handleHtmlUpdate}
-                                                scale={0.65} // Default zoom for preview
-                                            />
+                                        {/* Reuse Visual Editor with Scaling */}
+                                        <div className="flex-1 relative overflow-hidden bg-slate-200">
+                                            {/* We use a wrapper to handle scaling nicely */}
+                                            <div className="absolute inset-0 flex items-center justify-center p-4">
+                                                <div className="w-full h-full max-w-[1600px] max-h-[900px] shadow-2xl relative">
+                                                    <iframe 
+                                                        srcDoc={activeItem.htmlContent}
+                                                        className="w-full h-full border-none bg-white"
+                                                        title="Preview"
+                                                        style={{ 
+                                                            transform: 'scale(1)', 
+                                                            transformOrigin: 'center',
+                                                            width: '100%', 
+                                                            height: '100%' 
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}

@@ -1,11 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArticleSelectionStep } from './ArticleSelectionStep';
 import { AnalysisWorkspace } from './AnalysisWorkspace';
-import { ArticlePublic } from '../../../../types';
+import { ArticlePublic, StratifyPrompt } from '../../../../types';
 import { getPrompts } from '../../../../api/stratify';
 import { chatGemini } from '../../../../api/intelligence';
-import { getArticleHtml } from '../../../../api/intelligence';
 
 export interface TechItem {
     id: string;
@@ -13,6 +12,7 @@ export interface TechItem {
     field: string;
     description: string;
     status: string;
+    original_url?: string;
     // Analysis State
     analysisState: 'idle' | 'analyzing' | 'review' | 'generating_html' | 'done';
     markdownContent?: string;
@@ -20,11 +20,23 @@ export interface TechItem {
     logs?: string[];
 }
 
+const SCENARIO_ID = '5e99897c-6d91-4c72-88e5-653ea162e52b';
+
 const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [step, setStep] = useState<'selection' | 'workspace'>('selection');
     const [selectedArticles, setSelectedArticles] = useState<ArticlePublic[]>([]);
     const [techList, setTechList] = useState<TechItem[]>([]);
     const [isExtracting, setIsExtracting] = useState(false);
+    
+    // Store all prompts for this scenario
+    const [prompts, setPrompts] = useState<StratifyPrompt[]>([]);
+
+    // Pre-load prompts when component mounts
+    useEffect(() => {
+        getPrompts({ scenario_id: SCENARIO_ID })
+            .then(setPrompts)
+            .catch(err => console.error("Failed to load scenario prompts", err));
+    }, []);
 
     const handleArticlesConfirmed = (articles: ArticlePublic[]) => {
         setSelectedArticles(articles);
@@ -38,41 +50,29 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         setTechList([]); // Clear previous results
 
         try {
-            // 1. Fetch the prompt template
-            const prompts = await getPrompts();
+            // 1. Get prompt from pre-loaded state
             const targetPrompt = prompts.find(p => p.name === '新技术识别提示词');
             
             if (!targetPrompt || !targetPrompt.content) {
-                console.error("Prompt '新技术识别提示词' not found in backend.");
-                // Fallback to a hardcoded minimal prompt or show error
+                console.error("Prompt '新技术识别提示词' not found in loaded prompts.");
                 alert("未找到分析提示词，请联系管理员配置。");
                 setIsExtracting(false);
                 return;
             }
 
             // 2. Iterate through articles and analyze
-            // For better UX, we could process them in parallel or batch, 
-            // but sequential is safer for rate limits and debugging initially.
             for (const article of articles) {
                 try {
-                    // Try to get full content, fallback to summary/content in list
-                    // If atomized, we might want to fetch detailed text. 
-                    // Assuming 'content' field in article object is sufficient for now.
-                    // If content is empty/truncated, we should fetch details.
-                    
                     let contentToAnalyze = article.content;
-                    if (!contentToAnalyze || contentToAnalyze.length < 100) {
-                         // Attempt to fetch HTML or detail if content is missing
-                         // For simplicity, we use what we have, or maybe fetch detail if needed.
-                         // Let's assume ArticlePublic content is populated enough.
-                    }
-
-                    // Replace placeholders
-                    // {{ article_content }} -> The article text
-                    // {{ retrieved_info }} -> Optional context (empty for now)
                     
-                    let filledPrompt = targetPrompt.content.replace('{{ article_content }}', `标题: ${article.title}\n内容: ${contentToAnalyze}`);
-                    filledPrompt = filledPrompt.replace('{{ retrieved_info }}', ''); // No extra RAG info for now
+                    // Replace placeholders
+                    // {{ article_content }} -> The article text + URL
+                    const articleContext = `标题: ${article.title}\nURL: ${article.original_url || ''}\n内容: ${contentToAnalyze}`;
+                    
+                    // Note: {{ retrieved_info }} is removed from prompt template as per requirement, 
+                    // so we don't need to replace it, or just replace with empty string if it still exists.
+                    let filledPrompt = targetPrompt.content.replace('{{ article_content }}', articleContext);
+                    filledPrompt = filledPrompt.replace('{{ retrieved_info }}', ''); 
 
                     // Call LLM
                     const response = await chatGemini([
@@ -95,6 +95,7 @@ const NewTechQuadrant: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                     field: item.field || '其他',
                                     description: item.description || '无描述',
                                     status: item.status || '未知',
+                                    original_url: item.original_url || article.original_url || '', // Use returned URL or fallback to article URL
                                     analysisState: 'idle'
                                 }));
                                 
