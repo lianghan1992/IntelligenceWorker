@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AdminTransaction, PaymentOrder } from '../../../types';
 import { getAdminTransactions, getAdminOrders } from '../../../api/user';
-import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ClockIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
+import { RefreshIcon, SearchIcon, CreditCardIcon, ServerIcon, ChipIcon, CheckCircleIcon, ShieldExclamationIcon, ChevronLeftIcon, ChevronRightIcon } from '../../icons';
 import { AGENT_NAMES } from '../../../agentConfig';
 
 const Spinner = () => <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>;
@@ -261,7 +261,9 @@ export const FinanceManager: React.FC = () => {
                                                 <div className="text-[10px] text-slate-400 mt-0.5">{new Date(order.created_at).toLocaleString()}</div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">{order.user_id ? order.user_id.slice(0, 8) + '...' : '-'}</span>
+                                                <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">
+                                                    {order.user_id ? order.user_id.slice(0, 8) + '...' : '-'}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 uppercase">
