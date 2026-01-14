@@ -48,6 +48,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     }
 
     const parseVal = (val: string) => parseInt(val) || 0;
+    const parseFontSize = (val: string) => parseInt(val) || 16;
+    
     // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
     // If we select the wrapper, we want to edit the image inside.
     const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
@@ -108,34 +110,58 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
 
                 <div className="h-px bg-slate-100"></div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PencilIcon className="w-3 h-3" /> 样式</h4>
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">颜色</label>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">颜色</label>
                         <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
                             <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.color || '#000'}}></div>
                             <input type="color" value={element.color || '#000000'} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-6 h-6 opacity-0 absolute cursor-pointer"/>
                             <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="flex-1 text-[10px] outline-none uppercase font-mono text-slate-600"/>
                         </div>
                     </div>
-                    <div className="flex gap-2">
+                    
+                    <div className="flex gap-3">
                          <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">字号</label>
-                            <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字号 (px)</label>
+                            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white h-8">
+                                <button 
+                                    onClick={() => onUpdateStyle('fontSize', `${Math.max(1, parseFontSize(element.fontSize) - 2)}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 active:bg-slate-100"
+                                    title="减小字号"
+                                >
+                                    -
+                                </button>
+                                <input 
+                                    type="number" 
+                                    value={parseFontSize(element.fontSize)} 
+                                    onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} 
+                                    className="flex-1 w-full text-center text-xs font-bold text-slate-700 outline-none h-full appearance-none"
+                                />
+                                <button 
+                                    onClick={() => onUpdateStyle('fontSize', `${parseFontSize(element.fontSize) + 2}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 active:bg-slate-100"
+                                    title="增大字号"
+                                >
+                                    +
+                                </button>
+                            </div>
                         </div>
                         <div className="w-1/3">
-                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">加粗</label>
-                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full py-1 border rounded-md font-bold text-xs ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>B</button>
+                             <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字重</label>
+                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-8 border rounded-lg font-bold text-xs flex items-center justify-center transition-all ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
+                                B
+                             </button>
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐</label>
-                        <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
+                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">对齐</label>
+                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                             {['left', 'center', 'right', 'justify'].map((align) => (
-                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1 flex justify-center hover:bg-white ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
-                                    {align === 'left' && <AlignLeftIcon className="w-3 h-3"/>}
-                                    {align === 'center' && <AlignCenterIcon className="w-3 h-3"/>}
-                                    {align === 'right' && <AlignRightIcon className="w-3 h-3"/>}
+                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white transition-colors ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-400'}`}>
+                                    {align === 'left' && <AlignLeftIcon className="w-3.5 h-3.5"/>}
+                                    {align === 'center' && <AlignCenterIcon className="w-3.5 h-3.5"/>}
+                                    {align === 'right' && <AlignRightIcon className="w-3.5 h-3.5"/>}
                                     {align === 'justify' && <span className="text-[9px] font-bold">≡</span>}
                                 </button>
                             ))}

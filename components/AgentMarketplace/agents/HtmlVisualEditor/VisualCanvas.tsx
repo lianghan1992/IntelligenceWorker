@@ -44,7 +44,11 @@ interface PropertiesPanelProps {
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
     if (!element) return null;
     const parseVal = (val: string) => parseInt(val) || 0;
-    const isImg = element.tagName === 'IMG';
+    const parseFontSize = (val: string) => parseInt(val) || 16;
+    
+    // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
+    // If we select the wrapper, we want to edit the image inside.
+    const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
         <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
@@ -102,34 +106,58 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
 
                 <div className="h-px bg-slate-100"></div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PencilIcon className="w-3 h-3" /> 样式</h4>
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">颜色</label>
+                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">颜色</label>
                         <div className="flex items-center gap-2 border border-slate-200 rounded-md p-1 pl-2 bg-white">
                             <div className="w-4 h-4 rounded border border-slate-200" style={{backgroundColor: element.color || '#000'}}></div>
                             <input type="color" value={element.color || '#000000'} onChange={(e) => onUpdateStyle('color', e.target.value)} className="w-6 h-6 opacity-0 absolute cursor-pointer"/>
                             <input type="text" value={element.color} onChange={(e) => onUpdateStyle('color', e.target.value)} className="flex-1 text-[10px] outline-none uppercase font-mono text-slate-600"/>
                         </div>
                     </div>
-                    <div className="flex gap-2">
+                    
+                    <div className="flex gap-3">
                          <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 font-medium mb-1 block">字号</label>
-                            <input type="number" value={parseVal(element.fontSize)} onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} className="w-full border border-slate-200 rounded-md px-2 py-1 text-xs focus:border-indigo-500 outline-none"/>
+                            <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字号 (px)</label>
+                            <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-white h-8">
+                                <button 
+                                    onClick={() => onUpdateStyle('fontSize', `${Math.max(1, parseFontSize(element.fontSize) - 2)}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-r border-slate-100 active:bg-slate-100"
+                                    title="减小字号"
+                                >
+                                    -
+                                </button>
+                                <input 
+                                    type="number" 
+                                    value={parseFontSize(element.fontSize)} 
+                                    onChange={(e) => onUpdateStyle('fontSize', `${e.target.value}px`)} 
+                                    className="flex-1 w-full text-center text-xs font-bold text-slate-700 outline-none h-full appearance-none"
+                                />
+                                <button 
+                                    onClick={() => onUpdateStyle('fontSize', `${parseFontSize(element.fontSize) + 2}px`)}
+                                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-colors border-l border-slate-100 active:bg-slate-100"
+                                    title="增大字号"
+                                >
+                                    +
+                                </button>
+                            </div>
                         </div>
                         <div className="w-1/3">
-                             <label className="text-[10px] text-slate-500 font-medium mb-1 block">加粗</label>
-                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full py-1 border rounded-md font-bold text-xs ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>B</button>
+                             <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">字重</label>
+                             <button onClick={() => onUpdateStyle('fontWeight', element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'normal' : 'bold')} className={`w-full h-8 border rounded-lg font-bold text-xs flex items-center justify-center transition-all ${element.fontWeight === 'bold' || parseInt(element.fontWeight) >= 700 ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-indigo-300'}`}>
+                                B
+                             </button>
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] text-slate-500 font-medium mb-1 block">对齐</label>
-                        <div className="flex border border-slate-200 rounded-md overflow-hidden bg-slate-50">
+                        <label className="text-[10px] text-slate-500 font-medium mb-1.5 block">对齐</label>
+                        <div className="flex border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
                             {['left', 'center', 'right', 'justify'].map((align) => (
-                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1 flex justify-center hover:bg-white ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>
-                                    {align === 'left' && <AlignLeftIcon className="w-3 h-3"/>}
-                                    {align === 'center' && <AlignCenterIcon className="w-3 h-3"/>}
-                                    {align === 'right' && <AlignRightIcon className="w-3 h-3"/>}
+                                <button key={align} onClick={() => onUpdateStyle('textAlign', align)} className={`flex-1 py-1.5 flex justify-center hover:bg-white transition-colors ${element.textAlign === align ? 'bg-white text-indigo-600 shadow-sm font-bold' : 'text-slate-400'}`}>
+                                    {align === 'left' && <AlignLeftIcon className="w-3.5 h-3.5"/>}
+                                    {align === 'center' && <AlignCenterIcon className="w-3.5 h-3.5"/>}
+                                    {align === 'right' && <AlignRightIcon className="w-3.5 h-3.5"/>}
                                     {align === 'justify' && <span className="text-[9px] font-bold">≡</span>}
                                 </button>
                             ))}
@@ -172,7 +200,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
-// ... (Retain EDITOR_SCRIPT) ...
+// --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -181,7 +209,8 @@ const EDITOR_SCRIPT = `
   let isResizing = false;
   let resizeHandle = null;
   let startX, startY;
-  // Initialize with window props if needed
+  let initialTransformX = 0, initialTransformY = 0;
+  let initialWidth = 0, initialHeight = 0;
   
   window.visualEditorScale = 1;
 
@@ -233,9 +262,57 @@ const EDITOR_SCRIPT = `
     if (e.target.classList.contains('ai-resizer')) return;
     if (e.target.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
-    if (selectedEl === e.target) return;
+    
+    // Check if clicked element is part of current selection or its wrapper
+    if (selectedEl && (selectedEl === e.target || selectedEl.contains(e.target))) return;
+
     if (selectedEl && selectedEl !== e.target) deselect();
-    const target = e.target;
+    
+    let target = e.target;
+    
+    // --- Auto-wrap IMG for resizing ---
+    if (target.tagName === 'IMG') {
+        if (target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+             target = target.parentElement;
+        } else {
+             // Create wrapper for the image to enable resizing/selection handles
+             const wrapper = document.createElement('div');
+             wrapper.className = 'ai-img-wrapper';
+             
+             // Copy computed positioning styles to wrapper
+             const comp = window.getComputedStyle(target);
+             const width = target.offsetWidth;
+             const height = target.offsetHeight;
+             
+             wrapper.style.display = comp.display === 'inline' ? 'inline-block' : comp.display;
+             wrapper.style.position = comp.position === 'static' ? 'relative' : comp.position;
+             wrapper.style.left = comp.left;
+             wrapper.style.top = comp.top;
+             wrapper.style.right = comp.right;
+             wrapper.style.bottom = comp.bottom;
+             wrapper.style.margin = comp.margin;
+             wrapper.style.transform = comp.transform;
+             wrapper.style.zIndex = comp.zIndex;
+             wrapper.style.width = width + 'px';
+             wrapper.style.height = height + 'px';
+             
+             // Reset img to fill wrapper
+             target.style.position = 'static';
+             target.style.transform = 'none';
+             target.style.width = '100%';
+             target.style.height = '100%';
+             target.style.margin = '0';
+             
+             if (target.parentNode) {
+                 target.parentNode.insertBefore(wrapper, target);
+                 wrapper.appendChild(target);
+                 target = wrapper;
+                 pushHistory();
+             }
+        }
+    }
+    // ---------------------------------------
+
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect(); return;
     }
@@ -244,13 +321,25 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('mouseover', (e) => {
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
-      e.target.classList.add('ai-editor-hover');
+      // Hover effect on wrapper if hovering img inside
+      let target = e.target;
+      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+           target = target.parentElement;
+      }
+      target.classList.add('ai-editor-hover');
   });
-  document.body.addEventListener('mouseout', (e) => { e.target.classList.remove('ai-editor-hover'); });
+  
+  document.body.addEventListener('mouseout', (e) => { 
+      let target = e.target;
+      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+           target = target.parentElement;
+      }
+      target.classList.remove('ai-editor-hover'); 
+  });
 
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
-     if (selectedEl && !e.target.classList.contains('ai-resizer')) {
+     if (selectedEl && !e.target.classList.contains('ai-resizer') && !selectedEl.classList.contains('ai-img-wrapper')) {
          removeResizers();
          selectedEl.contentEditable = 'true';
          selectedEl.focus();
@@ -277,6 +366,18 @@ const EDITOR_SCRIPT = `
       if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
 
       const comp = window.getComputedStyle(selectedEl);
+      
+      // If wrapper, get img src
+      let imgSrc = selectedEl.getAttribute('src');
+      let hasImgChild = false;
+      if (selectedEl.classList.contains('ai-img-wrapper')) {
+          const img = selectedEl.querySelector('img');
+          if (img) {
+              imgSrc = img.getAttribute('src');
+              hasImgChild = true;
+          }
+      }
+
       window.parent.postMessage({ 
           type: 'SELECTED', 
           tagName: selectedEl.tagName,
@@ -290,6 +391,9 @@ const EDITOR_SCRIPT = `
           display: comp.display,
           backgroundColor: comp.backgroundColor,
           borderRadius: comp.borderRadius,
+          src: imgSrc,
+          hasImgChild: hasImgChild,
+          opacity: comp.opacity
       }, '*');
   }
 
@@ -319,24 +423,45 @@ const EDITOR_SCRIPT = `
         window.parent.postMessage({ type: 'HTML_RESULT', html: cleanHtml }, '*');
         return;
     }
-    // ... existing insert/update handlers ...
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
+             // Create Wrapper DIV instead of IMG directly
+             const wrapper = document.createElement('div');
+             wrapper.className = 'ai-img-wrapper';
+             wrapper.style.position = 'absolute';
+             wrapper.style.left = '50px';
+             wrapper.style.top = '50px';
+             wrapper.style.zIndex = '50';
+             
              const img = document.createElement('img');
+             img.onload = function() {
+                 let w = this.naturalWidth;
+                 let h = this.naturalHeight;
+                 if (w > 400) {
+                     const ratio = 400 / w;
+                     w = 400;
+                     h = h * ratio;
+                 }
+                 wrapper.style.width = w + 'px'; 
+                 wrapper.style.height = h + 'px';
+                 
+                 img.style.width = '100%';
+                 img.style.height = '100%';
+                 img.style.objectFit = 'cover';
+                 img.style.display = 'block';
+                 
+                 wrapper.appendChild(img);
+                 
+                 const canvas = document.getElementById('canvas') || document.body;
+                 canvas.appendChild(wrapper);
+                 
+                 selectElement(wrapper);
+                 pushHistory();
+             }
+             img.onerror = function() {
+                 console.error('Image failed to load');
+             }
              img.src = value.src;
-             img.style.width = '300px'; 
-             img.style.height = 'auto';
-             img.style.display = 'block';
-             img.style.position = 'absolute'; 
-             img.style.left = '50px';
-             img.style.top = '50px';
-             
-             const canvas = document.getElementById('canvas');
-             if (canvas) canvas.appendChild(img);
-             else document.body.appendChild(img);
-             
-             selectElement(img);
-             pushHistory();
         }
         return;
     }
@@ -344,7 +469,15 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
     if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
-    else if (action === 'UPDATE_ATTRIBUTE') { selectedEl.setAttribute(value.key, value.val); pushHistory(); }
+    else if (action === 'UPDATE_ATTRIBUTE') { 
+        if (value.key === 'src' && selectedEl.classList.contains('ai-img-wrapper')) {
+            const img = selectedEl.querySelector('img');
+            if (img) img.src = value.val;
+        } else {
+            selectedEl.setAttribute(value.key, value.val); 
+        }
+        pushHistory(); 
+    }
     else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
@@ -366,7 +499,11 @@ const EDITOR_SCRIPT = `
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
-        selectedEl.style.position = 'relative'; 
+        // Only set position relative if it's static, to make z-index work. 
+        // But for inserted images (absolute), we keep absolute.
+        if (window.getComputedStyle(selectedEl).position === 'static') {
+             selectedEl.style.position = 'relative'; 
+        }
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
@@ -402,11 +539,30 @@ const EDITOR_SCRIPT = `
         startY = e.clientY;
         initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
         initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
+        
+        // Capture initial transform for Top/Left resizing
+        const transform = selectedEl.style.transform || '';
+        const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
+        if (match) {
+            window.initialTransformX = parseFloat(match[1]);
+            window.initialTransformY = parseFloat(match[2]);
+        } else {
+            window.initialTransformX = 0;
+            window.initialTransformY = 0;
+        }
+        
         e.stopPropagation(); e.preventDefault();
         return;
     }
-    if (!selectedEl || e.target !== selectedEl) return;
+    
+    if (!selectedEl) return;
+    
+    // FIX: Allow dragging if clicking on the selected element OR its children (like img inside wrapper)
+    const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
+    if (!isSelfOrChild && e.target !== selectedEl) return;
+    
     if (selectedEl.isContentEditable) return; 
+
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -427,16 +583,54 @@ const EDITOR_SCRIPT = `
         e.preventDefault();
         const dx = (e.clientX - startX) / scale;
         const dy = (e.clientY - startY) / scale;
+        
         let newWidth = initialWidth;
         let newHeight = initialHeight;
+        let newX = window.initialTransformX;
+        let newY = window.initialTransformY;
+
+        // Logic for Resizing
         if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
         if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
-        if (resizeHandle.includes('w')) newWidth = initialWidth - dx; 
-        if (resizeHandle.includes('n')) newHeight = initialHeight - dy;
-        if (newWidth > 10) selectedEl.style.width = \`\${newWidth}px\`;
-        if (newHeight > 10) selectedEl.style.height = \`\${newHeight}px\`;
+        
+        if (resizeHandle.includes('w')) {
+            newWidth = initialWidth - dx;
+            newX += dx;
+        }
+        if (resizeHandle.includes('n')) {
+            newHeight = initialHeight - dy;
+            newY += dy;
+        }
+        
+        // Ensure minimum size
+        if (newWidth > 10) {
+            selectedEl.style.width = \`\${newWidth}px\`;
+             // Only update position if we are resizing left/top and size allows it
+             if (resizeHandle.includes('w')) {
+                 // We need to keep transform sync
+             }
+        }
+        if (newHeight > 10) {
+            selectedEl.style.height = \`\${newHeight}px\`;
+        }
+        
+        // Update Transform if N/W resizing
+        if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
+             // Retrieve existing scale if any
+            const currentTransform = selectedEl.style.transform || '';
+            let scalePart = '';
+            const scaleMatch = currentTransform.match(/scale\\(([^)]+)\\)/);
+            if (scaleMatch) scalePart = scaleMatch[0];
+            
+            // Only update transform if size update was valid (min width check)
+            if ((resizeHandle.includes('w') && newWidth > 10) || (resizeHandle.includes('n') && newHeight > 10)) {
+                 selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
+            }
+        }
+        
         return;
     }
+    
     if (!isDragging || !selectedEl) return;
     e.preventDefault();
     const dx = (e.clientX - startX) / scale; 
