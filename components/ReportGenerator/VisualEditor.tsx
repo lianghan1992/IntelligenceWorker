@@ -71,10 +71,10 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
-    // Empty State
+    // Empty State (Persistent Panel)
     if (!element) {
         return (
-            <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+            <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center z-20">
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                     <SelectIcon className="w-6 h-6 opacity-30" />
                 </div>
@@ -569,8 +569,15 @@ const EDITOR_SCRIPT = `
         e.stopPropagation(); e.preventDefault();
         return;
     }
-    if (!selectedEl || e.target !== selectedEl) return;
+    
+    if (!selectedEl) return;
+    
+    // FIX: Allow dragging if clicking on the selected element OR its children (like img inside wrapper)
+    const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
+    if (!isSelfOrChild && e.target !== selectedEl) return;
+    
     if (selectedEl.isContentEditable) return; 
+
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -920,7 +927,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     </div>
                 </div>
 
-                {/* Right Properties Panel - Persistent */}
+                {/* Right Properties Panel */}
                 <PropertiesPanel 
                     element={selectedElement}
                     onUpdateStyle={handleUpdateStyle}
