@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PPTData, PPTStage, PPTPageData, SharedGeneratorProps } from './types';
-import { generateBatchPdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
+import { generateBatchPdf, generatePdf, getPromptDetail, streamChatCompletions } from '../../api/stratify';
 import { searchSemanticSegments } from '../../api/intelligence';
 import { getWalletBalance } from '../../api/user'; // Import wallet balance check
 import { 
@@ -206,6 +206,38 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
         }
     };
 
+    const handleExportSingle = async () => {
+        if (!activePage?.html) return;
+        setIsExporting(true);
+        try {
+            const blob = await generatePdf(activePage.html, `${data.topic}_page_${activePageIndex + 1}`, { width: 1600, height: 900 });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.topic}_page_${activePageIndex + 1}.pdf`;
+            a.click();
+        } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
+    };
+
+    const handleExportAll = async () => {
+        setIsExporting(true);
+        try {
+             const pdfPages = data.pages.map((p, idx) => ({
+                html: p.html || '',
+                filename: `page_${idx + 1}`
+            })).filter(item => item.html);
+            
+            if (pdfPages.length === 0) return;
+
+            const blob = await generateBatchPdf(pdfPages, { width: 1600, height: 900 });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.topic}_presentation.pdf`;
+            a.click();
+        } catch(e) { alert('导出失败'); } finally { setIsExporting(false); }
+    };
+
     // Robust display content for streaming text
     const displayContent = useMemo(() => {
         if (!activePage) return '';
@@ -400,18 +432,6 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                          </div>
                      ))}
                  </div>
-                 
-                 {hasReadyHtml && (
-                     <div className="p-4 border-t border-slate-200">
-                         <button 
-                            onClick={handleEnterFinalize} 
-                            className="w-full py-3 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
-                         >
-                            <span>进入可视化精修</span>
-                            <ArrowRightIcon className="w-4 h-4"/>
-                         </button>
-                     </div>
-                 )}
             </div>
 
             {/* Main Stage */}
@@ -426,12 +446,44 @@ export const MainCanvas: React.FC<MainCanvasProps> = ({
                              'Content Editor'}
                         </span>
                     </div>
-                    {genModel && (
-                        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-100" title={`Generative Model: ${genModel}`}>
-                            <ServerIcon className="w-3 h-3 text-slate-300" />
-                            <span className="text-[9px] font-mono text-slate-400 truncate max-w-[150px]">{genModel}</span>
-                        </div>
-                    )}
+
+                    <div className="flex items-center gap-3">
+                        {genModel && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-50 border border-slate-100 mr-2" title={`Generative Model: ${genModel}`}>
+                                <ServerIcon className="w-3 h-3 text-slate-300" />
+                                <span className="text-[9px] font-mono text-slate-400 truncate max-w-[150px]">{genModel}</span>
+                            </div>
+                        )}
+
+                        {hasReadyHtml && (
+                            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 ml-2">
+                                 <button 
+                                    onClick={handleExportSingle}
+                                    disabled={!activePage?.html || isExporting}
+                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
+                                    title="导出当前页 PDF"
+                                >
+                                    {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DownloadIcon className="w-4 h-4"/>}
+                                </button>
+                                <button 
+                                    onClick={handleExportAll}
+                                    disabled={isExporting}
+                                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
+                                    title="导出完整 PDF"
+                                >
+                                    {isExporting ? <RefreshIcon className="w-4 h-4 animate-spin"/> : <DocumentTextIcon className="w-4 h-4"/>}
+                                </button>
+                                <div className="w-px h-4 bg-slate-200 mx-1"></div>
+                                <button 
+                                    onClick={handleEnterFinalize} 
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 ml-2"
+                                >
+                                    <SparklesIcon className="w-3.5 h-3.5"/>
+                                    <span>可视化精修</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Content Canvas */}
