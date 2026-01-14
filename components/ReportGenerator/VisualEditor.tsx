@@ -72,13 +72,15 @@ interface PropertiesPanelProps {
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
     if (!element) return null;
     const parseVal = (val: string) => parseInt(val) || 0;
-    const isImg = element.tagName === 'IMG';
+    // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
+    // If we select the wrapper, we want to edit the image inside.
+    const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
 
     return (
         <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{element.tagName}</span>
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{isImg ? 'IMAGE' : element.tagName}</span>
                     <span className="text-xs font-bold text-slate-700">属性编辑</span>
                 </div>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-4 h-4" /></button>
@@ -262,9 +264,18 @@ const EDITOR_SCRIPT = `
     if (e.target.classList.contains('ai-resizer')) return;
     if (e.target.isContentEditable) return;
     e.preventDefault(); e.stopPropagation();
-    if (selectedEl === e.target) return;
+    
+    // Check if clicked element is part of current selection or its wrapper
+    if (selectedEl && (selectedEl === e.target || selectedEl.contains(e.target))) return;
+
     if (selectedEl && selectedEl !== e.target) deselect();
-    const target = e.target;
+    
+    let target = e.target;
+    // If user clicks an image inside a wrapper, select the wrapper
+    if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+        target = target.parentElement;
+    }
+
     if (target === document.body || target === document.documentElement || target.id === 'canvas') {
         deselect(); return;
     }
@@ -273,13 +284,25 @@ const EDITOR_SCRIPT = `
 
   document.body.addEventListener('mouseover', (e) => {
       if (e.target.classList.contains('ai-resizer') || e.target === document.body || e.target === document.documentElement || e.target.id === 'canvas' || e.target === selectedEl) return;
-      e.target.classList.add('ai-editor-hover');
+      // Hover effect on wrapper if hovering img inside
+      let target = e.target;
+      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+           target = target.parentElement;
+      }
+      target.classList.add('ai-editor-hover');
   });
-  document.body.addEventListener('mouseout', (e) => { e.target.classList.remove('ai-editor-hover'); });
+  
+  document.body.addEventListener('mouseout', (e) => { 
+      let target = e.target;
+      if (target.tagName === 'IMG' && target.parentElement && target.parentElement.classList.contains('ai-img-wrapper')) {
+           target = target.parentElement;
+      }
+      target.classList.remove('ai-editor-hover'); 
+  });
 
   document.body.addEventListener('dblclick', (e) => {
      e.preventDefault(); e.stopPropagation();
-     if (selectedEl && !e.target.classList.contains('ai-resizer')) {
+     if (selectedEl && !e.target.classList.contains('ai-resizer') && !selectedEl.classList.contains('ai-img-wrapper')) {
          removeResizers();
          selectedEl.contentEditable = 'true';
          selectedEl.focus();
@@ -306,6 +329,18 @@ const EDITOR_SCRIPT = `
       if (scaleMatch) currentScale = parseFloat(scaleMatch[1]);
 
       const comp = window.getComputedStyle(selectedEl);
+      
+      // If wrapper, get img src
+      let imgSrc = selectedEl.getAttribute('src');
+      let hasImgChild = false;
+      if (selectedEl.classList.contains('ai-img-wrapper')) {
+          const img = selectedEl.querySelector('img');
+          if (img) {
+              imgSrc = img.getAttribute('src');
+              hasImgChild = true;
+          }
+      }
+
       window.parent.postMessage({ 
           type: 'SELECTED', 
           tagName: selectedEl.tagName,
@@ -319,7 +354,8 @@ const EDITOR_SCRIPT = `
           display: comp.display,
           backgroundColor: comp.backgroundColor,
           borderRadius: comp.borderRadius,
-          src: selectedEl.getAttribute('src'),
+          src: imgSrc,
+          hasImgChild: hasImgChild,
           opacity: comp.opacity
       }, '*');
   }
@@ -352,6 +388,14 @@ const EDITOR_SCRIPT = `
     }
     if (action === 'INSERT_ELEMENT') {
         if (value.type === 'img') {
+             // Create Wrapper DIV instead of IMG directly
+             const wrapper = document.createElement('div');
+             wrapper.className = 'ai-img-wrapper';
+             wrapper.style.position = 'absolute';
+             wrapper.style.left = '50px';
+             wrapper.style.top = '50px';
+             wrapper.style.zIndex = '50';
+             
              const img = document.createElement('img');
              img.onload = function() {
                  let w = this.naturalWidth;
@@ -361,18 +405,20 @@ const EDITOR_SCRIPT = `
                      w = 400;
                      h = h * ratio;
                  }
-                 img.style.width = w + 'px'; 
-                 img.style.height = h + 'px';
+                 wrapper.style.width = w + 'px'; 
+                 wrapper.style.height = h + 'px';
+                 
+                 img.style.width = '100%';
+                 img.style.height = '100%';
+                 img.style.objectFit = 'cover';
                  img.style.display = 'block';
-                 img.style.position = 'absolute'; 
-                 img.style.left = '50px';
-                 img.style.top = '50px';
-                 img.style.zIndex = '50';
+                 
+                 wrapper.appendChild(img);
                  
                  const canvas = document.getElementById('canvas') || document.body;
-                 canvas.appendChild(img);
+                 canvas.appendChild(wrapper);
                  
-                 selectElement(img);
+                 selectElement(wrapper);
                  pushHistory();
              }
              img.onerror = function() {
@@ -386,7 +432,15 @@ const EDITOR_SCRIPT = `
     if (!selectedEl) return;
     if (action === 'UPDATE_CONTENT') { selectedEl.innerText = value; pushHistory(); return; }
     if (action === 'UPDATE_STYLE') { Object.assign(selectedEl.style, value); pushHistory(); } 
-    else if (action === 'UPDATE_ATTRIBUTE') { selectedEl.setAttribute(value.key, value.val); pushHistory(); }
+    else if (action === 'UPDATE_ATTRIBUTE') { 
+        if (value.key === 'src' && selectedEl.classList.contains('ai-img-wrapper')) {
+            const img = selectedEl.querySelector('img');
+            if (img) img.src = value.val;
+        } else {
+            selectedEl.setAttribute(value.key, value.val); 
+        }
+        pushHistory(); 
+    }
     else if (action === 'DELETE') { selectedEl.remove(); deselect(); pushHistory(); } 
     else if (action === 'DUPLICATE') {
         const clone = selectedEl.cloneNode(true);
@@ -408,7 +462,11 @@ const EDITOR_SCRIPT = `
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
-        selectedEl.style.position = 'relative'; 
+        // Only set position relative if it's static, to make z-index work. 
+        // But for inserted images (absolute), we keep absolute.
+        if (window.getComputedStyle(selectedEl).position === 'static') {
+             selectedEl.style.position = 'relative'; 
+        }
         pushHistory();
     }
     else if (action === 'UPDATE_TRANSFORM') {
@@ -475,6 +533,8 @@ const EDITOR_SCRIPT = `
         if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
         if (resizeHandle.includes('w')) newWidth = initialWidth - dx; 
         if (resizeHandle.includes('n')) newHeight = initialHeight - dy;
+        
+        // Ensure minimum size
         if (newWidth > 10) selectedEl.style.width = \`\${newWidth}px\`;
         if (newHeight > 10) selectedEl.style.height = \`\${newHeight}px\`;
         return;
@@ -606,8 +666,10 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
     };
 
     // --- Toolbar Components ---
-    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName));
-    const isImg = selectedElement && selectedElement.tagName === 'IMG';
+    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName)) && !selectedElement.hasImgChild;
+    // Check if it's an IMG tag OR a wrapper div containing an IMG (inserted by us)
+    const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
+    
     const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
     const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
     const align = selectedElement?.textAlign || 'left';
@@ -754,7 +816,7 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
                     {/* Floating HUD for selection type */}
                     {selectedElement && (
                         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur text-white rounded-full shadow-2xl border border-white/10 px-4 py-2 flex items-center gap-4 z-40 animate-in fade-in slide-in-from-top-2 select-none">
-                             <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">{selectedElement.tagName}</span>
+                             <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">{selectedElement.tagName === 'DIV' && selectedElement.hasImgChild ? 'IMAGE' : selectedElement.tagName}</span>
                              <div className="h-4 w-px bg-white/10"></div>
                              <div className="flex gap-2">
                                  <button onClick={() => sendCommand('LAYER', 'up')} className="p-1 hover:text-indigo-400 transition-colors" title="上移一层">↑</button>

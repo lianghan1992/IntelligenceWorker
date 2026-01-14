@@ -6,7 +6,7 @@ import { getWalletBalance } from '../../api/user'; // Import wallet balance chec
 import { 
     RefreshIcon, DownloadIcon, ChevronRightIcon, 
     ChevronLeftIcon, CheckIcon, CodeIcon, BrainIcon,
-    PlayIcon, LightningBoltIcon
+    PlayIcon, LightningBoltIcon, CloseIcon
 } from '../icons';
 import { VisualEditor } from './VisualEditor';
 import { AGENTS } from '../../agentConfig'; // Import AGENTS
@@ -28,11 +28,16 @@ const extractStreamingHtml = (rawText: string): string => {
     return rawText.replace(/^```html?\s*/i, '').replace(/```$/, '').trim();
 };
 
-const GuidePanel: React.FC = () => (
-    <div className="absolute right-6 top-1/2 -translate-y-1/2 w-64 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/10 p-5 text-white shadow-2xl z-20 animate-in slide-in-from-right-10 fade-in duration-700 hidden xl:block">
-        <div className="flex items-center gap-2 mb-4 border-b border-white/10 pb-3">
-            <LightningBoltIcon className="w-4 h-4 text-yellow-400" />
-            <h3 className="font-bold text-sm tracking-wide">操作指南</h3>
+const GuidePanel: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+    <div className="absolute right-6 top-1/2 -translate-y-1/2 w-64 bg-slate-900/90 backdrop-blur-md rounded-2xl border border-white/10 p-5 text-white shadow-2xl z-20 animate-in slide-in-from-right-10 fade-in duration-700 hidden xl:block">
+        <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+                <LightningBoltIcon className="w-4 h-4 text-yellow-400" />
+                <h3 className="font-bold text-sm tracking-wide">操作指南</h3>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+                <CloseIcon className="w-4 h-4" />
+            </button>
         </div>
         
         <div className="space-y-4">
@@ -42,6 +47,7 @@ const GuidePanel: React.FC = () => (
                     <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>单击选中元素，弹出工具栏</li>
                     <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>双击文字可直接输入修改</li>
                     <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>按住鼠标拖拽调整位置</li>
+                    <li className="flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span>选中图片拖拽边缘可缩放</li>
                 </ul>
             </div>
 
@@ -61,7 +67,7 @@ const GuidePanel: React.FC = () => (
 
             <div className="pt-2 border-t border-white/10">
                 <p className="text-[10px] text-slate-500 italic">
-                    提示：使用工具栏中的放大/缩小功能调整元素尺寸，而非文字大小，以保持布局完美。
+                    提示：所有修改会自动保存。
                 </p>
             </div>
         </div>
@@ -83,6 +89,20 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
     const [isExporting, setIsExporting] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(0.6); // Default scale
+    const [showGuide, setShowGuide] = useState(true);
+
+    // Load guide visibility preference
+    useEffect(() => {
+        const isClosed = localStorage.getItem('ai_report_guide_closed');
+        if (isClosed === 'true') {
+            setShowGuide(false);
+        }
+    }, []);
+
+    const handleCloseGuide = () => {
+        setShowGuide(false);
+        localStorage.setItem('ai_report_guide_closed', 'true');
+    };
 
     // Auto-calculate scale based on container size
     useEffect(() => {
@@ -268,8 +288,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                      )}
                  </div>
 
-                 {/* Right Guide Panel (HUD) */}
-                 <GuidePanel />
+                 {/* Right Guide Panel (HUD) - Conditionally Rendered */}
+                 {showGuide && <GuidePanel onClose={handleCloseGuide} />}
 
                  {/* Next Button */}
                  <button 
@@ -288,18 +308,29 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                         key={i}
                         onClick={() => setActiveIdx(i)}
                         className={`
-                            flex-shrink-0 w-40 aspect-video rounded border cursor-pointer transition-all relative overflow-hidden group
+                            flex-shrink-0 w-44 aspect-video rounded border cursor-pointer transition-all relative overflow-hidden group
                             ${activeIdx === i ? 'border-indigo-500 ring-2 ring-indigo-500/50 opacity-100 scale-105' : 'border-white/10 opacity-50 hover:opacity-80'}
                         `}
                      >
                          {p.html ? (
-                             <iframe srcDoc={p.html} className="w-full h-full pointer-events-none bg-white scale-[0.2] origin-top-left w-[500%] h-[500%]" tabIndex={-1} />
+                             // Fixed Iframe Scaling for Thumbnail
+                             <div className="w-full h-full relative bg-white">
+                                 <div className="absolute top-0 left-0 w-[1600px] h-[900px] origin-top-left transform scale-[0.11]">
+                                     <iframe 
+                                         srcDoc={p.html} 
+                                         className="w-full h-full border-none pointer-events-none select-none" 
+                                         tabIndex={-1} 
+                                     />
+                                 </div>
+                                 {/* Overlay to catch clicks */}
+                                 <div className="absolute inset-0 bg-transparent"></div>
+                             </div>
                          ) : (
                              <div className="w-full h-full bg-slate-800 flex items-center justify-center">
                                  <RefreshIcon className="w-4 h-4 text-slate-600 animate-spin" />
                              </div>
                          )}
-                         <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded backdrop-blur-sm">
+                         <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded backdrop-blur-sm z-10">
                              {i + 1}
                          </div>
                      </div>
