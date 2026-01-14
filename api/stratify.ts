@@ -363,8 +363,18 @@ export const uploadStratifyFile = (file: File): Promise<{ filename: string; url:
     });
 };
 
-export const generatePdf = async (htmlContent: string, filename?: string): Promise<Blob> => {
-    const url = `${STRATIFY_SERVICE_PATH}/generate/pdf`;
+export const generatePdf = async (htmlContent: string, filename?: string, options?: { width?: number; height?: number }): Promise<Blob> => {
+    let url = `${STRATIFY_SERVICE_PATH}/generate/pdf`;
+    
+    // Append dimensions as query parameters if provided
+    if (options) {
+        const params = new URLSearchParams();
+        if (options.width) params.append('width', options.width.toString());
+        if (options.height) params.append('height', options.height.toString());
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+    }
+
     const token = localStorage.getItem('accessToken');
     const response = await fetch(url, {
         method: 'POST',
@@ -378,8 +388,18 @@ export const generatePdf = async (htmlContent: string, filename?: string): Promi
     return response.blob();
 };
 
-export const generateBatchPdf = async (htmlFiles: { html: string; filename: string }[]): Promise<Blob> => {
-    const url = `${STRATIFY_SERVICE_PATH}/v1/pdf/batch`;
+export const generateBatchPdf = async (htmlFiles: { html: string; filename: string }[], options?: { width?: number; height?: number }): Promise<Blob> => {
+    let url = `${STRATIFY_SERVICE_PATH}/v1/pdf/batch`;
+    
+    // Append dimensions as query parameters if provided
+    if (options) {
+        const params = new URLSearchParams();
+        if (options.width) params.append('width', options.width.toString());
+        if (options.height) params.append('height', options.height.toString());
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+    }
+
     const token = localStorage.getItem('accessToken');
     const response = await fetch(url, {
         method: 'POST',

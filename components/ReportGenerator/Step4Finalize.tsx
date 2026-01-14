@@ -205,7 +205,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
         if (!activePage?.html) return;
         setIsExportingSingle(true);
         try {
-            const blob = await generatePdf(activePage.html, `${topic}_page_${activeIdx + 1}`);
+            // FIX: Pass fixed dimensions 1600x900
+            const blob = await generatePdf(activePage.html, `${topic}_page_${activeIdx + 1}`, { width: 1600, height: 900 });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -221,7 +222,8 @@ export const Step4Finalize: React.FC<Step4FinalizeProps> = ({
                 html: p.html || '',
                 filename: `page_${idx + 1}`
             })).filter(item => item.html);
-            const blob = await generateBatchPdf(pdfPages);
+            // FIX: Pass fixed dimensions 1600x900
+            const blob = await generateBatchPdf(pdfPages, { width: 1600, height: 900 });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
