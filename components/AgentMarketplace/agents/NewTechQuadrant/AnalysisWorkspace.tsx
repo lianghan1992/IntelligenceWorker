@@ -208,7 +208,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
             const finalPrompt = htmlPrompt.content.replace('{{ markdown_content }}', contentToConvert);
 
             // 3. Call LLM
-            // Switch model to gemini-2.5-pro for better HTML generation quality as requested
             const response = await chatGemini([
                 { role: 'user', content: finalPrompt }
             ], 'gemini-2.5-pro');
