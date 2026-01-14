@@ -588,3 +588,19 @@ export const deleteProxy = (url: string): Promise<void> =>
 
 export const testProxy = (url: string): Promise<{ success: boolean; latency_ms: number }> => 
     apiFetch<{ success: boolean; latency_ms: number }>(`${INTELSPIDER_SERVICE_PATH}/proxies/test`, { method: 'POST', body: JSON.stringify({ url }) });
+
+// --- New Gemini Chat API ---
+
+export const chatGemini = async (
+    messages: { role: string; content: string }[],
+    model: string = 'gemini-2.5-flash'
+): Promise<any> => {
+    return apiFetch<any>(`${INTELSPIDER_SERVICE_PATH}/gemini/chat/completions`, {
+        method: 'POST',
+        body: JSON.stringify({
+            model,
+            messages,
+            stream: false // Currently only supporting non-streaming as per requirement docs for analysis
+        })
+    });
+};
