@@ -1,66 +1,36 @@
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { 
     TrashIcon, CloseIcon, DocumentTextIcon, 
     PhotoIcon, ViewGridIcon, PencilIcon, 
-    LinkIcon, RefreshIcon,
+    LinkIcon
 } from '../icons';
 
-interface VisualEditorProps {
-    initialHtml: string;
-    onSave: (newHtml: string) => void;
-    scale?: number;
-}
-
-// --- Icons ---
-const UndoIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z" transform="scale(-1, 1) translate(-24, 0)"/>
-    </svg>
-);
-
-const RedoIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 1.7-.71 3.26-1.84 4.38l1.41 1.41c1.55-1.58 2.53-3.75 2.53-6.14 0-4.42-3.58-8-8-8z"/>
-    </svg>
-);
-
-const BoldIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 11.81C16.36 11.23 17 10.23 17 9c0-2.21-1.79-4-4-4H7v14h7.5c2.09 0 3.5-1.75 3.5-3.88 0-1.63-1.04-3.05-2.4-3.31zM10.5 7.5H13c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-2.5V7.5zm3.5 9H10.5v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>;
-const ItalicIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M10 4v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V4z"/></svg>;
+// --- Local Icons for Property Panel ---
 const AlignLeftIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm0 7h12v2H3v-2zm0 7h18v2H3v-2z"/></svg>;
 const AlignCenterIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm4 7h10v2H7v-2zm-4 7h18v2H3v-2z"/></svg>;
 const AlignRightIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M3 4h18v2H3V4zm6 7h12v2H9v-2zm-6 7h18v2H3v-2z"/></svg>;
-const LayerIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>;
-const DuplicateIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>;
-const ArrowIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z"/></svg>;
-const SelectIcon = ({className}:{className?:string}) => <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.6z"/></svg>;
 
-// --- History Hook ---
-function useHistory<T>(initialState: T) {
-    const [history, setHistory] = useState<T[]>([initialState]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const state = history[currentIndex];
-
-    const pushState = useCallback((newState: T) => {
-        setHistory(prev => {
-            const newHistory = prev.slice(0, currentIndex + 1);
-            if (newHistory[newHistory.length - 1] === newState) return prev;
-            if (newHistory.length > 50) newHistory.shift();
-            return [...newHistory, newState];
-        });
-        setCurrentIndex(prev => prev + 1 >= 50 ? 49 : prev + 1);
-    }, [currentIndex]);
-    
-    useEffect(() => { setCurrentIndex(history.length - 1); }, [history.length]);
-
-    const undo = useCallback(() => setCurrentIndex(prev => Math.max(0, prev - 1)), []);
-    const redo = useCallback(() => setCurrentIndex(prev => Math.min(history.length - 1, prev + 1)), [history.length]);
-    const reset = useCallback((newState: T) => { setHistory([newState]); setCurrentIndex(0); }, []);
-
-    return { state, pushState, undo, redo, canUndo: currentIndex > 0, canRedo: currentIndex < history.length - 1, reset };
+export interface VisualEditorHandle {
+    updateStyle: (key: string, value: string | number) => void;
+    updateContent: (text: string) => void;
+    updateAttribute: (key: string, value: string) => void;
+    insertElement: (type: 'img', value: string) => void;
+    updateTransform: (dx: number, dy: number, scale?: number) => void;
+    changeLayer: (direction: 'up' | 'down') => void;
+    duplicate: () => void;
+    deleteElement: () => void;
+    deselect: () => void;
 }
 
-// --- Properties Panel ---
+export interface VisualEditorProps {
+    initialHtml: string;
+    onSave: (newHtml: string) => void;
+    scale?: number;
+    onScaleChange?: (scale: number) => void;
+    onSelectionChange?: (element: any) => void;
+}
+
 interface PropertiesPanelProps {
     element: any;
     onUpdateStyle: (key: string, value: string) => void;
@@ -71,30 +41,16 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyle, onUpdateContent, onUpdateAttribute, onDelete, onClose }) => {
-    // Empty State (Persistent Panel)
-    if (!element) {
-        return (
-            <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center z-20">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                    <SelectIcon className="w-6 h-6 opacity-30" />
-                </div>
-                <h3 className="font-bold text-slate-600 mb-1">未选择元素</h3>
-                <p className="text-xs">请在左侧画布点击选择一个元素以编辑属性</p>
-            </div>
-        );
-    }
-
+    if (!element) return null;
     const parseVal = (val: string) => parseInt(val) || 0;
-    // Note: The element might be an IMG tag or a DIV wrapper containing an IMG.
-    // If we select the wrapper, we want to edit the image inside.
-    const isImg = element.tagName === 'IMG' || (element.tagName === 'DIV' && element.hasImgChild);
+    const isImg = element.tagName === 'IMG';
 
     return (
-        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20">
+        <div className="w-72 bg-white border-l border-slate-200 h-full flex flex-col shadow-xl z-20 animate-in slide-in-from-right duration-300">
             <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{isImg ? 'IMAGE' : element.tagName}</span>
-                    <span className="text-xs font-bold text-slate-700">属性编辑</span>
+                    <span className="text-[10px] font-bold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded uppercase">{element.tagName}</span>
+                    <span className="text-xs font-bold text-slate-700">属性</span>
                 </div>
                 <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><CloseIcon className="w-4 h-4" /></button>
             </div>
@@ -113,7 +69,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
                 
                 {isImg && (
                     <div className="space-y-2">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 图片源</h4>
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><PhotoIcon className="w-3 h-3" /> 源</h4>
                         <div>
                              <label className="text-[10px] text-slate-500 font-medium mb-1 block">URL</label>
                              <input 
@@ -215,7 +171,6 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ element, onUpdateStyl
     );
 };
 
-// --- Editor Interaction Script ---
 const EDITOR_SCRIPT = `
 <script>
 (function() {
@@ -224,8 +179,6 @@ const EDITOR_SCRIPT = `
   let isResizing = false;
   let resizeHandle = null;
   let startX, startY;
-  let initialTransformX = 0, initialTransformY = 0;
-  let initialWidth = 0, initialHeight = 0;
   
   window.visualEditorScale = 1;
 
@@ -514,8 +467,6 @@ const EDITOR_SCRIPT = `
     else if (action === 'LAYER') {
         const currentZ = parseInt(window.getComputedStyle(selectedEl).zIndex) || 0;
         selectedEl.style.zIndex = value === 'up' ? currentZ + 1 : Math.max(0, currentZ - 1);
-        // Only set position relative if it's static, to make z-index work. 
-        // But for inserted images (absolute), we keep absolute.
         if (window.getComputedStyle(selectedEl).position === 'static') {
              selectedEl.style.position = 'relative'; 
         }
@@ -555,7 +506,6 @@ const EDITOR_SCRIPT = `
         initialWidth = parseFloat(window.getComputedStyle(selectedEl).width);
         initialHeight = parseFloat(window.getComputedStyle(selectedEl).height);
         
-        // Capture initial transform for Top/Left resizing
         const transform = selectedEl.style.transform || '';
         const match = transform.match(/translate\\((.*)px,\\s*(.*)px\\)/);
         if (match) {
@@ -571,8 +521,6 @@ const EDITOR_SCRIPT = `
     }
     
     if (!selectedEl) return;
-    
-    // FIX: Allow dragging if clicking on the selected element OR its children (like img inside wrapper)
     const isSelfOrChild = selectedEl === e.target || selectedEl.contains(e.target);
     if (!isSelfOrChild && e.target !== selectedEl) return;
     
@@ -604,7 +552,6 @@ const EDITOR_SCRIPT = `
         let newX = window.initialTransformX;
         let newY = window.initialTransformY;
 
-        // Logic for Resizing
         if (resizeHandle.includes('e')) newWidth = initialWidth + dx;
         if (resizeHandle.includes('s')) newHeight = initialHeight + dy;
         
@@ -617,27 +564,19 @@ const EDITOR_SCRIPT = `
             newY += dy;
         }
         
-        // Ensure minimum size
         if (newWidth > 10) {
             selectedEl.style.width = \`\${newWidth}px\`;
-             // Only update position if we are resizing left/top and size allows it
-             if (resizeHandle.includes('w')) {
-                 // We need to keep transform sync
-             }
         }
         if (newHeight > 10) {
             selectedEl.style.height = \`\${newHeight}px\`;
         }
         
-        // Update Transform if N/W resizing
         if (resizeHandle.includes('w') || resizeHandle.includes('n')) {
-             // Retrieve existing scale if any
             const currentTransform = selectedEl.style.transform || '';
             let scalePart = '';
             const scaleMatch = currentTransform.match(/scale\\([^)]+\\)/);
             if (scaleMatch) scalePart = scaleMatch[0];
             
-            // Only update transform if size update was valid (min width check)
             if ((resizeHandle.includes('w') && newWidth > 10) || (resizeHandle.includes('n') && newHeight > 10)) {
                  selectedEl.style.transform = \`translate(\${newX}px, \${newY}px) \${scalePart}\`;
             }
@@ -666,55 +605,82 @@ const EDITOR_SCRIPT = `
 </script>
 `;
 
-export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave, scale: externalScale = 1 }) => {
-    const [scale, setScale] = useState(externalScale);
-    const [selectedElement, setSelectedElement] = useState<any>(null);
+export const VisualEditor = forwardRef<VisualEditorHandle, VisualEditorProps>(({ initialHtml, onSave, scale, onScaleChange, onSelectionChange }, ref) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const { state: htmlContent, pushState: setHtmlContent, undo, redo, canUndo, canRedo, reset } = useHistory(initialHtml);
+    const containerRef = useRef<HTMLDivElement>(null);
     const isInternalUpdate = useRef(false);
+    const [selectedElement, setSelectedElement] = useState<any>(null);
 
-    // Sync external scale
-    useEffect(() => {
-        setScale(externalScale);
-    }, [externalScale]);
+    // Expose methods to parent
+    useImperativeHandle(ref, () => ({
+        updateStyle: (key, value) => sendCommand('UPDATE_STYLE', { [key]: value }),
+        updateContent: (text) => sendCommand('UPDATE_CONTENT', text),
+        updateAttribute: (key, value) => sendCommand('UPDATE_ATTRIBUTE', { key, val: value }),
+        insertElement: (type, src) => sendCommand('INSERT_ELEMENT', { type, src }),
+        updateTransform: (dx, dy, scaleVal) => sendCommand('UPDATE_TRANSFORM', { dx, dy, scale: scaleVal }),
+        changeLayer: (direction) => sendCommand('LAYER', direction),
+        duplicate: () => sendCommand('DUPLICATE'),
+        deleteElement: () => sendCommand('DELETE'),
+        deselect: () => sendCommand('DESELECT_FORCE')
+    }));
 
-    // Initial Load & External Updates
+    // Initial Load & External Updates (e.g. from parent undo/redo)
     useEffect(() => {
         if (isInternalUpdate.current) { isInternalUpdate.current = false; return; }
-        if (htmlContent !== initialHtml) { reset(initialHtml); }
-
+        
         const iframe = iframeRef.current;
         if (iframe) {
             const doc = iframe.contentDocument;
             if (doc) {
                 doc.open();
                 let content = initialHtml || '';
+                // Ensure wrapper for full height bg
                 if (!content.toLowerCase().includes('<html')) {
                      content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><script src="https://cdn.tailwindcss.com"></script><style>html, body { min-height: 100vh; margin: 0; background: white; }</style></head><body>${content}</body></html>`;
                 }
-                content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
+                // Inject script if not present
+                if (!content.includes('window.visualEditorScale')) {
+                     content = content.toLowerCase().includes('</body>') ? content.replace(/<\/body>/i, `${EDITOR_SCRIPT}</body>`) : content + EDITOR_SCRIPT;
+                }
                 doc.write(content);
                 doc.close();
             }
         }
     }, [initialHtml]);
 
+    // Initialize scale to fit screen
+    useEffect(() => {
+        if (containerRef.current) {
+            const { clientWidth, clientHeight } = containerRef.current;
+            // Target 1600x900
+            const scaleX = (clientWidth - 80) / 1600; // -80 for padding
+            const scaleY = (clientHeight - 80) / 900;
+            const initialScale = Math.min(scaleX, scaleY, 1);
+            if (onScaleChange) onScaleChange(Math.max(0.1, initialScale));
+        }
+    }, []); // Run once on mount
+
     // Handle Messages from Iframe
     useEffect(() => {
         const handler = (e: MessageEvent) => {
-            if (e.data.type === 'SELECTED') setSelectedElement(e.data);
-            else if (e.data.type === 'DESELECT') setSelectedElement(null);
+            if (e.data.type === 'SELECTED') {
+                setSelectedElement(e.data);
+                if (onSelectionChange) onSelectionChange(e.data);
+            }
+            else if (e.data.type === 'DESELECT') {
+                setSelectedElement(null);
+                if (onSelectionChange) onSelectionChange(null);
+            }
             else if (e.data.type === 'HISTORY_UPDATE') {
                 isInternalUpdate.current = true;
                 let cleanHtml = e.data.html.replace(EDITOR_SCRIPT.trim(), '');
-                setHtmlContent(cleanHtml);
+                // notify parent to update its history without triggering a re-render cycle back to child immediately
                 onSave(cleanHtml);
             }
         };
         window.addEventListener('message', handler);
         return () => window.removeEventListener('message', handler);
-    }, [onSave, setHtmlContent]);
+    }, [onSave, onSelectionChange]);
 
     // Update Scale inside iframe
     useEffect(() => {
@@ -725,19 +691,19 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
 
     // --- Zoom Interaction ---
     const handleWheel = useCallback((e: React.WheelEvent) => {
-        if (e.altKey) {
+        if (e.altKey && onScaleChange) {
             e.preventDefault();
             const delta = -e.deltaY * 0.001; // Scale factor
             const newScale = Math.min(Math.max(0.1, scale + delta), 3);
-            setScale(newScale);
+            onScaleChange(newScale);
         }
-    }, [scale]);
+    }, [scale, onScaleChange]);
 
     const sendCommand = (action: string, value?: any) => {
         if (iframeRef.current?.contentWindow) iframeRef.current.contentWindow.postMessage({ action, value }, '*');
     };
-
-    // --- Actions Handlers ---
+    
+    // --- Actions Handlers Wrappers for Property Panel ---
     const handleUpdateStyle = (key: string, value: string | number) => {
         sendCommand('UPDATE_STYLE', { [key]: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
@@ -752,191 +718,41 @@ export const VisualEditor: React.FC<VisualEditorProps> = ({ initialHtml, onSave,
         sendCommand('UPDATE_ATTRIBUTE', { key, val: value });
         setSelectedElement((prev: any) => ({ ...prev, [key]: value }));
     };
-    
-    const handleInsertImage = () => {
-        const url = prompt("请输入图片 URL:");
-        if (url) {
-            sendCommand('INSERT_ELEMENT', { type: 'img', src: url });
-        }
-    };
-
-    const handleInsertUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    sendCommand('INSERT_ELEMENT', { type: 'img', src: event.target.result as string });
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-
-    const handleImageChange = () => {
-        const currentSrc = selectedElement?.src || "";
-        const url = prompt("请输入新图片 URL:", currentSrc);
-        if (url !== null) {
-            handleUpdateAttribute('src', url);
-        }
-    };
-
-    // --- Toolbar Components ---
-    const isText = selectedElement && (['P','SPAN','H1','H2','H3','H4','H5','H6','DIV'].includes(selectedElement.tagName)) && !selectedElement.hasImgChild;
-    const isImg = selectedElement && (selectedElement.tagName === 'IMG' || (selectedElement.tagName === 'DIV' && selectedElement.hasImgChild));
-    
-    const isBold = selectedElement && (selectedElement.fontWeight === 'bold' || parseInt(selectedElement.fontWeight) >= 700);
-    const isItalic = selectedElement && selectedElement.fontStyle === 'italic';
-    const align = selectedElement?.textAlign || 'left';
-
-    const Toolbar = () => (
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-            {selectedElement ? (
-                <>
-                    {/* Typography */}
-                    {isText && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <div className="flex items-center bg-white border border-slate-200 rounded px-1">
-                                <input 
-                                    type="number" 
-                                    value={parseInt(selectedElement.fontSize)||16} 
-                                    onChange={(e) => handleUpdateStyle('fontSize', `${e.target.value}px`)}
-                                    className="w-8 text-xs outline-none text-center py-1"
-                                />
-                                <span className="text-[10px] text-slate-400 mr-1">px</span>
-                            </div>
-                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                            <button onClick={() => handleUpdateStyle('fontWeight', isBold ? 'normal' : 'bold')} className={`p-1.5 rounded hover:bg-white ${isBold ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><BoldIcon className="w-3.5 h-3.5"/></button>
-                            <button onClick={() => handleUpdateStyle('fontStyle', isItalic ? 'normal' : 'italic')} className={`p-1.5 rounded hover:bg-white ${isItalic ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ItalicIcon className="w-3.5 h-3.5"/></button>
-                            <div className="flex gap-0.5 border border-slate-200 rounded bg-white ml-1">
-                                <button onClick={() => handleUpdateStyle('textAlign', 'left')} className={`p-1 hover:text-indigo-600 ${align === 'left' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignLeftIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'center')} className={`p-1 hover:text-indigo-600 ${align === 'center' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignCenterIcon className="w-3.5 h-3.5"/></button>
-                                <button onClick={() => handleUpdateStyle('textAlign', 'right')} className={`p-1 hover:text-indigo-600 ${align === 'right' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}><AlignRightIcon className="w-3.5 h-3.5"/></button>
-                            </div>
-                             <div className="relative w-6 h-6 ml-1 cursor-pointer border border-slate-200 rounded overflow-hidden" title="文字颜色">
-                                 <div className="absolute inset-0" style={{backgroundColor: selectedElement.color || '#000'}}></div>
-                                 <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('color', e.target.value)} />
-                             </div>
-                        </div>
-                    )}
-                    
-                    {/* Image */}
-                    {isImg && (
-                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                             <button onClick={handleImageChange} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium hover:text-indigo-600 text-slate-600 shadow-sm">
-                                <RefreshIcon className="w-3 h-3"/> 换图
-                             </button>
-                        </div>
-                    )}
-
-                    {/* Colors & Layout */}
-                    <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                         <div className="relative w-6 h-6 cursor-pointer border border-slate-200 rounded overflow-hidden" title="背景颜色">
-                             <div className="absolute inset-0" style={{backgroundColor: selectedElement.backgroundColor || 'transparent'}}></div>
-                             <input type="color" className="opacity-0 w-full h-full cursor-pointer" onChange={(e) => handleUpdateStyle('backgroundColor', e.target.value)} />
-                         </div>
-                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => sendCommand('LAYER', 'up')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="上移一层"><LayerIcon className="w-3.5 h-3.5 rotate-180"/></button>
-                         <button onClick={() => sendCommand('LAYER', 'down')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="下移一层"><LayerIcon className="w-3.5 h-3.5"/></button>
-                         <div className="w-px h-4 bg-slate-200 mx-1"></div>
-                         <button onClick={() => sendCommand('DUPLICATE')} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded" title="复制"><DuplicateIcon className="w-3.5 h-3.5"/></button>
-                         <button onClick={() => { sendCommand('DELETE'); setSelectedElement(null); }} className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-white rounded" title="删除"><TrashIcon className="w-3.5 h-3.5"/></button>
-                    </div>
-
-                    {/* Transform Nudge */}
-                    <div className="flex items-center gap-0.5 bg-slate-50 p-1 rounded-lg border border-slate-200 ml-1">
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: -10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3 rotate-180"/></button>
-                        <div className="flex flex-col gap-0.5">
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: -10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 -rotate-90"/></button>
-                             <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 0, dy: 10 })} className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-2.5 h-2.5 rotate-90"/></button>
-                        </div>
-                        <button onClick={() => sendCommand('UPDATE_TRANSFORM', { dx: 10, dy: 0 })} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-white rounded"><ArrowIcon className="w-3 h-3"/></button>
-                    </div>
-                </>
-            ) : (
-                /* No Selection - Insert Tools */
-                <div className="flex items-center gap-2">
-                     <span className="text-xs font-bold text-slate-400 mr-2">插入:</span>
-                     <div className="relative group">
-                         <button className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors shadow-sm">
-                             <PhotoIcon className="w-3.5 h-3.5"/> 图片
-                         </button>
-                         <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-lg shadow-xl border border-slate-100 p-1 hidden group-hover:block z-50">
-                             <button onClick={handleInsertImage} className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2"><LinkIcon className="w-3 h-3"/> 网络图片</button>
-                             <label className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 rounded text-slate-600 flex gap-2 cursor-pointer">
-                                 <PhotoIcon className="w-3 h-3"/> 本地上传
-                                 <input 
-                                     ref={fileInputRef}
-                                     type="file" 
-                                     accept="image/*" 
-                                     onChange={handleInsertUpload} 
-                                     className="hidden" 
-                                 />
-                             </label>
-                         </div>
-                     </div>
-                </div>
-            )}
-        </div>
-    );
 
     return (
-        <div className="flex flex-col w-full h-full bg-slate-100 rounded-sm overflow-hidden relative">
-             {/* Toolbar */}
-             <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 justify-between z-10 shadow-sm shrink-0">
-                <div className="flex items-center gap-2">
-                    <div className="flex bg-slate-100 p-1 rounded-lg mr-2">
-                        <button onClick={undo} disabled={!canUndo} className="p-1.5 hover:bg-white rounded text-slate-500 disabled:opacity-30 transition-all shadow-none hover:shadow-sm" title="撤销 (Ctrl+Z)"><UndoIcon className="w-4 h-4" /></button>
-                        <button onClick={redo} disabled={!canRedo} className="p-1.5 hover:bg-white rounded text-slate-500 disabled:opacity-30 transition-all shadow-none hover:shadow-sm" title="重做 (Ctrl+Y)"><RedoIcon className="w-4 h-4" /></button>
-                    </div>
-                    <div className="h-4 w-px bg-slate-200 mx-1"></div>
-                    
-                    {/* Integrated Tools */}
-                    <Toolbar />
-                </div>
-                
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
-                        Zoom: {Math.round(scale * 100)}%
-                    </span>
-                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                        <button onClick={() => setScale(s => Math.max(0.1, s - 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">-</button>
-                        <button onClick={() => setScale(s => Math.min(3, s + 0.1))} className="p-1 text-slate-500 font-bold hover:bg-white rounded text-xs">+</button>
-                    </div>
-                </div>
-             </div>
-
-             <div className="flex-1 relative overflow-hidden flex">
-                {/* Canvas Area */}
-                <div 
-                    className="flex-1 flex items-center justify-center bg-slate-200 relative overflow-hidden"
-                    onWheel={handleWheel}
+        <div className="flex w-full h-full bg-slate-200 overflow-hidden relative">
+            {/* Scrollable Canvas Wrapper */}
+            <div 
+                ref={containerRef}
+                className="flex-1 relative overflow-auto flex items-center justify-center p-10"
+                onWheel={handleWheel}
+            >
+                 <div 
+                    style={{ 
+                        width: '1600px', height: '900px', 
+                        transform: `scale(${scale})`, 
+                        transformOrigin: 'center center',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                        transition: 'transform 0.1s ease-out'
+                    }}
+                    className="bg-white flex-shrink-0"
                 >
-                    <div 
-                        style={{ 
-                            width: '1600px', height: '900px', 
-                            transform: `scale(${scale})`, 
-                            transformOrigin: 'center center',
-                            boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
-                            transition: 'transform 0.1s ease-out'
-                        }}
-                        className="bg-white flex-shrink-0"
-                    >
-                        <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
-                    </div>
+                    <iframe ref={iframeRef} className="w-full h-full border-none bg-white" title="Visual Editor" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
                 </div>
+            </div>
 
-                {/* Right Properties Panel */}
+            {/* Right Properties Panel */}
+            {selectedElement && (
                 <PropertiesPanel 
                     element={selectedElement}
                     onUpdateStyle={handleUpdateStyle}
                     onUpdateContent={handleUpdateContent}
                     onUpdateAttribute={handleUpdateAttribute}
-                    onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); }}
-                    onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); }}
+                    onDelete={() => { sendCommand('DELETE'); setSelectedElement(null); if(onSelectionChange) onSelectionChange(null); }}
+                    onClose={() => { sendCommand('DESELECT_FORCE'); setSelectedElement(null); if(onSelectionChange) onSelectionChange(null); }}
                 />
-             </div>
+            )}
         </div>
     );
-};
+});
+VisualEditor.displayName = 'VisualEditor';
