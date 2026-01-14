@@ -3,8 +3,8 @@ import { USER_SERVICE_PATH } from '../config';
 import { 
     PaginatedResponse, UserListItem, UserForAdminUpdate, UserProfileDetails, 
     PlanDetails, ApiPoi, SystemSource, QuotaItem, WalletBalance, RechargeResponse,
-    PaymentStatusResponse, QuotaConfig, BillItem, BillStats, UserBillSummary, ModelPricing,
-    WalletTransaction, AdminTransaction, PaymentOrder // Imported new types
+    PaymentStatusResponse, QuotaConfig, ModelPricing,
+    AdminTransaction, PaymentOrder 
 } from '../types';
 import { apiFetch, createApiQuery } from './helper';
 
@@ -74,62 +74,45 @@ export const deleteUserSourceSubscription = (sourceId: string): Promise<void> =>
 
 /**
  * 获取我的个人权益额度 (Used/Limit)
- * 注意：由于后端 API 变更，/usage/quota 可能现在只返回余额信息对象，不再返回数组。
- * 此处做兼容处理。
  */
 export const getMyQuotaUsage = async (): Promise<QuotaItem[]> => {
     try {
         const res = await apiFetch<any>(`${USER_SERVICE_PATH}/usage/quota`);
         if (Array.isArray(res)) return res;
-        // 如果返回的是对象且包含 quotas 数组，则返回 quotas
         if (res && res.quotas && Array.isArray(res.quotas)) return res.quotas;
-        // 否则返回空数组，避免前端崩溃
         return [];
     } catch (e) {
         return [];
     }
 };
 
-/**
- * 获取我的个人 AI 使用历史记录 (消费流水)
- * 兼容旧接口，建议迁移至 getWalletTransactions
- */
 export const getPersonalUsageHistory = (params: any = {}): Promise<any[]> => {
     const query = createApiQuery(params);
     return apiFetch<any[]>(`${USER_SERVICE_PATH}/usage/my${query}`);
 };
 
 /**
- * 获取钱包流水 (新接口)
- * 对接文档 5.2 节 /api/user/wallet/transactions
+ * 获取钱包流水 (个人)
  */
 export const getWalletTransactions = (params: any = {}): Promise<{
     total: number;
     page: number;
     limit: number;
     totalPages: number;
-    items: WalletTransaction[];
+    items: AdminTransaction[]; // Reuse AdminTransaction structure for simplicity as they are similar
 }> => {
     const query = createApiQuery(params);
-    return apiFetch<{
-        total: number;
-        page: number;
-        limit: number;
-        totalPages: number;
-        items: WalletTransaction[];
-    }>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
+    return apiFetch<any>(`${USER_SERVICE_PATH}/wallet/transactions${query}`);
 };
 
 /**
  * 获取钱包余额
- * 更新：使用 /api/user/usage/quota 接口，该接口现在返回 { balance, plan_name, remaining_balance }
  */
 export const getWalletBalance = (): Promise<WalletBalance> => 
     apiFetch<WalletBalance>(`${USER_SERVICE_PATH}/usage/quota`);
 
 /**
  * 获取我的总消费统计
- * 对接文档 2.4 节 /api/user/usage/stats
  */
 export const getUserUsageStats = (): Promise<any> => 
     apiFetch(`${USER_SERVICE_PATH}/usage/stats`);
@@ -160,6 +143,7 @@ export const deleteQuotaConfig = (id: string): Promise<void> =>
 
 /**
  * Admin Get All Transactions (Detailed)
+ * /api/user/admin/transactions
  */
 export const getAdminTransactions = async (params: any): Promise<PaginatedResponse<AdminTransaction>> => {
     const apiParams = { ...params };
@@ -173,15 +157,14 @@ export const getAdminTransactions = async (params: any): Promise<PaginatedRespon
         items: response.items || [],
         total: response.total || 0,
         page: response.page || 1,
-        // 兼容 limit (API Doc) 和 size (Old Code)
         limit: response.limit || response.size || 20,
-        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
         totalPages: response.totalPages || response.total_pages || 1
     };
 };
 
 /**
  * Admin Get All Orders
+ * /api/user/admin/orders
  */
 export const getAdminOrders = async (params: any): Promise<PaginatedResponse<PaymentOrder>> => {
     const apiParams = { ...params };
@@ -191,47 +174,6 @@ export const getAdminOrders = async (params: any): Promise<PaginatedResponse<Pay
     }
     const query = createApiQuery(apiParams);
     const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/orders${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        // 兼容 limit (API Doc) 和 size (Old Code)
-        limit: response.limit || response.size || 20,
-        // 兼容 totalPages (API Doc) 和 total_pages (Old Code)
-        totalPages: response.totalPages || response.total_pages || 1
-    };
-};
-
-export const getAdminBills = async (params: any): Promise<PaginatedResponse<BillItem>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills${query}`);
-    return {
-        items: response.items || [],
-        total: response.total || 0,
-        page: response.page || 1,
-        limit: response.limit || response.size || 20,
-        totalPages: response.totalPages || response.total_pages || 1
-    };
-};
-
-export const getAdminBillStats = (params: any): Promise<BillStats> => {
-    const query = createApiQuery(params);
-    return apiFetch<BillStats>(`${USER_SERVICE_PATH}/admin/bills/stats${query}`);
-};
-
-export const getAdminUserBillSummary = async (params: any): Promise<PaginatedResponse<UserBillSummary>> => {
-    const apiParams = { ...params };
-    if (apiParams.limit) {
-        apiParams.size = apiParams.limit;
-        delete apiParams.limit;
-    }
-    const query = createApiQuery(apiParams);
-    const response = await apiFetch<any>(`${USER_SERVICE_PATH}/admin/bills/users/summary${query}`);
     return {
         items: response.items || [],
         total: response.total || 0,
