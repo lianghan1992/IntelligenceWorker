@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TechItem } from './index';
 import { ArticlePublic } from '../../../../types';
 import { 
@@ -130,12 +130,42 @@ const MOCK_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// URL Cleaner Helper
+const cleanUrl = (url?: string) => {
+    if (!url) return '';
+    let clean = url.trim();
+    // Handle Markdown link [text](url)
+    const mdMatch = clean.match(/\[.*?\]\((.*?)\)/);
+    if (mdMatch) {
+        clean = mdMatch[1];
+    } else {
+        // Handle bare markdown url like <url> or just cleaning brackets if any (though regex above is robust)
+        clean = clean.replace(/[<>\[\]\(\)]/g, '');
+    }
+    
+    // Ensure protocol for href (but keep display text clean if needed)
+    if (clean && !clean.startsWith('http') && !clean.startsWith('//')) {
+        return 'https://' + clean;
+    }
+    return clean;
+};
+
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, techList, setTechList, onBack, isExtracting }) => {
     const [activeTechId, setActiveTechId] = useState<string | null>(null);
     const [markdownInput, setMarkdownInput] = useState('');
     const [logs, setLogs] = useState<string[]>([]);
     
     const activeItem = techList.find(t => t.id === activeTechId);
+
+    // Auto-select first item when list populates
+    useEffect(() => {
+        if (techList.length > 0) {
+            const exists = techList.find(t => t.id === activeTechId);
+            if (!activeTechId || !exists) {
+                setActiveTechId(techList[0].id);
+            }
+        }
+    }, [techList, activeTechId]);
 
     // Mock Process: Start Analysis -> Logs -> Markdown
     const startAnalysis = (id: string) => {
@@ -241,16 +271,6 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                     <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]">{item.field}</span>
                                 </div>
 
-                                {/* Status Section (Rich Text) */}
-                                <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
-                                    <div className="text-[10px] font-bold text-blue-600 mb-1 flex items-center gap-1">
-                                        <TrendingUpIcon className="w-3 h-3"/> 行业应用现状
-                                    </div>
-                                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
-                                        {item.status || "正在检索行业应用数据..."}
-                                    </p>
-                                </div>
-
                                 <div className="text-xs text-slate-500 mb-2 line-clamp-2 leading-relaxed" title={item.description}>
                                     {item.description}
                                 </div>
@@ -258,7 +278,7 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                 <div className="flex items-center justify-between border-t border-slate-100 pt-2 mt-1">
                                      {item.original_url ? (
                                         <a 
-                                            href={item.original_url} 
+                                            href={cleanUrl(item.original_url)} 
                                             target="_blank" 
                                             rel="noopener noreferrer" 
                                             className="text-[10px] text-blue-500 hover:text-blue-700 flex items-center gap-1 hover:underline"
@@ -308,7 +328,15 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                 </div>
 
                                 <div className="space-y-6">
-                                    {/* Industry Status Section - Enhanced */}
+                                    {/* 1. Description */}
+                                    <div>
+                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">技术描述</h4>
+                                        <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            {activeItem.description}
+                                        </p>
+                                    </div>
+
+                                    {/* 2. Industry Status Section - Enhanced */}
                                     <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
                                         <h4 className="text-sm font-bold text-blue-700 uppercase tracking-widest mb-3 flex items-center gap-2">
                                             <TrendingUpIcon className="w-4 h-4"/> 行业应用现状 (基于 RAG 检索)
@@ -318,24 +346,18 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({ articles, 
                                         </p>
                                     </div>
 
-                                    <div>
-                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">技术描述</h4>
-                                        <p className="text-sm text-slate-700 leading-loose bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                            {activeItem.description}
-                                        </p>
-                                    </div>
-
+                                    {/* 3. Source Info */}
                                     {activeItem.original_url && (
                                         <div>
                                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">来源信息</h4>
                                             <a 
-                                                href={activeItem.original_url} 
+                                                href={cleanUrl(activeItem.original_url)} 
                                                 target="_blank" 
                                                 rel="noopener noreferrer" 
-                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit"
+                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline bg-blue-50 p-3 rounded-lg border border-blue-100 w-fit max-w-full truncate"
                                             >
-                                                <ExternalLinkIcon className="w-4 h-4" />
-                                                {activeItem.original_url}
+                                                <ExternalLinkIcon className="w-4 h-4 flex-shrink-0" />
+                                                <span className="truncate">{cleanUrl(activeItem.original_url)}</span>
                                             </a>
                                         </div>
                                     )}
